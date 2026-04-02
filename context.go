@@ -1,0 +1,84 @@
+package ninja
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
+
+// Context wraps *gin.Context and is passed to every handler function.
+// It gives handlers access to the underlying gin context while remaining
+// compatible with the standard library context.Context interface.
+type Context struct {
+	*gin.Context
+}
+
+// newContext wraps a gin.Context.
+func newContext(c *gin.Context) *Context {
+	return &Context{Context: c}
+}
+
+// Deadline implements context.Context.
+func (c *Context) Deadline() (deadline interface{}, ok bool) {
+	return c.Request.Context().Deadline()
+}
+
+// Done implements context.Context.
+func (c *Context) Done() <-chan struct{} {
+	return c.Request.Context().Done()
+}
+
+// Err implements context.Context.
+func (c *Context) Err() error {
+	return c.Request.Context().Err()
+}
+
+// Value implements context.Context.  Keys set via gin Set/Get are checked
+// first; if not found, the request context is consulted.
+func (c *Context) Value(key interface{}) interface{} {
+	if k, ok := key.(string); ok {
+		if v, exists := c.Get(k); exists {
+			return v
+		}
+	}
+	return c.Request.Context().Value(key)
+}
+
+// StdContext returns the standard library context from the request.
+func (c *Context) StdContext() context.Context {
+	return c.Request.Context()
+}
+
+// JSON200 is a convenience method to respond with 200 OK and a JSON body.
+func (c *Context) JSON200(obj interface{}) {
+	c.JSON(http.StatusOK, obj)
+}
+
+// JSON201 is a convenience method to respond with 201 Created and a JSON body.
+func (c *Context) JSON201(obj interface{}) {
+	c.JSON(http.StatusCreated, obj)
+}
+
+// JSON204 is a convenience method to respond with 204 No Content.
+func (c *Context) JSON204() {
+	c.Status(http.StatusNoContent)
+}
+
+// Forbidden aborts the request with 403 Forbidden.
+func (c *Context) Forbidden(message string) {
+	c.AbortWithStatusJSON(http.StatusForbidden, errorResponse{Error: &Error{
+		Status:  http.StatusForbidden,
+		Code:    "FORBIDDEN",
+		Message: message,
+	}})
+}
+
+// Unauthorized aborts the request with 401 Unauthorized.
+func (c *Context) Unauthorized(message string) {
+	c.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse{Error: &Error{
+		Status:  http.StatusUnauthorized,
+		Code:    "UNAUTHORIZED",
+		Message: message,
+	}})
+}
