@@ -1,13 +1,12 @@
-// Package main demonstrates a complete gin-ninja application backed by SQLite.
+// Package main demonstrates a minimal gin-ninja application.
 //
 // Run:
 //
 //	go run ./examples/basic
 //
 // Then visit:
-//   - http://localhost:8080/docs           – Swagger UI
-//   - http://localhost:8080/openapi.json   – raw OpenAPI spec
-//   - http://localhost:8080/api/v1/users   – list users
+//   - http://localhost:8080/docs
+//   - http://localhost:8080/openapi.json
 package main
 
 import (
@@ -17,6 +16,7 @@ import (
 
 	ginpkg "github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/go-toolkits/gormx"
@@ -25,22 +25,20 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Domain model
+// Model
 // ---------------------------------------------------------------------------
 
-// User is the GORM model.
 type User struct {
 	gorm.Model
-	Name  string `gorm:"column:name;not null"  json:"name"`
-	Email string `gorm:"column:email;uniqueIndex;not null" json:"email"`
-	Age   int    `gorm:"column:age"            json:"age"`
+	Name  string `gorm:"column:name;not null"               json:"name"`
+	Email string `gorm:"column:email;uniqueIndex;not null"   json:"email"`
+	Age   int    `gorm:"column:age"                         json:"age"`
 }
 
 // ---------------------------------------------------------------------------
-// Schemas (request / response)
+// Schemas
 // ---------------------------------------------------------------------------
 
-// UserOut is the public representation of a user returned by the API.
 type UserOut struct {
 	ID    uint   `json:"id"`
 	Name  string `json:"name"`
@@ -48,49 +46,34 @@ type UserOut struct {
 	Age   int    `json:"age"`
 }
 
-// ListUsersInput holds query parameters for listing users.
 type ListUsersInput struct {
 	pagination.PageInput
-	Search string `form:"search" description:"Filter users by name"`
+	Search string `form:"search"`
 }
 
-// GetUserInput holds the path parameter for retrieving a single user.
-type GetUserInput struct {
-	UserID uint `path:"id" binding:"required"`
-}
+type GetUserInput struct{ UserID uint `path:"id" binding:"required"` }
 
-// CreateUserInput is the request body for creating a user.
 type CreateUserInput struct {
-	Name  string `json:"name"  binding:"required"       description:"Full name"`
-	Email string `json:"email" binding:"required,email" description:"Email address"`
+	Name  string `json:"name"  binding:"required"`
+	Email string `json:"email" binding:"required,email"`
 	Age   int    `json:"age"   binding:"omitempty,min=0,max=150"`
 }
 
-// UpdateUserInput combines a path param with a JSON body.
 type UpdateUserInput struct {
-	UserID uint `path:"id" binding:"required"`
-
-	Name  string `json:"name"  binding:"omitempty"`
-	Email string `json:"email" binding:"omitempty,email"`
-	Age   int    `json:"age"   binding:"omitempty,min=0,max=150"`
+	UserID uint   `path:"id" binding:"required"`
+	Name   string `json:"name"  binding:"omitempty"`
+	Email  string `json:"email" binding:"omitempty,email"`
+	Age    int    `json:"age"   binding:"omitempty,min=0,max=150"`
 }
 
-// DeleteUserInput holds the path parameter for deleting a user.
-type DeleteUserInput struct {
-	UserID uint `path:"id" binding:"required"`
-}
+type DeleteUserInput struct{ UserID uint `path:"id" binding:"required"` }
 
 // ---------------------------------------------------------------------------
 // Repository
 // ---------------------------------------------------------------------------
 
-type IUserRepo interface {
-	gormx.IBaseRepo[User]
-}
-
-type userRepo struct {
-	gormx.BaseRepo[User]
-}
+type IUserRepo interface{ gormx.IBaseRepo[User] }
+type userRepo struct{ gormx.BaseRepo[User] }
 
 func newUserRepo() IUserRepo { return &userRepo{} }
 
@@ -98,97 +81,75 @@ func newUserRepo() IUserRepo { return &userRepo{} }
 // Handlers
 // ---------------------------------------------------------------------------
 
-func toUserOut(u User) UserOut {
-	return UserOut{ID: u.ID, Name: u.Name, Email: u.Email, Age: u.Age}
-}
+func toOut(u User) UserOut { return UserOut{u.ID, u.Name, u.Email, u.Age} }
 
-func listUsers(ctx *ninja.Context, input *ListUsersInput) (*pagination.Page[UserOut], error) {
-	repo := newUserRepo()
-
-	query, u := gormx.NewQuery[User]()
-	if input.Search != "" {
-		query.Like(&u.Name, "%"+input.Search+"%")
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+	r := newUserRepo()
+	q, u := gormx.NewQuery[User]()
+	cq, cu := gormx.NewQuery[User]()
+	if in.Search != "" {
+		q.Like(&u.Name, "%"+in.Search+"%")
+		cq.Like(&cu.Name, "%"+in.Search+"%")
 	}
-	query.Limit(input.GetSize()).Offset(input.Offset())
-
-	items, err := repo.SelectListByOpts(query.ToOptions()...)
-	if err != nil {
-		return nil, err
-	}
-
-	countQuery, cu := gormx.NewQuery[User]()
-	if input.Search != "" {
-		countQuery.Like(&cu.Name, "%"+input.Search+"%")
-	}
-	total, err := repo.SelectCount(countQuery.ToOptions()...)
-	if err != nil {
-		return nil, err
-	}
-
+	q.Limit(in.GetSize()).Offset(in.Offset())
+	items, _ := r.SelectListByOpts(q.ToOptions()...)
+	total, _ := r.SelectCount(cq.ToOptions()...)
 	out := make([]UserOut, len(items))
-	for i, u := range items {
-		out[i] = toUserOut(u)
+	for i, v := range items {
+		out[i] = toOut(v)
 	}
-	return pagination.NewPage(out, total, input.PageInput), nil
+	return pagination.NewPage(out, total, in.PageInput), nil
 }
 
-func getUser(ctx *ninja.Context, input *GetUserInput) (*UserOut, error) {
-	repo := newUserRepo()
-	u, err := repo.SelectOneById(int(input.UserID))
+func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
+	u, err := newUserRepo().SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.ErrNotFound
 		}
 		return nil, err
 	}
-	out := toUserOut(u)
+	out := toOut(u)
 	return &out, nil
 }
 
-func createUser(ctx *ninja.Context, input *CreateUserInput) (*UserOut, error) {
-	u := &User{Name: input.Name, Email: input.Email, Age: input.Age}
-	repo := newUserRepo()
-	if err := repo.Insert(u); err != nil {
+func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
+	u := &User{Name: in.Name, Email: in.Email, Age: in.Age}
+	if err := newUserRepo().Insert(u); err != nil {
 		return nil, err
 	}
-	out := toUserOut(*u)
+	out := toOut(*u)
 	return &out, nil
 }
 
-func updateUser(ctx *ninja.Context, input *UpdateUserInput) (*UserOut, error) {
-	repo := newUserRepo()
-	u, err := repo.SelectOneById(int(input.UserID))
-	if err != nil {
+func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
+	r := newUserRepo()
+	if _, err := r.SelectOneById(int(in.UserID)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.ErrNotFound
 		}
 		return nil, err
 	}
-
-	updates := map[string]interface{}{}
-	if input.Name != "" {
-		updates["name"] = input.Name
+	upd := map[string]interface{}{}
+	if in.Name != "" {
+		upd["name"] = in.Name
 	}
-	if input.Email != "" {
-		updates["email"] = input.Email
+	if in.Email != "" {
+		upd["email"] = in.Email
 	}
-	if input.Age != 0 {
-		updates["age"] = input.Age
+	if in.Age != 0 {
+		upd["age"] = in.Age
 	}
-	if err := repo.UpdateById(int(u.ID), updates); err != nil {
-		return nil, err
+	if len(upd) > 0 {
+		r.UpdateById(int(in.UserID), upd) //nolint:errcheck
 	}
-	u, _ = repo.SelectOneById(int(u.ID))
-	out := toUserOut(u)
+	u, _ := r.SelectOneById(int(in.UserID))
+	out := toOut(u)
 	return &out, nil
 }
 
-func deleteUser(ctx *ninja.Context, input *DeleteUserInput) error {
-	repo := newUserRepo()
-	if err := repo.DeleteById(int(input.UserID)); err != nil {
-		return err
-	}
-	return nil
+func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
+	return newUserRepo().DeleteById(int(in.UserID))
 }
 
 // ---------------------------------------------------------------------------
@@ -196,59 +157,39 @@ func deleteUser(ctx *ninja.Context, input *DeleteUserInput) error {
 // ---------------------------------------------------------------------------
 
 func main() {
-	// Open SQLite database.
 	db, err := gorm.Open(gormdriver.Open("users.db"), &gorm.Config{})
 	if err != nil {
-		log.Fatal("failed to connect database:", err)
+		log.Fatal("db:", err)
 	}
-	if err := db.AutoMigrate(&User{}); err != nil {
-		log.Fatal("auto migrate failed:", err)
-	}
-
-	// Initialise the global gormx DB.
+	db.AutoMigrate(&User{}) //nolint:errcheck
 	orm.Init(db)
 
-	// Build the API.
 	api := ninja.New(ninja.Config{
-		Title:       "Gin Ninja Example",
-		Version:     "1.0.0",
-		Description: "A sample API built with gin-ninja",
-		Prefix:      "/api/v1",
+		Title:             "Gin Ninja Basic Example",
+		Version:           "1.0.0",
+		Prefix:            "/api/v1",
+		DisableGinDefault: true,
 	})
 
-	// Attach ORM middleware so handlers can call orm.GetDB(ctx).
-	api.Engine().Use(orm.Middleware(db))
-
-	// Create the users router.
-	usersRouter := ninja.NewRouter("/users", ninja.WithTags("Users"))
-
-	ninja.Get(usersRouter, "/", listUsers,
-		ninja.Summary("List users"),
-		ninja.Description("Returns a paginated list of users"),
-	)
-	ninja.Get(usersRouter, "/:id", getUser,
-		ninja.Summary("Get user"),
-	)
-	ninja.Post(usersRouter, "/", createUser,
-		ninja.Summary("Create user"),
-	)
-	ninja.Put(usersRouter, "/:id", updateUser,
-		ninja.Summary("Update user"),
-	)
-	ninja.Delete(usersRouter, "/:id", deleteUser,
-		ninja.Summary("Delete user"),
+	// Attach infrastructure middleware.
+	api.UseGin(
+		middleware.RequestID(),
+		middleware.CORS(nil),
+		orm.Middleware(db),
 	)
 
-	api.AddRouter(usersRouter)
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+	ninja.Get(r, "/", listUsers, ninja.Summary("List users"))
+	ninja.Get(r, "/:id", getUser, ninja.Summary("Get user"))
+	ninja.Post(r, "/", createUser, ninja.Summary("Create user"))
+	ninja.Put(r, "/:id", updateUser, ninja.Summary("Update user"))
+	ninja.Delete(r, "/:id", deleteUser, ninja.Summary("Delete user"))
+	api.AddRouter(r)
 
-	// Health-check endpoint registered directly on the gin engine.
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
 		c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 	})
 
-	log.Println("Starting server on :8080")
 	log.Println("Docs: http://localhost:8080/docs")
-	if err := api.Run(":8080"); err != nil {
-		log.Fatal(err)
-	}
+	log.Fatal(api.Run(":8080"))
 }

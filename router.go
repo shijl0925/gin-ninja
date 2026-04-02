@@ -1,6 +1,10 @@
 package ninja
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+)
 
 // RouterOption is a functional option for configuring a Router.
 type RouterOption func(*Router)
@@ -15,11 +19,12 @@ func WithTags(tags ...string) RouterOption {
 // Router groups a set of API endpoints under a common URL prefix.
 // Routers can be nested arbitrarily.
 type Router struct {
-	prefix     string
-	tags       []string
-	operations []*operation
-	subrouters []*Router
-	middleware []func(*Context) error
+	prefix        string
+	tags          []string
+	operations    []*operation
+	subrouters    []*Router
+	middleware    []func(*Context) error
+	ginMiddleware []gin.HandlerFunc
 }
 
 // NewRouter creates a new Router with the given URL prefix and options.
@@ -39,10 +44,21 @@ func (r *Router) AddRouter(sub *Router) {
 	r.subrouters = append(r.subrouters, sub)
 }
 
-// Use adds a middleware function that runs before every handler on this router.
-// Returning a non-nil error aborts the request with an appropriate error response.
+// Use adds a typed middleware function that runs before every handler on this
+// router.  Returning a non-nil error aborts the request with an appropriate
+// error response.
 func (r *Router) Use(mw func(*Context) error) {
 	r.middleware = append(r.middleware, mw)
+}
+
+// UseGin adds one or more raw gin.HandlerFunc middleware to this router.
+// Use this to attach infrastructure middleware (JWT, CORS, rate limiting, etc.)
+// at the router level instead of the engine level.
+//
+//	r := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
+//	r.UseGin(middleware.JWTAuthWithSecret("secret"))
+func (r *Router) UseGin(mw ...gin.HandlerFunc) {
+	r.ginMiddleware = append(r.ginMiddleware, mw...)
 }
 
 // ---------------------------------------------------------------------------
@@ -107,3 +123,4 @@ func Delete[TIn any](r *Router, path string, handler func(*Context, *TIn) error,
 	}
 	r.operations = append(r.operations, op)
 }
+

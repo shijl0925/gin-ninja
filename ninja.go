@@ -21,6 +21,10 @@ type Config struct {
 	OpenAPIURL string
 	// Prefix is a global path prefix prepended to every route (default: "").
 	Prefix string
+	// DisableGinDefault disables the default gin Logger and Recovery middleware
+	// when set to true.  Set this to true when you provide your own middleware
+	// via UseGin (e.g. the structured logger from middleware.Logger).
+	DisableGinDefault bool
 }
 
 // NinjaAPI is the central API instance.  It wraps a *gin.Engine and
@@ -53,7 +57,12 @@ func New(config Config) *NinjaAPI {
 		config.OpenAPIURL = "/openapi.json"
 	}
 
-	engine := gin.Default()
+	var engine *gin.Engine
+	if config.DisableGinDefault {
+		engine = gin.New()
+	} else {
+		engine = gin.Default()
+	}
 
 	api := &NinjaAPI{
 		engine:  engine,
@@ -75,6 +84,19 @@ func (api *NinjaAPI) Engine() *gin.Engine {
 // httptest.NewServer or embedding in existing servers.
 func (api *NinjaAPI) Handler() http.Handler {
 	return api.engine
+}
+
+// UseGin registers one or more raw gin.HandlerFunc middleware on the
+// underlying engine.  This is the preferred way to attach infrastructure
+// middleware such as CORS, request-ID injection, structured logging, and
+// JWT authentication.
+//
+//	api.UseGin(middleware.RequestID())
+//	api.UseGin(middleware.CORS(nil))
+//	api.UseGin(middleware.Logger(log))
+//	api.UseGin(middleware.JWTAuth())
+func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
+	api.engine.Use(mw...)
 }
 
 // AddRouter mounts a Router under the API.
@@ -99,7 +121,12 @@ func (api *NinjaAPI) registerRouter(parentPrefix string, router *Router) {
 	prefix := parentPrefix + router.prefix
 	group := api.engine.Group(prefix)
 
-	// Convert middleware into gin.HandlerFunc.
+	// Attach raw gin middleware first.
+	if len(router.ginMiddleware) > 0 {
+		group.Use(router.ginMiddleware...)
+	}
+
+	// Convert typed ninja middleware into gin.HandlerFunc.
 	for _, mw := range router.middleware {
 		mw := mw // capture loop var
 		group.Use(func(c *gin.Context) {
@@ -145,3 +172,4 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 }
+

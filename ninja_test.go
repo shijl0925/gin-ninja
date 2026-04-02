@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/gin-gonic/gin"
+	ninja "github.com/shijl0925/gin-ninja"
 )
 
 func init() {
@@ -304,5 +304,61 @@ func TestOpenAPISpec_ContainsPaths(t *testing.T) {
 	}
 	if _, ok := paths["/users/"]; !ok {
 		t.Errorf("expected /users/ in paths, got: %v", paths)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// UseGin middleware
+// ---------------------------------------------------------------------------
+
+func TestUseGin_MiddlewareRuns(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	called := false
+	api.UseGin(func(c *gin.Context) {
+		called = true
+		c.Next()
+	})
+
+	r := ninja.NewRouter("/test")
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	doRequest(api, http.MethodGet, "/test/", nil)
+	if !called {
+		t.Error("expected UseGin middleware to be called")
+	}
+}
+
+func TestRouter_UseGin_MiddlewareRuns(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	called := false
+
+	r := ninja.NewRouter("/test")
+	r.UseGin(func(c *gin.Context) {
+		called = true
+		c.Next()
+	})
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	doRequest(api, http.MethodGet, "/test/", nil)
+	if !called {
+		t.Error("expected router UseGin middleware to be called")
+	}
+}
+
+func TestDisableGinDefault(t *testing.T) {
+	// Just verify that DisableGinDefault: true doesn't panic and the API works.
+	api := ninja.New(ninja.Config{
+		Title:             "No Default",
+		DisableGinDefault: true,
+	})
+	w := doRequest(api, http.MethodGet, "/docs", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }

@@ -7,6 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	requestIDContextKey = "X-Request-ID"
+	jwtClaimsKey        = "gin_ninja_jwt_claims"
+)
+
 // Context wraps *gin.Context and is passed to every handler function.
 // It gives handlers access to the underlying gin context while remaining
 // compatible with the standard library context.Context interface.
@@ -50,6 +55,34 @@ func (c *Context) StdContext() context.Context {
 	return c.Request.Context()
 }
 
+// RequestID returns the X-Request-ID value injected by the RequestID middleware.
+// Returns an empty string if the middleware was not registered.
+func (c *Context) RequestID() string {
+	id, _ := c.Get(requestIDContextKey)
+	if s, ok := id.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// GetUserID returns the authenticated user's ID from the JWT claims.
+// Returns 0 if the JWTAuth middleware was not registered or the token was invalid.
+func (c *Context) GetUserID() uint {
+	v, exists := c.Get(jwtClaimsKey)
+	if !exists {
+		return 0
+	}
+	// Claims is stored by the middleware package as *middleware.Claims which has
+	// a UserID field.  Use a minimal interface to avoid a circular import.
+	type claimsWithUserID interface {
+		GetUserID() uint
+	}
+	if cl, ok := v.(claimsWithUserID); ok {
+		return cl.GetUserID()
+	}
+	return 0
+}
+
 // JSON200 is a convenience method to respond with 200 OK and a JSON body.
 func (c *Context) JSON200(obj interface{}) {
 	c.JSON(http.StatusOK, obj)
@@ -82,3 +115,4 @@ func (c *Context) Unauthorized(message string) {
 		Message: message,
 	}})
 }
+

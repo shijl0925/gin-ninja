@@ -1,6 +1,6 @@
 # gin-ninja
 
-A **django-ninja**-inspired web framework built on top of [Gin](https://github.com/gin-gonic/gin) with automatic OpenAPI 3.0 documentation, type-safe request/response handling, and first-class [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) ORM integration.
+A **django-ninja**-inspired web framework built on top of [Gin](https://github.com/gin-gonic/gin) with automatic OpenAPI 3.0 documentation, type-safe request/response handling, production-ready middleware, and first-class [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) ORM integration.
 
 ## Features
 
@@ -9,10 +9,56 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
 - **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
 - **Swagger UI** – available at `/docs` out of the box.
-- **Router groups** – nest routers with shared prefixes and tags.
-- **Middleware** – per-router middleware that can abort requests with typed errors.
+- **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
+- **Gin middleware support** – `UseGin()` on both the API and individual routers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
+- **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, and panic recovery.
+- **Settings** – Viper-based YAML/env configuration management.
+- **Logger** – Zap-based structured logger with console/JSON output.
+- **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
+- **Bootstrap helpers** – one-call database and logger initialization.
+
+---
+
+## Package Structure
+
+```
+gin-ninja/
+├── ninja.go          ← NinjaAPI (core API instance)
+├── router.go         ← Router (route groups)
+├── operation.go      ← typed handler wrappers
+├── binding.go        ← parameter binding (path/query/header/body)
+├── context.go        ← Context (extends *gin.Context)
+├── errors.go         ← typed error types
+├── openapi.go        ← OpenAPI 3.0 spec generation + Swagger UI
+├── schema.go         ← JSON Schema generation
+│
+├── middleware/       ← production-ready HTTP middleware
+│   ├── cors.go       ← CORS (gin-contrib/cors)
+│   ├── jwt.go        ← JWT auth (golang-jwt/jwt)
+│   ├── logger.go     ← structured request logger (Zap)
+│   ├── recovery.go   ← panic recovery
+│   └── requestid.go  ← X-Request-ID injection
+│
+├── settings/         ← Viper-based configuration
+│   └── settings.go   ← Config, Load, MustLoad
+│
+├── pkg/
+│   ├── logger/       ← Zap logger setup
+│   │   └── logger.go
+│   └── response/     ← standard response envelope
+│       └── response.go
+│
+├── bootstrap/        ← application bootstrap helpers
+│   └── bootstrap.go  ← InitLogger, InitDB, MustInitDB
+│
+├── orm/              ← gormx integration
+│   └── orm.go        ← Init, Middleware, GetDB, WithContext
+│
+└── pagination/       ← pagination types
+    └── pagination.go ← PageInput, Page[T]
+```
 
 ---
 
@@ -33,9 +79,8 @@ import (
     "log"
 
     ninja "github.com/shijl0925/gin-ninja"
+    "github.com/shijl0925/gin-ninja/middleware"
 )
-
-// --- Schemas ---
 
 type HelloInput struct {
     Name string `form:"name" binding:"required"`
@@ -45,19 +90,21 @@ type HelloOutput struct {
     Message string `json:"message"`
 }
 
-// --- Handler ---
-
 func sayHello(ctx *ninja.Context, in *HelloInput) (*HelloOutput, error) {
     return &HelloOutput{Message: "Hello, " + in.Name + "!"}, nil
 }
 
-// --- Main ---
-
 func main() {
     api := ninja.New(ninja.Config{
-        Title:   "Hello API",
-        Version: "1.0.0",
+        Title:             "Hello API",
+        Version:           "1.0.0",
+        DisableGinDefault: true, // use custom middleware instead
     })
+
+    api.UseGin(
+        middleware.RequestID(),
+        middleware.CORS(nil),
+    )
 
     r := ninja.NewRouter("/hello", ninja.WithTags("Hello"))
     ninja.Get(r, "/", sayHello, ninja.Summary("Say hello"))
@@ -67,186 +114,155 @@ func main() {
 }
 ```
 
-Visit `http://localhost:8080/docs` for the Swagger UI, or `http://localhost:8080/openapi.json` for the raw spec.
+Visit `http://localhost:8080/docs` for the Swagger UI.
 
 ---
 
-## Parameter Binding
-
-Struct tags control where each field is sourced from:
-
-| Tag        | Source               | Methods            |
-|------------|----------------------|--------------------|
-| `path:"x"` | URL path parameter   | all                |
-| `form:"x"` | URL query string     | all                |
-| `header:"x"` | Request header     | all                |
-| `json:"x"` | JSON request body    | POST / PUT / PATCH |
-
-`binding:"..."` tags are validated via [go-playground/validator](https://github.com/go-playground/validator).
+## Configuration (settings)
 
 ```go
-// GET /users/:id?include_deleted=true
-type GetUserInput struct {
-    UserID         uint `path:"id"              binding:"required"`
-    IncludeDeleted bool `form:"include_deleted"`
-}
+import "github.com/shijl0925/gin-ninja/settings"
 
-// POST /users
-type CreateUserInput struct {
-    Name  string `json:"name"  binding:"required"`
-    Email string `json:"email" binding:"required,email"`
-    Age   int    `json:"age"   binding:"omitempty,min=0"`
-}
-
-// PUT /users/:id  (path param + JSON body)
-type UpdateUserInput struct {
-    UserID uint   `path:"id" binding:"required"`
-    Name   string `json:"name"`
-    Email  string `json:"email" binding:"omitempty,email"`
-}
+cfg := settings.MustLoad("config.yaml")
+// or
+cfg, err := settings.Load("config.yaml")
 ```
 
----
+Sample `config.yaml`:
 
-## Route Registration
+```yaml
+app:
+  name: "My API"
+  version: "1.0.0"
+  env: "production"
+  debug: false
 
-```go
-r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+server:
+  host: "0.0.0.0"
+  port: 8080
 
-ninja.Get(r,    "/",    listUsers,  ninja.Summary("List users"))
-ninja.Post(r,   "/",    createUser, ninja.Summary("Create user"))
-ninja.Get(r,    "/:id", getUser,    ninja.Summary("Get user"))
-ninja.Put(r,    "/:id", updateUser, ninja.Summary("Update user"))
-ninja.Delete(r, "/:id", deleteUser, ninja.Summary("Delete user"))
+database:
+  driver: "sqlite"
+  dsn: "app.db"
 
-api.AddRouter(r)
+jwt:
+  secret: "change-me-in-production"
+  expire_hours: 24
+
+log:
+  level: "info"
+  format: "json"
+  output: "stdout"
 ```
 
-**DELETE handlers** return no body; use the void signature:
-
-```go
-func deleteUser(ctx *ninja.Context, in *DeleteInput) error { ... }
-```
-
-All other handlers use:
-
-```go
-func handler(ctx *ninja.Context, in *Input) (*Output, error) { ... }
+Environment variables override file settings using double-underscore separators:
+```bash
+export SERVER__PORT=9090
+export JWT__SECRET=my-secret
 ```
 
 ---
 
-## Error Handling
-
-Return a `*ninja.Error` to send a specific HTTP status code:
-
-```go
-return nil, ninja.NewError(http.StatusNotFound, "user not found")
-// or use the pre-built errors:
-return nil, ninja.ErrNotFound
-```
-
-Validation errors are automatically converted to `422 Unprocessable Entity` with a field-level error list.
-
----
-
-## Pagination
-
-```go
-import "github.com/shijl0925/gin-ninja/pagination"
-
-type ListUsersInput struct {
-    pagination.PageInput           // adds ?page=&size= query params
-    Search string `form:"search"`
-}
-
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    items, total, err := svc.Page(in.GetPage(), in.GetSize(), opts...)
-    return pagination.NewPage(items, total, in.PageInput), err
-}
-```
-
----
-
-## ORM Integration (gormx)
+## Bootstrap
 
 ```go
 import (
+    "github.com/shijl0925/gin-ninja/bootstrap"
     "github.com/shijl0925/gin-ninja/orm"
-    "github.com/shijl0925/go-toolkits/gormx"
-    "gorm.io/driver/sqlite"
-    "gorm.io/gorm"
+    "github.com/shijl0925/gin-ninja/pkg/logger"
 )
 
-// 1. Initialise the global gormx instance.
-db, _ := gorm.Open(sqlite.Open("app.db"), &gorm.Config{})
-db.AutoMigrate(&User{})
+cfg := settings.MustLoad("config.yaml")
+
+// Initialise Zap logger and set as global.
+log := bootstrap.InitLogger(&cfg.Log)
+defer logger.Sync()
+
+// Initialise database.
+db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
-
-// 2. Attach ORM middleware (optional, for per-request DB access).
-api.Engine().Use(orm.Middleware(db))
-
-// 3. Use gormx repository / query builder in handlers.
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    repo := &gormx.BaseRepo[User]{}
-
-    query, u := gormx.NewQuery[User]()
-    query.Like(&u.Name, "%"+in.Search+"%").
-          Limit(in.GetSize()).Offset(in.Offset())
-
-    items, _ := repo.SelectListByOpts(query.ToOptions()...)
-    total, _ := repo.SelectCount()
-    ...
-}
-
-// 4. Access the request-scoped DB in a handler.
-func myHandler(ctx *ninja.Context, _ *struct{}) (*Out, error) {
-    db := orm.WithContext(ctx.Context)
-    var users []User
-    db.Find(&users)
-    ...
-}
-```
-
----
-
-## Nested Routers
-
-```go
-api := ninja.New(ninja.Config{Prefix: "/api/v1"})
-
-users := ninja.NewRouter("/users", ninja.WithTags("Users"))
-posts := ninja.NewRouter("/:userID/posts", ninja.WithTags("Posts"))
-
-ninja.Get(posts, "/", listPosts)
-users.AddRouter(posts)
-api.AddRouter(users)
-
-// Results in: GET /api/v1/users/:userID/posts/
 ```
 
 ---
 
 ## Middleware
 
+### Engine-level (applies to all routes)
+
 ```go
-r := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
-r.Use(func(ctx *ninja.Context) error {
-    if ctx.GetHeader("X-Admin-Token") != "secret" {
-        return ninja.ErrUnauthorized
-    }
-    return nil
-})
+api.UseGin(
+    middleware.RequestID(),          // injects X-Request-ID
+    middleware.Recovery(log),        // panic recovery with Zap logging
+    middleware.Logger(log),          // structured request logging
+    middleware.CORS(nil),            // permissive CORS (dev)
+    orm.Middleware(db),              // per-request DB in context
+)
+```
+
+### Router-level (applies only to that group)
+
+```go
+protected := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
+protected.UseGin(middleware.JWTAuth())  // JWT auth for /admin/* only
+```
+
+### JWT Authentication
+
+```go
+// Generate a token (e.g. after login):
+token, err := middleware.GenerateToken(user.ID, user.Name)
+
+// Protect routes:
+r.UseGin(middleware.JWTAuth())
+
+// Read claims in a handler:
+claims := middleware.GetClaims(ctx.Context)
+fmt.Println(claims.UserID, claims.Username)
 ```
 
 ---
 
-## Complete Example
+## Standard Response Envelope
 
-See [examples/basic](./examples/basic/main.go) for a full CRUD API with SQLite.
+```go
+import "github.com/shijl0925/gin-ninja/pkg/response"
+
+// Success: {"code": 0, "message": "success", "data": {...}}
+response.Success(c, users)
+
+// Error:   {"code": -1, "message": "not found"}
+response.NotFound(c, "user not found")
+
+// Custom:  {"code": 0, "message": "created", "data": {...}}
+response.JSON(c, response.OKWithMessage("created", user))
+```
+
+---
+
+## Parameter Binding
+
+| Tag          | Source              | Methods            |
+|--------------|---------------------|--------------------|
+| `path:"x"`   | URL path parameter  | all                |
+| `form:"x"`   | URL query string    | all                |
+| `header:"x"` | Request header      | all                |
+| `json:"x"`   | JSON request body   | POST / PUT / PATCH |
+
+`binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
+
+---
+
+## Full Example
+
+See [examples/full](./examples/full/) for a complete application with:
+- Settings from `config.yaml`
+- Bootstrap (DB + logger initialisation)
+- JWT-protected user CRUD endpoints
+- Auth login endpoint
+- Structured Zap logging
 
 ```bash
-cd examples/basic
+cd examples/full
 go run .
 # Open http://localhost:8080/docs
 ```
@@ -256,3 +272,4 @@ go run .
 ## License
 
 [MIT](./LICENSE)
+
