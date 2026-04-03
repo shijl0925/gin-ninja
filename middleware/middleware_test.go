@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja/middleware"
+	"github.com/shijl0925/gin-ninja/settings"
 )
 
 func init() { gin.SetMode(gin.TestMode) }
@@ -146,5 +148,68 @@ func TestCORS_DefaultAllowsAll(t *testing.T) {
 
 	if w.Header().Get("Access-Control-Allow-Origin") == "" {
 		t.Errorf("expected Access-Control-Allow-Origin header in response, got headers: %v", w.Header())
+	}
+}
+
+func TestCORS_CustomConfig(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.CORS(&middleware.CORSConfig{
+		AllowOrigins:     []string{"https://example.com"},
+		AllowMethods:     []string{"GET", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization"},
+		AllowCredentials: true,
+		MaxAgeSecs:       60,
+	}))
+	r.OPTIONS("/", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	req, _ := http.NewRequest(http.MethodOptions, "http://localhost/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+	req.Header.Set("Access-Control-Request-Headers", "Authorization")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://example.com" {
+		t.Fatalf("expected allow-origin header, got %q", got)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("expected credentials header, got %q", got)
+	}
+}
+
+func TestJWTAuth_UsesGlobalSettings(t *testing.T) {
+	settings.Global.JWT.Secret = "global-secret"
+	settings.Global.JWT.ExpireHours = 1
+	settings.Global.JWT.Issuer = "test-issuer"
+
+	token, err := middleware.GenerateToken(99, "global-user")
+	if err != nil {
+		t.Fatalf("GenerateToken: %v", err)
+	}
+
+	r := gin.New()
+	r.Use(middleware.JWTAuth())
+	r.GET("/protected", func(c *gin.Context) {
+		claims := middleware.GetClaims(c)
+		c.JSON(http.StatusOK, gin.H{
+			"user_id": claims.UserID,
+			"key":     middleware.ClaimsKey(),
+		})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), middleware.ClaimsKey()) {
+		t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestGenerateTokenWithSecret_EmptySecret(t *testing.T) {
+	if _, err := middleware.GenerateTokenWithSecret(1, "alice", "", time.Hour); err == nil {
+		t.Fatal("expected empty secret error")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/shijl0925/gin-ninja/settings"
 )
@@ -86,4 +87,53 @@ func TestServerConfig_Addr_Defaults(t *testing.T) {
 	if s.Addr() != "0.0.0.0:8080" {
 		t.Errorf("unexpected addr: %s", s.Addr())
 	}
+}
+
+func TestServerConfig_TimeoutDurations(t *testing.T) {
+	s := settings.ServerConfig{}
+	if s.ReadTimeoutDuration() != 60*time.Second {
+		t.Fatalf("expected default read timeout, got %v", s.ReadTimeoutDuration())
+	}
+	if s.WriteTimeoutDuration() != 60*time.Second {
+		t.Fatalf("expected default write timeout, got %v", s.WriteTimeoutDuration())
+	}
+
+	s = settings.ServerConfig{ReadTimeout: 5, WriteTimeout: 7}
+	if s.ReadTimeoutDuration() != 5*time.Second {
+		t.Fatalf("expected custom read timeout, got %v", s.ReadTimeoutDuration())
+	}
+	if s.WriteTimeoutDuration() != 7*time.Second {
+		t.Fatalf("expected custom write timeout, got %v", s.WriteTimeoutDuration())
+	}
+}
+
+func TestJWTConfig_ExpireDuration(t *testing.T) {
+	if got := (settings.JWTConfig{}).ExpireDuration(); got != 24*time.Hour {
+		t.Fatalf("expected default jwt ttl, got %v", got)
+	}
+	if got := (settings.JWTConfig{ExpireHours: 2}).ExpireDuration(); got != 2*time.Hour {
+		t.Fatalf("expected custom jwt ttl, got %v", got)
+	}
+}
+
+func TestLoad_EnvironmentOverride(t *testing.T) {
+	t.Setenv("SERVER__PORT", "7070")
+
+	path := writeTempConfig(t, "{}")
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Server.Port != 7070 {
+		t.Fatalf("expected env override port 7070, got %d", cfg.Server.Port)
+	}
+}
+
+func TestMustLoadPanicsOnError(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	settings.MustLoad(filepath.Join(t.TempDir(), "missing.yaml"))
 }
