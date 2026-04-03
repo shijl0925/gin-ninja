@@ -73,6 +73,10 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		}
 	}
 
+	if err := applyDefaults(c, t, v); err != nil {
+		return err
+	}
+
 	// Run validation.
 	if err := validate.Struct(input); err != nil {
 		var ve validator.ValidationErrors
@@ -80,6 +84,55 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 			return buildValidationError(ve)
 		}
 		return err
+	}
+	return nil
+}
+
+func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+
+		if !fv.CanSet() {
+			continue
+		}
+
+		if field.Anonymous && field.Type.Kind() == reflect.Struct {
+			if err := applyDefaults(c, field.Type, fv); err != nil {
+				return err
+			}
+			continue
+		}
+
+		rawDefault := field.Tag.Get("default")
+		if rawDefault == "" || !isZeroValue(fv) {
+			continue
+		}
+
+		switch {
+		case field.Tag.Get("header") != "":
+			if c.GetHeader(field.Tag.Get("header")) != "" {
+				continue
+			}
+		case field.Tag.Get("cookie") != "":
+			if _, err := c.Cookie(field.Tag.Get("cookie")); err == nil {
+				continue
+			}
+		case field.Tag.Get("form") != "":
+			if c.Request.URL.Query().Has(field.Tag.Get("form")) {
+				continue
+			}
+		default:
+			continue
+		}
+
+		if err := setFieldFromString(fv, rawDefault); err != nil {
+			return &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "BAD_DEFAULT_VALUE",
+				Message: fmt.Sprintf("default for field '%s': %s", field.Name, err.Error()),
+			}
+		}
 	}
 	return nil
 }
@@ -154,6 +207,15 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 
 // setFieldFromString converts a raw string value into the target reflect.Value.
 func setFieldFromString(fv reflect.Value, raw string) error {
+	if fv.Kind() == reflect.Ptr {
+		elem := reflect.New(fv.Type().Elem())
+		if err := setFieldFromString(elem.Elem(), raw); err != nil {
+			return err
+		}
+		fv.Set(elem)
+		return nil
+	}
+
 	switch fv.Kind() {
 	case reflect.String:
 		fv.SetString(raw)
@@ -185,6 +247,10 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 		return fmt.Errorf("unsupported kind %s", fv.Kind())
 	}
 	return nil
+}
+
+func isZeroValue(v reflect.Value) bool {
+	return v.IsZero()
 }
 
 // isBodyMethod returns true for methods that carry a request body.

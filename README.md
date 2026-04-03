@@ -6,12 +6,14 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 
 - **Type-safe handlers** – use plain Go structs for request input and response output.
 - **Automatic parameter binding** – path params (`path:`), query params (`form:`), headers (`header:`), cookies (`cookie:`), and JSON bodies (`json:`) are all bound via struct tags.
+- **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
 - **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
 - **Swagger UI** – available at `/docs` out of the box.
 - **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
 - **Gin middleware support** – `UseGin()` on both the API and individual routers.
 - **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
+- **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, and panic recovery.
@@ -252,13 +254,21 @@ response.JSON(c, response.OKWithMessage("created", user))
 
 `binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
 
+`default:"..."` applies to `form`, `header`, and `cookie` fields when the client omits the value.
+
 ---
 
 ## OpenAPI Operation Controls
 
 ```go
+users := ninja.NewRouter(
+    "/users",
+    ninja.WithTags("Users"),
+    ninja.WithTagDescription("Users", "User management endpoints"),
+)
+
 type SessionInput struct {
-    Session string `cookie:"session" binding:"required"`
+    Session string `cookie:"session" binding:"required" default:"guest"`
 }
 
 type SessionOutput struct {
@@ -273,9 +283,15 @@ ninja.Get(router, "/session", getSession,
 ninja.Get(router, "/internal/health", healthz,
     ninja.ExcludeFromDocs(),
 )
+
+ninja.Get(users, "/", listUsers,
+    ninja.Timeout(2*time.Second),
+    ninja.RateLimit(20, 40),
+    ninja.PaginatedResponse[UserOut](200, "Paginated users"),
+)
 ```
 
-Use `Response(...)` to document non-default OpenAPI responses, and `ExcludeFromDocs()` for internal endpoints that should remain routable but not appear in Swagger/OpenAPI output.
+Use `Response(...)` / `PaginatedResponse[...]` to document non-default OpenAPI responses, `ExcludeFromDocs()` for internal endpoints, `Timeout(...)` for context-based per-operation deadlines, and `RateLimit(...)` for per-operation throttling.
 
 ---
 

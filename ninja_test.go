@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
@@ -133,6 +134,18 @@ type cookieOutput struct {
 	Session string `json:"session"`
 }
 
+type defaultsInput struct {
+	Name    string `form:"name" default:"guest" description:"effective user name"`
+	Trace   string `header:"X-Trace" default:"trace-default" description:"trace identifier"`
+	Session string `cookie:"session" default:"anon" description:"session key"`
+}
+
+type defaultsOutput struct {
+	Name    string `json:"name"`
+	Trace   string `json:"trace"`
+	Session string `json:"session"`
+}
+
 func TestGet_CookieParam(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/session")
@@ -155,6 +168,29 @@ func TestGet_CookieParam(t *testing.T) {
 	}
 	if out.Session != "sess-123" {
 		t.Fatalf("expected cookie session to round-trip, got %+v", out)
+	}
+}
+
+func TestGet_DefaultQueryHeaderCookieValues(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/defaults")
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *defaultsInput) (*defaultsOutput, error) {
+		return &defaultsOutput{Name: in.Name, Trace: in.Trace, Session: in.Session}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/defaults/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var out defaultsOutput
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if out.Name != "guest" || out.Trace != "trace-default" || out.Session != "anon" {
+		t.Fatalf("expected defaults to apply, got %+v", out)
 	}
 }
 
@@ -548,6 +584,102 @@ func TestOpenAPISpec_CookieParamAndExtraResponses(t *testing.T) {
 	schema := appJSON["schema"].(map[string]interface{})
 	if schema["$ref"] == "" {
 		t.Fatalf("expected schema ref for documented response, got %v", schema)
+	}
+}
+
+func TestOpenAPISpec_DefaultsTagDescriptionsAndPaginatedResponse(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter(
+		"/defaults",
+		ninja.WithTags("Users"),
+		ninja.WithTagDescription("Users", "User operations"),
+	)
+
+	type itemOut struct {
+		ID int `json:"id"`
+	}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *defaultsInput) (*pagination.Page[itemOut], error) {
+		return pagination.NewPage([]itemOut{{ID: 1}}, 1, pagination.PageInput{}), nil
+	}, ninja.Paginated[itemOut]())
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	tags := spec["tags"].([]interface{})
+	tag := tags[0].(map[string]interface{})
+	if tag["name"] != "Users" || tag["description"] != "User operations" {
+		t.Fatalf("unexpected tag metadata: %v", tag)
+	}
+
+	get := spec["paths"].(map[string]interface{})["/defaults/"].(map[string]interface{})["get"].(map[string]interface{})
+	params := get["parameters"].([]interface{})
+	paramByName := map[string]map[string]interface{}{}
+	for _, raw := range params {
+		param := raw.(map[string]interface{})
+		paramByName[param["name"].(string)] = param
+	}
+
+	nameSchema := paramByName["name"]["schema"].(map[string]interface{})
+	if nameSchema["default"] != "guest" {
+		t.Fatalf("expected query default in schema, got %v", nameSchema)
+	}
+	if paramByName["name"]["description"] != "effective user name" {
+		t.Fatalf("expected query description, got %v", paramByName["name"])
+	}
+
+	respSchema := get["responses"].(map[string]interface{})["200"].(map[string]interface{})["content"].(map[string]interface{})["application/json"].(map[string]interface{})["schema"].(map[string]interface{})
+	if respSchema["type"] != "object" {
+		t.Fatalf("expected standardized paginated object schema, got %v", respSchema)
+	}
+	items := respSchema["properties"].(map[string]interface{})["items"].(map[string]interface{})
+	if items["type"] != "array" {
+		t.Fatalf("expected paginated items array, got %v", items)
+	}
+}
+
+func TestOperationTimeoutAndRateLimit(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/ops")
+
+	ninja.Get(r, "/timeout", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}, ninja.Timeout(10*time.Millisecond))
+
+	ninja.Get(r, "/limited", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	}, ninja.RateLimit(1, 1))
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/ops/timeout", nil)
+	if w.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected 408, got %d: %s", w.Code, w.Body.String())
+	}
+
+	first := doRequest(api, http.MethodGet, "/ops/limited", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected first limited request to pass, got %d: %s", first.Code, first.Body.String())
+	}
+	second := doRequest(api, http.MethodGet, "/ops/limited", nil)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected second limited request to be rejected, got %d: %s", second.Code, second.Body.String())
+	}
+
+	openapi := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(openapi.Body.Bytes(), &spec) //nolint:errcheck
+	paths := spec["paths"].(map[string]interface{})
+	timeoutResponses := paths["/ops/timeout"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})
+	if _, ok := timeoutResponses["408"]; !ok {
+		t.Fatalf("expected 408 response to be documented, got %v", timeoutResponses)
+	}
+	limitResponses := paths["/ops/limited"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})
+	if _, ok := limitResponses["429"]; !ok {
+		t.Fatalf("expected 429 response to be documented, got %v", limitResponses)
 	}
 }
 

@@ -1,9 +1,12 @@
 package ninja
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +32,16 @@ func OperationID(id string) OperationOption {
 // Tags overrides the tags for this specific operation.
 func Tags(tags ...string) OperationOption {
 	return func(op *operation) { op.tags = tags }
+}
+
+// TagDescription records a top-level OpenAPI tag description for this operation.
+func TagDescription(tag, description string) OperationOption {
+	return func(op *operation) {
+		if op.tagDescriptions == nil {
+			op.tagDescriptions = map[string]string{}
+		}
+		op.tagDescriptions[tag] = description
+	}
 }
 
 // Security adds an OpenAPI security requirement to this operation.
@@ -75,29 +88,74 @@ func Response(status int, description string, model any) OperationOption {
 	}
 }
 
+// Paginated declares a standard paginated success response schema.
+func Paginated[T any]() OperationOption {
+	return func(op *operation) {
+		var item T
+		op.paginatedItemType = reflect.TypeOf(item)
+	}
+}
+
+// PaginatedResponse documents an additional paginated OpenAPI response.
+func PaginatedResponse[T any](status int, description string) OperationOption {
+	return func(op *operation) {
+		var item T
+		op.responses = append(op.responses, documentedResponse{
+			status:            status,
+			description:       description,
+			paginatedItemType: reflect.TypeOf(item),
+		})
+	}
+}
+
+// Timeout applies a context-based per-operation timeout.
+func Timeout(d time.Duration) OperationOption {
+	return func(op *operation) { op.timeout = d }
+}
+
+// RateLimit applies a per-operation in-memory token-bucket rate limit.
+func RateLimit(requestsPerSecond int, burst ...int) OperationOption {
+	return func(op *operation) {
+		if requestsPerSecond <= 0 {
+			op.rateLimit = nil
+			return
+		}
+		b := requestsPerSecond
+		if len(burst) > 0 && burst[0] > 0 {
+			b = burst[0]
+		}
+		op.rateLimit = newRateLimiter(float64(requestsPerSecond), float64(b))
+	}
+}
+
 type documentedResponse struct {
-	status       int
-	description  string
-	responseType reflect.Type
+	status            int
+	description       string
+	responseType      reflect.Type
+	paginatedItemType reflect.Type
 }
 
 // operation holds all metadata about a single API endpoint and the
 // gin-compatible handler function that wraps the user-supplied typed handler.
 type operation struct {
-	method        string
-	path          string
-	ginHandler    gin.HandlerFunc
-	inputType     reflect.Type
-	outputType    reflect.Type
-	summary       string
-	description   string
-	operationID   string
-	tags          []string
-	security      []SecurityRequirement
-	deprecated    bool
-	successStatus int
-	responses     []documentedResponse
-	excludeFromDocs bool
+	method            string
+	path              string
+	ginHandler        gin.HandlerFunc
+	inputType         reflect.Type
+	outputType        reflect.Type
+	summary           string
+	description       string
+	operationID       string
+	tags              []string
+	tagDescriptions   map[string]string
+	security          []SecurityRequirement
+	deprecated        bool
+	successStatus     int
+	responses         []documentedResponse
+	paginatedItemType reflect.Type
+	timeout           time.Duration
+	rateLimit         *rateLimiter
+	excludeFromDocs   bool
 }
 
 func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement {
@@ -113,6 +171,17 @@ func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement
 		out = append(out, cloned)
 	}
 	return out
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // newOperation builds an operation and wraps the typed handler with
@@ -203,6 +272,21 @@ func newVoidOperation[TIn any](
 	return op
 }
 
+func (op *operation) finalize() {
+	if op.ginHandler == nil {
+		return
+	}
+
+	handler := op.ginHandler
+	if op.timeout > 0 {
+		handler = wrapTimeout(op.timeout, handler)
+	}
+	if op.rateLimit != nil {
+		handler = wrapRateLimit(op.rateLimit, handler)
+	}
+	op.ginHandler = handler
+}
+
 // writeError writes an appropriate JSON error response.
 func writeError(c *gin.Context, err error) {
 	switch e := err.(type) {
@@ -221,6 +305,16 @@ func writeError(c *gin.Context, err error) {
 			},
 		})
 	default:
+		if errors.Is(err, context.DeadlineExceeded) {
+			c.AbortWithStatusJSON(http.StatusRequestTimeout, errorResponse{
+				Error: &Error{
+					Status:  http.StatusRequestTimeout,
+					Code:    "REQUEST_TIMEOUT",
+					Message: "request timed out",
+				},
+			})
+			return
+		}
 		c.AbortWithStatusJSON(http.StatusInternalServerError, errorResponse{
 			Error: &Error{
 				Status:  http.StatusInternalServerError,

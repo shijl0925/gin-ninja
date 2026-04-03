@@ -412,8 +412,12 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 
 func TestOptionHelpers(t *testing.T) {
 	router := NewRouter("/users", WithTags("Users", "Admin"), WithSecurity("oauth2", "read"), WithBearerAuth())
+	WithTagDescription("Users", "user operations")(router)
 	if len(router.tags) != 2 || len(router.security) != 2 {
 		t.Fatalf("unexpected router options: %+v", router)
+	}
+	if router.tagDescriptions["Users"] != "user operations" {
+		t.Fatalf("expected router tag description to be recorded, got %+v", router.tagDescriptions)
 	}
 
 	op := &operation{}
@@ -421,6 +425,7 @@ func TestOptionHelpers(t *testing.T) {
 	Description("full description")(op)
 	OperationID("listUsers")(op)
 	Tags("Users")(op)
+	TagDescription("Users", "user operations")(op)
 	Security("oauth2", "read")(op)
 	BearerAuth()(op)
 	Deprecated()(op)
@@ -428,6 +433,10 @@ func TestOptionHelpers(t *testing.T) {
 	SuccessStatus(http.StatusAccepted)(op)
 	Response(http.StatusBadRequest, "bad request", schemaSample{})(op)
 	Response(http.StatusNotFound, "not found", nil)(op)
+	Paginated[schemaSample]()(op)
+	PaginatedResponse[schemaSample](http.StatusPartialContent, "partial")(op)
+	Timeout(time.Second)(op)
+	RateLimit(2, 3)(op)
 
 	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
@@ -435,7 +444,10 @@ func TestOptionHelpers(t *testing.T) {
 	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 2 {
 		t.Fatalf("unexpected operation options: %+v", op)
 	}
-	if len(op.responses) != 2 || op.responses[0].responseType == nil || op.responses[1].responseType != nil {
+	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil {
+		t.Fatalf("unexpected extended operation options: %+v", op)
+	}
+	if len(op.responses) != 3 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil {
 		t.Fatalf("unexpected documented responses: %+v", op.responses)
 	}
 }

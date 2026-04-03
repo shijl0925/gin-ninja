@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sort"
 	"strings"
 )
 
@@ -20,8 +21,9 @@ type openAPISpec struct {
 	Tags       []openAPITag         `json:"tags,omitempty"`
 
 	// Internal state – not serialised.
-	config   Config
-	registry *schemaRegistry
+	config          Config
+	registry        *schemaRegistry
+	tagDescriptions map[string]string
 }
 
 type openAPIInfo struct {
@@ -102,8 +104,9 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 			Schemas:         make(map[string]*Schema),
 			SecuritySchemes: cloneSecuritySchemes(cfg.SecuritySchemes),
 		},
-		config:   cfg,
-		registry: newSchemaRegistry(),
+		config:          cfg,
+		registry:        newSchemaRegistry(),
+		tagDescriptions: map[string]string{},
 	}
 }
 
@@ -121,6 +124,20 @@ func (s *openAPISpec) build() *openAPISpec {
 	for name, schema := range s.registry.schemas {
 		built.Components.Schemas[name] = schema
 	}
+	if len(s.tagDescriptions) > 0 {
+		names := make([]string, 0, len(s.tagDescriptions))
+		for name := range s.tagDescriptions {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		built.Tags = make([]openAPITag, 0, len(names))
+		for _, name := range names {
+			built.Tags = append(built.Tags, openAPITag{
+				Name:        name,
+				Description: s.tagDescriptions[name],
+			})
+		}
+	}
 	return &built
 }
 
@@ -129,6 +146,7 @@ func (s *openAPISpec) addOperation(op *operation) {
 	if op.excludeFromDocs {
 		return
 	}
+	s.registerTags(op.tags, op.tagDescriptions)
 
 	// op.path is already the fully-qualified router path, including any global
 	// API prefix applied during router registration.
@@ -186,7 +204,14 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 
 	// Success response.
 	successCode := fmt.Sprintf("%d", op.successStatus)
-	if op.outputType != nil {
+	if op.paginatedItemType != nil {
+		spec.Responses[successCode] = responseSpec{
+			Description: http.StatusText(op.successStatus),
+			Content: map[string]mediaTypeSpec{
+				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
+			},
+		}
+	} else if op.outputType != nil {
 		schema := s.registry.schemaForType(op.outputType)
 		spec.Responses[successCode] = responseSpec{
 			Description: http.StatusText(op.successStatus),
@@ -203,6 +228,12 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	// Standard error responses.
 	spec.Responses["422"] = responseSpec{Description: "Validation Error"}
 	spec.Responses["500"] = responseSpec{Description: "Internal Server Error"}
+	if op.timeout > 0 {
+		spec.Responses["408"] = responseSpec{Description: http.StatusText(http.StatusRequestTimeout)}
+	}
+	if op.rateLimit != nil {
+		spec.Responses["429"] = responseSpec{Description: http.StatusText(http.StatusTooManyRequests)}
+	}
 
 	for _, documented := range op.responses {
 		response := responseSpec{
@@ -211,7 +242,11 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		if response.Description == "" {
 			response.Description = http.StatusText(documented.status)
 		}
-		if documented.responseType != nil {
+		if documented.paginatedItemType != nil {
+			response.Content = map[string]mediaTypeSpec{
+				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(documented.paginatedItemType))},
+			}
+		} else if documented.responseType != nil {
 			response.Content = map[string]mediaTypeSpec{
 				"application/json": {Schema: s.registry.schemaForType(documented.responseType)},
 			}
@@ -248,7 +283,7 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 			continue
 		}
 
-		fieldSchema := s.registry.schemaForType(f.Type)
+		fieldSchema := annotateSchema(s.registry.schemaForType(f.Type), f)
 
 		// Path parameter.
 		if pathTag := f.Tag.Get("path"); pathTag != "" {
@@ -264,10 +299,11 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		// Header parameter.
 		if headerTag := f.Tag.Get("header"); headerTag != "" {
 			params = append(params, parameterSpec{
-				Name:     headerTag,
-				In:       "header",
-				Required: isRequired(f),
-				Schema:   fieldSchema,
+				Name:        headerTag,
+				In:          "header",
+				Required:    isRequired(f),
+				Description: f.Tag.Get("description"),
+				Schema:      fieldSchema,
 			})
 			continue
 		}
@@ -275,10 +311,11 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		// Cookie parameter.
 		if cookieTag := f.Tag.Get("cookie"); cookieTag != "" {
 			params = append(params, parameterSpec{
-				Name:     cookieTag,
-				In:       "cookie",
-				Required: isRequired(f),
-				Schema:   fieldSchema,
+				Name:        cookieTag,
+				In:          "cookie",
+				Required:    isRequired(f),
+				Description: f.Tag.Get("description"),
+				Schema:      fieldSchema,
 			})
 			continue
 		}
@@ -286,10 +323,11 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		// Query / form parameter.
 		if formTag := f.Tag.Get("form"); formTag != "" {
 			params = append(params, parameterSpec{
-				Name:     formTag,
-				In:       "query",
-				Required: isRequired(f),
-				Schema:   fieldSchema,
+				Name:        formTag,
+				In:          "query",
+				Required:    isRequired(f),
+				Description: f.Tag.Get("description"),
+				Schema:      fieldSchema,
 			})
 			continue
 		}
@@ -301,11 +339,7 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 			if fieldName == "-" {
 				continue
 			}
-			annotated := *fieldSchema
-			if desc := f.Tag.Get("description"); desc != "" {
-				annotated.Description = desc
-			}
-			bodyFields[fieldName] = &annotated
+			bodyFields[fieldName] = annotateSchema(fieldSchema, f)
 			if isRequired(f) {
 				bodyRequired = append(bodyRequired, fieldName)
 			}
@@ -322,6 +356,17 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 	}
 
 	return params, bodySchema
+}
+
+func (s *openAPISpec) registerTags(tags []string, descriptions map[string]string) {
+	for _, tag := range tags {
+		if _, ok := s.tagDescriptions[tag]; !ok {
+			s.tagDescriptions[tag] = ""
+		}
+		if desc := descriptions[tag]; desc != "" {
+			s.tagDescriptions[tag] = desc
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

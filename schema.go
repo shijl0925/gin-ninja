@@ -16,6 +16,7 @@ type Schema struct {
 	Type        string             `json:"type,omitempty"`
 	Format      string             `json:"format,omitempty"`
 	Description string             `json:"description,omitempty"`
+	Default     interface{}        `json:"default,omitempty"`
 	Properties  map[string]*Schema `json:"properties,omitempty"`
 	Items       *Schema            `json:"items,omitempty"`
 	Required    []string           `json:"required,omitempty"`
@@ -121,15 +122,7 @@ func (r *schemaRegistry) buildStructSchema(t reflect.Type) *Schema {
 		fieldSchema := r.schemaForType(f.Type)
 
 		// Copy so we can annotate without mutating the shared instance.
-		annotated := *fieldSchema
-		if desc := f.Tag.Get("description"); desc != "" {
-			annotated.Description = desc
-		}
-		if example := f.Tag.Get("example"); example != "" {
-			annotated.Example = example
-		}
-
-		s.Properties[fieldName] = &annotated
+		s.Properties[fieldName] = annotateSchema(fieldSchema, f)
 
 		// Mark as required if binding tag says so.
 		if isRequired(f) {
@@ -197,6 +190,78 @@ func intFormat(k reflect.Kind) string {
 		return "int32"
 	default:
 		return "int64"
+	}
+}
+
+func annotateSchema(schema *Schema, f reflect.StructField) *Schema {
+	annotated := *schema
+	if desc := f.Tag.Get("description"); desc != "" {
+		annotated.Description = desc
+	}
+	if example := f.Tag.Get("example"); example != "" {
+		annotated.Example = example
+	}
+	if def, ok := defaultValueForField(f); ok {
+		annotated.Default = def
+	}
+	return &annotated
+}
+
+func defaultValueForField(f reflect.StructField) (interface{}, bool) {
+	raw := f.Tag.Get("default")
+	if raw == "" {
+		return nil, false
+	}
+	return defaultValueForType(deref(f.Type), raw)
+}
+
+func defaultValueForType(t reflect.Type, raw string) (interface{}, bool) {
+	switch t.Kind() {
+	case reflect.String:
+		return raw, true
+	case reflect.Bool:
+		switch strings.ToLower(raw) {
+		case "true":
+			return true, true
+		case "false":
+			return false, true
+		default:
+			return nil, false
+		}
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		var v int64
+		if _, err := fmt.Sscan(raw, &v); err != nil {
+			return nil, false
+		}
+		return v, true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		var v uint64
+		if _, err := fmt.Sscan(raw, &v); err != nil {
+			return nil, false
+		}
+		return v, true
+	case reflect.Float32, reflect.Float64:
+		var v float64
+		if _, err := fmt.Sscan(raw, &v); err != nil {
+			return nil, false
+		}
+		return v, true
+	default:
+		return nil, false
+	}
+}
+
+func paginatedSchema(itemSchema *Schema) *Schema {
+	return &Schema{
+		Type: "object",
+		Properties: map[string]*Schema{
+			"items": {Type: "array", Items: itemSchema},
+			"total": {Type: "integer", Format: "int64"},
+			"page":  {Type: "integer", Format: "int64"},
+			"size":  {Type: "integer", Format: "int64"},
+			"pages": {Type: "integer", Format: "int64"},
+		},
+		Required: []string{"items", "total", "page", "size", "pages"},
 	}
 }
 
