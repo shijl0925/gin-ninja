@@ -115,8 +115,9 @@ func (s *openAPISpec) build() *openAPISpec {
 
 // addOperation registers an operation in the spec.
 func (s *openAPISpec) addOperation(op *operation) {
-	// Convert gin-style ":param" to OpenAPI "{param}" in path.
-	openapiPath := ginPathToOpenAPI(s.config.Prefix + op.path)
+	// op.path is already the fully-qualified router path, including any global
+	// API prefix applied during router registration.
+	openapiPath := ginPathToOpenAPI(op.path)
 
 	item, ok := s.Paths[openapiPath]
 	if !ok {

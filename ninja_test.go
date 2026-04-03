@@ -307,6 +307,32 @@ func TestOpenAPISpec_ContainsPaths(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpec_PrefixAppliedOnce(t *testing.T) {
+	api := ninja.New(ninja.Config{Prefix: "/api/v1"})
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *listInput) (*listOutput, error) {
+		return nil, nil
+	}, ninja.Summary("List users"))
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	paths, ok := spec["paths"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected paths object in spec")
+	}
+	if _, ok := paths["/api/v1/users/"]; !ok {
+		t.Fatalf("expected /api/v1/users/ in paths, got: %v", paths)
+	}
+	if _, ok := paths["/api/v1/api/v1/users/"]; ok {
+		t.Fatalf("expected duplicated prefix path to be absent, got: %v", paths)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // UseGin middleware
 // ---------------------------------------------------------------------------
