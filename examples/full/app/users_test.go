@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
-	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/gin-ninja/settings"
@@ -27,7 +26,7 @@ func newRegisterTestAPI(t *testing.T) *ninja.NinjaAPI {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&User{}, &Role{}, &Permission{}); err != nil {
+	if err := db.AutoMigrate(&User{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	orm.Init(db)
@@ -39,7 +38,7 @@ func newRegisterTestAPI(t *testing.T) *ninja.NinjaAPI {
 	return api
 }
 
-func setupAppTestDB(t *testing.T) *gorm.DB {
+func setupAppTestDB(t *testing.T) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -48,51 +47,13 @@ func setupAppTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&User{}, &Role{}, &Permission{}); err != nil {
+	if err := db.AutoMigrate(&User{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	orm.Init(db)
 	settings.Global.JWT.Secret = "test-secret"
 	settings.Global.JWT.ExpireHours = 24
 	settings.Global.JWT.Issuer = "gin-ninja"
-	return db
-}
-
-func newRBACExampleAPI(t *testing.T) *ninja.NinjaAPI {
-	t.Helper()
-
-	db := setupAppTestDB(t)
-	if err := SeedRBAC(db); err != nil {
-		t.Fatalf("SeedRBAC: %v", err)
-	}
-
-	api := ninja.New(ninja.Config{
-		Title:   "Test",
-		Version: "0.0.1",
-		SecuritySchemes: map[string]ninja.SecurityScheme{
-			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
-		},
-	})
-	api.UseGin(orm.Middleware(db))
-
-	authRouter := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
-	ninja.Post(authRouter, "/login", Login)
-	api.AddRouter(authRouter)
-
-	usersRouter := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
-	usersRouter.UseGin(middleware.JWTAuth())
-	ninja.Get(usersRouter, "/", ListUsers,
-		ninja.WithMiddleware(middleware.RequirePermissions(ResolvePermissions, PermissionUserList)))
-	ninja.Post(usersRouter, "/", CreateUser,
-		ninja.WithMiddleware(middleware.RequirePermissions(ResolvePermissions, PermissionUserCreate)))
-	api.AddRouter(usersRouter)
-
-	rbacRouter := ninja.NewRouter("/rbac", ninja.WithTags("RBAC"), ninja.WithBearerAuth())
-	rbacRouter.UseGin(middleware.JWTAuth())
-	ninja.Get(rbacRouter, "/me", GetCurrentSubject)
-	api.AddRouter(rbacRouter)
-
-	return api
 }
 
 func registerRequest(t *testing.T, api *ninja.NinjaAPI, body interface{}) *httptest.ResponseRecorder {
@@ -273,57 +234,5 @@ func TestUserCRUDFunctions(t *testing.T) {
 	out := toUserOut(User{Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true})
 	if out.Email != "x@example.com" || !out.IsAdmin {
 		t.Fatalf("unexpected toUserOut result: %+v", out)
-	}
-}
-
-func TestRBACExampleFlow(t *testing.T) {
-	api := newRBACExampleAPI(t)
-
-	login := func(email string) LoginOutput {
-		data, err := json.Marshal(LoginInput{Email: email, Password: "password123"})
-		if err != nil {
-			t.Fatalf("marshal login: %v", err)
-		}
-		req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(data))
-		req.Header.Set("Content-Type", "application/json")
-		w := httptest.NewRecorder()
-		api.Handler().ServeHTTP(w, req)
-		if w.Code != http.StatusCreated {
-			t.Fatalf("login %s failed: %d %s", email, w.Code, w.Body.String())
-		}
-		var out LoginOutput
-		if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
-			t.Fatalf("unmarshal login: %v", err)
-		}
-		return out
-	}
-
-	manager := login("manager@example.com")
-	auditor := login("auditor@example.com")
-
-	req := httptest.NewRequest(http.MethodGet, "/rbac/me", nil)
-	req.Header.Set("Authorization", "Bearer "+manager.Token)
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected /rbac/me 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	req = httptest.NewRequest(http.MethodPost, "/users/", bytes.NewReader([]byte(`{"name":"New","email":"new@example.com","password":"password123","age":18}`)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+manager.Token)
-	w = httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected manager create user 201, got %d: %s", w.Code, w.Body.String())
-	}
-
-	req = httptest.NewRequest(http.MethodPost, "/users/", bytes.NewReader([]byte(`{"name":"Denied","email":"denied@example.com","password":"password123","age":18}`)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+auditor.Token)
-	w = httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected auditor create user 403, got %d: %s", w.Code, w.Body.String())
 	}
 }

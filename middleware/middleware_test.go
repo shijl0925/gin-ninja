@@ -2,7 +2,6 @@ package middleware_test
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/settings"
 )
@@ -244,64 +242,4 @@ func TestGenerateTokenWithSecret_DoesNotUseGlobalIssuer(t *testing.T) {
 	if claims.Issuer != "gin-ninja" {
 		t.Fatalf("expected default issuer, got %q", claims.Issuer)
 	}
-}
-
-func TestRequirePermissions(t *testing.T) {
-	resolver := func(_ *ninja.Context) ([]string, error) {
-		return []string{"user:list", "user:create"}, nil
-	}
-
-	check := middleware.RequirePermissions(resolver, "user:list")
-
-	r := gin.New()
-	r.Use(func(c *gin.Context) {
-		c.Set(middleware.ClaimsKey(), &middleware.Claims{UserID: 1})
-		c.Next()
-	})
-	r.GET("/", func(c *gin.Context) {
-		if err := check(&ninja.Context{Context: c}); err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-			return
-		}
-		c.Status(http.StatusOK)
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestRequirePermissions_MissingPermission(t *testing.T) {
-	resolver := func(_ *ninja.Context) ([]string, error) {
-		return []string{"user:list"}, nil
-	}
-
-	err := middleware.RequirePermissions(resolver, "user:delete")(&ninja.Context{
-		Context: newAuthorizedGinContext(1),
-	})
-	if !errors.Is(err, ninja.ErrForbidden) {
-		t.Fatalf("expected forbidden, got %v", err)
-	}
-}
-
-func TestRequirePermissions_Unauthorized(t *testing.T) {
-	err := middleware.RequirePermissions(func(_ *ninja.Context) ([]string, error) { return nil, nil }, "user:list")(&ninja.Context{
-		Context: newAuthorizedGinContext(0),
-	})
-	if !errors.Is(err, ninja.ErrUnauthorized) {
-		t.Fatalf("expected unauthorized, got %v", err)
-	}
-}
-
-func newAuthorizedGinContext(userID uint) *gin.Context {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	if userID != 0 {
-		c.Set(middleware.ClaimsKey(), &middleware.Claims{UserID: userID})
-	}
-	return c
 }

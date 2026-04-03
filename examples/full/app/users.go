@@ -39,18 +39,11 @@ func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
 		return nil, err
 	}
 
-	info, err := loadSubjectInfo(ctx, user.ID)
-	if err != nil {
-		return nil, err
-	}
-
 	return &LoginOutput{
-		Token:       token,
-		Expires:     int(24 * time.Hour / time.Second),
-		UserID:      user.ID,
-		Name:        user.Name,
-		Roles:       info.Roles,
-		Permissions: info.Permissions,
+		Token:   token,
+		Expires: int(24 * time.Hour / time.Second),
+		UserID:  user.ID,
+		Name:    user.Name,
 	}, nil
 }
 

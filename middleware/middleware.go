@@ -7,7 +7,6 @@
 //   - Recovery   – recovers from panics and returns a 500 error response
 //   - CORS       – configurable Cross-Origin Resource Sharing
 //   - JWTAuth    – validates Bearer tokens and stores claims in the context
-//   - RequirePermissions – checks route-level RBAC permission codes
 package middleware
 
 // This file contains only the package declaration and doc comment.

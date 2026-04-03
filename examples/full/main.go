@@ -21,12 +21,7 @@
 //   - http://localhost:8080/openapi.json   – raw OpenAPI spec
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login   – get a JWT token
-//   - GET  http://localhost:8080/api/v1/rbac/me      – inspect current roles and permissions
-//   - GET  http://localhost:8080/api/v1/users        – list users (requires System:User:List)
-// Seeded demo users:
-//   - admin@example.com / password123
-//   - manager@example.com / password123
-//   - auditor@example.com / password123
+//   - GET  http://localhost:8080/api/v1/users        – list users (requires JWT)
 package main
 
 import (
@@ -54,13 +49,10 @@ func main() {
 
 	// ── 3. Initialise database ───────────────────────────────────────────────
 	db := bootstrap.MustInitDB(&cfg.Database)
-	if err := db.AutoMigrate(&app.User{}, &app.Role{}, &app.Permission{}); err != nil {
-		log.Fatal("auto migrate rbac:", err)
+	if err := db.AutoMigrate(&app.User{}); err != nil {
+		log.Fatal("auto migrate:", err)
 	}
 	orm.Init(db)
-	if err := app.SeedRBAC(db); err != nil {
-		log.Fatal("seed rbac:", err)
-	}
 
 	// ── 4. Build API ─────────────────────────────────────────────────────────
 	api := ninja.New(ninja.Config{
@@ -95,27 +87,17 @@ func main() {
 
 	ninja.Get(usersRouter, "/", app.ListUsers,
 		ninja.Summary("List users"),
-		ninja.Description("Returns a paginated list of users"),
-		ninja.WithMiddleware(middleware.RequirePermissions(app.ResolvePermissions, app.PermissionUserList)))
+		ninja.Description("Returns a paginated list of users"))
 	ninja.Get(usersRouter, "/:id", app.GetUser,
-		ninja.Summary("Get user"),
-		ninja.WithMiddleware(middleware.RequirePermissions(app.ResolvePermissions, app.PermissionUserDetail)))
+		ninja.Summary("Get user"))
 	ninja.Post(usersRouter, "/", app.CreateUser,
-		ninja.Summary("Create user"),
-		ninja.WithMiddleware(middleware.RequirePermissions(app.ResolvePermissions, app.PermissionUserCreate)))
+		ninja.Summary("Create user"))
 	ninja.Put(usersRouter, "/:id", app.UpdateUser,
-		ninja.Summary("Update user"),
-		ninja.WithMiddleware(middleware.RequirePermissions(app.ResolvePermissions, app.PermissionUserEdit)))
+		ninja.Summary("Update user"))
 	ninja.Delete(usersRouter, "/:id", app.DeleteUser,
-		ninja.Summary("Delete user"),
-		ninja.WithMiddleware(middleware.RequirePermissions(app.ResolvePermissions, app.PermissionUserDelete)))
+		ninja.Summary("Delete user"))
 
 	api.AddRouter(usersRouter)
-
-	rbacRouter := ninja.NewRouter("/rbac", ninja.WithTags("RBAC"), ninja.WithBearerAuth())
-	rbacRouter.UseGin(middleware.JWTAuth())
-	ninja.Get(rbacRouter, "/me", app.GetCurrentSubject, ninja.Summary("Get current RBAC subject"))
-	api.AddRouter(rbacRouter)
 
 	// ── 8. Health-check (no auth) ─────────────────────────────────────────────
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
