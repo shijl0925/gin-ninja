@@ -21,6 +21,9 @@ type Config struct {
 	OpenAPIURL string
 	// Prefix is a global path prefix prepended to every route (default: "").
 	Prefix string
+	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
+	// bearer authentication shown by Swagger UI's "Authorize" button.
+	SecuritySchemes map[string]SecurityScheme
 	// DisableGinDefault disables the default gin Logger and Recovery middleware
 	// when set to true.  Set this to true when you provide your own middleware
 	// via UseGin (e.g. the structured logger from middleware.Logger).
@@ -172,4 +175,3 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 }
-

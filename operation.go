@@ -31,6 +31,18 @@ func Tags(tags ...string) OperationOption {
 	return func(op *operation) { op.tags = tags }
 }
 
+// Security adds an OpenAPI security requirement to this operation.
+func Security(name string, scopes ...string) OperationOption {
+	return func(op *operation) {
+		op.security = append(op.security, SecurityRequirement{name: append([]string(nil), scopes...)})
+	}
+}
+
+// BearerAuth marks this operation as requiring the default bearerAuth scheme.
+func BearerAuth() OperationOption {
+	return Security("bearerAuth")
+}
+
 // Deprecated marks the operation as deprecated in the docs.
 func Deprecated() OperationOption {
 	return func(op *operation) { op.deprecated = true }
@@ -54,8 +66,24 @@ type operation struct {
 	description   string
 	operationID   string
 	tags          []string
+	security      []SecurityRequirement
 	deprecated    bool
 	successStatus int
+}
+
+func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement {
+	if len(reqs) == 0 {
+		return nil
+	}
+	out := make([]SecurityRequirement, 0, len(reqs))
+	for _, req := range reqs {
+		cloned := make(SecurityRequirement, len(req))
+		for name, scopes := range req {
+			cloned[name] = append([]string(nil), scopes...)
+		}
+		out = append(out, cloned)
+	}
+	return out
 }
 
 // newOperation builds an operation and wraps the typed handler with

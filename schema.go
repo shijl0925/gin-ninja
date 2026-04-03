@@ -3,6 +3,7 @@ package ninja
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 )
 
@@ -149,7 +150,11 @@ func typeName(t reflect.Type) string {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	return t.Name()
+	name := t.Name()
+	if name == "" {
+		name = t.String()
+	}
+	return sanitizeComponentName(name)
 }
 
 // jsonFieldName resolves the JSON key for a struct field using the `json` tag,
@@ -193,4 +198,15 @@ func intFormat(k reflect.Kind) string {
 	default:
 		return "int64"
 	}
+}
+
+var invalidComponentNameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
+
+func sanitizeComponentName(name string) string {
+	name = invalidComponentNameChars.ReplaceAllString(name, "_")
+	name = strings.Trim(name, "_.-")
+	if name == "" {
+		return "Schema"
+	}
+	return name
 }

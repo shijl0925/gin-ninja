@@ -16,6 +16,19 @@ func WithTags(tags ...string) RouterOption {
 	}
 }
 
+// WithSecurity adds an OpenAPI security requirement to all operations
+// registered on this router.
+func WithSecurity(name string, scopes ...string) RouterOption {
+	return func(r *Router) {
+		r.security = append(r.security, SecurityRequirement{name: append([]string(nil), scopes...)})
+	}
+}
+
+// WithBearerAuth applies the default JWT bearer OpenAPI security requirement.
+func WithBearerAuth() RouterOption {
+	return WithSecurity("bearerAuth")
+}
+
 // Router groups a set of API endpoints under a common URL prefix.
 // Routers can be nested arbitrarily.
 type Router struct {
@@ -23,6 +36,7 @@ type Router struct {
 	tags          []string
 	operations    []*operation
 	subrouters    []*Router
+	security      []SecurityRequirement
 	middleware    []func(*Context) error
 	ginMiddleware []gin.HandlerFunc
 }
@@ -74,6 +88,7 @@ func (r *Router) UseGin(mw ...gin.HandlerFunc) {
 //	ninja.Get(router, "/", listUsersHandler)
 func Get[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
 	op := newOperation[TIn, TOut](http.MethodGet, path, handler, r.tags)
+	op.security = cloneSecurityRequirements(r.security)
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -83,6 +98,7 @@ func Get[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn)
 // Post registers a POST endpoint.
 func Post[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
 	op := newOperation[TIn, TOut](http.MethodPost, path, handler, r.tags)
+	op.security = cloneSecurityRequirements(r.security)
 	if op.successStatus == http.StatusOK {
 		op.successStatus = http.StatusCreated
 	}
@@ -95,6 +111,7 @@ func Post[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn
 // Put registers a PUT endpoint.
 func Put[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
 	op := newOperation[TIn, TOut](http.MethodPut, path, handler, r.tags)
+	op.security = cloneSecurityRequirements(r.security)
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -104,6 +121,7 @@ func Put[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn)
 // Patch registers a PATCH endpoint.
 func Patch[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
 	op := newOperation[TIn, TOut](http.MethodPatch, path, handler, r.tags)
+	op.security = cloneSecurityRequirements(r.security)
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -118,9 +136,9 @@ func Patch[TIn any, TOut any](r *Router, path string, handler func(*Context, *TI
 //	ninja.Delete(router, "/:id", deleteUserHandler)
 func Delete[TIn any](r *Router, path string, handler func(*Context, *TIn) error, opts ...OperationOption) {
 	op := newVoidOperation[TIn](http.MethodDelete, path, handler, r.tags)
+	op.security = cloneSecurityRequirements(r.security)
 	for _, opt := range opts {
 		opt(op)
 	}
 	r.operations = append(r.operations, op)
 }
-

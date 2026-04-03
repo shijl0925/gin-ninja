@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/pagination"
 )
 
 func init() {
@@ -330,6 +332,93 @@ func TestOpenAPISpec_PrefixAppliedOnce(t *testing.T) {
 	}
 	if _, ok := paths["/api/v1/api/v1/users/"]; ok {
 		t.Fatalf("expected duplicated prefix path to be absent, got: %v", paths)
+	}
+}
+
+func TestOpenAPISpec_GenericSchemaRefExists(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+
+	type userOut struct {
+		ID uint `json:"id"`
+	}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*pagination.Page[userOut], error) {
+		return pagination.NewPage([]userOut{{ID: 1}}, 1, pagination.PageInput{}), nil
+	})
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/users/"].(map[string]interface{})["get"].(map[string]interface{})
+	responses := get["responses"].(map[string]interface{})
+	okResp := responses["200"].(map[string]interface{})
+	content := okResp["content"].(map[string]interface{})
+	appJSON := content["application/json"].(map[string]interface{})
+	schema := appJSON["schema"].(map[string]interface{})
+	ref := schema["$ref"].(string)
+
+	const prefix = "#/components/schemas/"
+	if !strings.HasPrefix(ref, prefix) {
+		t.Fatalf("expected ref to start with %q, got %q", prefix, ref)
+	}
+	name := strings.TrimPrefix(ref, prefix)
+	if strings.Contains(name, "/") {
+		t.Fatalf("expected sanitized schema name without '/', got %q", name)
+	}
+
+	components := spec["components"].(map[string]interface{})
+	schemas := components["schemas"].(map[string]interface{})
+	if _, ok := schemas[name]; !ok {
+		t.Fatalf("expected referenced schema %q to exist in components, got %v", name, schemas)
+	}
+}
+
+func TestOpenAPISpec_BearerSecurity(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Test",
+		Version: "0.0.1",
+		SecuritySchemes: map[string]ninja.SecurityScheme{
+			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
+		},
+	})
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*listOutput, error) {
+		return &listOutput{}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	components := spec["components"].(map[string]interface{})
+	securitySchemes := components["securitySchemes"].(map[string]interface{})
+	bearer := securitySchemes["bearerAuth"].(map[string]interface{})
+	if bearer["type"] != "http" {
+		t.Fatalf("expected bearerAuth type=http, got %v", bearer["type"])
+	}
+	if bearer["scheme"] != "bearer" {
+		t.Fatalf("expected bearerAuth scheme=bearer, got %v", bearer["scheme"])
+	}
+	if bearer["bearerFormat"] != "JWT" {
+		t.Fatalf("expected bearerAuth bearerFormat=JWT, got %v", bearer["bearerFormat"])
+	}
+
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/users/"].(map[string]interface{})["get"].(map[string]interface{})
+	security := get["security"].([]interface{})
+	if len(security) != 1 {
+		t.Fatalf("expected one security requirement, got %v", security)
+	}
+	req := security[0].(map[string]interface{})
+	if _, ok := req["bearerAuth"]; !ok {
+		t.Fatalf("expected bearerAuth requirement, got %v", req)
 	}
 }
 

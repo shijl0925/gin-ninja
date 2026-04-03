@@ -13,11 +13,11 @@ import (
 
 // openAPISpec is the root OpenAPI 3.0 document.
 type openAPISpec struct {
-	OpenAPI    string                `json:"openapi"`
-	Info       openAPIInfo           `json:"info"`
-	Paths      map[string]*pathItem  `json:"paths"`
-	Components openAPIComponents     `json:"components"`
-	Tags       []openAPITag          `json:"tags,omitempty"`
+	OpenAPI    string               `json:"openapi"`
+	Info       openAPIInfo          `json:"info"`
+	Paths      map[string]*pathItem `json:"paths"`
+	Components openAPIComponents    `json:"components"`
+	Tags       []openAPITag         `json:"tags,omitempty"`
 
 	// Internal state – not serialised.
 	config   Config
@@ -31,7 +31,8 @@ type openAPIInfo struct {
 }
 
 type openAPIComponents struct {
-	Schemas map[string]*Schema `json:"schemas,omitempty"`
+	Schemas         map[string]*Schema        `json:"schemas,omitempty"`
+	SecuritySchemes map[string]SecurityScheme `json:"securitySchemes,omitempty"`
 }
 
 type openAPITag struct {
@@ -50,13 +51,14 @@ type pathItem struct {
 
 // operationSpec is the OpenAPI representation of a single operation.
 type operationSpec struct {
-	OperationID string                `json:"operationId,omitempty"`
-	Summary     string                `json:"summary,omitempty"`
-	Description string                `json:"description,omitempty"`
-	Tags        []string              `json:"tags,omitempty"`
-	Deprecated  bool                  `json:"deprecated,omitempty"`
-	Parameters  []parameterSpec       `json:"parameters,omitempty"`
-	RequestBody *requestBodySpec      `json:"requestBody,omitempty"`
+	OperationID string                  `json:"operationId,omitempty"`
+	Summary     string                  `json:"summary,omitempty"`
+	Description string                  `json:"description,omitempty"`
+	Tags        []string                `json:"tags,omitempty"`
+	Security    []SecurityRequirement   `json:"security,omitempty"`
+	Deprecated  bool                    `json:"deprecated,omitempty"`
+	Parameters  []parameterSpec         `json:"parameters,omitempty"`
+	RequestBody *requestBodySpec        `json:"requestBody,omitempty"`
 	Responses   map[string]responseSpec `json:"responses"`
 }
 
@@ -69,9 +71,9 @@ type parameterSpec struct {
 }
 
 type requestBodySpec struct {
-	Description string                        `json:"description,omitempty"`
-	Required    bool                          `json:"required"`
-	Content     map[string]mediaTypeSpec      `json:"content"`
+	Description string                   `json:"description,omitempty"`
+	Required    bool                     `json:"required"`
+	Content     map[string]mediaTypeSpec `json:"content"`
 }
 
 type mediaTypeSpec struct {
@@ -95,9 +97,10 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 			Version:     cfg.Version,
 			Description: cfg.Description,
 		},
-		Paths:    make(map[string]*pathItem),
+		Paths: make(map[string]*pathItem),
 		Components: openAPIComponents{
-			Schemas: make(map[string]*Schema),
+			Schemas:         make(map[string]*Schema),
+			SecuritySchemes: cloneSecuritySchemes(cfg.SecuritySchemes),
 		},
 		config:   cfg,
 		registry: newSchemaRegistry(),
@@ -147,6 +150,7 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		Summary:     op.summary,
 		Description: op.description,
 		Tags:        op.tags,
+		Security:    cloneSecurityRequirements(op.security),
 		Deprecated:  op.deprecated,
 		Responses:   make(map[string]responseSpec),
 	}
@@ -318,4 +322,15 @@ func ginPathToOpenAPI(ginPath string) string {
 		}
 	}
 	return strings.Join(parts, "/")
+}
+
+func cloneSecuritySchemes(in map[string]SecurityScheme) map[string]SecurityScheme {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]SecurityScheme, len(in))
+	for name, scheme := range in {
+		out[name] = scheme
+	}
+	return out
 }

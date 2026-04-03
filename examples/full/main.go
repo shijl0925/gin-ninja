@@ -55,10 +55,13 @@ func main() {
 
 	// ── 4. Build API ─────────────────────────────────────────────────────────
 	api := ninja.New(ninja.Config{
-		Title:             cfg.App.Name,
-		Version:           cfg.App.Version,
-		Description:       "A full-featured gin-ninja example with bootstrap, middleware, and settings.",
-		Prefix:            "/api/v1",
+		Title:       cfg.App.Name,
+		Version:     cfg.App.Version,
+		Description: "A full-featured gin-ninja example with bootstrap, middleware, and settings.",
+		Prefix:      "/api/v1",
+		SecuritySchemes: map[string]ninja.SecurityScheme{
+			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
+		},
 		DisableGinDefault: true,
 	})
 
@@ -77,7 +80,7 @@ func main() {
 	api.AddRouter(authRouter)
 
 	// ── 7. Users router (protected by JWT) ───────────────────────────────────
-	usersRouter := ninja.NewRouter("/users", ninja.WithTags("Users"))
+	usersRouter := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
 	usersRouter.UseGin(middleware.JWTAuth())
 
 	ninja.Get(usersRouter, "/", app.ListUsers,
