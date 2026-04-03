@@ -338,11 +338,11 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 }
 
 func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
-	type embeddedBody struct {
+	type EmbeddedBody struct {
 		Name string `json:"name" binding:"required"`
 	}
 	type createInput struct {
-		embeddedBody
+		EmbeddedBody
 		Age int `json:"age"`
 	}
 
