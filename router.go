@@ -20,7 +20,7 @@ func WithTags(tags ...string) RouterOption {
 // registered on this router.
 func WithSecurity(name string, scopes ...string) RouterOption {
 	return func(r *Router) {
-		r.security = append(r.security, SecurityRequirement{name: append([]string(nil), scopes...)})
+		r.security = append(r.security, SecurityRequirement{name: append([]string{}, scopes...)})
 	}
 }
 

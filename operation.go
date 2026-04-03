@@ -34,7 +34,7 @@ func Tags(tags ...string) OperationOption {
 // Security adds an OpenAPI security requirement to this operation.
 func Security(name string, scopes ...string) OperationOption {
 	return func(op *operation) {
-		op.security = append(op.security, SecurityRequirement{name: append([]string(nil), scopes...)})
+		op.security = append(op.security, SecurityRequirement{name: append([]string{}, scopes...)})
 	}
 }
 
@@ -79,7 +79,7 @@ func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement
 	for _, req := range reqs {
 		cloned := make(SecurityRequirement, len(req))
 		for name, scopes := range req {
-			cloned[name] = append([]string(nil), scopes...)
+			cloned[name] = append([]string{}, scopes...)
 		}
 		out = append(out, cloned)
 	}

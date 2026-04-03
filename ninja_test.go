@@ -417,8 +417,16 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 		t.Fatalf("expected one security requirement, got %v", security)
 	}
 	req := security[0].(map[string]interface{})
-	if _, ok := req["bearerAuth"]; !ok {
+	scopes, ok := req["bearerAuth"]
+	if !ok {
 		t.Fatalf("expected bearerAuth requirement, got %v", req)
+	}
+	scopeList, ok := scopes.([]interface{})
+	if !ok {
+		t.Fatalf("expected bearerAuth scopes to serialize as array, got %T (%v)", scopes, scopes)
+	}
+	if len(scopeList) != 0 {
+		t.Fatalf("expected bearerAuth scopes to be empty, got %v", scopeList)
 	}
 }
 
