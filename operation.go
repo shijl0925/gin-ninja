@@ -11,6 +11,31 @@ import (
 // OperationOption is a functional option for configuring an Operation.
 type OperationOption func(*operation)
 
+// WithMiddleware adds one or more typed middleware functions to a single
+// operation. Returning a non-nil error aborts the request with the standard
+// gin-ninja error response.
+func WithMiddleware(mw ...func(*Context) error) OperationOption {
+	return func(op *operation) {
+		if len(mw) == 0 {
+			return
+		}
+		prev := op.ginHandler
+		op.ginHandler = func(c *gin.Context) {
+			ctx := newContext(c)
+			for _, fn := range mw {
+				if err := fn(ctx); err != nil {
+					writeError(c, err)
+					return
+				}
+				if c.IsAborted() {
+					return
+				}
+			}
+			prev(c)
+		}
+	}
+}
+
 // Summary sets the human-readable summary shown in the OpenAPI docs.
 func Summary(s string) OperationOption {
 	return func(op *operation) { op.summary = s }

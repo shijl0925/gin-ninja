@@ -22,10 +22,12 @@ type RegisterInput struct {
 
 // LoginOutput is the response body for POST /auth/login.
 type LoginOutput struct {
-	Token   string `json:"token"`
-	Expires int    `json:"expires_in"` // seconds
-	UserID  uint   `json:"user_id"`
-	Name    string `json:"name"`
+	Token       string   `json:"token"`
+	Expires     int      `json:"expires_in"` // seconds
+	UserID      uint     `json:"user_id"`
+	Name        string   `json:"name"`
+	Roles       []string `json:"roles"`
+	Permissions []string `json:"permissions"`
 }
 
 // ---------------------------------------------------------------------------
@@ -39,6 +41,13 @@ type UserOut struct {
 	Email   string `json:"email"`
 	Age     int    `json:"age"`
 	IsAdmin bool   `json:"is_admin"`
+}
+
+// CurrentSubjectOut is the RBAC summary for the current authenticated user.
+type CurrentSubjectOut struct {
+	User        UserOut   `json:"user"`
+	Roles       []string  `json:"roles"`
+	Permissions []string  `json:"permissions"`
 }
 
 // ListUsersInput holds query parameters for listing users.
