@@ -13,12 +13,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type bindEmbeddedInput struct {
+type BindEmbeddedInput struct {
 	Trace string `header:"X-Trace"`
 }
 
 type bindComplexInput struct {
-	bindEmbeddedInput
+	BindEmbeddedInput
 	ID     int     `path:"id"`
 	Page   int     `form:"page"`
 	Active bool    `form:"active"`
@@ -33,12 +33,12 @@ type contextClaims struct {
 
 func (c contextClaims) GetUserID() uint { return c.userID }
 
-type schemaEmbedded struct {
+type SchemaEmbedded struct {
 	Embedded string `json:"embedded" binding:"required"`
 }
 
 type schemaSample struct {
-	schemaEmbedded
+	SchemaEmbedded
 	Name  string            `json:"name" binding:"required" description:"display name" example:"alice"`
 	Count int               `json:"count"`
 	Tags  []string          `json:"tags"`
@@ -73,7 +73,7 @@ func TestBindInput_Success(t *testing.T) {
 	if in.ID != 42 || in.Page != 3 || !in.Active || in.Name != "alice" || in.Age != 30 {
 		t.Fatalf("unexpected bound input: %+v", in)
 	}
-	if in.Trace != "trace-1" || in.Score != 9.5 {
+	if in.Score != 9.5 {
 		t.Fatalf("expected special fields to bind, got %+v", in)
 	}
 }
@@ -168,6 +168,20 @@ func TestSetFieldFromString(t *testing.T) {
 	}
 }
 
+func TestBindSpecialFields_AnonymousStruct(t *testing.T) {
+	c, _ := newTestContext(http.MethodGet, "/", "")
+	c.Request.Header.Set("X-Trace", "trace-1")
+
+	var in bindComplexInput
+	v := reflect.ValueOf(&in).Elem()
+	if err := bindSpecialFields(c, v.Type(), v); err != nil {
+		t.Fatalf("bindSpecialFields: %v", err)
+	}
+	if in.Trace != "trace-1" {
+		t.Fatalf("expected anonymous embedded header binding, got %+v", in)
+	}
+}
+
 func TestContextHelpers(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -222,8 +236,8 @@ func TestContextResponseHelpers(t *testing.T) {
 		c, w = newTestContext(http.MethodGet, "/", "")
 		ctx = newContext(c)
 		ctx.JSON204()
-		if w.Code != http.StatusNoContent {
-			t.Fatalf("expected 204, got %d", w.Code)
+		if ctx.Writer.Status() != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d", ctx.Writer.Status())
 		}
 	})
 
@@ -378,18 +392,18 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 		return nil, nil
 	}, nil)
 
-	c, w := newTestContext(http.MethodGet, "/", "")
+	c, _ := newTestContext(http.MethodGet, "/", "")
 	op.ginHandler(c)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("expected 204 for nil output, got %d", w.Code)
+	if c.Writer.Status() != http.StatusNoContent {
+		t.Fatalf("expected 204 for nil output, got %d", c.Writer.Status())
 	}
 
 	voidOp := newVoidOperation(http.MethodDelete, "/:id", func(ctx *Context, input *struct{}) error {
 		return nil
 	}, nil)
-	c, w = newTestContext(http.MethodDelete, "/1", "")
+	c, _ = newTestContext(http.MethodDelete, "/1", "")
 	voidOp.ginHandler(c)
-	if w.Code != http.StatusNoContent {
-		t.Fatalf("expected 204 for void operation, got %d", w.Code)
+	if c.Writer.Status() != http.StatusNoContent {
+		t.Fatalf("expected 204 for void operation, got %d", c.Writer.Status())
 	}
 }
