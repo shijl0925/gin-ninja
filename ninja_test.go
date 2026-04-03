@@ -282,6 +282,46 @@ func TestNestedRouters(t *testing.T) {
 	}
 }
 
+func TestNestedRouters_InheritParentMiddleware(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	parent := ninja.NewRouter("/users")
+	child := ninja.NewRouter("/:userID/posts")
+
+	parent.UseGin(func(c *gin.Context) {
+		c.Set("raw-parent", true)
+		c.Next()
+	})
+	parent.Use(func(ctx *ninja.Context) error {
+		ctx.Set("typed-parent", true)
+		return nil
+	})
+
+	ninja.Get(child, "/", func(ctx *ninja.Context, _ *struct{}) (*map[string]bool, error) {
+		rawParent, _ := ctx.Get("raw-parent")
+		typedParent, _ := ctx.Get("typed-parent")
+		return &map[string]bool{
+			"raw":   rawParent == true,
+			"typed": typedParent == true,
+		}, nil
+	})
+
+	parent.AddRouter(child)
+	api.AddRouter(parent)
+
+	w := doRequest(api, http.MethodGet, "/users/7/posts/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var out map[string]bool
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if !out["raw"] || !out["typed"] {
+		t.Fatalf("expected parent middleware to run for child route, got %+v", out)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // OpenAPI spec content
 // ---------------------------------------------------------------------------

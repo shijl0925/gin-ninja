@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/settings"
 )
@@ -179,6 +180,9 @@ func TestCORS_CustomConfig(t *testing.T) {
 }
 
 func TestJWTAuth_UsesGlobalSettings(t *testing.T) {
+	prev := settings.Global.JWT
+	t.Cleanup(func() { settings.Global.JWT = prev })
+
 	settings.Global.JWT.Secret = "global-secret"
 	settings.Global.JWT.ExpireHours = 1
 	settings.Global.JWT.Issuer = "test-issuer"
@@ -211,5 +215,31 @@ func TestJWTAuth_UsesGlobalSettings(t *testing.T) {
 func TestGenerateTokenWithSecret_EmptySecret(t *testing.T) {
 	if _, err := middleware.GenerateTokenWithSecret(1, "alice", "", time.Hour); err == nil {
 		t.Fatal("expected empty secret error")
+	}
+}
+
+func TestGenerateTokenWithSecret_DoesNotUseGlobalIssuer(t *testing.T) {
+	prev := settings.Global.JWT
+	t.Cleanup(func() { settings.Global.JWT = prev })
+
+	settings.Global.JWT.Issuer = "global-issuer"
+	token, err := middleware.GenerateTokenWithSecret(1, "alice", "secret", time.Hour)
+	if err != nil {
+		t.Fatalf("GenerateTokenWithSecret: %v", err)
+	}
+
+	parsed, err := jwt.ParseWithClaims(token, &middleware.Claims{}, func(t *jwt.Token) (interface{}, error) {
+		return []byte("secret"), nil
+	})
+	if err != nil || !parsed.Valid {
+		t.Fatalf("expected token to parse, err=%v valid=%v", err, parsed != nil && parsed.Valid)
+	}
+
+	claims, ok := parsed.Claims.(*middleware.Claims)
+	if !ok {
+		t.Fatalf("unexpected claims type: %T", parsed.Claims)
+	}
+	if claims.Issuer != "gin-ninja" {
+		t.Fatalf("expected default issuer, got %q", claims.Issuer)
 	}
 }

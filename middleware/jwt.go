@@ -90,17 +90,23 @@ func ClaimsKey() string { return claimsKey }
 func GenerateToken(userID uint, username string) (string, error) {
 	secret := settings.Global.JWT.Secret
 	ttl := settings.Global.JWT.ExpireDuration()
-	return GenerateTokenWithSecret(userID, username, secret, ttl)
+	issuer := settings.Global.JWT.Issuer
+	if issuer == "" {
+		issuer = "gin-ninja"
+	}
+	return generateToken(userID, username, secret, ttl, issuer)
 }
 
 // GenerateTokenWithSecret creates a signed JWT token with an explicit secret
 // and TTL.  Use this when you cannot rely on the global settings (e.g. tests).
 func GenerateTokenWithSecret(userID uint, username, secret string, ttl time.Duration) (string, error) {
+	return generateToken(userID, username, secret, ttl, "gin-ninja")
+}
+
+func generateToken(userID uint, username, secret string, ttl time.Duration, issuer string) (string, error) {
 	if secret == "" {
 		return "", errors.New("jwt: secret must not be empty")
 	}
-	cfg := settings.Global.JWT
-	issuer := cfg.Issuer
 	if issuer == "" {
 		issuer = "gin-ninja"
 	}
@@ -132,4 +138,3 @@ func extractBearerToken(c *gin.Context) string {
 	}
 	return strings.TrimSpace(parts[1])
 }
-

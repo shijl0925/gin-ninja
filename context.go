@@ -3,6 +3,7 @@ package ninja
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,13 +20,15 @@ type Context struct {
 	*gin.Context
 }
 
+var _ context.Context = (*Context)(nil)
+
 // newContext wraps a gin.Context.
 func newContext(c *gin.Context) *Context {
 	return &Context{Context: c}
 }
 
 // Deadline implements context.Context.
-func (c *Context) Deadline() (deadline interface{}, ok bool) {
+func (c *Context) Deadline() (deadline time.Time, ok bool) {
 	return c.Request.Context().Deadline()
 }
 
@@ -41,7 +44,7 @@ func (c *Context) Err() error {
 
 // Value implements context.Context.  Keys set via gin Set/Get are checked
 // first; if not found, the request context is consulted.
-func (c *Context) Value(key interface{}) interface{} {
+func (c *Context) Value(key any) any {
 	if k, ok := key.(string); ok {
 		if v, exists := c.Get(k); exists {
 			return v
@@ -115,4 +118,3 @@ func (c *Context) Unauthorized(message string) {
 		Message: message,
 	}})
 }
-

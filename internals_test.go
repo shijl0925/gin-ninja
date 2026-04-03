@@ -198,8 +198,10 @@ func TestContextHelpers(t *testing.T) {
 	if ctx.Value("gin-key") != "gin-value" || ctx.Value("request-key") != "request-value" {
 		t.Fatal("expected context values from gin and request context")
 	}
-	if deadline, ok := ctx.Deadline(); !ok || deadline == nil {
-		t.Fatal("expected deadline from request context")
+	expectedDeadline, expectedOK := reqCtx.Deadline()
+	deadline, ok := ctx.Deadline()
+	if ok != expectedOK || !deadline.Equal(expectedDeadline) {
+		t.Fatalf("expected deadline %v (ok=%v), got %v (ok=%v)", expectedDeadline, expectedOK, deadline, ok)
 	}
 	if ctx.StdContext().Value("request-key") != "request-value" {
 		t.Fatal("expected StdContext passthrough")
@@ -332,6 +334,34 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 	}
 	if got := intFormat(reflect.Int64); got != "int64" {
 		t.Fatalf("expected int64 format, got %q", got)
+	}
+}
+
+func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
+	type embeddedBody struct {
+		Name string `json:"name" binding:"required"`
+	}
+	type createInput struct {
+		embeddedBody
+		Age int `json:"age"`
+	}
+
+	spec := newOpenAPISpec(Config{})
+	params, bodySchema := spec.extractParams(http.MethodPost, reflect.TypeOf(createInput{}))
+	if len(params) != 0 {
+		t.Fatalf("expected no parameters, got %+v", params)
+	}
+	if bodySchema == nil {
+		t.Fatal("expected request body schema")
+	}
+	if _, ok := bodySchema.Properties["name"]; !ok {
+		t.Fatalf("expected embedded body field to be preserved, got %+v", bodySchema.Properties)
+	}
+	if _, ok := bodySchema.Properties["age"]; !ok {
+		t.Fatalf("expected direct body field to be preserved, got %+v", bodySchema.Properties)
+	}
+	if len(bodySchema.Required) != 1 || bodySchema.Required[0] != "name" {
+		t.Fatalf("expected embedded required fields to be preserved, got %+v", bodySchema.Required)
 	}
 }
 

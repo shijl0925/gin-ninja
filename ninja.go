@@ -107,7 +107,7 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 // registered with the gin engine and included in the OpenAPI spec.
 func (api *NinjaAPI) AddRouter(router *Router) {
 	api.routers = append(api.routers, router)
-	api.registerRouter(api.config.Prefix, router)
+	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, router)
 }
 
 // Run starts the HTTP server on the given address (e.g. ":8080").
@@ -120,9 +120,9 @@ func (api *NinjaAPI) Run(addr string) error {
 // ---------------------------------------------------------------------------
 
 // registerRouter recursively registers all routes from a Router tree.
-func (api *NinjaAPI) registerRouter(parentPrefix string, router *Router) {
+func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix string, router *Router) {
 	prefix := parentPrefix + router.prefix
-	group := api.engine.Group(prefix)
+	group := parent.Group(router.prefix)
 
 	// Attach raw gin middleware first.
 	if len(router.ginMiddleware) > 0 {
@@ -153,7 +153,7 @@ func (api *NinjaAPI) registerRouter(parentPrefix string, router *Router) {
 	}
 
 	for _, sub := range router.subrouters {
-		api.registerRouter(prefix, sub)
+		api.registerRouter(group, prefix, sub)
 	}
 }
 

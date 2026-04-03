@@ -109,11 +109,19 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 
 // build returns the final spec ready for JSON serialisation.
 func (s *openAPISpec) build() *openAPISpec {
-	// Sync registry schemas into components.
-	for name, schema := range s.registry.schemas {
-		s.Components.Schemas[name] = schema
+	built := *s
+	built.Paths = make(map[string]*pathItem, len(s.Paths))
+	for path, item := range s.Paths {
+		built.Paths[path] = item
 	}
-	return s
+	built.Components = openAPIComponents{
+		Schemas:         make(map[string]*Schema, len(s.registry.schemas)),
+		SecuritySchemes: cloneSecuritySchemes(s.Components.SecuritySchemes),
+	}
+	for name, schema := range s.registry.schemas {
+		built.Components.Schemas[name] = schema
+	}
+	return &built
 }
 
 // addOperation registers an operation in the spec.
@@ -210,8 +218,14 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		}
 		if f.Anonymous {
 			// Flatten embedded structs.
-			ep, _ := s.extractParams(method, deref(f.Type))
+			ep, embeddedBodySchema := s.extractParams(method, deref(f.Type))
 			params = append(params, ep...)
+			if hasBody && embeddedBodySchema != nil {
+				for name, schema := range embeddedBodySchema.Properties {
+					bodyFields[name] = schema
+				}
+				bodyRequired = append(bodyRequired, embeddedBodySchema.Required...)
+			}
 			continue
 		}
 
