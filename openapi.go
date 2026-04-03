@@ -126,6 +126,10 @@ func (s *openAPISpec) build() *openAPISpec {
 
 // addOperation registers an operation in the spec.
 func (s *openAPISpec) addOperation(op *operation) {
+	if op.excludeFromDocs {
+		return
+	}
+
 	// op.path is already the fully-qualified router path, including any global
 	// API prefix applied during router registration.
 	openapiPath := ginPathToOpenAPI(op.path)
@@ -200,6 +204,21 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	spec.Responses["422"] = responseSpec{Description: "Validation Error"}
 	spec.Responses["500"] = responseSpec{Description: "Internal Server Error"}
 
+	for _, documented := range op.responses {
+		response := responseSpec{
+			Description: documented.description,
+		}
+		if response.Description == "" {
+			response.Description = http.StatusText(documented.status)
+		}
+		if documented.responseType != nil {
+			response.Content = map[string]mediaTypeSpec{
+				"application/json": {Schema: s.registry.schemaForType(documented.responseType)},
+			}
+		}
+		spec.Responses[fmt.Sprintf("%d", documented.status)] = response
+	}
+
 	return spec
 }
 
@@ -247,6 +266,17 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 			params = append(params, parameterSpec{
 				Name:     headerTag,
 				In:       "header",
+				Required: isRequired(f),
+				Schema:   fieldSchema,
+			})
+			continue
+		}
+
+		// Cookie parameter.
+		if cookieTag := f.Tag.Get("cookie"); cookieTag != "" {
+			params = append(params, parameterSpec{
+				Name:     cookieTag,
+				In:       "cookie",
 				Required: isRequired(f),
 				Schema:   fieldSchema,
 			})

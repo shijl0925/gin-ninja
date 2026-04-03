@@ -19,12 +19,13 @@ type BindEmbeddedInput struct {
 
 type bindComplexInput struct {
 	BindEmbeddedInput
-	ID     int     `path:"id"`
-	Page   int     `form:"page"`
-	Active bool    `form:"active"`
-	Score  float64 `header:"X-Score"`
-	Name   string  `json:"name" binding:"required"`
-	Age    int     `json:"age"`
+	ID      int     `path:"id"`
+	Page    int     `form:"page"`
+	Active  bool    `form:"active"`
+	Score   float64 `header:"X-Score"`
+	Session string  `cookie:"session"`
+	Name    string  `json:"name" binding:"required"`
+	Age     int     `json:"age"`
 }
 
 type contextClaims struct {
@@ -64,6 +65,7 @@ func TestBindInput_Success(t *testing.T) {
 	c.Params = gin.Params{{Key: "id", Value: "42"}}
 	c.Request.Header.Set("X-Trace", "trace-1")
 	c.Request.Header.Set("X-Score", "9.5")
+	c.Request.AddCookie(&http.Cookie{Name: "session", Value: "sess-1"})
 
 	var in bindComplexInput
 	if err := bindInput(c, http.MethodPost, &in); err != nil {
@@ -75,6 +77,9 @@ func TestBindInput_Success(t *testing.T) {
 	}
 	if in.Score != 9.5 {
 		t.Fatalf("expected special fields to bind, got %+v", in)
+	}
+	if in.Session != "sess-1" {
+		t.Fatalf("expected cookie field to bind, got %+v", in)
 	}
 }
 
@@ -115,7 +120,7 @@ func TestBindInput_Errors(t *testing.T) {
 		}
 	})
 
-	t.Run("bad path/header", func(t *testing.T) {
+	t.Run("bad path/header/cookie", func(t *testing.T) {
 		c, _ := newTestContext(http.MethodPost, "/users/nope", `{"name":"alice"}`)
 		c.Params = gin.Params{{Key: "id", Value: "bad"}}
 		var in bindComplexInput
@@ -131,6 +136,18 @@ func TestBindInput_Errors(t *testing.T) {
 		err = bindInput(c, http.MethodPost, &in)
 		if !errors.As(err, &apiErr) || apiErr.Code != "BAD_HEADER" {
 			t.Fatalf("expected BAD_HEADER, got %v", err)
+		}
+
+		c, _ = newTestContext(http.MethodPost, "/users/1", `{"name":"alice"}`)
+		type cookieInput struct {
+			Session int    `cookie:"session"`
+			Name    string `json:"name" binding:"required"`
+		}
+		var cookieIn cookieInput
+		c.Request.AddCookie(&http.Cookie{Name: "session", Value: "bad"})
+		err = bindInput(c, http.MethodPost, &cookieIn)
+		if !errors.As(err, &apiErr) || apiErr.Code != "BAD_COOKIE" {
+			t.Fatalf("expected BAD_COOKIE, got %v", err)
 		}
 	})
 }
@@ -407,13 +424,19 @@ func TestOptionHelpers(t *testing.T) {
 	Security("oauth2", "read")(op)
 	BearerAuth()(op)
 	Deprecated()(op)
+	ExcludeFromDocs()(op)
 	SuccessStatus(http.StatusAccepted)(op)
+	Response(http.StatusBadRequest, "bad request", schemaSample{})(op)
+	Response(http.StatusNotFound, "not found", nil)(op)
 
 	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
 	}
-	if !op.deprecated || op.successStatus != http.StatusAccepted || len(op.security) != 2 {
+	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 2 {
 		t.Fatalf("unexpected operation options: %+v", op)
+	}
+	if len(op.responses) != 2 || op.responses[0].responseType == nil || op.responses[1].responseType != nil {
+		t.Fatalf("unexpected documented responses: %+v", op.responses)
 	}
 }
 

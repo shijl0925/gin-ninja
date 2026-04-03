@@ -28,6 +28,7 @@ var validate = func() *validator.Validate {
 //   - `path:"name"`   – URL path parameter (e.g. /users/:id)
 //   - `form:"name"`   – query-string parameter for all methods, or form-body for POST
 //   - `header:"name"` – request header
+//   - `cookie:"name"` – request cookie
 //   - `json:"name"`   – request JSON body field (POST/PUT/PATCH only)
 //   - `binding:"…"`   – go-playground/validator constraints
 func bindInput(c *gin.Context, method string, input interface{}) error {
@@ -83,7 +84,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	return nil
 }
 
-// bindSpecialFields walks the struct fields and binds path and header params.
+// bindSpecialFields walks the struct fields and binds path, header, and cookie params.
 func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -128,6 +129,22 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 					Status:  http.StatusBadRequest,
 					Code:    "BAD_HEADER",
 					Message: fmt.Sprintf("header '%s': %s", headerTag, err.Error()),
+				}
+			}
+			continue
+		}
+
+		// Cookie parameters.
+		if cookieTag := field.Tag.Get("cookie"); cookieTag != "" {
+			raw, err := c.Cookie(cookieTag)
+			if err != nil || raw == "" {
+				continue
+			}
+			if err := setFieldFromString(fv, raw); err != nil {
+				return &Error{
+					Status:  http.StatusBadRequest,
+					Code:    "BAD_COOKIE",
+					Message: fmt.Sprintf("cookie '%s': %s", cookieTag, err.Error()),
 				}
 			}
 		}

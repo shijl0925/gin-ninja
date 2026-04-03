@@ -26,6 +26,10 @@ func newTestAPI() *ninja.NinjaAPI {
 }
 
 func doRequest(api *ninja.NinjaAPI, method, path string, body interface{}) *httptest.ResponseRecorder {
+	return doRequestWithHeaders(api, method, path, body, nil)
+}
+
+func doRequestWithHeaders(api *ninja.NinjaAPI, method, path string, body interface{}, configure func(*http.Request)) *httptest.ResponseRecorder {
 	var reqBody *bytes.Buffer
 	if body != nil {
 		b, _ := json.Marshal(body)
@@ -35,6 +39,9 @@ func doRequest(api *ninja.NinjaAPI, method, path string, body interface{}) *http
 	}
 	req := httptest.NewRequest(method, path, reqBody)
 	req.Header.Set("Content-Type", "application/json")
+	if configure != nil {
+		configure(req)
+	}
 	w := httptest.NewRecorder()
 	api.Handler().ServeHTTP(w, req)
 	return w
@@ -115,6 +122,39 @@ func TestGet_QueryParams(t *testing.T) {
 	}
 	if out.Page != 3 {
 		t.Errorf("expected page=3, got %d", out.Page)
+	}
+}
+
+type cookieInput struct {
+	Session string `cookie:"session" binding:"required"`
+}
+
+type cookieOutput struct {
+	Session string `json:"session"`
+}
+
+func TestGet_CookieParam(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/session")
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *cookieInput) (*cookieOutput, error) {
+		return &cookieOutput{Session: in.Session}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequestWithHeaders(api, http.MethodGet, "/session/", nil, func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "session", Value: "sess-123"})
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var out cookieOutput
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if out.Session != "sess-123" {
+		t.Fatalf("expected cookie session to round-trip, got %+v", out)
 	}
 }
 
@@ -467,6 +507,66 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 	}
 	if len(scopeList) != 0 {
 		t.Fatalf("expected bearerAuth scopes to be empty, got %v", scopeList)
+	}
+}
+
+func TestOpenAPISpec_CookieParamAndExtraResponses(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/session", ninja.WithTags("Session"))
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *cookieInput) (*cookieOutput, error) {
+		return &cookieOutput{Session: in.Session}, nil
+	},
+		ninja.Response(http.StatusUnauthorized, "Unauthorized", nil),
+		ninja.Response(http.StatusNotFound, "Missing session", &cookieOutput{}),
+	)
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/session/"].(map[string]interface{})["get"].(map[string]interface{})
+
+	parameters := get["parameters"].([]interface{})
+	if len(parameters) != 1 {
+		t.Fatalf("expected one parameter, got %v", parameters)
+	}
+	parameter := parameters[0].(map[string]interface{})
+	if parameter["in"] != "cookie" || parameter["name"] != "session" {
+		t.Fatalf("expected cookie parameter, got %v", parameter)
+	}
+
+	responses := get["responses"].(map[string]interface{})
+	if _, ok := responses["401"]; !ok {
+		t.Fatalf("expected documented 401 response, got %v", responses)
+	}
+	notFound := responses["404"].(map[string]interface{})
+	content := notFound["content"].(map[string]interface{})
+	appJSON := content["application/json"].(map[string]interface{})
+	schema := appJSON["schema"].(map[string]interface{})
+	if schema["$ref"] == "" {
+		t.Fatalf("expected schema ref for documented response, got %v", schema)
+	}
+}
+
+func TestOpenAPISpec_ExcludeFromDocs(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/internal")
+
+	ninja.Get(r, "/health", func(ctx *ninja.Context, in *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	}, ninja.ExcludeFromDocs())
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	paths := spec["paths"].(map[string]interface{})
+	if _, ok := paths["/internal/health"]; ok {
+		t.Fatalf("expected excluded path to be omitted, got %v", paths)
 	}
 }
 

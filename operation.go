@@ -48,10 +48,37 @@ func Deprecated() OperationOption {
 	return func(op *operation) { op.deprecated = true }
 }
 
+// ExcludeFromDocs omits the operation from the generated OpenAPI spec.
+func ExcludeFromDocs() OperationOption {
+	return func(op *operation) { op.excludeFromDocs = true }
+}
+
 // SuccessStatus sets the HTTP status code used for successful responses.
 // The default is 200 OK (201 Created is common for POST).
 func SuccessStatus(code int) OperationOption {
 	return func(op *operation) { op.successStatus = code }
+}
+
+// Response documents an additional OpenAPI response for the operation.
+// Pass model as nil for responses without a JSON response body.
+func Response(status int, description string, model any) OperationOption {
+	return func(op *operation) {
+		var modelType reflect.Type
+		if model != nil {
+			modelType = reflect.TypeOf(model)
+		}
+		op.responses = append(op.responses, documentedResponse{
+			status:       status,
+			description:  description,
+			responseType: modelType,
+		})
+	}
+}
+
+type documentedResponse struct {
+	status       int
+	description  string
+	responseType reflect.Type
 }
 
 // operation holds all metadata about a single API endpoint and the
@@ -69,6 +96,8 @@ type operation struct {
 	security      []SecurityRequirement
 	deprecated    bool
 	successStatus int
+	responses     []documentedResponse
+	excludeFromDocs bool
 }
 
 func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement {

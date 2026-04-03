@@ -5,12 +5,13 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 ## Features
 
 - **Type-safe handlers** – use plain Go structs for request input and response output.
-- **Automatic parameter binding** – path params (`path:`), query params (`form:`), request headers (`header:`), and JSON bodies (`json:`) are all bound via struct tags.
+- **Automatic parameter binding** – path params (`path:`), query params (`form:`), headers (`header:`), cookies (`cookie:`), and JSON bodies (`json:`) are all bound via struct tags.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
 - **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
 - **Swagger UI** – available at `/docs` out of the box.
 - **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
 - **Gin middleware support** – `UseGin()` on both the API and individual routers.
+- **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, and panic recovery.
@@ -246,9 +247,35 @@ response.JSON(c, response.OKWithMessage("created", user))
 | `path:"x"`   | URL path parameter  | all                |
 | `form:"x"`   | URL query string    | all                |
 | `header:"x"` | Request header      | all                |
+| `cookie:"x"` | Request cookie      | all                |
 | `json:"x"`   | JSON request body   | POST / PUT / PATCH |
 
 `binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
+
+---
+
+## OpenAPI Operation Controls
+
+```go
+type SessionInput struct {
+    Session string `cookie:"session" binding:"required"`
+}
+
+type SessionOutput struct {
+    Session string `json:"session"`
+}
+
+ninja.Get(router, "/session", getSession,
+    ninja.Response(401, "Unauthorized", nil),
+    ninja.Response(404, "Session not found", &SessionOutput{}),
+)
+
+ninja.Get(router, "/internal/health", healthz,
+    ninja.ExcludeFromDocs(),
+)
+```
+
+Use `Response(...)` to document non-default OpenAPI responses, and `ExcludeFromDocs()` for internal endpoints that should remain routable but not appear in Swagger/OpenAPI output.
 
 ---
 
@@ -272,4 +299,3 @@ go run .
 ## License
 
 [MIT](./LICENSE)
-
