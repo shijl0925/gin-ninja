@@ -19,6 +19,7 @@
 // Then visit:
 //   - http://localhost:8080/docs           – Swagger UI
 //   - http://localhost:8080/openapi.json   – raw OpenAPI spec
+//   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login   – get a JWT token
 //   - GET  http://localhost:8080/api/v1/users        – list users (requires JWT)
 package main
@@ -76,6 +77,7 @@ func main() {
 
 	// ── 6. Auth router (public) ──────────────────────────────────────────────
 	authRouter := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
+	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"))
 	ninja.Post(authRouter, "/login", app.Login, ninja.Summary("Login and get JWT token"))
 	api.AddRouter(authRouter)
 

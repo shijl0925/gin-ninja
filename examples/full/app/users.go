@@ -47,6 +47,23 @@ func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
 	}, nil
 }
 
+// Register creates a new user account without requiring authentication.
+func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
+	repo := NewUserRepo()
+
+	query, u := gormx.NewQuery[User]()
+	query.Eq(&u.Email, in.Email)
+	_, err := repo.SelectOneByOpts(query.ToOptions()...)
+	switch {
+	case err == nil:
+		return nil, ninja.NewErrorWithCode(409, "EMAIL_ALREADY_EXISTS", "email already registered")
+	case !errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, err
+	}
+
+	return createUser(repo, in.Name, in.Email, in.Password, in.Age)
+}
+
 // ---------------------------------------------------------------------------
 // Users CRUD
 // ---------------------------------------------------------------------------
@@ -99,18 +116,8 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 
 // CreateUser creates a new user.
 func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
-	u := &User{
-		Name:     in.Name,
-		Email:    in.Email,
-		Password: hashPassword(in.Password),
-		Age:      in.Age,
-	}
 	repo := NewUserRepo()
-	if err := repo.Insert(u); err != nil {
-		return nil, err
-	}
-	out := toUserOut(*u)
-	return &out, nil
+	return createUser(repo, in.Name, in.Email, in.Password, in.Age)
 }
 
 // UpdateUser updates an existing user's fields.
@@ -172,4 +179,18 @@ func hashPassword(password string) string {
 // checkPassword compares a bcrypt hash with a candidate password.
 func checkPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
+}
+
+func createUser(repo IUserRepo, name, email, password string, age int) (*UserOut, error) {
+	u := &User{
+		Name:     name,
+		Email:    email,
+		Password: hashPassword(password),
+		Age:      age,
+	}
+	if err := repo.Insert(u); err != nil {
+		return nil, err
+	}
+	out := toUserOut(*u)
+	return &out, nil
 }

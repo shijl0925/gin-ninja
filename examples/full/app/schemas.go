@@ -12,12 +12,20 @@ type LoginInput struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// RegisterInput is the request body for POST /auth/register.
+type RegisterInput struct {
+	Name     string `json:"name"     binding:"required"        description:"Full name"`
+	Email    string `json:"email"    binding:"required,email"  description:"Email address"`
+	Password string `json:"password" binding:"required,min=8"  description:"Password (min 8 chars)"`
+	Age      int    `json:"age"      binding:"omitempty,min=0,max=150"`
+}
+
 // LoginOutput is the response body for POST /auth/login.
 type LoginOutput struct {
-	Token   string  `json:"token"`
-	Expires int     `json:"expires_in"` // seconds
-	UserID  uint    `json:"user_id"`
-	Name    string  `json:"name"`
+	Token   string `json:"token"`
+	Expires int    `json:"expires_in"` // seconds
+	UserID  uint   `json:"user_id"`
+	Name    string `json:"name"`
 }
 
 // ---------------------------------------------------------------------------
