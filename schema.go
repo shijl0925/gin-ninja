@@ -50,6 +50,9 @@ func (r *schemaRegistry) schemaForType(t reflect.Type) *Schema {
 	}
 
 	switch t.Kind() {
+	case reflect.Invalid:
+		return &Schema{}
+
 	case reflect.Bool:
 		return &Schema{Type: "boolean"}
 
@@ -76,6 +79,9 @@ func (r *schemaRegistry) schemaForType(t reflect.Type) *Schema {
 		return &Schema{Type: "object"}
 
 	case reflect.Struct:
+		if isUploadedFileType(t) {
+			return &Schema{Type: "string", Format: "binary"}
+		}
 		// Use a $ref for named types that have at least one field so we can
 		// reuse the definition in the components section.
 		name := typeName(t)

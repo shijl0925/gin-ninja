@@ -1,9 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -28,6 +31,9 @@ func newDemoAPI() *ninja.NinjaAPI {
 	ninja.Get(router, "/limited", LimitedOperation, ninja.RateLimit(1, 1))
 	ninja.Get(router, "/slow", SlowOperation, ninja.Timeout(150*time.Millisecond))
 	ninja.Get(router, "/hidden", HiddenOperation, ninja.ExcludeFromDocs())
+	ninja.Post(router, "/upload-single", UploadSingleDemo)
+	ninja.Post(router, "/upload-many", UploadManyDemo)
+	ninja.Get(router, "/download", DownloadDemo)
 	api.AddRouter(router)
 	return api
 }
@@ -37,6 +43,38 @@ func doDemoRequest(api *ninja.NinjaAPI, method, path string, configure func(*htt
 	if configure != nil {
 		configure(req)
 	}
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, req)
+	return w
+}
+
+func doMultipartDemoRequest(t *testing.T, api *ninja.NinjaAPI, path string, fields map[string]string, files map[string][]string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for key, value := range fields {
+		if err := writer.WriteField(key, value); err != nil {
+			t.Fatalf("WriteField(%s): %v", key, err)
+		}
+	}
+	for field, names := range files {
+		for _, name := range names {
+			part, err := writer.CreateFormFile(field, name)
+			if err != nil {
+				t.Fatalf("CreateFormFile(%s): %v", field, err)
+			}
+			if _, err := part.Write([]byte("content:" + name)); err != nil {
+				t.Fatalf("Write file %s: %v", name, err)
+			}
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, path, &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 	w := httptest.NewRecorder()
 	api.Handler().ServeHTTP(w, req)
 	return w
@@ -101,6 +139,55 @@ func TestDemoEndpoints_PaginatedRateLimitedAndTimeout(t *testing.T) {
 	}
 }
 
+func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
+	api := newDemoAPI()
+
+	single := doMultipartDemoRequest(t, api, "/examples/upload-single", map[string]string{
+		"title": "avatar",
+	}, map[string][]string{
+		"file": {"avatar.png"},
+	})
+	if single.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", single.Code, single.Body.String())
+	}
+
+	var singleOut UploadDemoOutput
+	if err := json.Unmarshal(single.Body.Bytes(), &singleOut); err != nil {
+		t.Fatalf("unmarshal single upload: %v", err)
+	}
+	if singleOut.Title != "avatar" || singleOut.Filename != "avatar.png" || singleOut.FileCount != 1 {
+		t.Fatalf("unexpected single upload response: %+v", singleOut)
+	}
+
+	multi := doMultipartDemoRequest(t, api, "/examples/upload-many", map[string]string{
+		"category": "docs",
+	}, map[string][]string{
+		"files": {"a.txt", "b.txt"},
+	})
+	if multi.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", multi.Code, multi.Body.String())
+	}
+
+	var multiOut UploadDemoOutput
+	if err := json.Unmarshal(multi.Body.Bytes(), &multiOut); err != nil {
+		t.Fatalf("unmarshal multi upload: %v", err)
+	}
+	if multiOut.Category != "docs" || multiOut.FileCount != 2 {
+		t.Fatalf("unexpected multi upload response: %+v", multiOut)
+	}
+
+	download := doDemoRequest(api, http.MethodGet, "/examples/download", nil)
+	if download.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", download.Code, download.Body.String())
+	}
+	if got := download.Header().Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("demo.txt")) {
+		t.Fatalf("expected attachment header, got %q", got)
+	}
+	if got := download.Header().Get("Content-Type"); got == "" || !strings.HasPrefix(got, "text/plain") {
+		t.Fatalf("expected text/plain content type, got %q", got)
+	}
+}
+
 func TestDemoEndpoints_OpenAPIVisibilityAndResponses(t *testing.T) {
 	api := newDemoAPI()
 
@@ -132,5 +219,20 @@ func TestDemoEndpoints_OpenAPIVisibilityAndResponses(t *testing.T) {
 	}
 	if _, ok := responses["404"]; !ok {
 		t.Fatalf("expected documented 404 response, got %v", responses)
+	}
+
+	uploadSingle := paths["/examples/upload-single"].(map[string]interface{})["post"].(map[string]interface{})
+	requestBody := uploadSingle["requestBody"].(map[string]interface{})
+	content := requestBody["content"].(map[string]interface{})
+	if _, ok := content["multipart/form-data"]; !ok {
+		t.Fatalf("expected multipart form content, got %v", content)
+	}
+
+	download := paths["/examples/download"].(map[string]interface{})["get"].(map[string]interface{})
+	downloadResponses := download["responses"].(map[string]interface{})
+	okResponse := downloadResponses["200"].(map[string]interface{})
+	responseContent := okResponse["content"].(map[string]interface{})
+	if _, ok := responseContent["application/octet-stream"]; !ok {
+		t.Fatalf("expected binary response content, got %v", responseContent)
 	}
 }

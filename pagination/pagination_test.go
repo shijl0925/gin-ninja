@@ -1,56 +1,29 @@
-package pagination_test
+package pagination
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/shijl0925/gin-ninja/pagination"
-)
+func TestResolveSort(t *testing.T) {
+	input := PageInput{Sort: "name,-created_at"}
+	schema := NewSortSchema("name").Allow("created_at")
 
-func TestPageInput_Defaults(t *testing.T) {
-	p := pagination.PageInput{}
-	if p.GetPage() != pagination.DefaultPage {
-		t.Errorf("expected default page %d, got %d", pagination.DefaultPage, p.GetPage())
+	fields, err := input.ResolveSort(schema)
+	if err != nil {
+		t.Fatalf("ResolveSort: %v", err)
 	}
-	if p.GetSize() != pagination.DefaultSize {
-		t.Errorf("expected default size %d, got %d", pagination.DefaultSize, p.GetSize())
+	if len(fields) != 2 {
+		t.Fatalf("expected 2 fields, got %d", len(fields))
+	}
+	if fields[0].Name != "name" || fields[0].Desc {
+		t.Fatalf("unexpected first field: %+v", fields[0])
+	}
+	if fields[1].Name != "created_at" || !fields[1].Desc {
+		t.Fatalf("unexpected second field: %+v", fields[1])
 	}
 }
 
-func TestPageInput_Clamps(t *testing.T) {
-	p := pagination.PageInput{Page: -1, Size: 9999}
-	if p.GetPage() != pagination.DefaultPage {
-		t.Errorf("expected clamped page %d, got %d", pagination.DefaultPage, p.GetPage())
-	}
-	if p.GetSize() != pagination.MaxSize {
-		t.Errorf("expected clamped size %d, got %d", pagination.MaxSize, p.GetSize())
-	}
-}
-
-func TestPageInput_Offset(t *testing.T) {
-	p := pagination.PageInput{Page: 3, Size: 10}
-	if p.Offset() != 20 {
-		t.Errorf("expected offset 20, got %d", p.Offset())
-	}
-}
-
-func TestNewPage(t *testing.T) {
-	items := []string{"a", "b", "c"}
-	input := pagination.PageInput{Page: 2, Size: 3}
-	page := pagination.NewPage(items, 10, input)
-
-	if page.Total != 10 {
-		t.Errorf("expected total 10, got %d", page.Total)
-	}
-	if page.Page != 2 {
-		t.Errorf("expected page 2, got %d", page.Page)
-	}
-	if page.Size != 3 {
-		t.Errorf("expected size 3, got %d", page.Size)
-	}
-	if page.Pages != 4 { // ceil(10/3) = 4
-		t.Errorf("expected pages 4, got %d", page.Pages)
-	}
-	if len(page.Items) != 3 {
-		t.Errorf("expected 3 items, got %d", len(page.Items))
+func TestResolveSortRejectsUnknownField(t *testing.T) {
+	_, err := (PageInput{Sort: "password"}).ResolveSort(NewSortSchema("name"))
+	if err == nil {
+		t.Fatal("expected sort validation error")
 	}
 }

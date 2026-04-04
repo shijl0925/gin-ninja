@@ -1,13 +1,11 @@
 package middleware
 
 import (
-	"net/http"
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
+	ninja "github.com/shijl0925/gin-ninja"
 	"go.uber.org/zap"
-
-	"github.com/shijl0925/gin-ninja/pkg/response"
 )
 
 // Recovery returns a gin middleware that recovers from panics and logs the
@@ -24,8 +22,7 @@ func Recovery(log *zap.Logger) gin.HandlerFunc {
 					zap.ByteString("stack", stack),
 					zap.String("request_id", GetRequestID(c)),
 				)
-				c.AbortWithStatusJSON(http.StatusInternalServerError,
-					response.Fail(response.CodeError, "internal server error"))
+				ninja.WriteError(c, ninja.ErrInternal)
 			}
 		}()
 		c.Next()

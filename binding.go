@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -53,8 +54,14 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		_ = err
 	}
 
+	if isMultipartRequest(c) {
+		if err := bindMultipartFields(c, t, v); err != nil {
+			return err
+		}
+	}
+
 	// Bind JSON body for mutating methods.
-	if isBodyMethod(method) {
+	if isBodyMethod(method) && !isMultipartRequest(c) {
 		body, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			return err
@@ -119,7 +126,7 @@ func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
 				continue
 			}
 		case field.Tag.Get("form") != "":
-			if c.Request.URL.Query().Has(field.Tag.Get("form")) {
+			if hasFormValue(c, field.Tag.Get("form")) {
 				continue
 			}
 		default:
@@ -131,6 +138,66 @@ func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
 				Status:  http.StatusBadRequest,
 				Code:    "BAD_DEFAULT_VALUE",
 				Message: fmt.Sprintf("default for field '%s': %s", field.Name, err.Error()),
+			}
+		}
+	}
+	return nil
+}
+
+func bindMultipartFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
+	form, err := c.MultipartForm()
+	if err != nil {
+		return &Error{
+			Status:  http.StatusBadRequest,
+			Code:    "INVALID_MULTIPART",
+			Message: err.Error(),
+		}
+	}
+	return bindMultipartValue(t, v, form)
+}
+
+func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) error {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+
+		if !fv.CanSet() {
+			continue
+		}
+
+		if field.Anonymous && field.Type.Kind() == reflect.Struct {
+			if err := bindMultipartValue(field.Type, fv, form); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if formTag := field.Tag.Get("form"); formTag != "" {
+			values := form.Value[formTag]
+			if len(values) == 0 {
+				continue
+			}
+			if err := setFieldFromStrings(fv, values); err != nil {
+				return &Error{
+					Status:  http.StatusBadRequest,
+					Code:    "BAD_FORM_VALUE",
+					Message: fmt.Sprintf("form field '%s': %s", formTag, err.Error()),
+				}
+			}
+			continue
+		}
+
+		if fileTag := field.Tag.Get("file"); fileTag != "" {
+			files := form.File[fileTag]
+			if len(files) == 0 {
+				continue
+			}
+			if err := setFileField(fv, files); err != nil {
+				return &Error{
+					Status:  http.StatusBadRequest,
+					Code:    "BAD_FILE_FIELD",
+					Message: fmt.Sprintf("file field '%s': %s", fileTag, err.Error()),
+				}
 			}
 		}
 	}
@@ -249,6 +316,49 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 	return nil
 }
 
+func setFieldFromStrings(fv reflect.Value, raw []string) error {
+	if fv.Kind() == reflect.Slice {
+		slice := reflect.MakeSlice(fv.Type(), 0, len(raw))
+		for _, item := range raw {
+			elem := reflect.New(fv.Type().Elem()).Elem()
+			if err := setFieldFromString(elem, item); err != nil {
+				return err
+			}
+			slice = reflect.Append(slice, elem)
+		}
+		fv.Set(slice)
+		return nil
+	}
+	return setFieldFromString(fv, raw[0])
+}
+
+func setFileField(fv reflect.Value, files []*multipart.FileHeader) error {
+	switch {
+	case isUploadedFilePointerType(fv.Type()):
+		fv.Set(reflect.ValueOf(newUploadedFile(files[0])))
+		return nil
+	case isMultipartFileHeaderPointerType(fv.Type()):
+		fv.Set(reflect.ValueOf(files[0]))
+		return nil
+	case isUploadedFileSliceType(fv.Type()):
+		slice := reflect.MakeSlice(fv.Type(), 0, len(files))
+		for _, file := range files {
+			slice = reflect.Append(slice, reflect.ValueOf(newUploadedFile(file)))
+		}
+		fv.Set(slice)
+		return nil
+	case isMultipartFileHeaderSliceType(fv.Type()):
+		slice := reflect.MakeSlice(fv.Type(), 0, len(files))
+		for _, file := range files {
+			slice = reflect.Append(slice, reflect.ValueOf(file))
+		}
+		fv.Set(slice)
+		return nil
+	default:
+		return fmt.Errorf("unsupported file field type %s", fv.Type())
+	}
+}
+
 func isZeroValue(v reflect.Value) bool {
 	return v.IsZero()
 }
@@ -257,6 +367,20 @@ func isZeroValue(v reflect.Value) bool {
 func isBodyMethod(method string) bool {
 	m := strings.ToUpper(method)
 	return m == http.MethodPost || m == http.MethodPut || m == http.MethodPatch
+}
+
+func isMultipartRequest(c *gin.Context) bool {
+	return strings.HasPrefix(strings.ToLower(c.ContentType()), "multipart/form-data")
+}
+
+func hasFormValue(c *gin.Context, name string) bool {
+	if c.Request.URL.Query().Has(name) {
+		return true
+	}
+	if _, ok := c.GetPostForm(name); ok {
+		return true
+	}
+	return false
 }
 
 // buildValidationError converts validator.ValidationErrors into our ValidationError type.

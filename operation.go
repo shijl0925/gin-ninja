@@ -1,14 +1,12 @@
 package ninja
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"net/http"
 	"reflect"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/orm"
 )
 
 // OperationOption is a functional option for configuring an Operation.
@@ -156,6 +154,12 @@ type operation struct {
 	timeout           time.Duration
 	rateLimit         *rateLimiter
 	excludeFromDocs   bool
+	withTransaction   bool
+}
+
+// WithTransaction wraps the operation in a request-scoped database transaction.
+func WithTransaction() OperationOption {
+	return func(op *operation) { op.withTransaction = true }
 }
 
 func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement {
@@ -216,7 +220,19 @@ func newOperation[TIn any, TOut any](
 		}
 
 		// Invoke the user handler.
-		output, err := handler(ctx, input)
+		var (
+			output *TOut
+			err    error
+		)
+		invoke := func() error {
+			output, err = handler(ctx, input)
+			return err
+		}
+		if op.withTransaction {
+			err = orm.WithTransaction(c, invoke)
+		} else {
+			err = invoke()
+		}
 		if err != nil {
 			writeError(c, err)
 			return
@@ -225,6 +241,10 @@ func newOperation[TIn any, TOut any](
 		// Write the response.
 		if output == nil {
 			c.Status(http.StatusNoContent)
+			return
+		}
+		if writer, ok := any(output).(responseWriter); ok {
+			writer.writeTo(c, op.successStatus)
 			return
 		}
 		c.JSON(op.successStatus, output)
@@ -261,7 +281,16 @@ func newVoidOperation[TIn any](
 			return
 		}
 
-		if err := handler(ctx, input); err != nil {
+		invoke := func() error {
+			return handler(ctx, input)
+		}
+		var err error
+		if op.withTransaction {
+			err = orm.WithTransaction(c, invoke)
+		} else {
+			err = invoke()
+		}
+		if err != nil {
 			writeError(c, err)
 			return
 		}
@@ -287,40 +316,6 @@ func (op *operation) finalize() {
 	op.ginHandler = handler
 }
 
-// writeError writes an appropriate JSON error response.
 func writeError(c *gin.Context, err error) {
-	switch e := err.(type) {
-	case *Error:
-		status := e.Status
-		if status == 0 {
-			status = http.StatusInternalServerError
-		}
-		c.AbortWithStatusJSON(status, errorResponse{Error: e})
-	case *ValidationError:
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
-			"error": gin.H{
-				"code":    "VALIDATION_ERROR",
-				"message": "request validation failed",
-				"errors":  e.Errors,
-			},
-		})
-	default:
-		if errors.Is(err, context.DeadlineExceeded) {
-			c.AbortWithStatusJSON(http.StatusRequestTimeout, errorResponse{
-				Error: &Error{
-					Status:  http.StatusRequestTimeout,
-					Code:    "REQUEST_TIMEOUT",
-					Message: "request timed out",
-				},
-			})
-			return
-		}
-		c.AbortWithStatusJSON(http.StatusInternalServerError, errorResponse{
-			Error: &Error{
-				Status:  http.StatusInternalServerError,
-				Code:    "INTERNAL_ERROR",
-				Message: fmt.Sprintf("%v", err),
-			},
-		})
-	}
+	WriteError(c, err)
 }

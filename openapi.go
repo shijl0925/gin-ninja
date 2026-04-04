@@ -189,13 +189,16 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	if op.inputType != nil {
 		inputType := deref(op.inputType)
 		if inputType.Kind() == reflect.Struct {
-			params, bodySchema := s.extractParams(op.method, inputType)
+			params, bodySchema, requestContentType := s.extractParams(op.method, inputType)
 			spec.Parameters = params
 			if bodySchema != nil {
+				if requestContentType == "" {
+					requestContentType = "application/json"
+				}
 				spec.RequestBody = &requestBodySpec{
 					Required: true,
 					Content: map[string]mediaTypeSpec{
-						"application/json": {Schema: bodySchema},
+						requestContentType: {Schema: bodySchema},
 					},
 				}
 			}
@@ -212,11 +215,11 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 			},
 		}
 	} else if op.outputType != nil {
-		schema := s.registry.schemaForType(op.outputType)
+		contentType, schema := s.responseSchemaForType(op.outputType)
 		spec.Responses[successCode] = responseSpec{
 			Description: http.StatusText(op.successStatus),
 			Content: map[string]mediaTypeSpec{
-				"application/json": {Schema: schema},
+				contentType: {Schema: schema},
 			},
 		}
 	} else {
@@ -247,8 +250,9 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(documented.paginatedItemType))},
 			}
 		} else if documented.responseType != nil {
+			contentType, schema := s.responseSchemaForType(documented.responseType)
 			response.Content = map[string]mediaTypeSpec{
-				"application/json": {Schema: s.registry.schemaForType(documented.responseType)},
+				contentType: {Schema: schema},
 			}
 		}
 		spec.Responses[fmt.Sprintf("%d", documented.status)] = response
@@ -259,11 +263,12 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 
 // extractParams inspects the input struct and returns parameter specs plus
 // an optional request-body schema for body methods.
-func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterSpec, *Schema) {
+func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterSpec, *Schema, string) {
 	var params []parameterSpec
 	bodyFields := make(map[string]*Schema)
 	bodyRequired := []string{}
 	hasBody := isBodyMethod(method)
+	isMultipart := hasMultipartBody(t)
 
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -272,7 +277,7 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		}
 		if f.Anonymous {
 			// Flatten embedded structs.
-			ep, embeddedBodySchema := s.extractParams(method, deref(f.Type))
+			ep, embeddedBodySchema, _ := s.extractParams(method, deref(f.Type))
 			params = append(params, ep...)
 			if hasBody && embeddedBodySchema != nil {
 				for name, schema := range embeddedBodySchema.Properties {
@@ -284,6 +289,14 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		}
 
 		fieldSchema := annotateSchema(s.registry.schemaForType(f.Type), f)
+
+		if fileTag := f.Tag.Get("file"); fileTag != "" && hasBody {
+			bodyFields[fileTag] = fieldSchema
+			if isRequired(f) {
+				bodyRequired = append(bodyRequired, fileTag)
+			}
+			continue
+		}
 
 		// Path parameter.
 		if pathTag := f.Tag.Get("path"); pathTag != "" {
@@ -322,6 +335,13 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 
 		// Query / form parameter.
 		if formTag := f.Tag.Get("form"); formTag != "" {
+			if hasBody && isMultipart {
+				bodyFields[formTag] = fieldSchema
+				if isRequired(f) {
+					bodyRequired = append(bodyRequired, formTag)
+				}
+				continue
+			}
 			params = append(params, parameterSpec{
 				Name:        formTag,
 				In:          "query",
@@ -347,15 +367,48 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 	}
 
 	var bodySchema *Schema
+	contentType := ""
 	if hasBody && len(bodyFields) > 0 {
 		bodySchema = &Schema{
 			Type:       "object",
 			Properties: bodyFields,
 			Required:   bodyRequired,
 		}
+		if isMultipart {
+			contentType = "multipart/form-data"
+		} else {
+			contentType = "application/json"
+		}
 	}
 
-	return params, bodySchema
+	return params, bodySchema, contentType
+}
+
+func (s *openAPISpec) responseSchemaForType(t reflect.Type) (string, *Schema) {
+	if isDownloadType(t) {
+		return "application/octet-stream", &Schema{Type: "string", Format: "binary"}
+	}
+	return "application/json", s.registry.schemaForType(t)
+}
+
+func hasMultipartBody(t reflect.Type) bool {
+	t = deref(t)
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		if f.Anonymous && hasMultipartBody(deref(f.Type)) {
+			return true
+		}
+		if f.Tag.Get("file") != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *openAPISpec) registerTags(tags []string, descriptions map[string]string) {

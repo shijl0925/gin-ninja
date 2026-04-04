@@ -8,6 +8,7 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 - **Automatic parameter binding** – path params (`path:`), query params (`form:`), headers (`header:`), cookies (`cookie:`), and JSON bodies (`json:`) are all bound via struct tags.
 - **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
+- **File transfer abstractions** – first-class multipart upload binding and binary download responses.
 - **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
 - **Swagger UI** – available at `/docs` out of the box.
 - **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
@@ -244,17 +245,244 @@ response.JSON(c, response.OKWithMessage("created", user))
 
 ## Parameter Binding
 
-| Tag          | Source              | Methods            |
-|--------------|---------------------|--------------------|
-| `path:"x"`   | URL path parameter  | all                |
-| `form:"x"`   | URL query string    | all                |
-| `header:"x"` | Request header      | all                |
-| `cookie:"x"` | Request cookie      | all                |
-| `json:"x"`   | JSON request body   | POST / PUT / PATCH |
+| Tag          | Source                         | Methods            |
+|--------------|--------------------------------|--------------------|
+| `path:"x"`   | URL path parameter             | all                |
+| `form:"x"`   | URL query string / form field  | all                |
+| `header:"x"` | Request header                 | all                |
+| `cookie:"x"` | Request cookie                 | all                |
+| `json:"x"`   | JSON request body              | POST / PUT / PATCH |
+| `file:"x"`   | Multipart uploaded file(s)     | POST / PUT / PATCH |
 
 `binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
 
 `default:"..."` applies to `form`, `header`, and `cookie` fields when the client omits the value.
+
+---
+
+## Declarative Filtering & Safe Sorting
+
+### Declarative filtering
+
+Embed `pagination.PageInput` in a list input struct, then add `filter:"column,op"` to query fields that should become database filters. To match one input field against multiple columns, separate the columns with `|`:
+
+```go
+type ListUsersInput struct {
+    pagination.PageInput
+    Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
+    IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+}
+```
+
+Supported operators:
+
+- `eq`
+- `ne`
+- `gt`
+- `ge`
+- `lt`
+- `le`
+- `like`
+- `in`
+
+Apply the declared filters in the handler:
+
+```go
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+    query, _ := gormx.NewQuery[User]()
+
+    filterOpts, err := filter.BuildOptions(in)
+    if err != nil {
+        return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+    }
+
+    opts := append(filterOpts, query.ToOptions()...)
+    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewPage(items, total, in.PageInput), nil
+}
+```
+
+Behavior notes:
+
+- only fields tagged with `filter:"..."` participate in filtering
+- zero values are ignored, so omitted query params do not add conditions
+- `like` is suitable for contains-style fuzzy matching
+- `filter:"name|email,like"` means `(name LIKE ? OR email LIKE ?)`; multi-field declarative filters use OR semantics
+- invalid filter declarations return a 400 error when you surface `filter.BuildOptions(...)` or `filter.Apply(...)` errors
+
+### Safe sorting
+
+`pagination.PageInput.Sort` accepts a comma-separated sort string. Prefix a field with `-` for descending or `+` for ascending:
+
+- `sort=name`
+- `sort=-created_at`
+- `sort=name,-age`
+
+For safety, validate requested sort fields against an allowlist before applying them:
+
+```go
+var userSortSchema = pagination.NewSortSchema(
+    "id",
+    "name",
+    "email",
+    "age",
+    "is_admin",
+    "created_at",
+)
+
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+    query, _ := gormx.NewQuery[User]()
+
+    if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
+        return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+    }
+
+    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewPage(items, total, in.PageInput), nil
+}
+```
+
+If you need a public alias that maps to a different database column, add it explicitly:
+
+```go
+schema := pagination.NewSortSchema("name").
+    Allow("created", "created_at")
+```
+
+Any sort field outside the allowlist is rejected with an error instead of being passed through to the query layer.
+
+### Example
+
+The full example app uses both patterns on `GET /api/v1/users`:
+
+- `search` → `filter:"name|email,like"`
+- `is_admin` → `filter:"is_admin,eq"`
+- `sort` → validated against `userSortSchema`
+
+Try requests like:
+
+- `/api/v1/users?search=ali`
+- `/api/v1/users?is_admin=true&sort=-age`
+
+---
+
+## Multipart File Upload & Download
+
+### Single-file upload
+
+Use `file:"..."` with `*ninja.UploadedFile`:
+
+```go
+type UploadSingleInput struct {
+    Title string              `form:"title" binding:"required"`
+    File  *ninja.UploadedFile `file:"file"  binding:"required"`
+}
+
+type UploadDemoOutput struct {
+    Title     string   `json:"title,omitempty"`
+    Category  string   `json:"category,omitempty"`
+    Filename  string   `json:"filename,omitempty"`
+    Size      int64    `json:"size,omitempty"`
+    FileCount int      `json:"file_count"`
+    Names     []string `json:"names,omitempty"`
+}
+
+func uploadSingle(ctx *ninja.Context, in *UploadSingleInput) (*UploadDemoOutput, error) {
+    return &UploadDemoOutput{
+        Title:     in.Title,
+        Filename:  in.File.Filename,
+        Size:      in.File.Size,
+        FileCount: 1,
+    }, nil
+}
+
+ninja.Post(router, "/upload-single", uploadSingle,
+    ninja.Summary("Single file upload"),
+    ninja.Description("Demonstrates multipart form-data binding with one file and extra form fields."),
+)
+```
+
+`UploadedFile` wraps `multipart.FileHeader` and exposes:
+
+- `in.File.Filename`
+- `in.File.Size`
+- `in.File.Open()`
+- `in.File.Bytes()`
+
+### Multi-file upload
+
+Use `[]*ninja.UploadedFile` for repeated multipart fields:
+
+```go
+type UploadManyInput struct {
+    Category string                `form:"category" binding:"required"`
+    Files    []*ninja.UploadedFile `file:"files"    binding:"required"`
+}
+
+func uploadMany(ctx *ninja.Context, in *UploadManyInput) (*UploadDemoOutput, error) {
+    names := make([]string, 0, len(in.Files))
+    for _, file := range in.Files {
+        names = append(names, file.Filename)
+    }
+    return &UploadDemoOutput{
+        Category:  in.Category,
+        FileCount: len(in.Files),
+        Names:     names,
+    }, nil
+}
+```
+
+### Mixed form + file binding
+
+`form:"..."` and `file:"..."` can be mixed in the same input struct. When the request uses `multipart/form-data`, gin-ninja binds regular form fields and uploaded files together and generates the matching OpenAPI request body automatically.
+
+### File download responses
+
+Return `*ninja.Download` when the handler should write a binary response instead of JSON:
+
+```go
+func download(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+    return ninja.NewDownload(
+        "report.txt",
+        "text/plain; charset=utf-8",
+        []byte("hello from gin-ninja\n"),
+    ), nil
+}
+
+func downloadReader(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+    body := strings.NewReader("streamed content\n")
+    return ninja.NewDownloadReader(
+        "stream.txt",
+        "text/plain; charset=utf-8",
+        int64(body.Len()),
+        body,
+    ), nil
+}
+```
+
+Available helpers:
+
+- `ninja.NewDownload(filename, contentType, data)` – byte-slice backed download
+- `ninja.NewDownloadReader(filename, contentType, size, reader)` – reader-backed download
+- `Download.Inline = true` – switch `Content-Disposition` from `attachment` to `inline`
+- `Download.Headers` – add custom response headers
+
+OpenAPI will describe upload inputs as `multipart/form-data`, and `*ninja.Download` responses as binary `application/octet-stream`.
+
+### Example routes
+
+The full example app includes ready-to-run routes:
+
+- `POST /api/v1/examples/upload-single`
+- `POST /api/v1/examples/upload-many`
+- `GET /api/v1/examples/download`
+- `GET /api/v1/examples/download-reader`
 
 ---
 
@@ -303,6 +531,8 @@ See [examples/full](./examples/full/) for a complete application with:
 - JWT-protected user CRUD endpoints
 - Auth login endpoint
 - Structured Zap logging
+- Multipart single-file and multi-file upload demos
+- Binary download and reader-backed download demos
 
 ```bash
 cd examples/full
