@@ -116,7 +116,7 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	for k, v := range headers {
 		c.Header(k, v)
 	}
-	c.DataFromReader(status, int64(len(data)), contentType, bytes.NewReader(data), nil)
+	c.DataFromReader(status, int64(len(data)), contentType, bytes.NewReader(data), headers)
 }
 
 var multipartFileHeaderType = reflect.TypeOf(multipart.FileHeader{})

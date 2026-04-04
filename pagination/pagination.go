@@ -103,8 +103,11 @@ func (s *SortSchema) Allow(alias string, column ...string) *SortSchema {
 		s.allowed = map[string]string{}
 	}
 	target := alias
-	if len(column) > 0 && strings.TrimSpace(column[0]) != "" {
-		target = strings.TrimSpace(column[0])
+	if len(column) > 0 {
+		trimmed := strings.TrimSpace(column[0])
+		if trimmed != "" {
+			target = trimmed
+		}
 	}
 	s.allowed[strings.TrimSpace(alias)] = target
 	return s
