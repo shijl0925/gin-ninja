@@ -1,8 +1,14 @@
 package ninja
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"sync"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Error represents an API error response.
@@ -62,4 +68,95 @@ func NewErrorWithCode(status int, code, message string) *Error {
 // errorResponse is the JSON envelope returned for errors.
 type errorResponse struct {
 	Error interface{} `json:"error"`
+}
+
+// ErrorMapper converts arbitrary errors into framework errors.
+// Returning nil means the mapper did not handle the error.
+type ErrorMapper func(error) error
+
+var (
+	errorMappersMu sync.RWMutex
+	errorMappers   []ErrorMapper
+)
+
+func init() {
+	errorMappers = []ErrorMapper{
+		func(err error) error {
+			switch {
+			case errors.Is(err, context.DeadlineExceeded):
+				return &Error{
+					Status:  http.StatusRequestTimeout,
+					Code:    "REQUEST_TIMEOUT",
+					Message: "request timed out",
+				}
+			case errors.Is(err, gorm.ErrRecordNotFound):
+				return ErrNotFound
+			case errors.Is(err, gorm.ErrDuplicatedKey):
+				return ErrConflict
+			default:
+				return nil
+			}
+		},
+	}
+}
+
+// RegisterErrorMapper appends a custom error mapper.
+func RegisterErrorMapper(mapper ErrorMapper) {
+	if mapper == nil {
+		return
+	}
+	errorMappersMu.Lock()
+	defer errorMappersMu.Unlock()
+	errorMappers = append(errorMappers, mapper)
+}
+
+func mapError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	errorMappersMu.RLock()
+	mappers := append([]ErrorMapper(nil), errorMappers...)
+	errorMappersMu.RUnlock()
+
+	for _, mapper := range mappers {
+		if mapper == nil {
+			continue
+		}
+		if mapped := mapper(err); mapped != nil {
+			err = mapped
+			break
+		}
+	}
+	return err
+}
+
+// WriteError writes an appropriate JSON error response.
+func WriteError(c *gin.Context, err error) {
+	err = mapError(err)
+
+	switch e := err.(type) {
+	case *Error:
+		status := e.Status
+		if status == 0 {
+			status = http.StatusInternalServerError
+		}
+		c.AbortWithStatusJSON(status, errorResponse{Error: e})
+	case *ValidationError:
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, gin.H{
+			"error": gin.H{
+				"code":    "VALIDATION_ERROR",
+				"message": "request validation failed",
+				"errors":  e.Errors,
+			},
+		})
+	default:
+		c.AbortWithStatusJSON(http.StatusInternalServerError, errorResponse{
+			Error: &Error{
+				Status:  http.StatusInternalServerError,
+				Code:    "INTERNAL_ERROR",
+				Message: fmt.Sprintf("%v", err),
+			},
+		})
+	}
 }

@@ -26,6 +26,7 @@ import (
 )
 
 const dbContextKey = "gin_ninja_db"
+const txContextKey = "gin_ninja_db_tx"
 
 // Init initialises the global gormx database instance.
 // This is equivalent to calling gormx.Init directly.
@@ -44,10 +45,29 @@ func Middleware(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+func baseDB(c *gin.Context) *gorm.DB {
+	if v, ok := c.Get(dbContextKey); ok {
+		if db, ok := v.(*gorm.DB); ok {
+			return db
+		}
+	}
+	return gormx.GetDb()
+}
+
 // GetDB retrieves the *gorm.DB stored in the gin context by Middleware.
 // If none was stored (e.g. the middleware was not registered), it falls back
 // to the global gormx instance.
 func GetDB(c *gin.Context) *gorm.DB {
+	if v, ok := c.Get(txContextKey); ok {
+		if db, ok := v.(*gorm.DB); ok {
+			return db
+		}
+	}
+	return baseDB(c)
+}
+
+// GetBaseDB retrieves the non-transactional request database.
+func GetBaseDB(c *gin.Context) *gorm.DB {
 	if v, ok := c.Get(dbContextKey); ok {
 		if db, ok := v.(*gorm.DB); ok {
 			return db

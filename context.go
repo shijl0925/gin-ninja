@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/orm"
 )
 
 const (
@@ -103,18 +104,34 @@ func (c *Context) JSON204() {
 
 // Forbidden aborts the request with 403 Forbidden.
 func (c *Context) Forbidden(message string) {
-	c.AbortWithStatusJSON(http.StatusForbidden, errorResponse{Error: &Error{
+	WriteError(c.Context, &Error{
 		Status:  http.StatusForbidden,
 		Code:    "FORBIDDEN",
 		Message: message,
-	}})
+	})
 }
 
 // Unauthorized aborts the request with 401 Unauthorized.
 func (c *Context) Unauthorized(message string) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, errorResponse{Error: &Error{
+	WriteError(c.Context, &Error{
 		Status:  http.StatusUnauthorized,
 		Code:    "UNAUTHORIZED",
 		Message: message,
-	}})
+	})
+}
+
+// BeginTx starts a request-scoped transaction if one is not already active.
+func (c *Context) BeginTx() error {
+	_, err := orm.Begin(c.Context)
+	return err
+}
+
+// CommitTx commits the active request-scoped transaction.
+func (c *Context) CommitTx() error {
+	return orm.Commit(c.Context)
+}
+
+// RollbackTx rolls back the active request-scoped transaction.
+func (c *Context) RollbackTx() error {
+	return orm.Rollback(c.Context)
 }
