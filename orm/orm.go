@@ -68,12 +68,7 @@ func GetDB(c *gin.Context) *gorm.DB {
 
 // GetBaseDB retrieves the non-transactional request database.
 func GetBaseDB(c *gin.Context) *gorm.DB {
-	if v, ok := c.Get(dbContextKey); ok {
-		if db, ok := v.(*gorm.DB); ok {
-			return db
-		}
-	}
-	return gormx.GetDb()
+	return baseDB(c)
 }
 
 // WithContext returns a *gorm.DB scoped to the request context, enabling

@@ -150,7 +150,7 @@ func isEmptyValue(value reflect.Value) bool {
 
 	switch value.Kind() {
 	case reflect.String:
-		return strings.TrimSpace(value.String()) == ""
+		return value.String() == ""
 	case reflect.Slice, reflect.Array, reflect.Map:
 		return value.Len() == 0
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:

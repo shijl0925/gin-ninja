@@ -120,7 +120,7 @@ func (p PageInput) GetSortFields() []SortField {
 	fields := make([]SortField, 0, len(parts))
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if part == "" {
+		if len(part) == 0 {
 			continue
 		}
 
