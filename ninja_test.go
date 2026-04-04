@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"golang.org/x/net/websocket"
 )
 
 func init() {
@@ -755,5 +756,207 @@ func TestDisableGinDefault(t *testing.T) {
 	w := doRequest(api, http.MethodGet, "/docs", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
+type cacheOutput struct {
+	Count int `json:"count"`
+}
+
+func TestGet_CacheETagAndCacheControl(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache")
+	calls := 0
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute))
+	api.AddRouter(r)
+
+	first := doRequest(api, http.MethodGet, "/cache/", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", first.Code, first.Body.String())
+	}
+	if got := first.Header().Get("Cache-Control"); got != "public, max-age=60" {
+		t.Fatalf("expected cache-control header, got %q", got)
+	}
+	etag := first.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("expected ETag header")
+	}
+
+	second := doRequest(api, http.MethodGet, "/cache/", nil)
+	if second.Code != http.StatusOK {
+		t.Fatalf("expected cached 200, got %d: %s", second.Code, second.Body.String())
+	}
+	if calls != 1 {
+		t.Fatalf("expected cached handler result, calls=%d", calls)
+	}
+	if second.Body.String() != first.Body.String() {
+		t.Fatalf("expected cached body to match, got %q vs %q", second.Body.String(), first.Body.String())
+	}
+
+	notModified := doRequestWithHeaders(api, http.MethodGet, "/cache/", nil, func(req *http.Request) {
+		req.Header.Set("If-None-Match", etag)
+	})
+	if notModified.Code != http.StatusNotModified {
+		t.Fatalf("expected 304, got %d: %s", notModified.Code, notModified.Body.String())
+	}
+
+	openapi := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(openapi.Body.Bytes(), &spec) //nolint:errcheck
+	headers := spec["paths"].(map[string]interface{})["/cache/"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})["200"].(map[string]interface{})["headers"].(map[string]interface{})
+	if _, ok := headers["ETag"]; !ok {
+		t.Fatalf("expected ETag header to be documented, got %v", headers)
+	}
+	if _, ok := headers["Cache-Control"]; !ok {
+		t.Fatalf("expected Cache-Control header to be documented, got %v", headers)
+	}
+}
+
+type versionOutput struct {
+	Version string `json:"version"`
+}
+
+func TestVersionedRoutersAndDocs(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Versioned",
+		Version: "main",
+		Prefix:  "/api",
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {
+				Prefix:       "/v1",
+				Description:  "Legacy API",
+				Deprecated:   true,
+				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+				MigrationURL: "https://example.com/migrate",
+			},
+			"v2": {Prefix: "/v2"},
+		},
+	})
+
+	v1 := ninja.NewRouter("/users", ninja.WithVersion("v1"))
+	ninja.Get(v1, "/", func(ctx *ninja.Context, _ *struct{}) (*versionOutput, error) {
+		return &versionOutput{Version: "v1"}, nil
+	})
+	api.AddRouter(v1)
+
+	v2 := ninja.NewRouter("/users", ninja.WithVersion("v2"))
+	ninja.Get(v2, "/", func(ctx *ninja.Context, _ *struct{}) (*versionOutput, error) {
+		return &versionOutput{Version: "v2"}, nil
+	})
+	api.AddRouter(v2)
+
+	v1Resp := doRequest(api, http.MethodGet, "/api/v1/users/", nil)
+	if v1Resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v1Resp.Code, v1Resp.Body.String())
+	}
+	if v1Resp.Header().Get("Deprecation") != "true" {
+		t.Fatalf("expected deprecation header, got %v", v1Resp.Header())
+	}
+	if v1Resp.Header().Get("Sunset") == "" || v1Resp.Header().Get("Link") == "" {
+		t.Fatalf("expected sunset and link headers, got %v", v1Resp.Header())
+	}
+
+	v2Resp := doRequest(api, http.MethodGet, "/api/v2/users/", nil)
+	if v2Resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v2Resp.Code, v2Resp.Body.String())
+	}
+	if v2Resp.Header().Get("Deprecation") != "" {
+		t.Fatalf("did not expect deprecation header on v2, got %v", v2Resp.Header())
+	}
+
+	v1Docs := doRequest(api, http.MethodGet, "/openapi/v1.json", nil)
+	if v1Docs.Code != http.StatusOK {
+		t.Fatalf("expected versioned docs, got %d: %s", v1Docs.Code, v1Docs.Body.String())
+	}
+	var v1Spec map[string]interface{}
+	json.Unmarshal(v1Docs.Body.Bytes(), &v1Spec) //nolint:errcheck
+	v1Paths := v1Spec["paths"].(map[string]interface{})
+	if _, ok := v1Paths["/api/v1/users/"]; !ok {
+		t.Fatalf("expected v1 path in v1 docs, got %v", v1Paths)
+	}
+	if _, ok := v1Paths["/api/v2/users/"]; ok {
+		t.Fatalf("expected v2 path to be isolated from v1 docs, got %v", v1Paths)
+	}
+	get := v1Paths["/api/v1/users/"].(map[string]interface{})["get"].(map[string]interface{})
+	if deprecated, ok := get["deprecated"].(bool); !ok || !deprecated {
+		t.Fatalf("expected deprecated version operations to be marked deprecated, got %v", get)
+	}
+
+	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
+	if docsUI.Code != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/openapi/v1.json") {
+		t.Fatalf("expected versioned docs UI to reference versioned spec, got %d %q", docsUI.Code, docsUI.Body.String())
+	}
+}
+
+type streamInput struct {
+	Name string `form:"name"`
+}
+
+func TestSSEAndWebSocketHelpers(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/stream")
+
+	ninja.SSE(r, "/events", func(ctx *ninja.Context, in *streamInput, stream *ninja.SSEStream) error {
+		return stream.Send(ninja.SSEEvent{
+			Event: "hello",
+			Data:  map[string]string{"name": in.Name},
+		})
+	})
+	ninja.WebSocket(r, "/ws", func(ctx *ninja.Context, in *streamInput, conn *ninja.WebSocketConn) error {
+		message, err := conn.ReceiveText()
+		if err != nil {
+			return err
+		}
+		return conn.SendText(in.Name + ":" + message)
+	})
+	api.AddRouter(r)
+
+	sse := doRequest(api, http.MethodGet, "/stream/events?name=bot", nil)
+	if sse.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", sse.Code, sse.Body.String())
+	}
+	if ct := sse.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
+		t.Fatalf("expected SSE content type, got %q", ct)
+	}
+	if body := sse.Body.String(); !strings.Contains(body, "event: hello") || !strings.Contains(body, `data: {"name":"bot"}`) {
+		t.Fatalf("unexpected SSE body %q", body)
+	}
+
+	server := httptest.NewServer(api.Handler())
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/stream/ws?name=bot"
+	conn, err := websocket.Dial(wsURL, "", server.URL)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	if err := websocket.Message.Send(conn, "ping"); err != nil {
+		t.Fatalf("send websocket message: %v", err)
+	}
+	var reply string
+	if err := websocket.Message.Receive(conn, &reply); err != nil {
+		t.Fatalf("receive websocket reply: %v", err)
+	}
+	if reply != "bot:ping" {
+		t.Fatalf("unexpected websocket reply %q", reply)
+	}
+
+	openapi := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(openapi.Body.Bytes(), &spec) //nolint:errcheck
+	paths := spec["paths"].(map[string]interface{})
+	sseResponses := paths["/stream/events"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})
+	if _, ok := sseResponses["200"]; !ok {
+		t.Fatalf("expected SSE response documentation, got %v", sseResponses)
+	}
+	wsResponses := paths["/stream/ws"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})
+	if _, ok := wsResponses["101"]; !ok {
+		t.Fatalf("expected websocket upgrade response documentation, got %v", wsResponses)
 	}
 }

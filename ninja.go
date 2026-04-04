@@ -21,6 +21,8 @@ type Config struct {
 	OpenAPIURL string
 	// Prefix is a global path prefix prepended to every route (default: "").
 	Prefix string
+	// Versions configures named API version namespaces and version-scoped docs.
+	Versions map[string]VersionConfig
 	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
 	// bearer authentication shown by Swagger UI's "Authorize" button.
 	SecuritySchemes map[string]SecurityScheme
@@ -38,10 +40,11 @@ type Config struct {
 //	api.AddRouter(usersRouter)
 //	api.Run(":8080")
 type NinjaAPI struct {
-	engine  *gin.Engine
-	config  Config
-	openAPI *openAPISpec
-	routers []*Router
+	engine       *gin.Engine
+	config       Config
+	openAPI      *openAPISpec
+	versionSpecs map[string]*openAPISpec
+	routers      []*Router
 }
 
 // New creates a new NinjaAPI with the supplied configuration.
@@ -68,9 +71,10 @@ func New(config Config) *NinjaAPI {
 	}
 
 	api := &NinjaAPI{
-		engine:  engine,
-		config:  config,
-		openAPI: newOpenAPISpec(config),
+		engine:       engine,
+		config:       config,
+		openAPI:      newOpenAPISpec(config),
+		versionSpecs: map[string]*openAPISpec{},
 	}
 
 	api.setupInternalRoutes()
@@ -107,7 +111,7 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 // registered with the gin engine and included in the OpenAPI spec.
 func (api *NinjaAPI) AddRouter(router *Router) {
 	api.routers = append(api.routers, router)
-	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, router)
+	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, "", nil, router)
 }
 
 // Run starts the HTTP server on the given address (e.g. ":8080").
@@ -120,9 +124,25 @@ func (api *NinjaAPI) Run(addr string) error {
 // ---------------------------------------------------------------------------
 
 // registerRouter recursively registers all routes from a Router tree.
-func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix string, router *Router) {
-	prefix := parentPrefix + router.prefix
-	group := parent.Group(router.prefix)
+func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inheritedVersion string, inheritedInfo *VersionConfig, router *Router) {
+	currentVersion := inheritedVersion
+	currentInfo := cloneVersionInfo(inheritedInfo)
+	groupPrefix := router.prefix
+	startedVersionScope := false
+	if router.version != "" && router.version != inheritedVersion {
+		currentVersion = router.version
+		cfg := api.lookupVersion(router.version)
+		currentInfo = &cfg
+		groupPrefix = cfg.Prefix + groupPrefix
+		startedVersionScope = true
+	}
+
+	prefix := parentPrefix + groupPrefix
+	group := parent.Group(groupPrefix)
+
+	if startedVersionScope && currentInfo != nil {
+		group.Use(versionDeprecationMiddleware(*currentInfo))
+	}
 
 	// Attach raw gin middleware first.
 	if len(router.ginMiddleware) > 0 {
@@ -147,13 +167,21 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix string
 		// Build a copy of the operation with the correct full path for the spec.
 		opForSpec := *op
 		opForSpec.path = prefix + op.path
+		opForSpec.version = currentVersion
+		opForSpec.versionInfo = cloneVersionInfo(currentInfo)
+		if currentInfo != nil && currentInfo.Deprecated {
+			opForSpec.deprecated = true
+		}
 		api.openAPI.addOperation(&opForSpec)
+		if currentVersion != "" {
+			api.versionSpec(currentVersion).addOperation(&opForSpec)
+		}
 
 		group.Handle(op.method, op.path, op.ginHandler)
 	}
 
 	for _, sub := range router.subrouters {
-		api.registerRouter(group, prefix, sub)
+		api.registerRouter(group, prefix, currentVersion, currentInfo, sub)
 	}
 }
 
@@ -174,4 +202,47 @@ func (api *NinjaAPI) setupInternalRoutes() {
 				[]byte(swaggerUIHTML(openAPIURL, title)))
 		})
 	}
+
+	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); pattern != "" {
+		api.engine.GET(pattern, func(c *gin.Context) {
+			version := requestVersion(c)
+			spec, ok := api.versionSpecs[version]
+			if !ok {
+				versionNotFound(c)
+				return
+			}
+			c.JSON(http.StatusOK, spec.build())
+		})
+	}
+
+	if pattern := versionedDocsPattern(api.config.DocsURL); pattern != "" {
+		baseOpenAPIURL := api.config.OpenAPIURL
+		title := api.config.Title
+		api.engine.GET(pattern, func(c *gin.Context) {
+			version := requestVersion(c)
+			if _, ok := api.versionSpecs[version]; !ok {
+				versionNotFound(c)
+				return
+			}
+			c.Data(http.StatusOK, "text/html; charset=utf-8",
+				[]byte(swaggerUIHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
+		})
+	}
+}
+
+func (api *NinjaAPI) lookupVersion(name string) VersionConfig {
+	if cfg, ok := api.config.Versions[name]; ok {
+		return normalizeVersionConfig(name, cfg)
+	}
+	return normalizeVersionConfig(name, VersionConfig{})
+}
+
+func (api *NinjaAPI) versionSpec(name string) *openAPISpec {
+	if spec, ok := api.versionSpecs[name]; ok {
+		return spec
+	}
+	cfg := versionSpecConfig(api.config, name, api.lookupVersion(name))
+	spec := newOpenAPISpec(cfg)
+	api.versionSpecs[name] = spec
+	return spec
 }

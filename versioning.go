@@ -1,0 +1,127 @@
+package ninja
+
+import (
+	"fmt"
+	"net/http"
+	"path"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+// VersionConfig configures a named API version namespace.
+type VersionConfig struct {
+	Prefix       string
+	Description  string
+	Deprecated   bool
+	Sunset       string
+	MigrationURL string
+}
+
+func normalizeVersionConfig(name string, cfg VersionConfig) VersionConfig {
+	if cfg.Prefix == "" {
+		cfg.Prefix = "/" + strings.TrimPrefix(name, "/")
+	}
+	if !strings.HasPrefix(cfg.Prefix, "/") {
+		cfg.Prefix = "/" + cfg.Prefix
+	}
+	return cfg
+}
+
+func versionSpecConfig(base Config, name string, version VersionConfig) Config {
+	cfg := base
+	cfg.Version = name
+	cfg.Description = joinDescription(base.Description, version.Description)
+	if cfg.Title != "" {
+		cfg.Title = fmt.Sprintf("%s (%s)", cfg.Title, name)
+	}
+	return cfg
+}
+
+func versionedDocsPattern(base string) string {
+	if base == "" {
+		return ""
+	}
+	return path.Join(strings.TrimSuffix(base, "/"), ":version")
+}
+
+func versionedDocsPath(base, version string) string {
+	if base == "" {
+		return ""
+	}
+	return path.Join(strings.TrimSuffix(base, "/"), version)
+}
+
+func versionedOpenAPIPattern(base string) string {
+	if base == "" {
+		return ""
+	}
+	root, ext := splitPathExt(base)
+	return path.Join(root, ":version") + ext
+}
+
+func versionedOpenAPIPath(base, version string) string {
+	if base == "" {
+		return ""
+	}
+	root, ext := splitPathExt(base)
+	return path.Join(root, version) + ext
+}
+
+func splitPathExt(value string) (string, string) {
+	if idx := strings.LastIndex(value, "."); idx > strings.LastIndex(value, "/") {
+		return value[:idx], value[idx:]
+	}
+	return strings.TrimSuffix(value, "/"), ""
+}
+
+func normalizeVersionParam(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	if idx := strings.IndexByte(value, '.'); idx >= 0 {
+		return value[:idx]
+	}
+	return value
+}
+
+func requestVersion(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if value := normalizeVersionParam(c.Param("version")); value != "" {
+		return value
+	}
+	return normalizeVersionParam(c.Param("version.json"))
+}
+
+func joinDescription(parts ...string) string {
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return strings.Join(values, "\n\n")
+}
+
+func versionDeprecationMiddleware(cfg VersionConfig) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if cfg.Deprecated {
+			c.Header("Deprecation", "true")
+			if cfg.Sunset != "" {
+				c.Header("Sunset", cfg.Sunset)
+			}
+			if cfg.MigrationURL != "" {
+				c.Header("Link", fmt.Sprintf(`<%s>; rel="deprecation"`, cfg.MigrationURL))
+			}
+		}
+		c.Next()
+	}
+}
+
+func versionNotFound(c *gin.Context) {
+	c.JSON(http.StatusNotFound, map[string]string{"message": "API version not found"})
+}
