@@ -264,12 +264,12 @@ response.JSON(c, response.OKWithMessage("created", user))
 
 ### Declarative filtering
 
-Embed `pagination.PageInput` in a list input struct, then add `filter:"column,op"` to query fields that should become database filters:
+Embed `pagination.PageInput` in a list input struct, then add `filter:"column,op"` to query fields that should become database filters. To match one input field against multiple columns, separate the columns with `|`:
 
 ```go
 type ListUsersInput struct {
     pagination.PageInput
-    Search  string `form:"search"   filter:"name,like"    description:"Filter by name (partial match)"`
+    Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
     IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 ```
@@ -308,6 +308,7 @@ Behavior notes:
 - only fields tagged with `filter:"..."` participate in filtering
 - zero values are ignored, so omitted query params do not add conditions
 - `like` is suitable for contains-style fuzzy matching
+- `filter:"name|email,like"` means `(name LIKE ? OR email LIKE ?)`; multi-field declarative filters use OR semantics
 - invalid filter declarations return a 400 error when you surface `filter.Apply(...)` errors
 
 ### Safe sorting
@@ -358,7 +359,7 @@ Any sort field outside the allowlist is rejected with an error instead of being 
 
 The full example app uses both patterns on `GET /api/v1/users`:
 
-- `search` → `filter:"name,like"`
+- `search` → `filter:"name|email,like"`
 - `is_admin` → `filter:"is_admin,eq"`
 - `sort` → validated against `userSortSchema`
 

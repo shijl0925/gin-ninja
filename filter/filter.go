@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unsafe"
 
 	"github.com/shijl0925/go-toolkits/gormx"
+	"gorm.io/gorm/clause"
 )
 
 // Operator defines the supported declarative filter operators.
 type Operator string
+
+// Combiner defines how multiple tagged fields inside one filter clause are joined.
+type Combiner string
 
 const (
 	OpEq   Operator = "eq"
@@ -20,19 +25,24 @@ const (
 	OpLe   Operator = "le"
 	OpLike Operator = "like"
 	OpIn   Operator = "in"
+
+	CombinerOr Combiner = "or"
 )
 
 // Clause is a resolved filter clause from a request input struct.
 type Clause struct {
-	Field string
-	Op    Operator
-	Value any
+	Field    string
+	Fields   []string
+	Op       Operator
+	Value    any
+	Combiner Combiner
 }
 
 // Set is a collection of declarative filter clauses.
 type Set []Clause
 
-// Parse extracts filter clauses from struct fields tagged with `filter:"field,op"`.
+// Parse extracts filter clauses from struct fields tagged with `filter:"field,op"`
+// or `filter:"field1|field2,op"` for OR-based multi-field filters.
 func Parse(input any) (Set, error) {
 	var clauses Set
 	if err := parseInto(reflect.ValueOf(input), &clauses); err != nil {
@@ -51,25 +61,8 @@ func Apply[T any](query *gormx.Query[T], input any) error {
 		return err
 	}
 	for _, clause := range clauses {
-		switch clause.Op {
-		case OpEq:
-			query.Eq(clause.Field, clause.Value)
-		case OpNe:
-			query.Ne(clause.Field, clause.Value)
-		case OpGt:
-			query.Gt(clause.Field, clause.Value)
-		case OpGe:
-			query.Ge(clause.Field, clause.Value)
-		case OpLt:
-			query.Lt(clause.Field, clause.Value)
-		case OpLe:
-			query.Le(clause.Field, clause.Value)
-		case OpLike:
-			query.Like(clause.Field, clause.Value)
-		case OpIn:
-			query.In(clause.Field, clause.Value)
-		default:
-			return fmt.Errorf("unsupported filter operator %q", clause.Op)
+		if err := applyClause(query, clause); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -110,7 +103,7 @@ func parseInto(value reflect.Value, clauses *Set) error {
 			continue
 		}
 
-		fieldName, op, err := parseTag(tag, field)
+		fields, op, combiner, err := parseTag(tag, field)
 		if err != nil {
 			return err
 		}
@@ -123,27 +116,164 @@ func parseInto(value reflect.Value, clauses *Set) error {
 			value = fieldValue.Elem().Interface()
 		}
 
+		fieldName := fields[0]
+		if len(fields) > 1 {
+			fieldName = strings.Join(fields, "|")
+		}
+
 		*clauses = append(*clauses, Clause{
-			Field: fieldName,
-			Op:    op,
-			Value: value,
+			Field:    fieldName,
+			Fields:   fields,
+			Op:       op,
+			Value:    value,
+			Combiner: combiner,
 		})
 	}
 	return nil
 }
 
-func parseTag(tag string, field reflect.StructField) (string, Operator, error) {
+func applyClause[T any](query *gormx.Query[T], filterClause Clause) error {
+	fields := filterClause.Fields
+	if len(fields) == 0 && filterClause.Field != "" {
+		fields = []string{filterClause.Field}
+	}
+	if len(fields) == 0 {
+		return fmt.Errorf("filter clause is missing fields")
+	}
+
+	if len(fields) == 1 {
+		switch filterClause.Op {
+		case OpEq:
+			query.Eq(fields[0], filterClause.Value)
+		case OpNe:
+			query.Ne(fields[0], filterClause.Value)
+		case OpGt:
+			query.Gt(fields[0], filterClause.Value)
+		case OpGe:
+			query.Ge(fields[0], filterClause.Value)
+		case OpLt:
+			query.Lt(fields[0], filterClause.Value)
+		case OpLe:
+			query.Le(fields[0], filterClause.Value)
+		case OpLike:
+			query.Like(fields[0], filterClause.Value)
+		case OpIn:
+			query.In(fields[0], filterClause.Value)
+		default:
+			return fmt.Errorf("unsupported filter operator %q", filterClause.Op)
+		}
+		return nil
+	}
+
+	if filterClause.Combiner != CombinerOr {
+		return fmt.Errorf("unsupported filter combiner %q", filterClause.Combiner)
+	}
+
+	exprs := make([]clause.Expression, 0, len(fields))
+	for _, field := range fields {
+		expr, err := buildExpression(field, filterClause.Op, filterClause.Value)
+		if err != nil {
+			return err
+		}
+		exprs = append(exprs, expr)
+	}
+	appendOption(query, gormx.Where(clause.Or(exprs...)))
+	return nil
+}
+
+func parseTag(tag string, field reflect.StructField) ([]string, Operator, Combiner, error) {
 	parts := strings.Split(tag, ",")
-	fieldName := strings.TrimSpace(parts[0])
-	if fieldName == "" {
-		return "", "", fmt.Errorf("filter tag on %s must include a field name", field.Name)
+	if len(parts) > 2 {
+		return nil, "", "", fmt.Errorf("filter tag on %s must be in the form field,op or field1|field2,op", field.Name)
+	}
+
+	fieldSpec := strings.TrimSpace(parts[0])
+	if fieldSpec == "" {
+		return nil, "", "", fmt.Errorf("filter tag on %s must include a field name", field.Name)
+	}
+
+	rawFields := strings.Split(fieldSpec, "|")
+	fields := make([]string, 0, len(rawFields))
+	for _, rawField := range rawFields {
+		fieldName := strings.TrimSpace(rawField)
+		if fieldName == "" {
+			return nil, "", "", fmt.Errorf("filter tag on %s contains an empty field name", field.Name)
+		}
+		fields = append(fields, fieldName)
 	}
 
 	op := OpEq
 	if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
 		op = Operator(strings.TrimSpace(parts[1]))
 	}
-	return fieldName, op, nil
+
+	combiner := Combiner("")
+	if len(fields) > 1 {
+		combiner = CombinerOr
+	}
+
+	return fields, op, combiner, nil
+}
+
+func buildExpression(field string, op Operator, value any) (clause.Expression, error) {
+	column := toColumn(field)
+
+	switch op {
+	case OpEq:
+		return clause.Eq{Column: column, Value: value}, nil
+	case OpNe:
+		return clause.Neq{Column: column, Value: value}, nil
+	case OpGt:
+		return clause.Gt{Column: column, Value: value}, nil
+	case OpGe:
+		return clause.Gte{Column: column, Value: value}, nil
+	case OpLt:
+		return clause.Lt{Column: column, Value: value}, nil
+	case OpLe:
+		return clause.Lte{Column: column, Value: value}, nil
+	case OpLike:
+		strValue, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("like filter on %q requires a string value", field)
+		}
+		return clause.Like{Column: column, Value: "%" + strValue + "%"}, nil
+	case OpIn:
+		return clause.IN{Column: column, Values: toValues(value)}, nil
+	default:
+		return nil, fmt.Errorf("unsupported filter operator %q", op)
+	}
+}
+
+func toColumn(field string) clause.Column {
+	column := clause.Column{Name: field}
+	if table, name, ok := strings.Cut(field, "."); ok && table != "" && name != "" && !strings.Contains(name, ".") {
+		column.Table = table
+		column.Name = name
+	}
+	return column
+}
+
+func toValues(value any) []any {
+	refValue := reflect.ValueOf(value)
+	if !refValue.IsValid() {
+		return nil
+	}
+
+	if refValue.Kind() == reflect.Slice || refValue.Kind() == reflect.Array {
+		values := make([]any, refValue.Len())
+		for i := 0; i < refValue.Len(); i++ {
+			values[i] = refValue.Index(i).Interface()
+		}
+		return values
+	}
+
+	return []any{value}
+}
+
+func appendOption[T any](query *gormx.Query[T], opt gormx.DBOption) {
+	optsField := reflect.ValueOf(query).Elem().FieldByName("opts")
+	writable := reflect.NewAt(optsField.Type(), unsafe.Pointer(optsField.UnsafeAddr())).Elem()
+	writable.Set(reflect.Append(writable, reflect.ValueOf(opt)))
 }
 
 func isEmptyValue(value reflect.Value) bool {

@@ -2,7 +2,6 @@ package app
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	ninja "github.com/shijl0925/gin-ninja"
@@ -85,13 +84,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
 
-	opts := query.ToOptions()
-	if search := strings.TrimSpace(in.Search); search != "" {
-		pattern := "%" + search + "%"
-		opts = append(opts, gormx.Where("(name LIKE ? OR email LIKE ?)", pattern, pattern))
-	}
-
-	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
+	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
 	if err != nil {
 		return nil, err
 	}
