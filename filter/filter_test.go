@@ -23,6 +23,10 @@ type invalidMultiFieldInput struct {
 	Search string `filter:"name|,like"`
 }
 
+type invalidOperatorInput struct {
+	Search string `filter:"name,contains"`
+}
+
 type userRecord struct {
 	ID      uint
 	Name    string
@@ -88,7 +92,51 @@ func TestParseRejectsInvalidMultiFieldTag(t *testing.T) {
 	}
 }
 
-func TestApplyMultiFieldLikeUsesORSemantics(t *testing.T) {
+func TestParseRejectsInvalidOperator(t *testing.T) {
+	_, err := Parse(&invalidOperatorInput{Search: "alice"})
+	if err == nil || !strings.Contains(err.Error(), "unsupported operator") {
+		t.Fatalf("expected invalid operator error, got %v", err)
+	}
+}
+
+func TestBuildOptionsMultiFieldLikeUsesORSemantics(t *testing.T) {
+	setupFilterTestDB(t)
+
+	if err := gormx.GetDb().Create([]userRecord{
+		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
+		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
+		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
+	}).Error; err != nil {
+		t.Fatalf("seed db: %v", err)
+	}
+
+	admin := true
+	opts, err := BuildOptions(&listInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+		Search:         "example.com",
+	})
+	if err != nil {
+		t.Fatalf("BuildOptions: %v", err)
+	}
+
+	var got []userRecord
+	if err := gormx.GetDb(opts...).Find(&got).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 1 || got[0].Email != "bob@example.com" {
+		t.Fatalf("unexpected filtered users: %+v", got)
+	}
+}
+
+func TestApplyRejectsMultiFieldFilters(t *testing.T) {
+	query, _ := gormx.NewQuery[userRecord]()
+	err := Apply(query, &listInput{Search: "alice"})
+	if err == nil || !strings.Contains(err.Error(), "BuildOptions") {
+		t.Fatalf("expected multi-field apply error, got %v", err)
+	}
+}
+
+func TestApplySingleFieldFilters(t *testing.T) {
 	setupFilterTestDB(t)
 
 	if err := gormx.GetDb().Create([]userRecord{
@@ -101,10 +149,7 @@ func TestApplyMultiFieldLikeUsesORSemantics(t *testing.T) {
 
 	admin := true
 	query, _ := gormx.NewQuery[userRecord]()
-	if err := Apply(query, &listInput{
-		embeddedFilter: embeddedFilter{IsAdmin: &admin},
-		Search:         "example.com",
-	}); err != nil {
+	if err := Apply(query, &embeddedFilter{IsAdmin: &admin}); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -112,7 +157,7 @@ func TestApplyMultiFieldLikeUsesORSemantics(t *testing.T) {
 	if err := query.Find(&got); err != nil {
 		t.Fatalf("Find: %v", err)
 	}
-	if len(got) != 1 || got[0].Email != "bob@example.com" {
+	if len(got) != 2 {
 		t.Fatalf("unexpected filtered users: %+v", got)
 	}
 }

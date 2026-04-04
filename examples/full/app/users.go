@@ -77,14 +77,16 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 	query, _ := gormx.NewQuery[User]()
 
-	if err := filter.Apply(query, in); err != nil {
+	filterOpts, err := filter.BuildOptions(in)
+	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
 	}
 	if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
 
-	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
+	opts := append(filterOpts, query.ToOptions()...)
+	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
 	if err != nil {
 		return nil, err
 	}

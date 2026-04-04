@@ -291,11 +291,13 @@ Apply the declared filters in the handler:
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
     query, _ := gormx.NewQuery[User]()
 
-    if err := filter.Apply(query, in); err != nil {
+    filterOpts, err := filter.BuildOptions(in)
+    if err != nil {
         return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
     }
 
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
+    opts := append(filterOpts, query.ToOptions()...)
+    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
     if err != nil {
         return nil, err
     }
@@ -309,7 +311,7 @@ Behavior notes:
 - zero values are ignored, so omitted query params do not add conditions
 - `like` is suitable for contains-style fuzzy matching
 - `filter:"name|email,like"` means `(name LIKE ? OR email LIKE ?)`; multi-field declarative filters use OR semantics
-- invalid filter declarations return a 400 error when you surface `filter.Apply(...)` errors
+- invalid filter declarations return a 400 error when you surface `filter.BuildOptions(...)` or `filter.Apply(...)` errors
 
 ### Safe sorting
 
