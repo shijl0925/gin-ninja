@@ -272,6 +272,13 @@ func toValues(value any) []any {
 
 func appendOption[T any](query *gormx.Query[T], opt gormx.DBOption) {
 	optsField := reflect.ValueOf(query).Elem().FieldByName("opts")
+	if !optsField.IsValid() {
+		panic("filter: gormx.Query no longer exposes internal opts field")
+	}
+
+	// gormx.Query does not currently expose a public hook for adding a raw DBOption.
+	// Multi-field declarative filters need one grouped WHERE clause, so we append the
+	// option directly and fail fast if the upstream query internals ever change.
 	writable := reflect.NewAt(optsField.Type(), unsafe.Pointer(optsField.UnsafeAddr())).Elem()
 	writable.Set(reflect.Append(writable, reflect.ValueOf(opt)))
 }
