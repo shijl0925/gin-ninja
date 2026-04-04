@@ -213,6 +213,17 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected list result: %+v", page)
 	}
 
+	emailPage, err := ListUsers(nil, &ListUsersInput{
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		Search:    "bob@example.com",
+	})
+	if err != nil {
+		t.Fatalf("ListUsers email search: %v", err)
+	}
+	if emailPage.Total != 1 || len(emailPage.Items) != 1 || emailPage.Items[0].Email != "bob@example.com" {
+		t.Fatalf("unexpected email search result: %+v", emailPage)
+	}
+
 	adminOnly := true
 	adminPage, err := ListUsers(nil, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
@@ -223,6 +234,18 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 	if adminPage.Total != 1 || len(adminPage.Items) != 1 || adminPage.Items[0].Email != "bob@example.com" || !adminPage.Items[0].IsAdmin {
 		t.Fatalf("unexpected admin list result: %+v", adminPage)
+	}
+
+	adminSearchPage, err := ListUsers(nil, &ListUsersInput{
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		Search:    "example.com",
+		IsAdmin:   &adminOnly,
+	})
+	if err != nil {
+		t.Fatalf("ListUsers admin search filter: %v", err)
+	}
+	if adminSearchPage.Total != 1 || len(adminSearchPage.Items) != 1 || adminSearchPage.Items[0].Email != "bob@example.com" {
+		t.Fatalf("unexpected admin search result: %+v", adminSearchPage)
 	}
 
 	sortedPage, err := ListUsers(nil, &ListUsersInput{
