@@ -22,11 +22,16 @@
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login   – get a JWT token
 //   - GET  http://localhost:8080/api/v1/users        – list users (requires JWT)
+//   - GET  http://localhost:8080/api/v1/examples/request-meta – binding/defaults demo
+//   - GET  http://localhost:8080/api/v1/examples/features     – paginated response demo
+//   - GET  http://localhost:8080/api/v1/examples/limited      – rate-limit demo
+//   - GET  http://localhost:8080/api/v1/examples/slow         – timeout demo
 package main
 
 import (
 	"log"
 	"net/http"
+	"time"
 
 	ginpkg "github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
@@ -76,18 +81,31 @@ func main() {
 	)
 
 	// ── 6. Auth router (public) ──────────────────────────────────────────────
-	authRouter := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
+	authRouter := ninja.NewRouter(
+		"/auth",
+		ninja.WithTags("Auth"),
+		ninja.WithTagDescription("Auth", "Authentication endpoints for login and registration"),
+	)
 	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"))
 	ninja.Post(authRouter, "/login", app.Login, ninja.Summary("Login and get JWT token"))
 	api.AddRouter(authRouter)
 
 	// ── 7. Users router (protected by JWT) ───────────────────────────────────
-	usersRouter := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
+	usersRouter := ninja.NewRouter(
+		"/users",
+		ninja.WithTags("Users"),
+		ninja.WithTagDescription("Users", "JWT-protected user CRUD endpoints"),
+		ninja.WithBearerAuth(),
+	)
 	usersRouter.UseGin(middleware.JWTAuth())
 
 	ninja.Get(usersRouter, "/", app.ListUsers,
 		ninja.Summary("List users"),
-		ninja.Description("Returns a paginated list of users"))
+		ninja.Description("Returns a paginated list of users"),
+		ninja.Paginated[app.UserOut](),
+		ninja.Timeout(2*time.Second),
+		ninja.RateLimit(20, 40),
+	)
 	ninja.Get(usersRouter, "/:id", app.GetUser,
 		ninja.Summary("Get user"))
 	ninja.Post(usersRouter, "/", app.CreateUser,
@@ -99,12 +117,46 @@ func main() {
 
 	api.AddRouter(usersRouter)
 
-	// ── 8. Health-check (no auth) ─────────────────────────────────────────────
+	// ── 8. Feature demos (public, for manual testing) ────────────────────────
+	exampleRouter := ninja.NewRouter(
+		"/examples",
+		ninja.WithTags("Examples"),
+		ninja.WithTagDescription("Examples", "Framework feature demos for manual testing"),
+	)
+	ninja.Get(exampleRouter, "/request-meta", app.EchoRequestMeta,
+		ninja.Summary("Echo request metadata"),
+		ninja.Description("Demonstrates cookie parameter binding, query/header/cookie defaults, and extra response declarations."),
+		ninja.Response(http.StatusUnauthorized, "Example unauthorized response", nil),
+		ninja.Response(http.StatusNotFound, "Example detailed response", &app.RequestMetaOutput{}),
+	)
+	ninja.Get(exampleRouter, "/features", app.ListFeatureDemos,
+		ninja.Summary("List framework feature demos"),
+		ninja.Description("Demonstrates standardized paginated response declarations."),
+		ninja.Paginated[app.FeatureItemOut](),
+	)
+	ninja.Get(exampleRouter, "/limited", app.LimitedOperation,
+		ninja.Summary("Rate-limited endpoint"),
+		ninja.Description("Call this endpoint repeatedly to trigger the per-operation rate limiter."),
+		ninja.RateLimit(1, 1),
+	)
+	ninja.Get(exampleRouter, "/slow", app.SlowOperation,
+		ninja.Summary("Timeout endpoint"),
+		ninja.Description("This endpoint intentionally exceeds its timeout so you can observe a 408 response."),
+		ninja.Timeout(150*time.Millisecond),
+	)
+	ninja.Get(exampleRouter, "/hidden", app.HiddenOperation,
+		ninja.Summary("Hidden example endpoint"),
+		ninja.Description("This route is reachable but excluded from OpenAPI."),
+		ninja.ExcludeFromDocs(),
+	)
+	api.AddRouter(exampleRouter)
+
+	// ── 9. Health-check (no auth) ─────────────────────────────────────────────
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
 		c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 	})
 
-	// ── 9. Start server ───────────────────────────────────────────────────────
+	// ── 10. Start server ──────────────────────────────────────────────────────
 	addr := cfg.Server.Addr()
 	log.Printf("Starting %s v%s on http://%s", cfg.App.Name, cfg.App.Version, addr)
 	log.Printf("Swagger UI: http://%s/docs", addr)

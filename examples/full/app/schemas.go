@@ -85,3 +85,51 @@ func toUserOut(u User) UserOut {
 		IsAdmin: u.IsAdmin,
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Feature demo schemas
+// ---------------------------------------------------------------------------
+
+// RequestMetaInput demonstrates cookie/header/query binding with defaults.
+type RequestMetaInput struct {
+	Session string `cookie:"session"        default:"guest-session" description:"Session cookie value"`
+	TraceID string `header:"X-Trace-ID"     default:"trace-demo"    description:"Trace identifier header"`
+	Lang    string `form:"lang"             default:"zh-CN"         description:"Preferred language query parameter"`
+	Verbose bool   `form:"verbose"          default:"false"         description:"Verbose output flag"`
+}
+
+// RequestMetaOutput echoes the effective request metadata after binding.
+type RequestMetaOutput struct {
+	Session string `json:"session"`
+	TraceID string `json:"trace_id"`
+	Lang    string `json:"lang"`
+	Verbose bool   `json:"verbose"`
+}
+
+// SlowDemoOutput is the response body for the timeout demo endpoint.
+type SlowDemoOutput struct {
+	Status string `json:"status"`
+}
+
+// LimitedDemoOutput is the response body for the rate-limit demo endpoint.
+type LimitedDemoOutput struct {
+	Status string `json:"status"`
+}
+
+// HiddenDemoOutput is the response body for a route excluded from OpenAPI.
+type HiddenDemoOutput struct {
+	Status string `json:"status"`
+}
+
+// FeatureItemOut is the item schema used by the paginated demo endpoint.
+type FeatureItemOut struct {
+	Code    string `json:"code"`
+	Title   string `json:"title"`
+	Enabled bool   `json:"enabled"`
+}
+
+// FeatureListInput is the request schema for the paginated demo endpoint.
+type FeatureListInput struct {
+	pagination.PageInput
+	Search string `form:"search" default:"demo" description:"Optional feature search term"`
+}
