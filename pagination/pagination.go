@@ -125,7 +125,8 @@ func (p PageInput) GetSortFields() []SortField {
 		}
 
 		field := SortField{Name: part}
-		switch part[0] {
+		prefix := part[0]
+		switch prefix {
 		case '-':
 			field.Name = strings.TrimSpace(part[1:])
 			field.Desc = true

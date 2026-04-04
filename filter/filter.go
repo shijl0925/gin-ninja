@@ -117,6 +117,9 @@ func parseInto(value reflect.Value, clauses *Set) error {
 
 		value := fieldValue.Interface()
 		if fieldValue.Kind() == reflect.Ptr {
+			if fieldValue.IsNil() {
+				continue
+			}
 			value = fieldValue.Elem().Interface()
 		}
 

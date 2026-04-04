@@ -110,8 +110,8 @@ func DownloadDemo(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
 	return ninja.NewDownload("demo.txt", "text/plain; charset=utf-8", data), nil
 }
 
-// DownloadNamedDemo demonstrates reader-backed downloads.
-func DownloadNamedDemo(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+// DownloadReaderDemo demonstrates reader-backed downloads.
+func DownloadReaderDemo(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
 	body := fmt.Sprintf("request_id=%s\n", ctx.RequestID())
 	return ninja.NewDownloadReader("request.txt", "text/plain; charset=utf-8", int64(len(body)), strings.NewReader(body)), nil
 }

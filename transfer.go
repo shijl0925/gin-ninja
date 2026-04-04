@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -100,7 +101,7 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 		if d.Inline {
 			disposition = "inline"
 		}
-		headers["Content-Disposition"] = disposition + `; filename="` + d.Filename + `"`
+		headers["Content-Disposition"] = disposition + `; filename="` + escapeDispositionFilename(d.Filename) + `"`
 	}
 
 	if d.Reader != nil {
@@ -144,4 +145,9 @@ func isMultipartFileHeaderSliceType(t reflect.Type) bool {
 
 func isDownloadType(t reflect.Type) bool {
 	return deref(t) == downloadType
+}
+
+func escapeDispositionFilename(name string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", `"`, "\\\"", "\r", "", "\n", "")
+	return replacer.Replace(name)
 }

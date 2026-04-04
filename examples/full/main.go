@@ -164,7 +164,7 @@ func main() {
 		ninja.Summary("Binary download"),
 		ninja.Description("Demonstrates download responses without JSON serialization."),
 	)
-	ninja.Get(exampleRouter, "/download-reader", app.DownloadNamedDemo,
+	ninja.Get(exampleRouter, "/download-reader", app.DownloadReaderDemo,
 		ninja.Summary("Reader-backed download"),
 		ninja.Description("Demonstrates streaming-style download responses backed by an io.Reader."),
 	)
