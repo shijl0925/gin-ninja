@@ -123,9 +123,6 @@ func (p PageInput) GetSortFields() []SortField {
 		if part == "" {
 			continue
 		}
-		if len(part) == 0 {
-			continue
-		}
 
 		field := SortField{Name: part}
 		switch part[0] {
