@@ -260,6 +260,115 @@ response.JSON(c, response.OKWithMessage("created", user))
 
 ---
 
+## Declarative Filtering & Safe Sorting
+
+### Declarative filtering
+
+Embed `pagination.PageInput` in a list input struct, then add `filter:"column,op"` to query fields that should become database filters:
+
+```go
+type ListUsersInput struct {
+    pagination.PageInput
+    Search  string `form:"search"   filter:"name,like"    description:"Filter by name (partial match)"`
+    IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+}
+```
+
+Supported operators:
+
+- `eq`
+- `ne`
+- `gt`
+- `ge`
+- `lt`
+- `le`
+- `like`
+- `in`
+
+Apply the declared filters in the handler:
+
+```go
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+    query, _ := gormx.NewQuery[User]()
+
+    if err := filter.Apply(query, in); err != nil {
+        return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+    }
+
+    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewPage(items, total, in.PageInput), nil
+}
+```
+
+Behavior notes:
+
+- only fields tagged with `filter:"..."` participate in filtering
+- zero values are ignored, so omitted query params do not add conditions
+- `like` is suitable for contains-style fuzzy matching
+- invalid filter declarations return a 400 error when you surface `filter.Apply(...)` errors
+
+### Safe sorting
+
+`pagination.PageInput.Sort` accepts a comma-separated sort string. Prefix a field with `-` for descending or `+` for ascending:
+
+- `sort=name`
+- `sort=-created_at`
+- `sort=name,-age`
+
+For safety, validate requested sort fields against an allowlist before applying them:
+
+```go
+var userSortSchema = pagination.NewSortSchema(
+    "id",
+    "name",
+    "email",
+    "age",
+    "is_admin",
+    "created_at",
+)
+
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+    query, _ := gormx.NewQuery[User]()
+
+    if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
+        return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+    }
+
+    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewPage(items, total, in.PageInput), nil
+}
+```
+
+If you need a public alias that maps to a different database column, add it explicitly:
+
+```go
+schema := pagination.NewSortSchema("name").
+    Allow("created", "created_at")
+```
+
+Any sort field outside the allowlist is rejected with an error instead of being passed through to the query layer.
+
+### Example
+
+The full example app uses both patterns on `GET /api/v1/users`:
+
+- `search` → `filter:"name,like"`
+- `is_admin` → `filter:"is_admin,eq"`
+- `sort` → validated against `userSortSchema`
+
+Try requests like:
+
+- `/api/v1/users?search=ali`
+- `/api/v1/users?is_admin=true&sort=-age`
+
+---
+
 ## Multipart File Upload & Download
 
 ### Single-file upload
