@@ -153,8 +153,6 @@ func isEmptyValue(value reflect.Value) bool {
 		return strings.TrimSpace(value.String()) == ""
 	case reflect.Slice, reflect.Array, reflect.Map:
 		return value.Len() == 0
-	case reflect.Bool:
-		return !value.Bool()
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return value.Int() == 0
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:

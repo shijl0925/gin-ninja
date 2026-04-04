@@ -45,3 +45,16 @@ func TestParseSkipsZeroValues(t *testing.T) {
 		t.Fatalf("expected no clauses, got %+v", clauses)
 	}
 }
+
+func TestParseKeepsFalseBoolPointers(t *testing.T) {
+	admin := false
+	clauses, err := Parse(&listInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+	})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(clauses) != 1 || clauses[0].Value != false {
+		t.Fatalf("expected false bool clause, got %+v", clauses)
+	}
+}

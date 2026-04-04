@@ -75,8 +75,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	repo := NewUserRepo()
 
-	query, u := gormx.NewQuery[User]()
-	_ = u
+	query, _ := gormx.NewQuery[User]()
 
 	if err := filter.Apply(query, in); err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
