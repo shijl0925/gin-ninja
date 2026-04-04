@@ -88,8 +88,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 	q, u := gormx.NewQuery[User]()
 	cq, cu := gormx.NewQuery[User]()
 	if in.Search != "" {
-		q.Like(&u.Name, "%"+in.Search+"%")
-		cq.Like(&cu.Name, "%"+in.Search+"%")
+		q.Like(&u.Name, in.Search)
+		cq.Like(&cu.Name, in.Search)
 	}
 	q.Limit(in.GetSize()).Offset(in.Offset())
 	items, _ := r.SelectListByOpts(q.ToOptions()...)
