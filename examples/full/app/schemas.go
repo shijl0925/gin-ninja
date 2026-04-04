@@ -1,6 +1,9 @@
 package app
 
-import "github.com/shijl0925/gin-ninja/pagination"
+import (
+	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/pagination"
+)
 
 // ---------------------------------------------------------------------------
 // Auth schemas
@@ -132,4 +135,26 @@ type FeatureItemOut struct {
 type FeatureListInput struct {
 	pagination.PageInput
 	Search string `form:"search" default:"demo" description:"Optional feature search term"`
+}
+
+// UploadSingleInput demonstrates single-file multipart binding with form fields.
+type UploadSingleInput struct {
+	Title string              `form:"title" binding:"required" description:"File title"`
+	File  *ninja.UploadedFile `file:"file"  binding:"required" description:"Single uploaded file"`
+}
+
+// UploadManyInput demonstrates multi-file multipart binding with extra form fields.
+type UploadManyInput struct {
+	Category string                `form:"category" binding:"required" description:"Upload category"`
+	Files    []*ninja.UploadedFile `file:"files"    binding:"required" description:"Uploaded files"`
+}
+
+// UploadDemoOutput echoes uploaded file metadata.
+type UploadDemoOutput struct {
+	Title     string   `json:"title,omitempty"`
+	Category  string   `json:"category,omitempty"`
+	Filename  string   `json:"filename,omitempty"`
+	Size      int64    `json:"size,omitempty"`
+	FileCount int      `json:"file_count"`
+	Names     []string `json:"names,omitempty"`
 }

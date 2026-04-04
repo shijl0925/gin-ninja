@@ -243,6 +243,10 @@ func newOperation[TIn any, TOut any](
 			c.Status(http.StatusNoContent)
 			return
 		}
+		if writer, ok := any(output).(responseWriter); ok {
+			writer.writeTo(c, op.successStatus)
+			return
+		}
 		c.JSON(op.successStatus, output)
 	}
 

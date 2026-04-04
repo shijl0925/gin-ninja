@@ -1,8 +1,10 @@
 package ninja
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -46,6 +48,12 @@ type schemaSample struct {
 	Tags  []string          `json:"tags"`
 	Meta  map[string]string `json:"meta"`
 	Skip  string            `json:"-"`
+}
+
+type multipartBindInput struct {
+	Title string          `form:"title" binding:"required"`
+	File  *UploadedFile   `file:"file" binding:"required"`
+	Files []*UploadedFile `file:"files"`
 }
 
 func init() {
@@ -151,6 +159,71 @@ func TestBindInput_Errors(t *testing.T) {
 			t.Fatalf("expected BAD_COOKIE, got %v", err)
 		}
 	})
+
+	t.Run("missing multipart file", func(t *testing.T) {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		if err := writer.WriteField("title", "demo"); err != nil {
+			t.Fatalf("WriteField: %v", err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatalf("writer.Close: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		req := httptest.NewRequest(http.MethodPost, "/upload", &body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		c.Request = req
+
+		var in multipartBindInput
+		err := bindInput(c, http.MethodPost, &in)
+		var validationErr *ValidationError
+		if !errors.As(err, &validationErr) {
+			t.Fatalf("expected ValidationError, got %T", err)
+		}
+	})
+}
+
+func TestBindInput_MultipartSuccess(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("title", "demo"); err != nil {
+		t.Fatalf("WriteField: %v", err)
+	}
+	for _, field := range []struct {
+		name string
+		file string
+	}{
+		{name: "file", file: "single.txt"},
+		{name: "files", file: "a.txt"},
+		{name: "files", file: "b.txt"},
+	} {
+		part, err := writer.CreateFormFile(field.name, field.file)
+		if err != nil {
+			t.Fatalf("CreateFormFile: %v", err)
+		}
+		if _, err := part.Write([]byte("content:" + field.file)); err != nil {
+			t.Fatalf("part.Write: %v", err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Request = req
+
+	var in multipartBindInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Title != "demo" || in.File == nil || in.File.Filename != "single.txt" || len(in.Files) != 2 {
+		t.Fatalf("unexpected multipart input: %+v", in)
+	}
 }
 
 func TestSetFieldFromString(t *testing.T) {
@@ -374,6 +447,9 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 	if got := jsonFieldName(reflect.TypeOf(schemaSample{}).Field(1)); got != "name" {
 		t.Fatalf("expected json field name, got %q", got)
 	}
+	if fileSchema := registry.schemaForType(reflect.TypeOf(UploadedFile{})); fileSchema.Format != "binary" {
+		t.Fatalf("expected binary schema for uploads, got %+v", fileSchema)
+	}
 	if !isRequired(reflect.TypeOf(schemaSample{}).Field(1)) {
 		t.Fatal("expected required field")
 	}
@@ -398,7 +474,7 @@ func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
 	}
 
 	spec := newOpenAPISpec(Config{})
-	params, bodySchema := spec.extractParams(http.MethodPost, reflect.TypeOf(createInput{}))
+	params, bodySchema, contentType := spec.extractParams(http.MethodPost, reflect.TypeOf(createInput{}))
 	if len(params) != 0 {
 		t.Fatalf("expected no parameters, got %+v", params)
 	}
@@ -413,6 +489,32 @@ func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
 	}
 	if len(bodySchema.Required) != 1 || bodySchema.Required[0] != "name" {
 		t.Fatalf("expected embedded required fields to be preserved, got %+v", bodySchema.Required)
+	}
+	if contentType != "application/json" {
+		t.Fatalf("expected json content type, got %q", contentType)
+	}
+}
+
+func TestExtractParams_MultipartBodyFields(t *testing.T) {
+	spec := newOpenAPISpec(Config{})
+	params, bodySchema, contentType := spec.extractParams(http.MethodPost, reflect.TypeOf(multipartBindInput{}))
+	if len(params) != 0 {
+		t.Fatalf("expected no parameters, got %+v", params)
+	}
+	if bodySchema == nil {
+		t.Fatal("expected multipart body schema")
+	}
+	if _, ok := bodySchema.Properties["title"]; !ok {
+		t.Fatalf("expected form field in multipart body, got %+v", bodySchema.Properties)
+	}
+	if prop, ok := bodySchema.Properties["file"]; !ok || prop.Format != "binary" {
+		t.Fatalf("expected binary file field, got %+v", bodySchema.Properties["file"])
+	}
+	if prop, ok := bodySchema.Properties["files"]; !ok || prop.Type != "array" || prop.Items == nil || prop.Items.Format != "binary" {
+		t.Fatalf("expected file array field, got %+v", bodySchema.Properties["files"])
+	}
+	if contentType != "multipart/form-data" {
+		t.Fatalf("expected multipart content type, got %q", contentType)
 	}
 }
 

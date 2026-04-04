@@ -152,6 +152,22 @@ func main() {
 		ninja.Description("This route is reachable but excluded from OpenAPI."),
 		ninja.ExcludeFromDocs(),
 	)
+	ninja.Post(exampleRouter, "/upload-single", app.UploadSingleDemo,
+		ninja.Summary("Single file upload"),
+		ninja.Description("Demonstrates multipart form-data binding with one file and extra form fields."),
+	)
+	ninja.Post(exampleRouter, "/upload-many", app.UploadManyDemo,
+		ninja.Summary("Multiple file upload"),
+		ninja.Description("Demonstrates multipart form-data binding with multiple files and extra form fields."),
+	)
+	ninja.Get(exampleRouter, "/download", app.DownloadDemo,
+		ninja.Summary("Binary download"),
+		ninja.Description("Demonstrates download responses without JSON serialization."),
+	)
+	ninja.Get(exampleRouter, "/download-reader", app.DownloadNamedDemo,
+		ninja.Summary("Reader-backed download"),
+		ninja.Description("Demonstrates streaming-style download responses backed by an io.Reader."),
+	)
 	api.AddRouter(exampleRouter)
 
 	// ── 9. Health-check (no auth) ─────────────────────────────────────────────
