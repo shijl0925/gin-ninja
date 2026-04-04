@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shijl0925/gin-ninja/middleware"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/pagination"
 )
 
@@ -102,7 +102,7 @@ type dependencyRepo struct {
 }
 
 type injectedInput struct {
-	Config      *dependencyConfig `inject:""`
+	Config      *dependencyConfig  `inject:""`
 	Service     *dependencyService `inject:""`
 	Repo        *dependencyRepo    `inject:""`
 	NamedValue  string             `inject:"greeting"`
@@ -163,7 +163,7 @@ func TestHandlerDependencyInjection(t *testing.T) {
 	}
 
 	spec := doRequest(api, http.MethodGet, "/openapi.json", nil)
-	if strings.Contains(spec.Body.String(), "CurrentUser") || strings.Contains(spec.Body.String(), "greeting") {
+	if strings.Contains(spec.Body.String(), "CurrentUser") || strings.Contains(spec.Body.String(), "dependencyConfig") || strings.Contains(spec.Body.String(), "dependencyService") {
 		t.Fatalf("expected injected fields to stay out of OpenAPI: %s", spec.Body.String())
 	}
 }

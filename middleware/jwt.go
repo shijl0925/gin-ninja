@@ -127,10 +127,9 @@ func GenerateTokenWithSecretAndClaims(claims Claims, secret string, ttl time.Dur
 
 func generateToken(userID uint, username, secret string, ttl time.Duration, issuer string) (string, error) {
 	return generateTokenFromClaims(Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-		},
-		UserID:   userID,
-		Username: username,
+		RegisteredClaims: jwt.RegisteredClaims{},
+		UserID:           userID,
+		Username:         username,
 	}, secret, ttl, issuer)
 }
 

@@ -241,9 +241,9 @@ r.UseGin(
 
 ```go
 type UserDeps struct {
-    Repo        app.UserRepo          `inject:""`
+    Repo        app.IUserRepo         `inject:""`
     CurrentUser *middleware.Claims    `inject:""`
-    Config      *settings.Settings    `inject:"config"`
+    Config      *settings.Config      `inject:"config"`
 }
 
 type GetUserInput struct {

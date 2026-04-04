@@ -87,9 +87,9 @@ type DeleteUserInput struct {
 
 // UserDeps demonstrates handler dependency injection for protected user routes.
 type UserDeps struct {
-	Repo        IUserRepo           `inject:""`
-	CurrentUser *middleware.Claims  `inject:""`
-	Config      *settings.Settings  `inject:"config"`
+	Repo        IUserRepo          `inject:""`
+	CurrentUser *middleware.Claims `inject:""`
+	Config      *settings.Config   `inject:"config"`
 }
 
 // toUserOut converts a domain User to the public UserOut representation.
