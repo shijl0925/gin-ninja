@@ -233,7 +233,7 @@ func parseTag(tag string, field reflect.StructField) ([]string, Operator, Combin
 	for _, rawField := range rawFields {
 		fieldName := strings.TrimSpace(rawField)
 		if fieldName == "" {
-			return nil, "", "", fmt.Errorf("filter tag on %s contains an empty field name", field.Name)
+			return nil, "", "", fmt.Errorf("filter tag on %s contains an empty field name in multi-field specification", field.Name)
 		}
 		fields = append(fields, fieldName)
 	}
