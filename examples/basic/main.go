@@ -51,7 +51,9 @@ type ListUsersInput struct {
 	Search string `form:"search"`
 }
 
-type GetUserInput struct{ UserID uint `path:"id" binding:"required"` }
+type GetUserInput struct {
+	UserID uint `path:"id" binding:"required"`
+}
 
 type CreateUserInput struct {
 	Name  string `json:"name"  binding:"required"`
@@ -66,7 +68,9 @@ type UpdateUserInput struct {
 	Age    int    `json:"age"   binding:"omitempty,min=0,max=150"`
 }
 
-type DeleteUserInput struct{ UserID uint `path:"id" binding:"required"` }
+type DeleteUserInput struct {
+	UserID uint `path:"id" binding:"required"`
+}
 
 // ---------------------------------------------------------------------------
 // Repository
