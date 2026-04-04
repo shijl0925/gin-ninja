@@ -225,6 +225,16 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected admin list result: %+v", adminPage)
 	}
 
+	sortedPage, err := ListUsers(nil, &ListUsersInput{
+		PageInput: pagination.PageInput{Page: 1, Size: 10, Sort: "-age"},
+	})
+	if err != nil {
+		t.Fatalf("ListUsers sort: %v", err)
+	}
+	if len(sortedPage.Items) != 2 || sortedPage.Items[0].Age < sortedPage.Items[1].Age {
+		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
+	}
+
 	updated, err := UpdateUser(nil, &UpdateUserInput{
 		UserID: second.ID,
 		Name:   "Bobby",

@@ -109,11 +109,14 @@ func main() {
 	ninja.Get(usersRouter, "/:id", app.GetUser,
 		ninja.Summary("Get user"))
 	ninja.Post(usersRouter, "/", app.CreateUser,
-		ninja.Summary("Create user"))
+		ninja.Summary("Create user"),
+		ninja.WithTransaction())
 	ninja.Put(usersRouter, "/:id", app.UpdateUser,
-		ninja.Summary("Update user"))
+		ninja.Summary("Update user"),
+		ninja.WithTransaction())
 	ninja.Delete(usersRouter, "/:id", app.DeleteUser,
-		ninja.Summary("Delete user"))
+		ninja.Summary("Delete user"),
+		ninja.WithTransaction())
 
 	api.AddRouter(usersRouter)
 

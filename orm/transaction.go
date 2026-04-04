@@ -1,6 +1,9 @@
 package orm
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
 
 // Begin starts a request-scoped transaction if one is not already active.
 func Begin(c *gin.Context) (*gorm.DB, error) {

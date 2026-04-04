@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type BindEmbeddedInput struct {
@@ -298,6 +299,39 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, errors.New("boom"))
 		if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "boom") {
+			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("gorm mapper", func(t *testing.T) {
+		c, w := newTestContext(http.MethodGet, "/", "")
+		writeError(c, gorm.ErrRecordNotFound)
+		if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "NOT_FOUND") {
+			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("custom mapper", func(t *testing.T) {
+		sentinel := errors.New("mapped")
+
+		errorMappersMu.Lock()
+		original := append([]ErrorMapper(nil), errorMappers...)
+		errorMappers = append(errorMappers, func(err error) error {
+			if errors.Is(err, sentinel) {
+				return &Error{Status: http.StatusTeapot, Code: "MAPPED", Message: "mapped"}
+			}
+			return nil
+		})
+		errorMappersMu.Unlock()
+		defer func() {
+			errorMappersMu.Lock()
+			errorMappers = original
+			errorMappersMu.Unlock()
+		}()
+
+		c, w := newTestContext(http.MethodGet, "/", "")
+		writeError(c, sentinel)
+		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "MAPPED") {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
