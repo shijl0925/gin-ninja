@@ -8,6 +8,7 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 - **Automatic parameter binding** – path params (`path:`), query params (`form:`), headers (`header:`), cookies (`cookie:`), and JSON bodies (`json:`) are all bound via struct tags.
 - **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
+- **File transfer abstractions** – first-class multipart upload binding and binary download responses.
 - **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
 - **Swagger UI** – available at `/docs` out of the box.
 - **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
@@ -244,17 +245,132 @@ response.JSON(c, response.OKWithMessage("created", user))
 
 ## Parameter Binding
 
-| Tag          | Source              | Methods            |
-|--------------|---------------------|--------------------|
-| `path:"x"`   | URL path parameter  | all                |
-| `form:"x"`   | URL query string    | all                |
-| `header:"x"` | Request header      | all                |
-| `cookie:"x"` | Request cookie      | all                |
-| `json:"x"`   | JSON request body   | POST / PUT / PATCH |
+| Tag          | Source                         | Methods            |
+|--------------|--------------------------------|--------------------|
+| `path:"x"`   | URL path parameter             | all                |
+| `form:"x"`   | URL query string / form field  | all                |
+| `header:"x"` | Request header                 | all                |
+| `cookie:"x"` | Request cookie                 | all                |
+| `json:"x"`   | JSON request body              | POST / PUT / PATCH |
+| `file:"x"`   | Multipart uploaded file(s)     | POST / PUT / PATCH |
 
 `binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
 
 `default:"..."` applies to `form`, `header`, and `cookie` fields when the client omits the value.
+
+---
+
+## Multipart File Upload & Download
+
+### Single-file upload
+
+Use `file:"..."` with `*ninja.UploadedFile`:
+
+```go
+type UploadSingleInput struct {
+    Title string              `form:"title" binding:"required"`
+    File  *ninja.UploadedFile `file:"file"  binding:"required"`
+}
+
+type UploadDemoOutput struct {
+    Title     string   `json:"title,omitempty"`
+    Category  string   `json:"category,omitempty"`
+    Filename  string   `json:"filename,omitempty"`
+    Size      int64    `json:"size,omitempty"`
+    FileCount int      `json:"file_count"`
+    Names     []string `json:"names,omitempty"`
+}
+
+func uploadSingle(ctx *ninja.Context, in *UploadSingleInput) (*UploadDemoOutput, error) {
+    return &UploadDemoOutput{
+        Title:     in.Title,
+        Filename:  in.File.Filename,
+        Size:      in.File.Size,
+        FileCount: 1,
+    }, nil
+}
+
+ninja.Post(router, "/upload-single", uploadSingle,
+    ninja.Summary("Single file upload"),
+    ninja.Description("Demonstrates multipart form-data binding with one file and extra form fields."),
+)
+```
+
+`UploadedFile` wraps `multipart.FileHeader` and exposes:
+
+- `in.File.Filename`
+- `in.File.Size`
+- `in.File.Open()`
+- `in.File.Bytes()`
+
+### Multi-file upload
+
+Use `[]*ninja.UploadedFile` for repeated multipart fields:
+
+```go
+type UploadManyInput struct {
+    Category string                `form:"category" binding:"required"`
+    Files    []*ninja.UploadedFile `file:"files"    binding:"required"`
+}
+
+func uploadMany(ctx *ninja.Context, in *UploadManyInput) (*UploadDemoOutput, error) {
+    names := make([]string, 0, len(in.Files))
+    for _, file := range in.Files {
+        names = append(names, file.Filename)
+    }
+    return &UploadDemoOutput{
+        Category:  in.Category,
+        FileCount: len(in.Files),
+        Names:     names,
+    }, nil
+}
+```
+
+### Mixed form + file binding
+
+`form:"..."` and `file:"..."` can be mixed in the same input struct. When the request uses `multipart/form-data`, gin-ninja binds regular form fields and uploaded files together and generates the matching OpenAPI request body automatically.
+
+### File download responses
+
+Return `*ninja.Download` when the handler should write a binary response instead of JSON:
+
+```go
+func download(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+    return ninja.NewDownload(
+        "report.txt",
+        "text/plain; charset=utf-8",
+        []byte("hello from gin-ninja\n"),
+    ), nil
+}
+
+func downloadReader(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+    body := strings.NewReader("streamed content\n")
+    return ninja.NewDownloadReader(
+        "stream.txt",
+        "text/plain; charset=utf-8",
+        int64(body.Len()),
+        body,
+    ), nil
+}
+```
+
+Available helpers:
+
+- `ninja.NewDownload(filename, contentType, data)` – byte-slice backed download
+- `ninja.NewDownloadReader(filename, contentType, size, reader)` – reader-backed download
+- `Download.Inline = true` – switch `Content-Disposition` from `attachment` to `inline`
+- `Download.Headers` – add custom response headers
+
+OpenAPI will describe upload inputs as `multipart/form-data`, and `*ninja.Download` responses as binary `application/octet-stream`.
+
+### Example routes
+
+The full example app includes ready-to-run routes:
+
+- `POST /api/v1/examples/upload-single`
+- `POST /api/v1/examples/upload-many`
+- `GET /api/v1/examples/download`
+- `GET /api/v1/examples/download-reader`
 
 ---
 
@@ -303,6 +419,8 @@ See [examples/full](./examples/full/) for a complete application with:
 - JWT-protected user CRUD endpoints
 - Auth login endpoint
 - Structured Zap logging
+- Multipart single-file and multi-file upload demos
+- Binary download and reader-backed download demos
 
 ```bash
 cd examples/full
