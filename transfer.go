@@ -3,10 +3,10 @@ package ninja
 import (
 	"bytes"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"reflect"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -101,7 +101,7 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 		if d.Inline {
 			disposition = "inline"
 		}
-		headers["Content-Disposition"] = disposition + `; filename="` + escapeDispositionFilename(d.Filename) + `"`
+		headers["Content-Disposition"] = formatDisposition(disposition, d.Filename)
 	}
 
 	if d.Reader != nil {
@@ -147,7 +147,10 @@ func isDownloadType(t reflect.Type) bool {
 	return deref(t) == downloadType
 }
 
-func escapeDispositionFilename(name string) string {
-	replacer := strings.NewReplacer("\\", "\\\\", `"`, "\\\"", "\r", "", "\n", "")
-	return replacer.Replace(name)
+func formatDisposition(disposition, filename string) string {
+	value := mime.FormatMediaType(disposition, map[string]string{"filename": filename})
+	if value != "" {
+		return value
+	}
+	return disposition
 }

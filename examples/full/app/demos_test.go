@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,7 +183,7 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	if got := download.Header().Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("demo.txt")) {
 		t.Fatalf("expected attachment header, got %q", got)
 	}
-	if got := download.Header().Get("Content-Type"); got == "" || got[:10] != "text/plain" {
+	if got := download.Header().Get("Content-Type"); got == "" || !strings.HasPrefix(got, "text/plain") {
 		t.Fatalf("expected text/plain content type, got %q", got)
 	}
 }
