@@ -74,21 +74,13 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 	query, u := gormx.NewQuery[User]()
 	if in.Search != "" {
-		query.Like(&u.Name, "%"+in.Search+"%")
+		query.Like(&u.Name, in.Search)
+	}
+	if in.IsAdmin != nil {
+		query.Eq(&u.IsAdmin, *in.IsAdmin)
 	}
 
-	countQuery, cu := gormx.NewQuery[User]()
-	if in.Search != "" {
-		countQuery.Like(&cu.Name, "%"+in.Search+"%")
-	}
-
-	query.Limit(in.GetSize()).Offset(in.Offset())
-
-	items, err := repo.SelectListByOpts(query.ToOptions()...)
-	if err != nil {
-		return nil, err
-	}
-	total, err := repo.SelectCount(countQuery.ToOptions()...)
+	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
 	if err != nil {
 		return nil, err
 	}

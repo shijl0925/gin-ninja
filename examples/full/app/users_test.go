@@ -192,6 +192,10 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser second: %v", err)
 	}
+	repo := NewUserRepo()
+	if err := repo.UpdateById(int(second.ID), map[string]interface{}{"is_admin": true}); err != nil {
+		t.Fatalf("set second user admin: %v", err)
+	}
 
 	got, err := GetUser(nil, &GetUserInput{UserID: created.ID})
 	if err != nil || got.Email != "alice@example.com" {
@@ -207,6 +211,18 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Email != "alice@example.com" {
 		t.Fatalf("unexpected list result: %+v", page)
+	}
+
+	adminOnly := true
+	adminPage, err := ListUsers(nil, &ListUsersInput{
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		IsAdmin:   &adminOnly,
+	})
+	if err != nil {
+		t.Fatalf("ListUsers admin filter: %v", err)
+	}
+	if adminPage.Total != 1 || len(adminPage.Items) != 1 || adminPage.Items[0].Email != "bob@example.com" || !adminPage.Items[0].IsAdmin {
+		t.Fatalf("unexpected admin list result: %+v", adminPage)
 	}
 
 	updated, err := UpdateUser(nil, &UpdateUserInput{
