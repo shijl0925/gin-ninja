@@ -12,29 +12,58 @@ import (
 
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
+	"golang.org/x/net/websocket"
 )
 
 func newDemoAPI() *ninja.NinjaAPI {
 	gin.SetMode(gin.TestMode)
 
-	api := ninja.New(ninja.Config{Title: "Demo", Version: "0.0.1"})
+	api := ninja.New(ninja.Config{
+		Title:   "Demo",
+		Version: "main",
+		Prefix:  "/api",
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {
+				Prefix:       "/v1",
+				Description:  "Legacy example API",
+				Deprecated:   true,
+				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+				MigrationURL: "https://example.com/docs/gin-ninja/v2-migration",
+			},
+			"v2": {Prefix: "/v2"},
+		},
+	})
 	router := ninja.NewRouter(
 		"/examples",
 		ninja.WithTags("Examples"),
 		ninja.WithTagDescription("Examples", "Framework feature demos for manual testing"),
+		ninja.WithVersion("v1"),
 	)
 	ninja.Get(router, "/request-meta", EchoRequestMeta,
 		ninja.Response(http.StatusUnauthorized, "Example unauthorized response", nil),
 		ninja.Response(http.StatusNotFound, "Example detailed response", &RequestMetaOutput{}),
 	)
 	ninja.Get(router, "/features", ListFeatureDemos, ninja.Paginated[FeatureItemOut]())
+	ninja.Get(router, "/cache", CachedFeatureDemo, ninja.Cache(time.Minute), ninja.CacheControl("public, max-age=60"))
 	ninja.Get(router, "/limited", LimitedOperation, ninja.RateLimit(1, 1))
 	ninja.Get(router, "/slow", SlowOperation, ninja.Timeout(150*time.Millisecond))
 	ninja.Get(router, "/hidden", HiddenOperation, ninja.ExcludeFromDocs())
+	ninja.SSE(router, "/events", StreamEventsDemo)
+	ninja.WebSocket(router, "/ws", WebSocketEchoDemo)
 	ninja.Post(router, "/upload-single", UploadSingleDemo)
 	ninja.Post(router, "/upload-many", UploadManyDemo)
 	ninja.Get(router, "/download", DownloadDemo)
+	ninja.Get(router, "/download-reader", DownloadReaderDemo)
 	api.AddRouter(router)
+
+	versionedV1 := ninja.NewRouter("/examples/versioned", ninja.WithTags("Examples"), ninja.WithVersion("v1"))
+	ninja.Get(versionedV1, "/info", VersionedInfoV1)
+	api.AddRouter(versionedV1)
+
+	versionedV2 := ninja.NewRouter("/examples/versioned", ninja.WithTags("Examples"), ninja.WithVersion("v2"))
+	ninja.Get(versionedV2, "/info", VersionedInfoV2)
+	api.AddRouter(versionedV2)
+
 	return api
 }
 
@@ -83,7 +112,7 @@ func doMultipartDemoRequest(t *testing.T, api *ninja.NinjaAPI, path string, fiel
 func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 	api := newDemoAPI()
 
-	w := doDemoRequest(api, http.MethodGet, "/examples/request-meta", nil)
+	w := doDemoRequest(api, http.MethodGet, "/api/v1/examples/request-meta", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
@@ -96,7 +125,7 @@ func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 		t.Fatalf("unexpected defaults: %+v", out)
 	}
 
-	w = doDemoRequest(api, http.MethodGet, "/examples/request-meta?lang=en-US&verbose=true", func(req *http.Request) {
+	w = doDemoRequest(api, http.MethodGet, "/api/v1/examples/request-meta?lang=en-US&verbose=true", func(req *http.Request) {
 		req.Header.Set("X-Trace-ID", "trace-override")
 		req.AddCookie(&http.Cookie{Name: "session", Value: "sess-123"})
 	})
@@ -108,10 +137,10 @@ func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 	}
 }
 
-func TestDemoEndpoints_PaginatedRateLimitedAndTimeout(t *testing.T) {
+func TestDemoEndpoints_PaginatedCacheRateLimitedAndTimeout(t *testing.T) {
 	api := newDemoAPI()
 
-	w := doDemoRequest(api, http.MethodGet, "/examples/features?search=timeout", nil)
+	w := doDemoRequest(api, http.MethodGet, "/api/v1/examples/features?search=timeout", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
@@ -124,16 +153,47 @@ func TestDemoEndpoints_PaginatedRateLimitedAndTimeout(t *testing.T) {
 		t.Fatalf("expected standardized page items, got %v", page)
 	}
 
-	first := doDemoRequest(api, http.MethodGet, "/examples/limited", nil)
+	cacheDemoCounter.Store(0)
+	cacheFirst := doDemoRequest(api, http.MethodGet, "/api/v1/examples/cache", nil)
+	if cacheFirst.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", cacheFirst.Code, cacheFirst.Body.String())
+	}
+	if got := cacheFirst.Header().Get("Cache-Control"); got != "public, max-age=60" {
+		t.Fatalf("expected cache-control header, got %q", got)
+	}
+	etag := cacheFirst.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("expected ETag header")
+	}
+
+	cacheSecond := doDemoRequest(api, http.MethodGet, "/api/v1/examples/cache", nil)
+	if cacheSecond.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", cacheSecond.Code, cacheSecond.Body.String())
+	}
+	if cacheDemoCounter.Load() != 1 {
+		t.Fatalf("expected cached response, counter=%d", cacheDemoCounter.Load())
+	}
+	if cacheSecond.Body.String() != cacheFirst.Body.String() {
+		t.Fatalf("expected cached body to match, got %q vs %q", cacheSecond.Body.String(), cacheFirst.Body.String())
+	}
+
+	notModified := doDemoRequest(api, http.MethodGet, "/api/v1/examples/cache", func(req *http.Request) {
+		req.Header.Set("If-None-Match", etag)
+	})
+	if notModified.Code != http.StatusNotModified {
+		t.Fatalf("expected 304, got %d: %s", notModified.Code, notModified.Body.String())
+	}
+
+	first := doDemoRequest(api, http.MethodGet, "/api/v1/examples/limited", nil)
 	if first.Code != http.StatusOK {
 		t.Fatalf("expected first limited request to pass, got %d: %s", first.Code, first.Body.String())
 	}
-	second := doDemoRequest(api, http.MethodGet, "/examples/limited", nil)
+	second := doDemoRequest(api, http.MethodGet, "/api/v1/examples/limited", nil)
 	if second.Code != http.StatusTooManyRequests {
 		t.Fatalf("expected second limited request to be rejected, got %d: %s", second.Code, second.Body.String())
 	}
 
-	slow := doDemoRequest(api, http.MethodGet, "/examples/slow", nil)
+	slow := doDemoRequest(api, http.MethodGet, "/api/v1/examples/slow", nil)
 	if slow.Code != http.StatusRequestTimeout {
 		t.Fatalf("expected 408, got %d: %s", slow.Code, slow.Body.String())
 	}
@@ -142,7 +202,7 @@ func TestDemoEndpoints_PaginatedRateLimitedAndTimeout(t *testing.T) {
 func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	api := newDemoAPI()
 
-	single := doMultipartDemoRequest(t, api, "/examples/upload-single", map[string]string{
+	single := doMultipartDemoRequest(t, api, "/api/v1/examples/upload-single", map[string]string{
 		"title": "avatar",
 	}, map[string][]string{
 		"file": {"avatar.png"},
@@ -159,7 +219,7 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 		t.Fatalf("unexpected single upload response: %+v", singleOut)
 	}
 
-	multi := doMultipartDemoRequest(t, api, "/examples/upload-many", map[string]string{
+	multi := doMultipartDemoRequest(t, api, "/api/v1/examples/upload-many", map[string]string{
 		"category": "docs",
 	}, map[string][]string{
 		"files": {"a.txt", "b.txt"},
@@ -176,7 +236,7 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 		t.Fatalf("unexpected multi upload response: %+v", multiOut)
 	}
 
-	download := doDemoRequest(api, http.MethodGet, "/examples/download", nil)
+	download := doDemoRequest(api, http.MethodGet, "/api/v1/examples/download", nil)
 	if download.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", download.Code, download.Body.String())
 	}
@@ -186,9 +246,72 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	if got := download.Header().Get("Content-Type"); got == "" || !strings.HasPrefix(got, "text/plain") {
 		t.Fatalf("expected text/plain content type, got %q", got)
 	}
+
+	readerDownload := doDemoRequest(api, http.MethodGet, "/api/v1/examples/download-reader", nil)
+	if readerDownload.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", readerDownload.Code, readerDownload.Body.String())
+	}
+	if got := readerDownload.Header().Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("request.txt")) {
+		t.Fatalf("expected reader download header, got %q", got)
+	}
 }
 
-func TestDemoEndpoints_OpenAPIVisibilityAndResponses(t *testing.T) {
+func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
+	api := newDemoAPI()
+
+	v1 := doDemoRequest(api, http.MethodGet, "/api/v1/examples/versioned/info", nil)
+	if v1.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v1.Code, v1.Body.String())
+	}
+	if v1.Header().Get("Deprecation") != "true" {
+		t.Fatalf("expected deprecation header, got %v", v1.Header())
+	}
+	if v1.Header().Get("Sunset") == "" || v1.Header().Get("Link") == "" {
+		t.Fatalf("expected sunset and link headers, got %v", v1.Header())
+	}
+
+	v2 := doDemoRequest(api, http.MethodGet, "/api/v2/examples/versioned/info", nil)
+	if v2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v2.Code, v2.Body.String())
+	}
+	if v2.Header().Get("Deprecation") != "" {
+		t.Fatalf("did not expect deprecation header on v2, got %v", v2.Header())
+	}
+
+	sse := doDemoRequest(api, http.MethodGet, "/api/v1/examples/events?name=bot", nil)
+	if sse.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", sse.Code, sse.Body.String())
+	}
+	if got := sse.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		t.Fatalf("expected SSE content type, got %q", got)
+	}
+	if body := sse.Body.String(); !strings.Contains(body, "event: hello") || !strings.Contains(body, `"name":"bot"`) || !strings.Contains(body, `"transport":"sse"`) {
+		t.Fatalf("unexpected SSE body %q", body)
+	}
+
+	server := httptest.NewServer(api.Handler())
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/examples/ws?name=bot"
+	conn, err := websocket.Dial(wsURL, "", server.URL)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	if err := websocket.Message.Send(conn, "ping"); err != nil {
+		t.Fatalf("send websocket message: %v", err)
+	}
+	var message string
+	if err := websocket.Message.Receive(conn, &message); err != nil {
+		t.Fatalf("receive websocket message: %v", err)
+	}
+	if message != "bot:ping" {
+		t.Fatalf("unexpected websocket message %q", message)
+	}
+}
+
+func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) {
 	api := newDemoAPI()
 
 	w := doDemoRequest(api, http.MethodGet, "/openapi.json", nil)
@@ -208,11 +331,11 @@ func TestDemoEndpoints_OpenAPIVisibilityAndResponses(t *testing.T) {
 	}
 
 	paths := spec["paths"].(map[string]interface{})
-	if _, ok := paths["/examples/hidden"]; ok {
+	if _, ok := paths["/api/v1/examples/hidden"]; ok {
 		t.Fatalf("expected hidden route to be absent from OpenAPI, got %v", paths)
 	}
 
-	requestMeta := paths["/examples/request-meta"].(map[string]interface{})["get"].(map[string]interface{})
+	requestMeta := paths["/api/v1/examples/request-meta"].(map[string]interface{})["get"].(map[string]interface{})
 	responses := requestMeta["responses"].(map[string]interface{})
 	if _, ok := responses["401"]; !ok {
 		t.Fatalf("expected documented 401 response, got %v", responses)
@@ -221,18 +344,59 @@ func TestDemoEndpoints_OpenAPIVisibilityAndResponses(t *testing.T) {
 		t.Fatalf("expected documented 404 response, got %v", responses)
 	}
 
-	uploadSingle := paths["/examples/upload-single"].(map[string]interface{})["post"].(map[string]interface{})
+	cache := paths["/api/v1/examples/cache"].(map[string]interface{})["get"].(map[string]interface{})
+	cacheHeaders := cache["responses"].(map[string]interface{})["200"].(map[string]interface{})["headers"].(map[string]interface{})
+	if _, ok := cacheHeaders["ETag"]; !ok {
+		t.Fatalf("expected ETag header in OpenAPI, got %v", cacheHeaders)
+	}
+	if _, ok := cacheHeaders["Cache-Control"]; !ok {
+		t.Fatalf("expected Cache-Control header in OpenAPI, got %v", cacheHeaders)
+	}
+
+	uploadSingle := paths["/api/v1/examples/upload-single"].(map[string]interface{})["post"].(map[string]interface{})
 	requestBody := uploadSingle["requestBody"].(map[string]interface{})
 	content := requestBody["content"].(map[string]interface{})
 	if _, ok := content["multipart/form-data"]; !ok {
 		t.Fatalf("expected multipart form content, got %v", content)
 	}
 
-	download := paths["/examples/download"].(map[string]interface{})["get"].(map[string]interface{})
+	download := paths["/api/v1/examples/download"].(map[string]interface{})["get"].(map[string]interface{})
 	downloadResponses := download["responses"].(map[string]interface{})
 	okResponse := downloadResponses["200"].(map[string]interface{})
 	responseContent := okResponse["content"].(map[string]interface{})
 	if _, ok := responseContent["application/octet-stream"]; !ok {
 		t.Fatalf("expected binary response content, got %v", responseContent)
+	}
+
+	v1Docs := doDemoRequest(api, http.MethodGet, "/openapi/v1.json", nil)
+	if v1Docs.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v1Docs.Code, v1Docs.Body.String())
+	}
+	var v1Spec map[string]interface{}
+	if err := json.Unmarshal(v1Docs.Body.Bytes(), &v1Spec); err != nil {
+		t.Fatalf("unmarshal v1 openapi: %v", err)
+	}
+	v1Paths := v1Spec["paths"].(map[string]interface{})
+	if _, ok := v1Paths["/api/v1/examples/versioned/info"]; !ok {
+		t.Fatalf("expected v1 versioned path, got %v", v1Paths)
+	}
+	if _, ok := v1Paths["/api/v2/examples/versioned/info"]; ok {
+		t.Fatalf("did not expect v2 path in v1 docs, got %v", v1Paths)
+	}
+
+	v2Docs := doDemoRequest(api, http.MethodGet, "/openapi/v2.json", nil)
+	if v2Docs.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v2Docs.Code, v2Docs.Body.String())
+	}
+	var v2Spec map[string]interface{}
+	if err := json.Unmarshal(v2Docs.Body.Bytes(), &v2Spec); err != nil {
+		t.Fatalf("unmarshal v2 openapi: %v", err)
+	}
+	v2Paths := v2Spec["paths"].(map[string]interface{})
+	if _, ok := v2Paths["/api/v2/examples/versioned/info"]; !ok {
+		t.Fatalf("expected v2 versioned path, got %v", v2Paths)
+	}
+	if _, ok := v2Paths["/api/v1/examples/versioned/info"]; ok {
+		t.Fatalf("did not expect v1 path in v2 docs, got %v", v2Paths)
 	}
 }
