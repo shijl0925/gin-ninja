@@ -83,6 +83,9 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	if err := applyDefaults(c, t, v); err != nil {
 		return err
 	}
+	if err := injectDependencies(newContext(c), t, v); err != nil {
+		return err
+	}
 
 	// Run validation.
 	if err := validate.Struct(input); err != nil {
@@ -171,6 +174,9 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 			}
 			continue
 		}
+		if isInjectedField(field) {
+			continue
+		}
 
 		if formTag := field.Tag.Get("form"); formTag != "" {
 			values := form.Value[formTag]
@@ -219,6 +225,9 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 			if err := bindSpecialFields(c, field.Type, fv); err != nil {
 				return err
 			}
+			continue
+		}
+		if isInjectedField(field) {
 			continue
 		}
 

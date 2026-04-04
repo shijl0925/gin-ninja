@@ -56,6 +56,11 @@ type multipartBindInput struct {
 	Files []*UploadedFile `file:"files"`
 }
 
+type injectedBindInput struct {
+	Name   string `json:"name" binding:"required"`
+	Config string `inject:"config" binding:"required"`
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }
@@ -183,6 +188,32 @@ func TestBindInput_Errors(t *testing.T) {
 			t.Fatalf("expected ValidationError, got %T", err)
 		}
 	})
+
+	t.Run("missing injected dependency", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodPost, "/users/42", `{"name":"alice"}`)
+		c.Set(apiContextKey, New(Config{}))
+		var in injectedBindInput
+		err := bindInput(c, http.MethodPost, &in)
+		var apiErr *Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "DEPENDENCY_INJECTION_ERROR" {
+			t.Fatalf("expected DEPENDENCY_INJECTION_ERROR, got %v", err)
+		}
+	})
+}
+
+func TestBindInput_InjectsDependencies(t *testing.T) {
+	c, _ := newTestContext(http.MethodPost, "/users/42", `{"name":"alice"}`)
+	api := New(Config{})
+	api.MustProvideNamed("config", "demo")
+	c.Set(apiContextKey, api)
+
+	var in injectedBindInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Config != "demo" || in.Name != "alice" {
+		t.Fatalf("unexpected injected input: %+v", in)
+	}
 }
 
 func TestBindInput_MultipartSuccess(t *testing.T) {

@@ -2,14 +2,18 @@ package ninja_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/middleware"
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/pagination"
 )
@@ -82,6 +86,128 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 	if spec["openapi"] != "3.0.3" {
 		t.Errorf("expected openapi 3.0.3 got %v", spec["openapi"])
+	}
+}
+
+type dependencyConfig struct {
+	Name string
+}
+
+type dependencyService struct {
+	Name string
+}
+
+type dependencyRepo struct {
+	UserID uint
+}
+
+type injectedInput struct {
+	Config      *dependencyConfig `inject:""`
+	Service     *dependencyService `inject:""`
+	Repo        *dependencyRepo    `inject:""`
+	NamedValue  string             `inject:"greeting"`
+	CurrentUser *middleware.Claims `inject:""`
+}
+
+type injectedOutput struct {
+	ConfigName string `json:"config_name"`
+	Service    string `json:"service"`
+	RepoUserID uint   `json:"repo_user_id"`
+	Greeting   string `json:"greeting"`
+	Username   string `json:"username"`
+}
+
+func TestHandlerDependencyInjection(t *testing.T) {
+	api := newTestAPI()
+	api.MustProvide(&dependencyConfig{Name: "demo"})
+	api.MustProvide(func() *dependencyService { return &dependencyService{Name: "users"} })
+	api.MustProvide(func(ctx *ninja.Context) *dependencyRepo {
+		return &dependencyRepo{UserID: ctx.GetUserID()}
+	})
+	api.MustProvideNamed("greeting", "hello")
+
+	r := ninja.NewRouter("/inject")
+	r.UseGin(middleware.JWTAuthWithSecret("secret"))
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *injectedInput) (*injectedOutput, error) {
+		return &injectedOutput{
+			ConfigName: in.Config.Name,
+			Service:    in.Service.Name,
+			RepoUserID: in.Repo.UserID,
+			Greeting:   in.NamedValue,
+			Username:   in.CurrentUser.Username,
+		}, nil
+	})
+	api.AddRouter(r)
+
+	token, err := middleware.GenerateTokenWithSecretAndClaims(middleware.Claims{
+		UserID:   42,
+		Username: "alice",
+	}, "secret", time.Hour)
+	if err != nil {
+		t.Fatalf("GenerateTokenWithSecretAndClaims: %v", err)
+	}
+
+	w := doRequestWithHeaders(api, http.MethodGet, "/inject/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer "+token)
+	})
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var out injectedOutput
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if out.ConfigName != "demo" || out.Service != "users" || out.RepoUserID != 42 || out.Greeting != "hello" || out.Username != "alice" {
+		t.Fatalf("unexpected injected output: %+v", out)
+	}
+
+	spec := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	if strings.Contains(spec.Body.String(), "CurrentUser") || strings.Contains(spec.Body.String(), "greeting") {
+		t.Fatalf("expected injected fields to stay out of OpenAPI: %s", spec.Body.String())
+	}
+}
+
+func TestLifecycleHooksAndShutdown(t *testing.T) {
+	api := newTestAPI()
+	var startupCount int32
+	var shutdownCount int32
+
+	api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		atomic.AddInt32(&startupCount, 1)
+		return nil
+	})
+	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		atomic.AddInt32(&shutdownCount, 1)
+		return nil
+	})
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- api.Serve(listener)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadInt32(&startupCount) == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if atomic.LoadInt32(&startupCount) != 1 {
+		t.Fatalf("expected startup hook to run once, got %d", startupCount)
+	}
+
+	if err := api.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("Serve returned error: %v", err)
+	}
+	if atomic.LoadInt32(&shutdownCount) != 1 {
+		t.Fatalf("expected shutdown hook to run once, got %d", shutdownCount)
 	}
 }
 

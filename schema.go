@@ -119,6 +119,9 @@ func (r *schemaRegistry) buildStructSchema(t reflect.Type) *Schema {
 			s.Required = append(s.Required, embedded.Required...)
 			continue
 		}
+		if isInjectedField(f) {
+			continue
+		}
 
 		fieldName := jsonFieldName(f)
 		if fieldName == "-" {

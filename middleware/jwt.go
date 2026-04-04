@@ -27,6 +27,12 @@ type Claims struct {
 	UserID uint `json:"user_id"`
 	// Username is the authenticated user's name.
 	Username string `json:"username"`
+	// Roles contains role names granted to the user.
+	Roles []string `json:"roles,omitempty"`
+	// Permissions contains fine-grained permissions granted to the user.
+	Permissions []string `json:"permissions,omitempty"`
+	// Scopes contains OAuth-style scopes granted to the user.
+	Scopes []string `json:"scopes,omitempty"`
 }
 
 // GetUserID satisfies the claimsWithUserID interface used by ninja.Context.GetUserID().
@@ -103,23 +109,47 @@ func GenerateTokenWithSecret(userID uint, username, secret string, ttl time.Dura
 	return generateToken(userID, username, secret, ttl, "gin-ninja")
 }
 
+// GenerateTokenWithClaims signs an explicit claims payload using global settings.
+func GenerateTokenWithClaims(claims Claims) (string, error) {
+	secret := settings.Global.JWT.Secret
+	ttl := settings.Global.JWT.ExpireDuration()
+	issuer := settings.Global.JWT.Issuer
+	if issuer == "" {
+		issuer = "gin-ninja"
+	}
+	return generateTokenFromClaims(claims, secret, ttl, issuer)
+}
+
+// GenerateTokenWithSecretAndClaims signs an explicit claims payload with an explicit secret and TTL.
+func GenerateTokenWithSecretAndClaims(claims Claims, secret string, ttl time.Duration) (string, error) {
+	return generateTokenFromClaims(claims, secret, ttl, "gin-ninja")
+}
+
 func generateToken(userID uint, username, secret string, ttl time.Duration, issuer string) (string, error) {
+	return generateTokenFromClaims(Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+		},
+		UserID:   userID,
+		Username: username,
+	}, secret, ttl, issuer)
+}
+
+func generateTokenFromClaims(claims Claims, secret string, ttl time.Duration, issuer string) (string, error) {
 	if secret == "" {
 		return "", errors.New("jwt: secret must not be empty")
 	}
 	if issuer == "" {
 		issuer = "gin-ninja"
 	}
-
 	now := time.Now()
-	claims := Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    issuer,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
-		},
-		UserID:   userID,
-		Username: username,
+	if claims.Issuer == "" {
+		claims.Issuer = issuer
+	}
+	if claims.IssuedAt == nil {
+		claims.IssuedAt = jwt.NewNumericDate(now)
+	}
+	if claims.ExpiresAt == nil {
+		claims.ExpiresAt = jwt.NewNumericDate(now.Add(ttl))
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -137,4 +167,62 @@ func extractBearerToken(c *gin.Context) string {
 		return ""
 	}
 	return strings.TrimSpace(parts[1])
+}
+
+// RequireRoles ensures the authenticated user has every requested role.
+func RequireRoles(roles ...string) gin.HandlerFunc {
+	return requireClaimsMatch("roles", roles, func(claims *Claims) []string { return claims.Roles })
+}
+
+// RequirePermissions ensures the authenticated user has every requested permission.
+func RequirePermissions(permissions ...string) gin.HandlerFunc {
+	return requireClaimsMatch("permissions", permissions, func(claims *Claims) []string { return claims.Permissions })
+}
+
+// RequireScopes ensures the authenticated user has every requested scope.
+func RequireScopes(scopes ...string) gin.HandlerFunc {
+	return requireClaimsMatch("scopes", scopes, func(claims *Claims) []string { return claims.Scopes })
+}
+
+func requireClaimsMatch(kind string, required []string, getValues func(*Claims) []string) gin.HandlerFunc {
+	required = sanitizeRequiredValues(required)
+	return func(c *gin.Context) {
+		claims := GetClaims(c)
+		if claims == nil {
+			response.Unauthorized(c, "authentication required")
+			return
+		}
+		if !containsAll(getValues(claims), required) {
+			response.Forbidden(c, "missing required "+kind)
+			return
+		}
+		c.Next()
+	}
+}
+
+func sanitizeRequiredValues(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func containsAll(have, required []string) bool {
+	if len(required) == 0 {
+		return true
+	}
+	lookup := make(map[string]struct{}, len(have))
+	for _, value := range have {
+		lookup[value] = struct{}{}
+	}
+	for _, value := range required {
+		if _, ok := lookup[value]; !ok {
+			return false
+		}
+	}
+	return true
 }

@@ -1,6 +1,7 @@
 package ninja
 
 import (
+	"net"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -38,10 +39,15 @@ type Config struct {
 //	api.AddRouter(usersRouter)
 //	api.Run(":8080")
 type NinjaAPI struct {
-	engine  *gin.Engine
-	config  Config
-	openAPI *openAPISpec
-	routers []*Router
+	engine        *gin.Engine
+	config        Config
+	openAPI       *openAPISpec
+	routers       []*Router
+	providers     *providerRegistry
+	startupHooks  []LifecycleHook
+	shutdownHooks []LifecycleHook
+	lifecycle     lifecycleState
+	serverState   serverState
 }
 
 // New creates a new NinjaAPI with the supplied configuration.
@@ -68,10 +74,15 @@ func New(config Config) *NinjaAPI {
 	}
 
 	api := &NinjaAPI{
-		engine:  engine,
-		config:  config,
-		openAPI: newOpenAPISpec(config),
+		engine:    engine,
+		config:    config,
+		openAPI:   newOpenAPISpec(config),
+		providers: newProviderRegistry(),
 	}
+	api.engine.Use(func(c *gin.Context) {
+		c.Set(apiContextKey, api)
+		c.Next()
+	})
 
 	api.setupInternalRoutes()
 	return api
@@ -112,7 +123,11 @@ func (api *NinjaAPI) AddRouter(router *Router) {
 
 // Run starts the HTTP server on the given address (e.g. ":8080").
 func (api *NinjaAPI) Run(addr string) error {
-	return api.engine.Run(addr)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	return api.Serve(listener)
 }
 
 // ---------------------------------------------------------------------------

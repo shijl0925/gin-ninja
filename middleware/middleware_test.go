@@ -243,3 +243,80 @@ func TestGenerateTokenWithSecret_DoesNotUseGlobalIssuer(t *testing.T) {
 		t.Fatalf("expected default issuer, got %q", claims.Issuer)
 	}
 }
+
+func TestJWTAuth_RequireRolesPermissionsAndScopes(t *testing.T) {
+	secret := "authz-secret"
+	token, err := middleware.GenerateTokenWithSecretAndClaims(middleware.Claims{
+		UserID:      7,
+		Username:    "admin",
+		Roles:       []string{"admin", "editor"},
+		Permissions: []string{"users:read", "users:write"},
+		Scopes:      []string{"profile", "users"},
+	}, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("GenerateTokenWithSecretAndClaims: %v", err)
+	}
+
+	r := gin.New()
+	r.Use(middleware.JWTAuthWithSecret(secret))
+	r.Use(middleware.RequireRoles("admin"))
+	r.Use(middleware.RequirePermissions("users:read"))
+	r.Use(middleware.RequireScopes("users"))
+	r.GET("/protected", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestJWTAuth_RequireRolesPermissionsAndScopes_Denied(t *testing.T) {
+	secret := "authz-secret"
+	token, err := middleware.GenerateTokenWithSecretAndClaims(middleware.Claims{
+		UserID:      7,
+		Username:    "member",
+		Roles:       []string{"member"},
+		Permissions: []string{"users:read"},
+		Scopes:      []string{"profile"},
+	}, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("GenerateTokenWithSecretAndClaims: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		use      gin.HandlerFunc
+		wantCode int
+	}{
+		{name: "missing claims", use: middleware.RequireRoles("admin"), wantCode: http.StatusUnauthorized},
+		{name: "missing role", use: middleware.RequireRoles("admin"), wantCode: http.StatusForbidden},
+		{name: "missing permission", use: middleware.RequirePermissions("users:write"), wantCode: http.StatusForbidden},
+		{name: "missing scope", use: middleware.RequireScopes("users"), wantCode: http.StatusForbidden},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := gin.New()
+			if tc.name != "missing claims" {
+				r.Use(middleware.JWTAuthWithSecret(secret))
+			}
+			r.Use(tc.use)
+			r.GET("/protected", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			if tc.name != "missing claims" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			if w.Code != tc.wantCode {
+				t.Fatalf("expected %d, got %d: %s", tc.wantCode, w.Code, w.Body.String())
+			}
+		})
+	}
+}

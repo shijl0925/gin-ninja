@@ -73,8 +73,6 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 
 // ListUsers returns a paginated list of users.
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-	repo := NewUserRepo()
-
 	query, _ := gormx.NewQuery[User]()
 
 	filterOpts, err := filter.BuildOptions(in)
@@ -86,7 +84,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 	}
 
 	opts := append(filterOpts, query.ToOptions()...)
-	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
+	items, total, err := in.Repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +98,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 // GetUser retrieves a single user by ID.
 func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
-	repo := NewUserRepo()
-	u, err := repo.SelectOneById(int(in.UserID))
+	u, err := in.Repo.SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.ErrNotFound
@@ -114,14 +111,12 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 
 // CreateUser creates a new user.
 func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
-	repo := NewUserRepo()
-	return createUser(repo, in.Name, in.Email, in.Password, in.Age)
+	return createUser(in.Repo, in.Name, in.Email, in.Password, in.Age)
 }
 
 // UpdateUser updates an existing user's fields.
 func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
-	repo := NewUserRepo()
-	_, err := repo.SelectOneById(int(in.UserID))
+	_, err := in.Repo.SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.ErrNotFound
@@ -140,20 +135,19 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 		updates["age"] = in.Age
 	}
 	if len(updates) > 0 {
-		if err := repo.UpdateById(int(in.UserID), updates); err != nil {
+		if err := in.Repo.UpdateById(int(in.UserID), updates); err != nil {
 			return nil, err
 		}
 	}
 
-	u, _ := repo.SelectOneById(int(in.UserID))
+	u, _ := in.Repo.SelectOneById(int(in.UserID))
 	out := toUserOut(u)
 	return &out, nil
 }
 
 // DeleteUser removes a user by ID.
 func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
-	repo := NewUserRepo()
-	if err := repo.DeleteById(int(in.UserID)); err != nil {
+	if err := in.Repo.DeleteById(int(in.UserID)); err != nil {
 		return err
 	}
 	return nil

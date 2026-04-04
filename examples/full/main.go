@@ -29,6 +29,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
@@ -69,6 +70,16 @@ func main() {
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
 		DisableGinDefault: true,
+	})
+	api.MustProvide(app.NewUserRepo)
+	api.MustProvideNamed("config", &cfg)
+	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		logger.Sync()
+		sqlDB, err := db.DB()
+		if err != nil {
+			return err
+		}
+		return sqlDB.Close()
 	})
 
 	// ── 5. Global middleware (engine level) ──────────────────────────────────

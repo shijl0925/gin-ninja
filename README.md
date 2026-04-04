@@ -6,6 +6,7 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 
 - **Type-safe handlers** – use plain Go structs for request input and response output.
 - **Automatic parameter binding** – path params (`path:`), query params (`form:`), headers (`header:`), cookies (`cookie:`), and JSON bodies (`json:`) are all bound via struct tags.
+- **Dependency injection** – inject app services, repos, config, and current user into handler inputs with `inject:"..."`.
 - **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
 - **File transfer abstractions** – first-class multipart upload binding and binary download responses.
@@ -18,6 +19,8 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, and panic recovery.
+- **Authorization helpers** – `RequireRoles(...)`, `RequirePermissions(...)`, and `RequireScopes(...)` on top of JWT claims.
+- **Lifecycle hooks** – startup and shutdown hooks with graceful server shutdown.
 - **Settings** – Viper-based YAML/env configuration management.
 - **Logger** – Zap-based structured logger with console/JSON output.
 - **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
@@ -222,7 +225,59 @@ r.UseGin(middleware.JWTAuth())
 // Read claims in a handler:
 claims := middleware.GetClaims(ctx.Context)
 fmt.Println(claims.UserID, claims.Username)
+
+// Enforce authorization:
+r.UseGin(
+    middleware.JWTAuth(),
+    middleware.RequireRoles("admin"),
+    middleware.RequirePermissions("users:write"),
+    middleware.RequireScopes("users"),
+)
 ```
+
+---
+
+## Dependency Injection
+
+```go
+type UserDeps struct {
+    Repo        app.UserRepo          `inject:""`
+    CurrentUser *middleware.Claims    `inject:""`
+    Config      *settings.Settings    `inject:"config"`
+}
+
+type GetUserInput struct {
+    UserDeps
+    UserID uint `path:"id" binding:"required"`
+}
+
+api.MustProvide(app.NewUserRepo)
+api.MustProvideNamed("config", cfg)
+
+ninja.Get(usersRouter, "/:id", func(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
+    return app.LoadUser(in.Repo, in.UserID, in.CurrentUser.UserID)
+})
+```
+
+Injected fields are skipped by request binding and OpenAPI generation, so they do not leak into API docs.
+
+---
+
+## Lifecycle Hooks
+
+```go
+api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
+    return warmCache(ctx)
+})
+
+api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+    return closeResources()
+})
+
+log.Fatal(api.Run(":8080"))
+```
+
+`Run()` now performs graceful shutdown on `SIGINT` / `SIGTERM` and executes shutdown hooks once.
 
 ---
 
