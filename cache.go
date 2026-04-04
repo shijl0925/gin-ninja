@@ -25,9 +25,9 @@ type ResponseCacheStore interface {
 type CacheKeyFunc func(*Context) string
 
 type routeCacheConfig struct {
-	ttl    time.Duration
-	store  ResponseCacheStore
-	keyFn  CacheKeyFunc
+	ttl   time.Duration
+	store ResponseCacheStore
+	keyFn CacheKeyFunc
 }
 
 type cachedResponse struct {
