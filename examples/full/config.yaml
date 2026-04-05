@@ -25,7 +25,8 @@ database:
   #   charset: "utf8mb4"
   #   parse_time: true
   #   loc: "Local"
-  # Raw DSN passwords should be URL-encoded first if they contain reserved characters like @ : / ? # +
+  # Raw DSN passwords should be URL-encoded first if they contain reserved characters like @ : / ? # +.
+  # Structured mysql/postgres fields are assembled by the framework and do not need manual encoding.
   #
   # 切换到 PostgreSQL:
   # driver: "postgres"
