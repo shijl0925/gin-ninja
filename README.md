@@ -163,6 +163,19 @@ log:
   output: "stdout"
 ```
 
+MySQL / PostgreSQL can use the same `database` block:
+
+```yaml
+database:
+  # MySQL
+  driver: "mysql"
+  dsn: "root:password@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+
+  # PostgreSQL
+  # driver: "postgres"
+  # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+```
+
 Environment variables override file settings using double-underscore separators:
 ```bash
 export SERVER__PORT=9090
@@ -190,6 +203,10 @@ defer logger.Sync()
 db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
 ```
+
+`bootstrap.MustInitDB` now supports `sqlite`, `mysql`, and `postgres` directly.
+
+`examples/full/config.yaml` already includes ready-to-copy MySQL and PostgreSQL DSN examples.
 
 ---
 

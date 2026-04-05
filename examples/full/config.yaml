@@ -13,6 +13,13 @@ server:
 database:
   driver: "sqlite"
   dsn: "examples/full/full_example.db"
+  # 切换到 MySQL:
+  # driver: "mysql"
+  # dsn: "root:password@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+  #
+  # 切换到 PostgreSQL:
+  # driver: "postgres"
+  # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
   max_idle_conns: 5
   max_open_conns: 10
 

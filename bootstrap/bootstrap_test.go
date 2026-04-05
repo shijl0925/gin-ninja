@@ -15,8 +15,8 @@ func TestBuildDialector(t *testing.T) {
 	}{
 		{name: "sqlite", cfg: settings.DatabaseConfig{Driver: "sqlite", DSN: "file::memory:?cache=shared"}},
 		{name: "sqlite3", cfg: settings.DatabaseConfig{Driver: "sqlite3", DSN: "file::memory:?cache=shared"}},
-		{name: "mysql", cfg: settings.DatabaseConfig{Driver: "mysql", DSN: "dsn"}, wantErr: true},
-		{name: "postgres", cfg: settings.DatabaseConfig{Driver: "postgres", DSN: "dsn"}, wantErr: true},
+		{name: "mysql", cfg: settings.DatabaseConfig{Driver: "mysql", DSN: "user:pass@tcp(localhost:3306)/app?charset=utf8mb4&parseTime=True&loc=Local"}},
+		{name: "postgres", cfg: settings.DatabaseConfig{Driver: "postgres", DSN: "host=localhost user=postgres password=postgres dbname=app port=5432 sslmode=disable TimeZone=Asia/Shanghai"}},
 		{name: "unsupported", cfg: settings.DatabaseConfig{Driver: "oracle", DSN: "dsn"}, wantErr: true},
 	}
 
@@ -39,6 +39,18 @@ func TestBuildDialector(t *testing.T) {
 func TestSQLiteDialectorRequiresDSN(t *testing.T) {
 	if _, err := sqliteDialector(""); err == nil {
 		t.Fatal("expected sqlite dsn validation error")
+	}
+}
+
+func TestMySQLDialectorRequiresDSN(t *testing.T) {
+	if _, err := mysqlDialector(""); err == nil {
+		t.Fatal("expected mysql dsn validation error")
+	}
+}
+
+func TestPostgresDialectorRequiresDSN(t *testing.T) {
+	if _, err := postgresDialector(""); err == nil {
+		t.Fatal("expected postgres dsn validation error")
 	}
 }
 
