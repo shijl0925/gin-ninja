@@ -57,12 +57,12 @@ func TestMySQLDialectorDecodesEncodedDSN(t *testing.T) {
 		t.Fatalf("mysqlDialector: %v", err)
 	}
 
-	mysqlDialector, ok := dialector.(*gormmysql.Dialector)
+	mysqlDial, ok := dialector.(*gormmysql.Dialector)
 	if !ok {
 		t.Fatalf("expected *mysql.Dialector, got %T", dialector)
 	}
-	if mysqlDialector.DSN != "root:p@ss:word@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local" {
-		t.Fatalf("expected decoded DSN, got %q", mysqlDialector.DSN)
+	if mysqlDial.DSN != "root:p@ss:word@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local" {
+		t.Fatalf("expected decoded DSN, got %q", mysqlDial.DSN)
 	}
 }
 
