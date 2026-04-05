@@ -283,11 +283,11 @@ func normalizeDatabaseConfig(cfg *DatabaseConfig) {
 	}
 	switch strings.TrimSpace(cfg.Driver) {
 	case "mysql":
-		if hasMeaningfulMySQLConfig(cfg.MySQL) {
+		if cfg.MySQL.IsConfigured() {
 			cfg.DSN = ""
 		}
 	case "postgres", "postgresql":
-		if hasMeaningfulPostgresConfig(cfg.Postgres) {
+		if cfg.Postgres.IsConfigured() {
 			cfg.DSN = ""
 		}
 	}
@@ -295,14 +295,6 @@ func normalizeDatabaseConfig(cfg *DatabaseConfig) {
 
 func isDefaultDatabaseDSN(dsn string) bool {
 	return strings.TrimSpace(dsn) == "app.db"
-}
-
-func hasMeaningfulMySQLConfig(cfg MySQLConfig) bool {
-	return cfg.IsConfigured()
-}
-
-func hasMeaningfulPostgresConfig(cfg PostgresConfig) bool {
-	return cfg.IsConfigured()
 }
 
 func hasMeaningfulStructuredDBConfig(host, user, password, name string, params map[string]string, port, defaultPort int) bool {
