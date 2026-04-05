@@ -128,7 +128,9 @@ func TestLifecycleHooksAndShutdown(t *testing.T) {
 		t.Fatalf("expected startup hook to run once, got %d", startupCount)
 	}
 
-	if err := api.Shutdown(context.Background()); err != nil {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := api.Shutdown(shutdownCtx); err != nil {
 		t.Fatalf("Shutdown: %v", err)
 	}
 	if err := <-done; err != nil {
@@ -136,6 +138,40 @@ func TestLifecycleHooksAndShutdown(t *testing.T) {
 	}
 	if atomic.LoadInt32(&shutdownCount) != 1 {
 		t.Fatalf("expected shutdown hook to run once, got %d", shutdownCount)
+	}
+}
+
+func TestLifecycleStartupFailureRunsShutdownHooks(t *testing.T) {
+	api := newTestAPI()
+	var shutdownCount int32
+	startupErr := errors.New("startup failed")
+
+	api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		return startupErr
+	})
+	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		atomic.AddInt32(&shutdownCount, 1)
+		return nil
+	})
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	addr := listener.Addr().String()
+
+	err = api.Serve(listener)
+	if !errors.Is(err, startupErr) {
+		t.Fatalf("expected startup error, got %v", err)
+	}
+	if atomic.LoadInt32(&shutdownCount) != 1 {
+		t.Fatalf("expected shutdown hook to run once, got %d", shutdownCount)
+	}
+
+	conn, dialErr := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+	if dialErr == nil {
+		_ = conn.Close()
+		t.Fatal("expected listener to be closed after startup failure")
 	}
 }
 

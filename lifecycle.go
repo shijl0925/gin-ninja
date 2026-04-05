@@ -6,11 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
-	"time"
 )
 
 // LifecycleHook runs during API startup or shutdown.
@@ -31,54 +27,47 @@ type serverState struct {
 
 // OnStartup registers a hook that runs before the HTTP server starts accepting traffic.
 func (api *NinjaAPI) OnStartup(hook LifecycleHook) {
+	api.hooksMu.Lock()
+	defer api.hooksMu.Unlock()
 	api.startupHooks = append(api.startupHooks, hook)
 }
 
 // OnShutdown registers a hook that runs during graceful shutdown.
 func (api *NinjaAPI) OnShutdown(hook LifecycleHook) {
+	api.hooksMu.Lock()
+	defer api.hooksMu.Unlock()
 	api.shutdownHooks = append(api.shutdownHooks, hook)
 }
 
-// Serve starts serving HTTP on the given listener and enables graceful shutdown.
+// Serve starts serving HTTP on the given listener.
 func (api *NinjaAPI) Serve(listener net.Listener) error {
+	return api.serve(listener, context.Background())
+}
+
+func (api *NinjaAPI) serve(listener net.Listener, startupCtx context.Context) error {
 	if listener == nil {
 		return fmt.Errorf("listener must not be nil")
 	}
 
-	server := &http.Server{Handler: api.engine}
-	if err := api.runStartupHooks(context.Background()); err != nil {
+	server := api.newHTTPServer()
+	if err := api.runStartupHooks(startupCtx); err != nil {
+		shutdownCtx, cancel := api.shutdownContext(context.Background())
+		defer cancel()
+		cleanupErr := api.runShutdownHooks(shutdownCtx)
 		_ = listener.Close()
-		return err
+		return errors.Join(err, cleanupErr)
 	}
 
 	api.setServer(server)
 	defer api.clearServer()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- server.Serve(listener)
-	}()
-
-	select {
-	case err := <-errCh:
-		if errors.Is(err, http.ErrServerClosed) {
-			return api.runShutdownHooks(context.Background())
-		}
-		return errors.Join(err, api.runShutdownHooks(context.Background()))
-	case <-sigCh:
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		shutdownErr := api.Shutdown(shutdownCtx)
-		err := <-errCh
-		if errors.Is(err, http.ErrServerClosed) {
-			return shutdownErr
-		}
-		return errors.Join(err, shutdownErr)
+	err := server.Serve(listener)
+	shutdownCtx, cancel := api.shutdownContext(context.Background())
+	defer cancel()
+	if errors.Is(err, http.ErrServerClosed) {
+		return api.runShutdownHooks(shutdownCtx)
 	}
+	return errors.Join(err, api.runShutdownHooks(shutdownCtx))
 }
 
 // Shutdown gracefully stops the active server and runs shutdown hooks once.
@@ -110,7 +99,10 @@ func (api *NinjaAPI) runStartupHooks(ctx context.Context) error {
 		api.lifecycle.mu.Unlock()
 	}()
 
-	for _, hook := range api.startupHooks {
+	api.hooksMu.RLock()
+	hooks := append([]LifecycleHook(nil), api.startupHooks...)
+	api.hooksMu.RUnlock()
+	for _, hook := range hooks {
 		if err := hook(ctx, api); err != nil {
 			return err
 		}
@@ -134,13 +126,30 @@ func (api *NinjaAPI) runShutdownHooks(ctx context.Context) error {
 	api.lifecycle.shutdownGeneration = generation
 	api.lifecycle.mu.Unlock()
 
+	api.hooksMu.RLock()
+	hooks := append([]LifecycleHook(nil), api.shutdownHooks...)
+	api.hooksMu.RUnlock()
+
 	var errs []error
-	for i := len(api.shutdownHooks) - 1; i >= 0; i-- {
-		if err := api.shutdownHooks[i](ctx, api); err != nil {
+	for i := len(hooks) - 1; i >= 0; i-- {
+		if err := hooks[i](ctx, api); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func (api *NinjaAPI) newHTTPServer() *http.Server {
+	return &http.Server{
+		Handler:      api.engine,
+		ReadTimeout:  api.config.ReadTimeout,
+		WriteTimeout: api.config.WriteTimeout,
+		IdleTimeout:  api.config.IdleTimeout,
+	}
+}
+
+func (api *NinjaAPI) shutdownContext(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(parent, api.config.GracefulShutdownTimeout)
 }
 
 func (api *NinjaAPI) setServer(server *http.Server) {

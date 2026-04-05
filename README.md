@@ -234,6 +234,13 @@ fmt.Println(claims.UserID, claims.Username)
 ## Lifecycle Hooks
 
 ```go
+api := ninja.New(ninja.Config{
+    GracefulShutdownTimeout: 15 * time.Second,
+    ReadTimeout:             15 * time.Second,
+    WriteTimeout:            30 * time.Second,
+    IdleTimeout:             60 * time.Second,
+})
+
 api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
     return warmCache(ctx)
 })
@@ -245,7 +252,8 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 log.Fatal(api.Run(":8080"))
 ```
 
-`Run()` now performs graceful shutdown on `SIGINT` / `SIGTERM` and executes shutdown hooks once.
+`Run()` performs graceful shutdown on `SIGINT` / `SIGTERM` and executes shutdown hooks once.
+`Serve(listener)` is available for custom embedding and manual shutdown orchestration.
 
 ---
 
