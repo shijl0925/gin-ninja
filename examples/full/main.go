@@ -16,6 +16,13 @@
 //	cd examples/full
 //	go run .
 //
+// To switch databases, update examples/full/config.yaml:
+//   - sqlite:   driver=sqlite,   dsn=examples/full/full_example.db
+//   - mysql:    driver=mysql,    dsn=root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local
+//   - postgres: driver=postgres, dsn=host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai
+//
+// URL-encode MySQL passwords when they contain reserved characters such as @ : / ? #.
+//
 // Then visit:
 //   - http://localhost:8080/docs           – Swagger UI (all routes)
 //   - http://localhost:8080/docs/v1        – versioned Swagger UI for v1

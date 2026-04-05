@@ -2,7 +2,10 @@ package bootstrap
 
 import (
 	"fmt"
+	"net/url"
 
+	gormmysql "gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -14,16 +17,20 @@ func sqliteDialector(dsn string) (gorm.Dialector, error) {
 	return sqlite.Open(dsn), nil
 }
 
-// mysqlDialector and postgresDialector are stub implementations.
-// To use MySQL or PostgreSQL, import the appropriate GORM driver in your
-// application and override these functions, or add build-tag-based files.
-
 func mysqlDialector(dsn string) (gorm.Dialector, error) {
-	return nil, fmt.Errorf("bootstrap: MySQL support requires importing gorm.io/driver/mysql " +
-		"and registering it via bootstrap.RegisterDialector(\"mysql\", ...)")
+	if dsn == "" {
+		return nil, fmt.Errorf("bootstrap: mysql DSN must not be empty")
+	}
+	decodedDSN, err := url.QueryUnescape(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap: decode mysql DSN: %w", err)
+	}
+	return gormmysql.Open(decodedDSN), nil
 }
 
 func postgresDialector(dsn string) (gorm.Dialector, error) {
-	return nil, fmt.Errorf("bootstrap: PostgreSQL support requires importing gorm.io/driver/postgres " +
-		"and registering it via bootstrap.RegisterDialector(\"postgres\", ...)")
+	if dsn == "" {
+		return nil, fmt.Errorf("bootstrap: postgres DSN must not be empty")
+	}
+	return postgres.Open(dsn), nil
 }
