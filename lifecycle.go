@@ -17,10 +17,11 @@ import (
 type LifecycleHook func(context.Context, *NinjaAPI) error
 
 type lifecycleState struct {
-	mu          sync.Mutex
-	cond        *sync.Cond
-	starting    bool
-	shutdownRan bool
+	mu                 sync.Mutex
+	cond               *sync.Cond
+	starting           bool
+	generation         uint64
+	shutdownGeneration uint64
 }
 
 type serverState struct {
@@ -100,7 +101,7 @@ func (api *NinjaAPI) runStartupHooks(ctx context.Context) error {
 		api.lifecycle.cond = sync.NewCond(&api.lifecycle.mu)
 	}
 	api.lifecycle.starting = true
-	api.lifecycle.shutdownRan = false
+	api.lifecycle.generation++
 	api.lifecycle.mu.Unlock()
 	defer func() {
 		api.lifecycle.mu.Lock()
@@ -125,11 +126,12 @@ func (api *NinjaAPI) runShutdownHooks(ctx context.Context) error {
 	for api.lifecycle.starting {
 		api.lifecycle.cond.Wait()
 	}
-	if api.lifecycle.shutdownRan {
+	generation := api.lifecycle.generation
+	if api.lifecycle.shutdownGeneration == generation {
 		api.lifecycle.mu.Unlock()
 		return nil
 	}
-	api.lifecycle.shutdownRan = true
+	api.lifecycle.shutdownGeneration = generation
 	api.lifecycle.mu.Unlock()
 
 	var errs []error
