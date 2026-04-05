@@ -138,6 +138,20 @@ type HiddenDemoOutput struct {
 	Status string `json:"status"`
 }
 
+// CacheDemoOutput shows a cacheable response payload.
+type CacheDemoOutput struct {
+	Count int64  `json:"count"`
+	Scope string `json:"scope"`
+}
+
+// VersionDemoOutput shows which API version handled the request.
+type VersionDemoOutput struct {
+	Version    string `json:"version"`
+	Deprecated bool   `json:"deprecated"`
+	DocsURL    string `json:"docs_url"`
+	OpenAPIURL string `json:"openapi_url"`
+}
+
 // FeatureItemOut is the item schema used by the paginated demo endpoint.
 type FeatureItemOut struct {
 	Code    string `json:"code"`
@@ -149,6 +163,11 @@ type FeatureItemOut struct {
 type FeatureListInput struct {
 	pagination.PageInput
 	Search string `form:"search" default:"demo" description:"Optional feature search term"`
+}
+
+// StreamDemoInput is shared by SSE and WebSocket demo endpoints.
+type StreamDemoInput struct {
+	Name string `form:"name" default:"demo-user" description:"Name echoed by the streaming demo"`
 }
 
 // UploadSingleInput demonstrates single-file multipart binding with form fields.

@@ -59,6 +59,30 @@ func Deprecated() OperationOption {
 	return func(op *operation) { op.deprecated = true }
 }
 
+// Cache enables route-level response caching for safe read endpoints.
+func Cache(ttl time.Duration, opts ...CacheOption) OperationOption {
+	return func(op *operation) {
+		op.cache = newRouteCacheConfig(ttl)
+		for _, opt := range opts {
+			opt(op.cache)
+		}
+		if op.cacheControl == "" && ttl > 0 {
+			op.cacheControl = defaultCacheControl(ttl)
+		}
+		op.etagEnabled = true
+	}
+}
+
+// CacheControl sets the Cache-Control response header for successful responses.
+func CacheControl(value string) OperationOption {
+	return func(op *operation) { op.cacheControl = value }
+}
+
+// ETag enables automatic ETag generation for successful responses.
+func ETag() OperationOption {
+	return func(op *operation) { op.etagEnabled = true }
+}
+
 // ExcludeFromDocs omits the operation from the generated OpenAPI spec.
 func ExcludeFromDocs() OperationOption {
 	return func(op *operation) { op.excludeFromDocs = true }
@@ -155,6 +179,12 @@ type operation struct {
 	rateLimit         *rateLimiter
 	excludeFromDocs   bool
 	withTransaction   bool
+	cache             *routeCacheConfig
+	cacheControl      string
+	etagEnabled       bool
+	version           string
+	versionInfo       *VersionConfig
+	stream            *streamConfig
 }
 
 // WithTransaction wraps the operation in a request-scoped database transaction.
@@ -186,6 +216,14 @@ func cloneStringMap(values map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func cloneVersionInfo(info *VersionConfig) *VersionConfig {
+	if info == nil {
+		return nil
+	}
+	cloned := *info
+	return &cloned
 }
 
 // newOperation builds an operation and wraps the typed handler with
@@ -309,6 +347,9 @@ func (op *operation) finalize() {
 	handler := op.ginHandler
 	if op.timeout > 0 {
 		handler = wrapTimeout(op.timeout, handler)
+	}
+	if op.cache != nil || op.cacheControl != "" || op.etagEnabled {
+		handler = wrapCache(op, handler)
 	}
 	if op.rateLimit != nil {
 		handler = wrapRateLimit(op.rateLimit, handler)

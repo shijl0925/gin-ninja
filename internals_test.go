@@ -578,9 +578,9 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 }
 
 func TestOptionHelpers(t *testing.T) {
-	router := NewRouter("/users", WithTags("Users", "Admin"), WithSecurity("oauth2", "read"), WithBearerAuth())
+	router := NewRouter("/users", WithTags("Users", "Admin"), WithSecurity("oauth2", "read"), WithBearerAuth(), WithVersion("v1"))
 	WithTagDescription("Users", "user operations")(router)
-	if len(router.tags) != 2 || len(router.security) != 2 {
+	if len(router.tags) != 2 || len(router.security) != 2 || router.version != "v1" {
 		t.Fatalf("unexpected router options: %+v", router)
 	}
 	if router.tagDescriptions["Users"] != "user operations" {
@@ -596,6 +596,9 @@ func TestOptionHelpers(t *testing.T) {
 	Security("oauth2", "read")(op)
 	BearerAuth()(op)
 	Deprecated()(op)
+	Cache(time.Minute)(op)
+	CacheControl("private, max-age=60")(op)
+	ETag()(op)
 	ExcludeFromDocs()(op)
 	SuccessStatus(http.StatusAccepted)(op)
 	Response(http.StatusBadRequest, "bad request", schemaSample{})(op)
@@ -611,7 +614,7 @@ func TestOptionHelpers(t *testing.T) {
 	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 2 {
 		t.Fatalf("unexpected operation options: %+v", op)
 	}
-	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil {
+	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil || op.cache == nil || !op.etagEnabled {
 		t.Fatalf("unexpected extended operation options: %+v", op)
 	}
 	if len(op.responses) != 3 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil {

@@ -17,15 +17,21 @@
 //	go run .
 //
 // Then visit:
-//   - http://localhost:8080/docs           – Swagger UI
-//   - http://localhost:8080/openapi.json   – raw OpenAPI spec
+//   - http://localhost:8080/docs           – Swagger UI (all routes)
+//   - http://localhost:8080/docs/v1        – versioned Swagger UI for v1
+//   - http://localhost:8080/docs/v2        – versioned Swagger UI for v2
+//   - http://localhost:8080/openapi.json   – raw OpenAPI spec (all routes)
+//   - http://localhost:8080/openapi/v1.json – raw OpenAPI spec for v1
+//   - http://localhost:8080/openapi/v2.json – raw OpenAPI spec for v2
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
-//   - POST http://localhost:8080/api/v1/auth/login   – get a JWT token
-//   - GET  http://localhost:8080/api/v1/users        – list users (requires JWT)
-//   - GET  http://localhost:8080/api/v1/examples/request-meta – binding/defaults demo
-//   - GET  http://localhost:8080/api/v1/examples/features     – paginated response demo
-//   - GET  http://localhost:8080/api/v1/examples/limited      – rate-limit demo
-//   - GET  http://localhost:8080/api/v1/examples/slow         – timeout demo
+//   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
+//   - GET  http://localhost:8080/api/v1/users         – list users (requires JWT)
+//   - GET  http://localhost:8080/api/v1/examples/request-meta   – binding/defaults demo
+//   - GET  http://localhost:8080/api/v1/examples/cache          – cache / ETag demo
+//   - GET  http://localhost:8080/api/v1/examples/events?name=bot – SSE demo
+//   - WS   ws://localhost:8080/api/v1/examples/ws?name=bot      – WebSocket demo
+//   - GET  http://localhost:8080/api/v1/examples/versioned/info – deprecated version route demo
+//   - GET  http://localhost:8080/api/v2/examples/versioned/info – current version route demo
 package main
 
 import (
@@ -64,8 +70,22 @@ func main() {
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
-		Description: "A full-featured gin-ninja example with bootstrap, middleware, and settings.",
-		Prefix:      "/api/v1",
+		Description: "A full-featured gin-ninja example with bootstrap, middleware, settings, caching, streaming, and API versioning demos.",
+		Prefix:      "/api",
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {
+				Prefix:       "/v1",
+				Description:  "Legacy example API demonstrating deprecation headers.",
+				Deprecated:   false,
+				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+				MigrationURL: "https://example.com/docs/gin-ninja/v2-migration",
+			},
+			"v2": {
+				Prefix:      "/v2",
+				Deprecated:  true,
+				Description: "Current example API version.",
+			},
+		},
 		SecuritySchemes: map[string]ninja.SecurityScheme{
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
@@ -96,6 +116,7 @@ func main() {
 		"/auth",
 		ninja.WithTags("Auth"),
 		ninja.WithTagDescription("Auth", "Authentication endpoints for login and registration"),
+		ninja.WithVersion("v1"),
 	)
 	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"))
 	ninja.Post(authRouter, "/login", app.Login, ninja.Summary("Login and get JWT token"))
@@ -107,6 +128,7 @@ func main() {
 		ninja.WithTags("Users"),
 		ninja.WithTagDescription("Users", "JWT-protected user CRUD endpoints"),
 		ninja.WithBearerAuth(),
+		ninja.WithVersion("v1"),
 	)
 	usersRouter.UseGin(middleware.JWTAuth())
 
@@ -136,6 +158,7 @@ func main() {
 		"/examples",
 		ninja.WithTags("Examples"),
 		ninja.WithTagDescription("Examples", "Framework feature demos for manual testing"),
+		ninja.WithVersion("v1"),
 	)
 	ninja.Get(exampleRouter, "/request-meta", app.EchoRequestMeta,
 		ninja.Summary("Echo request metadata"),
@@ -147,6 +170,11 @@ func main() {
 		ninja.Summary("List framework feature demos"),
 		ninja.Description("Demonstrates standardized paginated response declarations."),
 		ninja.Paginated[app.FeatureItemOut](),
+	)
+	ninja.Get(exampleRouter, "/cache", app.CachedFeatureDemo,
+		ninja.Summary("Cache + ETag endpoint"),
+		ninja.Description("Demonstrates route-level response caching, Cache-Control, and conditional requests with ETag."),
+		ninja.Cache(time.Minute),
 	)
 	ninja.Get(exampleRouter, "/limited", app.LimitedOperation,
 		ninja.Summary("Rate-limited endpoint"),
@@ -162,6 +190,14 @@ func main() {
 		ninja.Summary("Hidden example endpoint"),
 		ninja.Description("This route is reachable but excluded from OpenAPI."),
 		ninja.ExcludeFromDocs(),
+	)
+	ninja.SSE(exampleRouter, "/events", app.StreamEventsDemo,
+		ninja.Summary("SSE endpoint"),
+		ninja.Description("Demonstrates server-sent events with typed input binding."),
+	)
+	ninja.WebSocket(exampleRouter, "/ws", app.WebSocketEchoDemo,
+		ninja.Summary("WebSocket endpoint"),
+		ninja.Description("Demonstrates WebSocket upgrades and bidirectional messaging."),
 	)
 	ninja.Post(exampleRouter, "/upload-single", app.UploadSingleDemo,
 		ninja.Summary("Single file upload"),
@@ -180,6 +216,28 @@ func main() {
 		ninja.Description("Demonstrates streaming-style download responses backed by an io.Reader."),
 	)
 	api.AddRouter(exampleRouter)
+
+	versionedV1Router := ninja.NewRouter(
+		"/examples/versioned",
+		ninja.WithTags("Examples"),
+		ninja.WithVersion("v1"),
+	)
+	ninja.Get(versionedV1Router, "/info", app.VersionedInfoV1,
+		ninja.Summary("Versioned info (v1)"),
+		ninja.Description("Demonstrates version-scoped routing and deprecation headers on a legacy version."),
+	)
+	api.AddRouter(versionedV1Router)
+
+	versionedV2Router := ninja.NewRouter(
+		"/examples/versioned",
+		ninja.WithTags("Examples"),
+		ninja.WithVersion("v2"),
+	)
+	ninja.Get(versionedV2Router, "/info", app.VersionedInfoV2,
+		ninja.Summary("Versioned info (v2)"),
+		ninja.Description("Demonstrates version-scoped routing for the current API version."),
+	)
+	api.AddRouter(versionedV2Router)
 
 	// ── 9. Health-check (no auth) ─────────────────────────────────────────────
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
