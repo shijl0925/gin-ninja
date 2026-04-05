@@ -1,14 +1,15 @@
 package bootstrap
 
 import (
+	drivermysql "github.com/go-sql-driver/mysql"
 	"net/url"
 	"strings"
 	"testing"
 
 	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
-	driverpg "gorm.io/driver/postgres"
 	gormmysql "gorm.io/driver/mysql"
+	driverpg "gorm.io/driver/postgres"
 )
 
 func TestBuildDialector(t *testing.T) {
@@ -59,6 +60,7 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 		name    string
 		cfg     settings.DatabaseConfig
 		wantDSN string
+		verify  func(*testing.T, string)
 		wantErr string
 	}{
 		{
@@ -72,9 +74,24 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 			wantDSN: "root:p+ss@tcp(127.0.0.1:3306)/gin_ninja?loc=UTC+8",
 		},
 		{
-			name:    "structured config builds escaped password",
-			cfg:     settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1", User: "root", Password: "p@ss:word+plus", Name: "gin_ninja", Charset: "utf8mb4", ParseTime: true, Loc: "Local"}},
-			wantDSN: "root:p@ss:word+plus@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&loc=Local&parseTime=true",
+			name: "structured config builds escaped password",
+			cfg:  settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1", User: "root", Password: "p@ss:word+plus", Name: "gin_ninja", Charset: "utf8mb4", ParseTime: true, Loc: "Local"}},
+			verify: func(t *testing.T, dsn string) {
+				t.Helper()
+				parsed, err := drivermysql.ParseDSN(dsn)
+				if err != nil {
+					t.Fatalf("ParseDSN: %v", err)
+				}
+				if parsed.User != "root" || parsed.Passwd != "p@ss:word+plus" {
+					t.Fatalf("unexpected credentials in DSN %q", dsn)
+				}
+				if parsed.Addr != "127.0.0.1:3306" || parsed.DBName != "gin_ninja" {
+					t.Fatalf("unexpected address/db in DSN %q", dsn)
+				}
+				if !parsed.ParseTime || parsed.Params["charset"] != "utf8mb4" || parsed.Loc.String() != "Local" {
+					t.Fatalf("unexpected mysql options in DSN %q", dsn)
+				}
+			},
 		},
 		{
 			name:    "bad escape",
@@ -100,8 +117,11 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected *mysql.Dialector, got %T", dialector)
 			}
-			if mysqlDial.DSN != tc.wantDSN {
+			if tc.wantDSN != "" && mysqlDial.DSN != tc.wantDSN {
 				t.Fatalf("expected DSN %q, got %q", tc.wantDSN, mysqlDial.DSN)
+			}
+			if tc.verify != nil {
+				tc.verify(t, mysqlDial.DSN)
 			}
 		})
 	}

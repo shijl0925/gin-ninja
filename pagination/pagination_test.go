@@ -5,10 +5,10 @@ import "testing"
 func TestResolveSort(t *testing.T) {
 	schema := NewSortSchema("name").Allow("created_at").Allow("score")
 	cases := []struct {
-		name     string
-		sort     string
-		want     []SortField
-		wantErr  bool
+		name    string
+		sort    string
+		want    []SortField
+		wantErr bool
 	}{
 		{
 			name: "mixed directions",
