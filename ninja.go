@@ -44,7 +44,7 @@ type NinjaAPI struct {
 	engine        *gin.Engine
 	config        Config
 	openAPI       *openAPISpec
-	versionSpecs map[string]*openAPISpec
+	versionSpecs  map[string]*openAPISpec
 	routers       []*Router
 	startupHooks  []LifecycleHook
 	shutdownHooks []LifecycleHook
@@ -76,9 +76,9 @@ func New(config Config) *NinjaAPI {
 	}
 
 	api := &NinjaAPI{
-		engine:    engine,
-		config:    config,
-		openAPI:   newOpenAPISpec(config),
+		engine:       engine,
+		config:       config,
+		openAPI:      newOpenAPISpec(config),
 		versionSpecs: map[string]*openAPISpec{},
 	}
 
