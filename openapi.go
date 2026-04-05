@@ -85,6 +85,12 @@ type mediaTypeSpec struct {
 type responseSpec struct {
 	Description string                   `json:"description"`
 	Content     map[string]mediaTypeSpec `json:"content,omitempty"`
+	Headers     map[string]headerSpec    `json:"headers,omitempty"`
+}
+
+type headerSpec struct {
+	Description string  `json:"description,omitempty"`
+	Schema      *Schema `json:"schema,omitempty"`
 }
 
 // ---------------------------------------------------------------------------
@@ -207,25 +213,33 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 
 	// Success response.
 	successCode := fmt.Sprintf("%d", op.successStatus)
-	if op.paginatedItemType != nil {
-		spec.Responses[successCode] = responseSpec{
-			Description: http.StatusText(op.successStatus),
-			Content: map[string]mediaTypeSpec{
-				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
-			},
+	successResponse := responseSpec{
+		Description: http.StatusText(op.successStatus),
+	}
+	if op.stream != nil {
+		if op.stream.kind == streamKindSSE {
+			successResponse.Content = map[string]mediaTypeSpec{
+				"text/event-stream": {Schema: &Schema{Type: "string"}},
+			}
+			successResponse.Description = "Server-Sent Events stream"
+		} else {
+			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
+		}
+	} else if op.paginatedItemType != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
 		}
 	} else if op.outputType != nil {
 		contentType, schema := s.responseSchemaForType(op.outputType)
-		spec.Responses[successCode] = responseSpec{
-			Description: http.StatusText(op.successStatus),
-			Content: map[string]mediaTypeSpec{
-				contentType: {Schema: schema},
-			},
+		successResponse.Content = map[string]mediaTypeSpec{
+			contentType: {Schema: schema},
 		}
-	} else {
-		spec.Responses[successCode] = responseSpec{
-			Description: http.StatusText(op.successStatus),
-		}
+	}
+	successResponse.Headers = s.responseHeadersForOperation(op)
+	spec.Responses[successCode] = successResponse
+	if op.stream != nil && op.stream.kind == streamKindWebSocket && successCode != "101" {
+		spec.Responses["101"] = successResponse
+		delete(spec.Responses, successCode)
 	}
 
 	// Standard error responses.
@@ -259,6 +273,44 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	}
 
 	return spec
+}
+
+func (s *openAPISpec) responseHeadersForOperation(op *operation) map[string]headerSpec {
+	headers := map[string]headerSpec{}
+	if op.etagEnabled {
+		headers["ETag"] = headerSpec{
+			Description: "Entity tag for conditional requests",
+			Schema:      &Schema{Type: "string"},
+		}
+	}
+	if op.cache != nil || op.cacheControl != "" {
+		headers["Cache-Control"] = headerSpec{
+			Description: "Cache policy for the response",
+			Schema:      &Schema{Type: "string"},
+		}
+	}
+	if op.versionInfo != nil && op.versionInfo.Deprecated {
+		headers["Deprecation"] = headerSpec{
+			Description: "Version deprecation signal",
+			Schema:      &Schema{Type: "string"},
+		}
+		if op.versionInfo.Sunset != "" {
+			headers["Sunset"] = headerSpec{
+				Description: "Version sunset timestamp",
+				Schema:      &Schema{Type: "string"},
+			}
+		}
+		if op.versionInfo.MigrationURL != "" {
+			headers["Link"] = headerSpec{
+				Description: "Migration guidance for a deprecated version",
+				Schema:      &Schema{Type: "string"},
+			}
+		}
+	}
+	if len(headers) == 0 {
+		return nil
+	}
+	return headers
 }
 
 // extractParams inspects the input struct and returns parameter specs plus

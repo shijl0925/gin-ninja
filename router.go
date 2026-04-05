@@ -51,6 +51,14 @@ func WithBearerAuth() RouterOption {
 	return WithSecurity("bearerAuth")
 }
 
+// WithVersion marks the router and its nested operations as belonging to a
+// named API version.
+func WithVersion(version string) RouterOption {
+	return func(r *Router) {
+		r.version = version
+	}
+}
+
 // Router groups a set of API endpoints under a common URL prefix.
 // Routers can be nested arbitrarily.
 type Router struct {
@@ -62,6 +70,7 @@ type Router struct {
 	security        []SecurityRequirement
 	middleware      []func(*Context) error
 	ginMiddleware   []gin.HandlerFunc
+	version         string
 }
 
 // NewRouter creates a new Router with the given URL prefix and options.
