@@ -29,7 +29,7 @@ func mysqlDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
 		if err != nil {
 			return nil, err
 		}
-		decodedDSN, err := decodeMySQLDSN(dsn)
+		decodedDSN, err := decodeRawMySQLDSN(dsn)
 		if err != nil {
 			return nil, fmt.Errorf("bootstrap: decode mysql DSN: %w", err)
 		}
@@ -156,7 +156,7 @@ func sanitizeParams(params map[string]string) map[string]string {
 	return values
 }
 
-func decodeMySQLDSN(dsn string) (string, error) {
+func decodeRawMySQLDSN(dsn string) (string, error) {
 	at := strings.IndexByte(dsn, '@')
 	if at < 0 {
 		return url.PathUnescape(dsn)
