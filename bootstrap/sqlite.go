@@ -24,15 +24,22 @@ func sqliteDialector(dsn string) (gorm.Dialector, error) {
 }
 
 func mysqlDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
-	dsn, err := mysqlDSN(cfg)
+	if strings.TrimSpace(cfg.DSN) != "" {
+		dsn, err := mysqlDSN(cfg)
+		if err != nil {
+			return nil, err
+		}
+		decodedDSN, err := url.PathUnescape(dsn)
+		if err != nil {
+			return nil, fmt.Errorf("bootstrap: decode mysql DSN: %w", err)
+		}
+		return gormmysql.Open(decodedDSN), nil
+	}
+	dsnCfg, err := mysqlDriverConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	decodedDSN, err := url.PathUnescape(dsn)
-	if err != nil {
-		return nil, fmt.Errorf("bootstrap: decode mysql DSN: %w", err)
-	}
-	return gormmysql.Open(decodedDSN), nil
+	return gormmysql.New(gormmysql.Config{DSNConfig: dsnCfg}), nil
 }
 
 func postgresDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
@@ -47,15 +54,23 @@ func mysqlDSN(cfg settings.DatabaseConfig) (string, error) {
 	if strings.TrimSpace(cfg.DSN) != "" {
 		return cfg.DSN, nil
 	}
+	dsnCfg, err := mysqlDriverConfig(cfg)
+	if err != nil {
+		return "", err
+	}
+	return dsnCfg.FormatDSN(), nil
+}
+
+func mysqlDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error) {
 	if !hasMySQLConfig(cfg.MySQL) {
-		return "", fmt.Errorf("bootstrap: mysql DSN must not be empty")
+		return nil, fmt.Errorf("bootstrap: mysql DSN must not be empty")
 	}
 
 	if strings.TrimSpace(cfg.MySQL.Host) == "" {
-		return "", fmt.Errorf("bootstrap: mysql host must not be empty")
+		return nil, fmt.Errorf("bootstrap: mysql host must not be empty")
 	}
 	if strings.TrimSpace(cfg.MySQL.Name) == "" {
-		return "", fmt.Errorf("bootstrap: mysql database name must not be empty")
+		return nil, fmt.Errorf("bootstrap: mysql database name must not be empty")
 	}
 
 	port := cfg.MySQL.Port
@@ -63,7 +78,7 @@ func mysqlDSN(cfg settings.DatabaseConfig) (string, error) {
 		port = 3306
 	}
 
-	dsnCfg := drivermysql.Config{
+	dsnCfg := &drivermysql.Config{
 		User:                 strings.TrimSpace(cfg.MySQL.User),
 		Passwd:               cfg.MySQL.Password,
 		Net:                  "tcp",
@@ -77,7 +92,7 @@ func mysqlDSN(cfg settings.DatabaseConfig) (string, error) {
 	if charset := strings.TrimSpace(cfg.MySQL.Charset); charset != "" {
 		dsnCfg.Params["charset"] = charset
 	}
-	return dsnCfg.FormatDSN(), nil
+	return dsnCfg, nil
 }
 
 func postgresDSN(cfg settings.DatabaseConfig) (string, error) {

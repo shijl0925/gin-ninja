@@ -107,6 +107,20 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 			},
 		},
 		{
+			name: "structured config preserves at sign password",
+			cfg:  settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1", User: "root", Password: "root@123", Name: "gin_ninja", Charset: "utf8mb4", ParseTime: true, Loc: "Local"}},
+			verify: func(t *testing.T, dsn string) {
+				t.Helper()
+				parsed, err := drivermysql.ParseDSN(dsn)
+				if err != nil {
+					t.Fatalf("ParseDSN: %v", err)
+				}
+				if parsed.Passwd != "root@123" {
+					t.Fatalf("expected password to round-trip, got %q", parsed.Passwd)
+				}
+			},
+		},
+		{
 			name:    "bad escape",
 			cfg:     settings.DatabaseConfig{DSN: "root:bad%zz@tcp(localhost:3306)/app"},
 			wantErr: "decode mysql DSN",
