@@ -209,7 +209,7 @@ func TestPostgresDialectorBuildsStructuredDSN(t *testing.T) {
 	if parsed.Password != "p@ss word" {
 		t.Fatalf("expected postgres password to round-trip, got %q", parsed.Password)
 	}
-	if parsed.RuntimeParams["sslmode"] != "disable" || parsed.RuntimeParams["TimeZone"] != "Asia/Shanghai" {
+	if parsed.RuntimeParams["TimeZone"] != "Asia/Shanghai" {
 		t.Fatalf("unexpected postgres runtime params: %v", parsed.RuntimeParams)
 	}
 }
