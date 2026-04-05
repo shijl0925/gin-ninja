@@ -6,12 +6,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shijl0925/gin-ninja/orm"
+	"github.com/shijl0925/gin-ninja/internal/contextkeys"
 )
 
 const (
 	requestIDContextKey = "X-Request-ID"
-	jwtClaimsKey        = "gin_ninja_jwt_claims"
 )
 
 // Context wraps *gin.Context and is passed to every handler function.
@@ -72,7 +71,7 @@ func (c *Context) RequestID() string {
 // GetUserID returns the authenticated user's ID from the JWT claims.
 // Returns 0 if the JWTAuth middleware was not registered or the token was invalid.
 func (c *Context) GetUserID() uint {
-	v, exists := c.Get(jwtClaimsKey)
+	v, exists := c.Get(contextkeys.JWTClaims)
 	if !exists {
 		return 0
 	}
@@ -121,17 +120,31 @@ func (c *Context) Unauthorized(message string) {
 }
 
 // BeginTx starts a request-scoped transaction if one is not already active.
+//
+// Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.BeginTx instead.
 func (c *Context) BeginTx() error {
-	_, err := orm.Begin(c.Context)
-	return err
+	if contextBeginTx == nil {
+		return errTransactionUnavailable()
+	}
+	return contextBeginTx(c.Context)
 }
 
 // CommitTx commits the active request-scoped transaction.
+//
+// Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.CommitTx instead.
 func (c *Context) CommitTx() error {
-	return orm.Commit(c.Context)
+	if contextCommitTx == nil {
+		return errTransactionUnavailable()
+	}
+	return contextCommitTx(c.Context)
 }
 
 // RollbackTx rolls back the active request-scoped transaction.
+//
+// Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.RollbackTx instead.
 func (c *Context) RollbackTx() error {
-	return orm.Rollback(c.Context)
+	if contextRollbackTx == nil {
+		return errTransactionUnavailable()
+	}
+	return contextRollbackTx(c.Context)
 }

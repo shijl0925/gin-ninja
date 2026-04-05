@@ -403,7 +403,7 @@ func TestErrorResponse_NotFound(t *testing.T) {
 	r := ninja.NewRouter("/items")
 
 	ninja.Get(r, "/:id", func(ctx *ninja.Context, in *getInput) (*getOutput, error) {
-		return nil, ninja.ErrNotFound
+		return nil, ninja.NotFoundError()
 	})
 	api.AddRouter(r)
 
@@ -735,8 +735,8 @@ func TestOperationTimeoutAndRateLimit(t *testing.T) {
 	r := ninja.NewRouter("/ops")
 
 	ninja.Get(r, "/timeout", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
-		<-ctx.Done()
-		return nil, ctx.Err()
+		time.Sleep(50 * time.Millisecond)
+		return &struct{}{}, nil
 	}, ninja.Timeout(10*time.Millisecond))
 
 	ninja.Get(r, "/limited", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
@@ -770,6 +770,23 @@ func TestOperationTimeoutAndRateLimit(t *testing.T) {
 	limitResponses := paths["/ops/limited"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})
 	if _, ok := limitResponses["429"]; !ok {
 		t.Fatalf("expected 429 response to be documented, got %v", limitResponses)
+	}
+}
+
+func TestGet_CacheStoreEvictsOldestEntries(t *testing.T) {
+	store := ninja.NewMemoryCacheStoreWithLimit(2)
+	store.Set("a", &ninja.CachedResponse{Status: http.StatusOK})
+	store.Set("b", &ninja.CachedResponse{Status: http.StatusOK})
+	store.Set("c", &ninja.CachedResponse{Status: http.StatusOK})
+
+	if _, ok := store.Get("a"); ok {
+		t.Fatal("expected oldest entry to be evicted")
+	}
+	if _, ok := store.Get("b"); !ok {
+		t.Fatal("expected second entry to remain")
+	}
+	if _, ok := store.Get("c"); !ok {
+		t.Fatal("expected newest entry to remain")
 	}
 }
 

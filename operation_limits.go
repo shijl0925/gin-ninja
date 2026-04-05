@@ -68,15 +68,40 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 		reqCtx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
-		c.Request = c.Request.WithContext(reqCtx)
-		next(c)
+		recorder := newCaptureResponseWriter(c.Writer)
+		copied := c.Copy()
+		copied.Request = copied.Request.WithContext(reqCtx)
+		copied.Writer = recorder
 
-		if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
-			writeError(c, &Error{
-				Status:  http.StatusRequestTimeout,
-				Code:    "REQUEST_TIMEOUT",
-				Message: "request timed out",
-			})
+		resultCh := make(chan any, 1)
+		go func() {
+			defer func() {
+				resultCh <- recover()
+			}()
+			next(copied)
+		}()
+
+		select {
+		case panicValue := <-resultCh:
+			if panicValue != nil {
+				panic(panicValue)
+			}
+			if recorder.status == 0 {
+				recorder.status = http.StatusOK
+			}
+			copyHeader(c.Writer.Header(), recorder.header)
+			c.Status(recorder.status)
+			if len(recorder.body) > 0 && c.Request.Method != http.MethodHead {
+				_, _ = c.Writer.Write(recorder.body)
+			}
+		case <-reqCtx.Done():
+			if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
+				writeError(c, &Error{
+					Status:  http.StatusRequestTimeout,
+					Code:    "REQUEST_TIMEOUT",
+					Message: "request timed out",
+				})
+			}
 			c.Abort()
 		}
 	}

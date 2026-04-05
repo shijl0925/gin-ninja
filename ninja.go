@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const ninjaAPIContextKey = "gin_ninja_api"
+
 // Config holds configuration options for a NinjaAPI instance.
 type Config struct {
 	// Title is the API title shown in the OpenAPI docs (default: "Gin Ninja API").
@@ -60,16 +62,19 @@ type Config struct {
 //	api.AddRouter(usersRouter)
 //	api.Run(":8080")
 type NinjaAPI struct {
-	engine        *gin.Engine
-	config        Config
-	openAPI       *openAPISpec
-	versionSpecs  map[string]*openAPISpec
-	routers       []*Router
-	hooksMu       sync.RWMutex
-	startupHooks  []LifecycleHook
-	shutdownHooks []LifecycleHook
-	lifecycle     lifecycleState
-	serverState   serverState
+	engine         *gin.Engine
+	config         Config
+	openAPI        *openAPISpec
+	openAPICache   openAPICacheState
+	versionSpecs   map[string]*openAPISpec
+	routers        []*Router
+	errorMappersMu sync.RWMutex
+	errorMappers   []ErrorMapper
+	hooksMu        sync.RWMutex
+	startupHooks   []LifecycleHook
+	shutdownHooks  []LifecycleHook
+	lifecycle      lifecycleState
+	serverState    serverState
 }
 
 // New creates a new NinjaAPI with the supplied configuration.
@@ -111,9 +116,12 @@ func New(config Config) *NinjaAPI {
 		engine:       engine,
 		config:       config,
 		openAPI:      newOpenAPISpec(config),
+		openAPICache: openAPICacheState{versions: map[string][]byte{}},
 		versionSpecs: map[string]*openAPISpec{},
+		errorMappers: errorMappersSnapshot(),
 	}
 
+	api.engine.Use(api.attachContext())
 	api.setupInternalRoutes()
 	return api
 }
@@ -149,6 +157,7 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 func (api *NinjaAPI) AddRouter(router *Router) {
 	api.routers = append(api.routers, router)
 	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, "", nil, router)
+	api.invalidateOpenAPICache()
 }
 
 // Run starts the HTTP server on the given address (e.g. ":8080").
@@ -256,7 +265,12 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 func (api *NinjaAPI) setupInternalRoutes() {
 	if api.config.OpenAPIURL != "" {
 		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
-			c.JSON(http.StatusOK, api.openAPI.build())
+			data, err := api.openAPIBytes()
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 		})
 	}
 
@@ -273,12 +287,16 @@ func (api *NinjaAPI) setupInternalRoutes() {
 	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); pattern != "" {
 		api.engine.GET(pattern, func(c *gin.Context) {
 			version := requestVersion(c)
-			spec, ok := api.versionSpecs[version]
+			data, ok, err := api.versionOpenAPIBytes(version)
+			if err != nil {
+				writeError(c, err)
+				return
+			}
 			if !ok {
 				versionNotFound(c)
 				return
 			}
-			c.JSON(http.StatusOK, spec.build())
+			c.Data(http.StatusOK, "application/json; charset=utf-8", data)
 		})
 	}
 
@@ -295,6 +313,44 @@ func (api *NinjaAPI) setupInternalRoutes() {
 				[]byte(swaggerUIHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
 		})
 	}
+}
+
+func (api *NinjaAPI) RegisterErrorMapper(mapper ErrorMapper) {
+	if mapper == nil {
+		return
+	}
+	api.errorMappersMu.Lock()
+	api.errorMappers = append(api.errorMappers, mapper)
+	api.errorMappersMu.Unlock()
+}
+
+func (api *NinjaAPI) mapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	api.errorMappersMu.RLock()
+	mappers := append([]ErrorMapper(nil), api.errorMappers...)
+	api.errorMappersMu.RUnlock()
+	return mapErrorWithMappers(err, mappers)
+}
+
+func (api *NinjaAPI) attachContext() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(ninjaAPIContextKey, api)
+		c.Next()
+	}
+}
+
+func currentAPI(c *gin.Context) (*NinjaAPI, bool) {
+	if c == nil {
+		return nil, false
+	}
+	v, ok := c.Get(ninjaAPIContextKey)
+	if !ok {
+		return nil, false
+	}
+	api, ok := v.(*NinjaAPI)
+	return api, ok
 }
 
 func (api *NinjaAPI) lookupVersion(name string) VersionConfig {

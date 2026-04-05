@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shijl0925/gin-ninja/orm"
 )
 
 // OperationOption is a functional option for configuring an Operation.
@@ -267,7 +266,11 @@ func newOperation[TIn any, TOut any](
 			return err
 		}
 		if op.withTransaction {
-			err = orm.WithTransaction(c, invoke)
+			if contextWithTx == nil {
+				err = errTransactionUnavailable()
+			} else {
+				err = contextWithTx(c, invoke)
+			}
 		} else {
 			err = invoke()
 		}
@@ -324,7 +327,11 @@ func newVoidOperation[TIn any](
 		}
 		var err error
 		if op.withTransaction {
-			err = orm.WithTransaction(c, invoke)
+			if contextWithTx == nil {
+				err = errTransactionUnavailable()
+			} else {
+				err = contextWithTx(c, invoke)
+			}
 		} else {
 			err = invoke()
 		}

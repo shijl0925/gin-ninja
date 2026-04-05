@@ -22,7 +22,7 @@ func Recovery(log *zap.Logger) gin.HandlerFunc {
 					zap.ByteString("stack", stack),
 					zap.String("request_id", GetRequestID(c)),
 				)
-				ninja.WriteError(c, ninja.ErrInternal)
+				ninja.WriteError(c, ninja.InternalError())
 			}
 		}()
 		c.Next()

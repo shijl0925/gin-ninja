@@ -8,11 +8,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/shijl0925/gin-ninja/internal/contextkeys"
 	"github.com/shijl0925/gin-ninja/pkg/response"
 	"github.com/shijl0925/gin-ninja/settings"
 )
 
-const claimsKey = "gin_ninja_jwt_claims"
+const claimsKey = contextkeys.JWTClaims
 
 // Claims is the custom JWT claims struct used by gin-ninja.
 // Embed this in your own claims type if you need extra fields.

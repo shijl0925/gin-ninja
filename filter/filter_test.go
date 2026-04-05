@@ -13,6 +13,10 @@ type embeddedFilter struct {
 	IsAdmin *bool `filter:"is_admin,eq"`
 }
 
+type boolValueFilter struct {
+	IsAdmin bool `filter:"is_admin,eq"`
+}
+
 type listInput struct {
 	embeddedFilter
 	Search string `filter:"name|email,like"`
@@ -82,6 +86,16 @@ func TestParseKeepsFalseBoolPointers(t *testing.T) {
 	}
 	if len(clauses) != 1 || clauses[0].Value != false {
 		t.Fatalf("expected false bool clause, got %+v", clauses)
+	}
+}
+
+func TestParseKeepsFalseBoolValues(t *testing.T) {
+	clauses, err := Parse(&boolValueFilter{})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(clauses) != 1 || clauses[0].Value != false {
+		t.Fatalf("expected false bool value clause, got %+v", clauses)
 	}
 }
 

@@ -26,7 +26,7 @@ func newUploadedFile(header *multipart.FileHeader) *UploadedFile {
 // Open delegates to the underlying multipart.FileHeader.
 func (f *UploadedFile) Open() (multipart.File, error) {
 	if f == nil || f.FileHeader == nil {
-		return nil, ErrBadRequest
+		return nil, BadRequestError()
 	}
 	return f.FileHeader.Open()
 }
@@ -112,9 +112,6 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	data := d.Data
 	if data == nil {
 		data = []byte{}
-	}
-	for k, v := range headers {
-		c.Header(k, v)
 	}
 	c.DataFromReader(status, int64(len(data)), contentType, bytes.NewReader(data), headers)
 }
