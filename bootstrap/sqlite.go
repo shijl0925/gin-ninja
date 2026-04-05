@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -117,31 +118,38 @@ func postgresDSN(cfg settings.DatabaseConfig) (string, error) {
 		port = 5432
 	}
 
-	query := url.Values{}
-	if sslmode := strings.TrimSpace(cfg.Postgres.SSLMode); sslmode != "" {
-		query.Set("sslmode", sslmode)
-	}
-	if timeZone := strings.TrimSpace(cfg.Postgres.TimeZone); timeZone != "" {
-		query.Set("TimeZone", timeZone)
-	}
-	for key, value := range sanitizeParams(cfg.Postgres.Params) {
-		query.Set(key, value)
+	parts := []string{
+		postgresDSNPair("host", strings.TrimSpace(cfg.Postgres.Host)),
+		postgresDSNPair("port", strconv.Itoa(port)),
+		postgresDSNPair("dbname", strings.TrimSpace(cfg.Postgres.Name)),
 	}
 
-	dsn := &url.URL{
-		Scheme:   "postgres",
-		Host:     net.JoinHostPort(strings.TrimSpace(cfg.Postgres.Host), strconv.Itoa(port)),
-		Path:     "/" + strings.TrimSpace(cfg.Postgres.Name),
-		RawQuery: query.Encode(),
+	if user := strings.TrimSpace(cfg.Postgres.User); user != "" {
+		parts = append(parts, postgresDSNPair("user", user))
 	}
-	user := strings.TrimSpace(cfg.Postgres.User)
-	switch {
-	case user != "" && cfg.Postgres.Password != "":
-		dsn.User = url.UserPassword(user, cfg.Postgres.Password)
-	case user != "":
-		dsn.User = url.User(user)
+	if cfg.Postgres.Password != "" {
+		parts = append(parts, postgresDSNPair("password", cfg.Postgres.Password))
 	}
-	return dsn.String(), nil
+	if sslmode := strings.TrimSpace(cfg.Postgres.SSLMode); sslmode != "" {
+		parts = append(parts, postgresDSNPair("sslmode", sslmode))
+	}
+	if timeZone := strings.TrimSpace(cfg.Postgres.TimeZone); timeZone != "" {
+		parts = append(parts, postgresDSNPair("TimeZone", timeZone))
+	}
+
+	params := sanitizeParams(cfg.Postgres.Params)
+	if len(params) > 0 {
+		keys := make([]string, 0, len(params))
+		for key := range params {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			parts = append(parts, postgresDSNPair(key, params[key]))
+		}
+	}
+
+	return strings.Join(parts, " "), nil
 }
 
 func sanitizeParams(params map[string]string) map[string]string {
@@ -154,6 +162,22 @@ func sanitizeParams(params map[string]string) map[string]string {
 		values[trimmedKey] = value
 	}
 	return values
+}
+
+func postgresDSNPair(key, value string) string {
+	return key + "=" + postgresDSNValue(value)
+}
+
+func postgresDSNValue(value string) string {
+	if value == "" {
+		return "''"
+	}
+	if strings.ContainsAny(value, " \t\n\r\v\f'\\") {
+		escaped := strings.ReplaceAll(value, `\`, `\\`)
+		escaped = strings.ReplaceAll(escaped, `'`, `\'`)
+		return "'" + escaped + "'"
+	}
+	return value
 }
 
 func decodeRawMySQLDSN(dsn string) (string, error) {

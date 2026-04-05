@@ -2,10 +2,10 @@ package bootstrap
 
 import (
 	drivermysql "github.com/go-sql-driver/mysql"
-	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
 	gormmysql "gorm.io/driver/mysql"
@@ -193,23 +193,24 @@ func TestPostgresDialectorBuildsStructuredDSN(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *postgres.Dialector, got %T", dialector)
 	}
-	parsed, err := url.Parse(pgDial.DSN)
-	if err != nil {
-		t.Fatalf("url.Parse: %v", err)
+	if !strings.Contains(pgDial.DSN, "TimeZone=Asia/Shanghai") {
+		t.Fatalf("expected unescaped timezone in postgres dsn, got %q", pgDial.DSN)
 	}
-	if parsed.Scheme != "postgres" || parsed.Host != "localhost:5432" || parsed.Path != "/gin_ninja" {
+	parsed, err := pgx.ParseConfig(pgDial.DSN)
+	if err != nil {
+		t.Fatalf("pgx.ParseConfig: %v", err)
+	}
+	if parsed.Host != "localhost" || parsed.Port != 5432 || parsed.Database != "gin_ninja" {
 		t.Fatalf("unexpected postgres dsn: %q", pgDial.DSN)
 	}
-	if user := parsed.User.Username(); user != "postgres" {
-		t.Fatalf("expected postgres user, got %q", user)
+	if parsed.User != "postgres" {
+		t.Fatalf("expected postgres user, got %q", parsed.User)
 	}
-	password, ok := parsed.User.Password()
-	if !ok || password != "p@ss word" {
-		t.Fatalf("expected postgres password to round-trip, got %q ok=%v", password, ok)
+	if parsed.Password != "p@ss word" {
+		t.Fatalf("expected postgres password to round-trip, got %q", parsed.Password)
 	}
-	query := parsed.Query()
-	if query.Get("sslmode") != "disable" || query.Get("TimeZone") != "Asia/Shanghai" {
-		t.Fatalf("unexpected postgres query params: %v", query)
+	if parsed.RuntimeParams["sslmode"] != "disable" || parsed.RuntimeParams["TimeZone"] != "Asia/Shanghai" {
+		t.Fatalf("unexpected postgres runtime params: %v", parsed.RuntimeParams)
 	}
 }
 
