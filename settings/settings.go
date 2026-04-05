@@ -298,19 +298,18 @@ func isDefaultDatabaseDSN(dsn string) bool {
 }
 
 func hasMeaningfulMySQLConfig(cfg MySQLConfig) bool {
-	return strings.TrimSpace(cfg.Host) != "" ||
-		strings.TrimSpace(cfg.User) != "" ||
-		strings.TrimSpace(cfg.Password) != "" ||
-		strings.TrimSpace(cfg.Name) != "" ||
-		len(cfg.Params) > 0 ||
-		(cfg.Port != 0 && cfg.Port != 3306)
+	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 3306)
 }
 
 func hasMeaningfulPostgresConfig(cfg PostgresConfig) bool {
-	return strings.TrimSpace(cfg.Host) != "" ||
-		strings.TrimSpace(cfg.User) != "" ||
-		strings.TrimSpace(cfg.Password) != "" ||
-		strings.TrimSpace(cfg.Name) != "" ||
-		len(cfg.Params) > 0 ||
-		(cfg.Port != 0 && cfg.Port != 5432)
+	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 5432)
+}
+
+func hasMeaningfulStructuredDBConfig(host, user, password, name string, params map[string]string, port, defaultPort int) bool {
+	return strings.TrimSpace(host) != "" ||
+		strings.TrimSpace(user) != "" ||
+		strings.TrimSpace(password) != "" ||
+		strings.TrimSpace(name) != "" ||
+		len(params) > 0 ||
+		(port != 0 && port != defaultPort)
 }

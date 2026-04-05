@@ -198,13 +198,13 @@ func hasPostgresConfig(cfg settings.PostgresConfig) bool {
 }
 
 func useRawMySQLDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !isDefaultSQLiteDSN(cfg.DSN, cfg.Driver, hasMySQLConfig(cfg.MySQL))
+	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, hasMySQLConfig(cfg.MySQL))
 }
 
 func useRawPostgresDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !isDefaultSQLiteDSN(cfg.DSN, cfg.Driver, hasPostgresConfig(cfg.Postgres))
+	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, hasPostgresConfig(cfg.Postgres))
 }
 
-func isDefaultSQLiteDSN(dsn, driver string, hasStructuredConfig bool) bool {
+func shouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
 	return hasStructuredConfig && strings.TrimSpace(driver) != "sqlite" && strings.TrimSpace(driver) != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
 }
