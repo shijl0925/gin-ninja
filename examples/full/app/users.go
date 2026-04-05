@@ -74,7 +74,6 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 // ListUsers returns a paginated list of users.
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	repo := NewUserRepo()
-
 	query, _ := gormx.NewQuery[User]()
 
 	filterOpts, err := filter.BuildOptions(in)

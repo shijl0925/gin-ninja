@@ -2,11 +2,14 @@ package ninja_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -84,6 +87,91 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 	if spec["openapi"] != "3.0.3" {
 		t.Errorf("expected openapi 3.0.3 got %v", spec["openapi"])
+	}
+}
+
+func TestLifecycleHooksAndShutdown(t *testing.T) {
+	api := newTestAPI()
+	var startupCount int32
+	var shutdownCount int32
+	started := make(chan struct{}, 1)
+
+	api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		atomic.AddInt32(&startupCount, 1)
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+		return nil
+	})
+	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		atomic.AddInt32(&shutdownCount, 1)
+		return nil
+	})
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- api.Serve(listener)
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for startup hook")
+	}
+	if atomic.LoadInt32(&startupCount) != 1 {
+		t.Fatalf("expected startup hook to run once, got %d", startupCount)
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := api.Shutdown(shutdownCtx); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("Serve returned error: %v", err)
+	}
+	if atomic.LoadInt32(&shutdownCount) != 1 {
+		t.Fatalf("expected shutdown hook to run once, got %d", shutdownCount)
+	}
+}
+
+func TestLifecycleStartupFailureRunsShutdownHooks(t *testing.T) {
+	api := newTestAPI()
+	var shutdownCount int32
+	startupErr := errors.New("startup failed")
+
+	api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		return startupErr
+	})
+	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+		atomic.AddInt32(&shutdownCount, 1)
+		return nil
+	})
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	addr := listener.Addr().String()
+
+	err = api.Serve(listener)
+	if !errors.Is(err, startupErr) {
+		t.Fatalf("expected startup error, got %v", err)
+	}
+	if atomic.LoadInt32(&shutdownCount) != 1 {
+		t.Fatalf("expected shutdown hook to run once, got %d", shutdownCount)
+	}
+
+	conn, dialErr := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+	if dialErr == nil {
+		_ = conn.Close()
+		t.Fatal("expected listener to be closed after startup failure")
 	}
 }
 
@@ -1026,8 +1114,10 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 	r := ninja.NewRouter("/stream")
 	expectedErr := errors.New("handler boom")
 	var loggedErr string
+	done := make(chan struct{})
 
 	api.UseGin(func(c *gin.Context) {
+		defer close(done)
 		c.Next()
 		if errs := c.Errors.ByType(gin.ErrorTypePrivate); len(errs) > 0 {
 			loggedErr = errs.String()
@@ -1058,6 +1148,11 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 	var reply string
 	if err := websocket.Message.Receive(conn, &reply); err == nil {
 		t.Fatalf("expected websocket to close without sending an error payload, got %q", reply)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for websocket middleware completion")
 	}
 	if !strings.Contains(loggedErr, expectedErr.Error()) {
 		t.Fatalf("expected websocket handler error to be recorded privately, got %q", loggedErr)

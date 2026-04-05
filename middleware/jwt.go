@@ -110,7 +110,6 @@ func generateToken(userID uint, username, secret string, ttl time.Duration, issu
 	if issuer == "" {
 		issuer = "gin-ninja"
 	}
-
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{

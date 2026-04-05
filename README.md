@@ -21,6 +21,7 @@ A **django-ninja**-inspired web framework built on top of [Gin](https://github.c
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, and panic recovery.
+- **Lifecycle hooks** – startup and shutdown hooks with graceful server shutdown.
 - **Settings** – Viper-based YAML/env configuration management.
 - **Logger** – Zap-based structured logger with console/JSON output.
 - **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
@@ -225,7 +226,34 @@ r.UseGin(middleware.JWTAuth())
 // Read claims in a handler:
 claims := middleware.GetClaims(ctx.Context)
 fmt.Println(claims.UserID, claims.Username)
+
 ```
+
+---
+
+## Lifecycle Hooks
+
+```go
+api := ninja.New(ninja.Config{
+    GracefulShutdownTimeout: 15 * time.Second,
+    ReadTimeout:             15 * time.Second,
+    WriteTimeout:            30 * time.Second,
+    IdleTimeout:             60 * time.Second,
+})
+
+api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
+    return warmCache(ctx)
+})
+
+api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+    return closeResources()
+})
+
+log.Fatal(api.Run(":8080"))
+```
+
+`Run()` performs graceful shutdown on `SIGINT` / `SIGTERM` and executes shutdown hooks once.
+`Serve(listener)` is available for custom embedding and manual shutdown orchestration.
 
 ---
 

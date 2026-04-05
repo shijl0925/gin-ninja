@@ -1,7 +1,15 @@
 package ninja
 
 import (
+	"context"
+	"errors"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +38,18 @@ type Config struct {
 	// when set to true.  Set this to true when you provide your own middleware
 	// via UseGin (e.g. the structured logger from middleware.Logger).
 	DisableGinDefault bool
+	// ReadTimeout limits the time allowed to read the full request, including
+	// the body. Zero uses the default safe timeout.
+	ReadTimeout time.Duration
+	// WriteTimeout limits the time allowed to write a response. Zero uses the
+	// default safe timeout.
+	WriteTimeout time.Duration
+	// IdleTimeout limits how long keep-alive connections stay idle. Zero uses
+	// the default safe timeout.
+	IdleTimeout time.Duration
+	// GracefulShutdownTimeout bounds how long Run waits for shutdown hooks and
+	// in-flight requests after receiving SIGINT or SIGTERM. Zero uses 10s.
+	GracefulShutdownTimeout time.Duration
 }
 
 // NinjaAPI is the central API instance.  It wraps a *gin.Engine and
@@ -40,11 +60,16 @@ type Config struct {
 //	api.AddRouter(usersRouter)
 //	api.Run(":8080")
 type NinjaAPI struct {
-	engine       *gin.Engine
-	config       Config
-	openAPI      *openAPISpec
-	versionSpecs map[string]*openAPISpec
-	routers      []*Router
+	engine        *gin.Engine
+	config        Config
+	openAPI       *openAPISpec
+	versionSpecs  map[string]*openAPISpec
+	routers       []*Router
+	hooksMu       sync.RWMutex
+	startupHooks  []LifecycleHook
+	shutdownHooks []LifecycleHook
+	lifecycle     lifecycleState
+	serverState   serverState
 }
 
 // New creates a new NinjaAPI with the supplied configuration.
@@ -61,6 +86,18 @@ func New(config Config) *NinjaAPI {
 	}
 	if config.OpenAPIURL == "" {
 		config.OpenAPIURL = "/openapi.json"
+	}
+	if config.ReadTimeout == 0 {
+		config.ReadTimeout = 15 * time.Second
+	}
+	if config.WriteTimeout == 0 {
+		config.WriteTimeout = 30 * time.Second
+	}
+	if config.IdleTimeout == 0 {
+		config.IdleTimeout = 60 * time.Second
+	}
+	if config.GracefulShutdownTimeout == 0 {
+		config.GracefulShutdownTimeout = 10 * time.Second
 	}
 
 	var engine *gin.Engine
@@ -116,7 +153,37 @@ func (api *NinjaAPI) AddRouter(router *Router) {
 
 // Run starts the HTTP server on the given address (e.g. ":8080").
 func (api *NinjaAPI) Run(addr string) error {
-	return api.engine.Run(addr)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	startupCtx, cancelStartup := context.WithCancel(context.Background())
+	defer cancelStartup()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- api.serve(listener, startupCtx)
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-sigCh:
+		cancelStartup()
+		shutdownCtx, cancel := api.shutdownContext(context.Background())
+		defer cancel()
+		shutdownErr := api.Shutdown(shutdownCtx)
+		serveErr := <-errCh
+		if errors.Is(serveErr, http.ErrServerClosed) || errors.Is(serveErr, context.Canceled) {
+			serveErr = nil
+		}
+		return errors.Join(serveErr, shutdownErr)
+	}
 }
 
 // ---------------------------------------------------------------------------
