@@ -104,7 +104,7 @@ func (s *MemoryCacheStore) Get(key string) (*CachedResponse, bool) {
 	}
 	if !value.Expires.IsZero() && time.Now().After(value.Expires) {
 		s.mu.Lock()
-		delete(s.items, key)
+		s.deleteKeyLocked(key)
 		s.mu.Unlock()
 		return nil, false
 	}
@@ -130,7 +130,7 @@ func (s *MemoryCacheStore) Set(key string, value *CachedResponse) {
 func (s *MemoryCacheStore) pruneExpiredLocked(now time.Time) {
 	for key, value := range s.items {
 		if value != nil && !value.Expires.IsZero() && now.After(value.Expires) {
-			delete(s.items, key)
+			s.deleteKeyLocked(key)
 		}
 	}
 }
@@ -144,6 +144,20 @@ func (s *MemoryCacheStore) evictOldestLocked() {
 			return
 		}
 	}
+}
+
+func (s *MemoryCacheStore) deleteKeyLocked(key string) {
+	delete(s.items, key)
+	if len(s.order) == 0 {
+		return
+	}
+	filtered := s.order[:0]
+	for _, existing := range s.order {
+		if existing != key {
+			filtered = append(filtered, existing)
+		}
+	}
+	s.order = filtered
 }
 
 func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {

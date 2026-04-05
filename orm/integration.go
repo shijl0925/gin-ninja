@@ -2,6 +2,7 @@ package orm
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
@@ -28,7 +29,7 @@ func rollbackTxFromGinContext(c *gin.Context) error {
 // BeginTx starts a request-scoped transaction for a ninja context.
 func BeginTx(c *ninja.Context) error {
 	if c == nil {
-		return nil
+		return fmt.Errorf("ninja context must not be nil")
 	}
 	return beginTxFromGinContext(c.Context)
 }
@@ -36,7 +37,7 @@ func BeginTx(c *ninja.Context) error {
 // CommitTx commits the active request-scoped transaction for a ninja context.
 func CommitTx(c *ninja.Context) error {
 	if c == nil {
-		return nil
+		return fmt.Errorf("ninja context must not be nil")
 	}
 	return commitTxFromGinContext(c.Context)
 }
@@ -44,7 +45,7 @@ func CommitTx(c *ninja.Context) error {
 // RollbackTx rolls back the active request-scoped transaction for a ninja context.
 func RollbackTx(c *ninja.Context) error {
 	if c == nil {
-		return nil
+		return fmt.Errorf("ninja context must not be nil")
 	}
 	return rollbackTxFromGinContext(c.Context)
 }
@@ -52,7 +53,7 @@ func RollbackTx(c *ninja.Context) error {
 // RegisterDefaultErrorMappers installs the standard GORM-to-ninja error mappings on a specific API instance.
 func RegisterDefaultErrorMappers(api *ninja.NinjaAPI) {
 	if api == nil {
-		return
+		panic("ninja api must not be nil")
 	}
 	api.RegisterErrorMapper(func(err error) error {
 		switch {

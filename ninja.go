@@ -68,6 +68,7 @@ type NinjaAPI struct {
 	openAPICache  openAPICacheState
 	versionSpecs  map[string]*openAPISpec
 	routers       []*Router
+	errorMappersMu sync.RWMutex
 	errorMappers  []ErrorMapper
 	hooksMu       sync.RWMutex
 	startupHooks  []LifecycleHook
@@ -318,14 +319,19 @@ func (api *NinjaAPI) RegisterErrorMapper(mapper ErrorMapper) {
 	if mapper == nil {
 		return
 	}
+	api.errorMappersMu.Lock()
 	api.errorMappers = append(api.errorMappers, mapper)
+	api.errorMappersMu.Unlock()
 }
 
 func (api *NinjaAPI) mapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	return mapErrorWithMappers(err, api.errorMappers)
+	api.errorMappersMu.RLock()
+	mappers := append([]ErrorMapper(nil), api.errorMappers...)
+	api.errorMappersMu.RUnlock()
+	return mapErrorWithMappers(err, mappers)
 }
 
 func (api *NinjaAPI) attachContext() gin.HandlerFunc {
