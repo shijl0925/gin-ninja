@@ -113,9 +113,6 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	if data == nil {
 		data = []byte{}
 	}
-	for k, v := range headers {
-		c.Header(k, v)
-	}
 	c.DataFromReader(status, int64(len(data)), contentType, bytes.NewReader(data), headers)
 }
 

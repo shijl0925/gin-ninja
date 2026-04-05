@@ -60,7 +60,7 @@ func (r *schemaRegistry) schemaForType(t reflect.Type) *Schema {
 		return &Schema{Type: "integer", Format: intFormat(t.Kind())}
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return &Schema{Type: "integer", Format: "uint64"}
+		return &Schema{Type: "integer", Format: uintFormat(t.Kind())}
 
 	case reflect.Float32:
 		return &Schema{Type: "number", Format: "float"}
@@ -196,6 +196,19 @@ func intFormat(k reflect.Kind) string {
 		return "int32"
 	default:
 		return "int64"
+	}
+}
+
+func uintFormat(k reflect.Kind) string {
+	switch k {
+	case reflect.Uint8:
+		return "uint8"
+	case reflect.Uint16:
+		return "uint16"
+	case reflect.Uint32:
+		return "uint32"
+	default:
+		return "uint64"
 	}
 }
 

@@ -211,7 +211,7 @@ type Page[T any] struct {
 func NewPage[T any](items []T, total int64, input PageInput) *Page[T] {
 	size := input.GetSize()
 	pages := int(math.Ceil(float64(total) / float64(size)))
-	if pages < 1 {
+	if total > 0 && pages < 1 {
 		pages = 1
 	}
 	return &Page[T]{

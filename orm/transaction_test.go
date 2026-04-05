@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	ninja "github.com/shijl0925/gin-ninja"
 	"gorm.io/gorm"
 )
 
@@ -72,5 +73,31 @@ func TestWithTransactionRollsBackOnError(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected rollback to leave 0 rows, got %d", count)
+	}
+}
+
+func TestNinjaContextTransactionWrappers(t *testing.T) {
+	c, db := newTxContext(t)
+	ctx := &ninja.Context{Context: c}
+
+	if err := BeginTx(ctx); err != nil {
+		t.Fatalf("BeginTx: %v", err)
+	}
+	if !InTransaction(c) {
+		t.Fatal("expected active transaction")
+	}
+	if err := WithContext(c).Create(&txUser{Name: "wrapper-user"}).Error; err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := CommitTx(ctx); err != nil {
+		t.Fatalf("CommitTx: %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&txUser{}).Where("name = ?", "wrapper-user").Count(&count).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected committed wrapper transaction, got %d", count)
 	}
 }

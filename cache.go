@@ -44,9 +44,13 @@ type CachedResponse struct {
 }
 
 type MemoryCacheStore struct {
-	mu    sync.RWMutex
-	items map[string]*CachedResponse
+	mu         sync.RWMutex
+	items      map[string]*CachedResponse
+	order      []string
+	maxEntries int
 }
+
+const defaultMemoryCacheMaxEntries = 1024
 
 func newRouteCacheConfig(ttl time.Duration) *routeCacheConfig {
 	return &routeCacheConfig{
@@ -76,7 +80,19 @@ func CacheWithKey(fn CacheKeyFunc) CacheOption {
 
 // NewMemoryCacheStore creates an in-memory route cache store.
 func NewMemoryCacheStore() *MemoryCacheStore {
-	return &MemoryCacheStore{items: map[string]*CachedResponse{}}
+	return NewMemoryCacheStoreWithLimit(defaultMemoryCacheMaxEntries)
+}
+
+// NewMemoryCacheStoreWithLimit creates an in-memory route cache store with a bounded size.
+func NewMemoryCacheStoreWithLimit(maxEntries int) *MemoryCacheStore {
+	if maxEntries <= 0 {
+		maxEntries = defaultMemoryCacheMaxEntries
+	}
+	return &MemoryCacheStore{
+		items:      map[string]*CachedResponse{},
+		order:      []string{},
+		maxEntries: maxEntries,
+	}
 }
 
 func (s *MemoryCacheStore) Get(key string) (*CachedResponse, bool) {
@@ -100,8 +116,34 @@ func (s *MemoryCacheStore) Set(key string, value *CachedResponse) {
 		return
 	}
 	s.mu.Lock()
+	if _, exists := s.items[key]; !exists {
+		s.pruneExpiredLocked(time.Now())
+		if len(s.items) >= s.maxEntries {
+			s.evictOldestLocked()
+		}
+		s.order = append(s.order, key)
+	}
 	s.items[key] = cloneCachedResponse(value)
 	s.mu.Unlock()
+}
+
+func (s *MemoryCacheStore) pruneExpiredLocked(now time.Time) {
+	for key, value := range s.items {
+		if value != nil && !value.Expires.IsZero() && now.After(value.Expires) {
+			delete(s.items, key)
+		}
+	}
+}
+
+func (s *MemoryCacheStore) evictOldestLocked() {
+	for len(s.order) > 0 {
+		key := s.order[0]
+		s.order = s.order[1:]
+		if _, ok := s.items[key]; ok {
+			delete(s.items, key)
+			return
+		}
+	}
 }
 
 func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {

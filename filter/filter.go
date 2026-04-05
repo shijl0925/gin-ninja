@@ -324,6 +324,8 @@ func isEmptyValue(value reflect.Value) bool {
 	}
 
 	switch value.Kind() {
+	case reflect.Bool:
+		return false
 	case reflect.String:
 		return value.String() == ""
 	case reflect.Slice, reflect.Array, reflect.Map:

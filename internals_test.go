@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"github.com/shijl0925/gin-ninja/internal/contextkeys"
 )
 
 type BindEmbeddedInput struct {
@@ -160,6 +160,17 @@ func TestBindInput_Errors(t *testing.T) {
 		}
 	})
 
+	t.Run("bad query conversion", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodGet, "/users/42?page=nope", "")
+		c.Params = gin.Params{{Key: "id", Value: "42"}}
+		var in bindComplexInput
+		err := bindInput(c, http.MethodGet, &in)
+		var apiErr *Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_QUERY" || apiErr.Status != http.StatusBadRequest {
+			t.Fatalf("expected INVALID_QUERY bad request, got %v", err)
+		}
+	})
+
 	t.Run("missing multipart file", func(t *testing.T) {
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
@@ -283,7 +294,7 @@ func TestContextHelpers(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(reqCtx)
 	c.Set("gin-key", "gin-value")
 	c.Set(requestIDContextKey, "req-123")
-	c.Set(jwtClaimsKey, contextClaims{userID: 7})
+	c.Set(contextkeys.JWTClaims, contextClaims{userID: 7})
 
 	ctx := newContext(c)
 	if ctx.Value("gin-key") != "gin-value" || ctx.Value("request-key") != "request-value" {
@@ -376,15 +387,25 @@ func TestWriteError(t *testing.T) {
 		}
 	})
 
-	t.Run("gorm mapper", func(t *testing.T) {
+	t.Run("instance mapper", func(t *testing.T) {
+		sentinel := errors.New("mapped")
+		api := New(Config{})
+		api.RegisterErrorMapper(func(err error) error {
+			if errors.Is(err, sentinel) {
+				return &Error{Status: http.StatusTeapot, Code: "MAPPED", Message: "mapped"}
+			}
+			return nil
+		})
+
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, gorm.ErrRecordNotFound)
-		if w.Code != http.StatusNotFound || !strings.Contains(w.Body.String(), "NOT_FOUND") {
+		c.Set(ninjaAPIContextKey, api)
+		writeError(c, sentinel)
+		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "MAPPED") {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
 
-	t.Run("custom mapper", func(t *testing.T) {
+	t.Run("global custom mapper fallback", func(t *testing.T) {
 		sentinel := errors.New("mapped")
 
 		errorMappersMu.Lock()
@@ -461,6 +482,12 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 	}
 	if got := intFormat(reflect.Int64); got != "int64" {
 		t.Fatalf("expected int64 format, got %q", got)
+	}
+	if got := uintFormat(reflect.Uint32); got != "uint32" {
+		t.Fatalf("expected uint32 format, got %q", got)
+	}
+	if got := uintFormat(reflect.Uint64); got != "uint64" {
+		t.Fatalf("expected uint64 format, got %q", got)
 	}
 }
 

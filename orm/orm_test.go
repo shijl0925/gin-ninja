@@ -2,10 +2,12 @@ package orm
 
 import (
 	"context"
+	"errors"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	ninja "github.com/shijl0925/gin-ninja"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -51,5 +53,30 @@ func TestGetDBFallsBackToGlobalAndWithContext(t *testing.T) {
 	withCtx := WithContext(c)
 	if withCtx == nil || withCtx.Statement.Context.Value("trace_id") != "trace-1" {
 		t.Fatalf("expected request context propagation, got %#v", withCtx)
+	}
+}
+
+func TestRegisterDefaultErrorMappers(t *testing.T) {
+	api := ninja.New(ninja.Config{})
+	RegisterDefaultErrorMappers(api)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	c.Set("gin_ninja_api", api)
+
+	ninja.WriteError(c, gorm.ErrRecordNotFound)
+	if w.Code != 404 {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+
+	err := errors.New("plain")
+	w = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	c.Set("gin_ninja_api", api)
+	ninja.WriteError(c, err)
+	if w.Code != 500 {
+		t.Fatalf("expected 500 fallback, got %d: %s", w.Code, w.Body.String())
 	}
 }

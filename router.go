@@ -119,46 +119,29 @@ func (r *Router) UseGin(mw ...gin.HandlerFunc) {
 //	}
 //	ninja.Get(router, "/", listUsersHandler)
 func Get[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
-	op := newOperation[TIn, TOut](http.MethodGet, path, handler, r.tags)
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
-	for _, opt := range opts {
-		opt(op)
-	}
-	op.finalize()
-	r.operations = append(r.operations, op)
+	registerTypedOperation(r, newOperation[TIn, TOut](http.MethodGet, path, handler, r.tags), opts...)
 }
 
 // Post registers a POST endpoint.
 func Post[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
 	op := newOperation[TIn, TOut](http.MethodPost, path, handler, r.tags)
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	if op.successStatus == http.StatusOK {
 		op.successStatus = http.StatusCreated
 	}
-	for _, opt := range opts {
-		opt(op)
-	}
-	op.finalize()
-	r.operations = append(r.operations, op)
+	registerTypedOperation(r, op, opts...)
 }
 
 // Put registers a PUT endpoint.
 func Put[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
-	op := newOperation[TIn, TOut](http.MethodPut, path, handler, r.tags)
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
-	for _, opt := range opts {
-		opt(op)
-	}
-	op.finalize()
-	r.operations = append(r.operations, op)
+	registerTypedOperation(r, newOperation[TIn, TOut](http.MethodPut, path, handler, r.tags), opts...)
 }
 
 // Patch registers a PATCH endpoint.
 func Patch[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
-	op := newOperation[TIn, TOut](http.MethodPatch, path, handler, r.tags)
+	registerTypedOperation(r, newOperation[TIn, TOut](http.MethodPatch, path, handler, r.tags), opts...)
+}
+
+func registerTypedOperation(r *Router, op *operation, opts ...OperationOption) {
 	op.security = cloneSecurityRequirements(r.security)
 	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	for _, opt := range opts {

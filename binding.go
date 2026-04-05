@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -49,9 +50,14 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	}
 
 	// Always bind query-string / form params (uses `form` tags).
-	if err := c.ShouldBindQuery(input); err != nil {
-		// Ignore – struct might not have any form-tagged fields.
-		_ = err
+	if hasFormFields(t) {
+		if err := binding.MapFormWithTag(input, c.Request.URL.Query(), "form"); err != nil {
+			return &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "INVALID_QUERY",
+				Message: err.Error(),
+			}
+		}
 	}
 
 	if isMultipartRequest(c) {
@@ -93,6 +99,28 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func hasFormFields(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() && !field.Anonymous {
+			continue
+		}
+		if field.Anonymous && hasFormFields(field.Type) {
+			return true
+		}
+		if tag := field.Tag.Get("form"); tag != "" && tag != "-" {
+			return true
+		}
+	}
+	return false
 }
 
 func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {

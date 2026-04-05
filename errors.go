@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // Error represents an API error response.
@@ -76,11 +75,11 @@ type ErrorMapper func(error) error
 
 var (
 	errorMappersMu sync.RWMutex
-	errorMappers   []ErrorMapper
+	errorMappers   = defaultErrorMappers()
 )
 
-func init() {
-	errorMappers = []ErrorMapper{
+func defaultErrorMappers() []ErrorMapper {
+	return []ErrorMapper{
 		func(err error) error {
 			switch {
 			case errors.Is(err, context.DeadlineExceeded):
@@ -89,10 +88,6 @@ func init() {
 					Code:    "REQUEST_TIMEOUT",
 					Message: "request timed out",
 				}
-			case errors.Is(err, gorm.ErrRecordNotFound):
-				return ErrNotFound
-			case errors.Is(err, gorm.ErrDuplicatedKey):
-				return ErrConflict
 			default:
 				return nil
 			}
@@ -100,7 +95,23 @@ func init() {
 	}
 }
 
-// RegisterErrorMapper appends a custom error mapper.
+func cloneBuiltinError(err *Error) *Error {
+	if err == nil {
+		return nil
+	}
+	cloned := *err
+	return &cloned
+}
+
+func errorMappersSnapshot() []ErrorMapper {
+	errorMappersMu.RLock()
+	defer errorMappersMu.RUnlock()
+	return append([]ErrorMapper(nil), errorMappers...)
+}
+
+// RegisterErrorMapper appends a custom process-wide error mapper.
+//
+// Deprecated: prefer api.RegisterErrorMapper for per-instance behavior.
 func RegisterErrorMapper(mapper ErrorMapper) {
 	if mapper == nil {
 		return
@@ -115,10 +126,10 @@ func mapError(err error) error {
 		return nil
 	}
 
-	errorMappersMu.RLock()
-	mappers := append([]ErrorMapper(nil), errorMappers...)
-	errorMappersMu.RUnlock()
+	return mapErrorWithMappers(err, errorMappersSnapshot())
+}
 
+func mapErrorWithMappers(err error, mappers []ErrorMapper) error {
 	for _, mapper := range mappers {
 		if mapper == nil {
 			continue
@@ -133,7 +144,11 @@ func mapError(err error) error {
 
 // WriteError writes an appropriate JSON error response.
 func WriteError(c *gin.Context, err error) {
-	err = mapError(err)
+	if api, ok := currentAPI(c); ok {
+		err = api.mapError(err)
+	} else {
+		err = mapError(err)
+	}
 
 	switch e := err.(type) {
 	case *Error:
@@ -160,3 +175,21 @@ func WriteError(c *gin.Context, err error) {
 		})
 	}
 }
+
+// BadRequestError returns a fresh copy of the standard bad-request error.
+func BadRequestError() *Error { return cloneBuiltinError(ErrBadRequest) }
+
+// UnauthorizedError returns a fresh copy of the standard unauthorized error.
+func UnauthorizedError() *Error { return cloneBuiltinError(ErrUnauthorized) }
+
+// ForbiddenError returns a fresh copy of the standard forbidden error.
+func ForbiddenError() *Error { return cloneBuiltinError(ErrForbidden) }
+
+// NotFoundError returns a fresh copy of the standard not-found error.
+func NotFoundError() *Error { return cloneBuiltinError(ErrNotFound) }
+
+// ConflictError returns a fresh copy of the standard conflict error.
+func ConflictError() *Error { return cloneBuiltinError(ErrConflict) }
+
+// InternalError returns a fresh copy of the standard internal-server error.
+func InternalError() *Error { return cloneBuiltinError(ErrInternal) }
