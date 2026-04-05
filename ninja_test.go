@@ -94,9 +94,14 @@ func TestLifecycleHooksAndShutdown(t *testing.T) {
 	api := newTestAPI()
 	var startupCount int32
 	var shutdownCount int32
+	started := make(chan struct{}, 1)
 
 	api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
 		atomic.AddInt32(&startupCount, 1)
+		select {
+		case started <- struct{}{}:
+		default:
+		}
 		return nil
 	})
 	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
@@ -114,9 +119,10 @@ func TestLifecycleHooksAndShutdown(t *testing.T) {
 		done <- api.Serve(listener)
 	}()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for atomic.LoadInt32(&startupCount) == 0 && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for startup hook")
 	}
 	if atomic.LoadInt32(&startupCount) != 1 {
 		t.Fatalf("expected startup hook to run once, got %d", startupCount)
