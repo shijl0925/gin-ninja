@@ -163,7 +163,6 @@ func main() {
 		ninja.Summary("Cache + ETag endpoint"),
 		ninja.Description("Demonstrates route-level response caching, Cache-Control, and conditional requests with ETag."),
 		ninja.Cache(time.Minute),
-		ninja.CacheControl("public, max-age=60"),
 	)
 	ninja.Get(exampleRouter, "/limited", app.LimitedOperation,
 		ninja.Summary("Rate-limited endpoint"),

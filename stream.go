@@ -180,7 +180,9 @@ func newWebSocketOperation[TIn any](path string, handler func(*Context, *TIn, *W
 
 		websocket.Handler(func(conn *websocket.Conn) {
 			defer conn.Close()
-			_ = handler(ctx, input, &WebSocketConn{Conn: conn})
+			if err := handler(ctx, input, &WebSocketConn{Conn: conn}); err != nil {
+				_ = websocket.Message.Send(conn, "error: "+err.Error())
+			}
 		}).ServeHTTP(c.Writer, c.Request)
 	}
 

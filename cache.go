@@ -17,9 +17,11 @@ import (
 type CacheOption func(*routeCacheConfig)
 
 // ResponseCacheStore stores serialized route responses for cacheable endpoints.
+// Implementations receive fully-exported CachedResponse values and may store
+// them in any backend (in-process memory, Redis, Memcached, etc.).
 type ResponseCacheStore interface {
-	Get(key string) (*cachedResponse, bool)
-	Set(key string, value *cachedResponse)
+	Get(key string) (*CachedResponse, bool)
+	Set(key string, value *CachedResponse)
 }
 
 type CacheKeyFunc func(*Context) string
@@ -30,25 +32,26 @@ type routeCacheConfig struct {
 	keyFn CacheKeyFunc
 }
 
-type cachedResponse struct {
-	status  int
-	header  http.Header
-	body    []byte
-	expires time.Time
-	etag    string
+// CachedResponse is the serialized representation of a cached HTTP response.
+// All fields are exported so that external ResponseCacheStore implementations
+// can read and write them without relying on internal package types.
+type CachedResponse struct {
+	Status  int
+	Header  http.Header
+	Body    []byte
+	Expires time.Time
+	ETag    string
 }
 
 type MemoryCacheStore struct {
 	mu    sync.RWMutex
-	items map[string]*cachedResponse
+	items map[string]*CachedResponse
 }
-
-var defaultResponseCacheStore = NewMemoryCacheStore()
 
 func newRouteCacheConfig(ttl time.Duration) *routeCacheConfig {
 	return &routeCacheConfig{
 		ttl:   ttl,
-		store: defaultResponseCacheStore,
+		store: NewMemoryCacheStore(),
 		keyFn: defaultCacheKey,
 	}
 }
@@ -73,17 +76,17 @@ func CacheWithKey(fn CacheKeyFunc) CacheOption {
 
 // NewMemoryCacheStore creates an in-memory route cache store.
 func NewMemoryCacheStore() *MemoryCacheStore {
-	return &MemoryCacheStore{items: map[string]*cachedResponse{}}
+	return &MemoryCacheStore{items: map[string]*CachedResponse{}}
 }
 
-func (s *MemoryCacheStore) Get(key string) (*cachedResponse, bool) {
+func (s *MemoryCacheStore) Get(key string) (*CachedResponse, bool) {
 	s.mu.RLock()
 	value, ok := s.items[key]
 	s.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}
-	if !value.expires.IsZero() && time.Now().After(value.expires) {
+	if !value.Expires.IsZero() && time.Now().After(value.Expires) {
 		s.mu.Lock()
 		delete(s.items, key)
 		s.mu.Unlock()
@@ -92,7 +95,7 @@ func (s *MemoryCacheStore) Get(key string) (*cachedResponse, bool) {
 	return cloneCachedResponse(value), true
 }
 
-func (s *MemoryCacheStore) Set(key string, value *cachedResponse) {
+func (s *MemoryCacheStore) Set(key string, value *CachedResponse) {
 	if value == nil {
 		return
 	}
@@ -148,13 +151,13 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 			_, _ = originalWriter.Write(recorder.body)
 		}
 
-		if cacheStore != nil && cacheKey != "" && recorder.status >= 200 && recorder.status < 300 {
-			cacheStore.Set(cacheKey, &cachedResponse{
-				status:  recorder.status,
-				header:  cloneHeader(recorder.header),
-				body:    append([]byte(nil), recorder.body...),
-				expires: time.Now().Add(op.cache.ttl),
-				etag:    etag,
+		if cacheStore != nil && cacheKey != "" && op.cache != nil && recorder.status >= 200 && recorder.status < 300 {
+			cacheStore.Set(cacheKey, &CachedResponse{
+				Status:  recorder.status,
+				Header:  cloneHeader(recorder.header),
+				Body:    append([]byte(nil), recorder.body...),
+				Expires: time.Now().Add(op.cache.ttl),
+				ETag:    etag,
 			})
 		}
 	}
@@ -171,12 +174,12 @@ func cacheLookup(op *operation, ctx *Context) (string, ResponseCacheStore) {
 	return keyFn(ctx), op.cache.store
 }
 
-func writeCachedResponse(c *gin.Context, cached *cachedResponse, cacheControl string) {
+func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl string) {
 	if cached == nil {
 		c.Status(http.StatusNoContent)
 		return
 	}
-	header := cloneHeader(cached.header)
+	header := cloneHeader(cached.Header)
 	if cacheControl != "" && header.Get("Cache-Control") == "" {
 		header.Set("Cache-Control", cacheControl)
 	}
@@ -186,9 +189,9 @@ func writeCachedResponse(c *gin.Context, cached *cachedResponse, cacheControl st
 		return
 	}
 	copyHeader(c.Writer.Header(), header)
-	c.Status(cached.status)
-	if len(cached.body) > 0 && c.Request.Method != http.MethodHead {
-		_, _ = c.Writer.Write(cached.body)
+	c.Status(cached.Status)
+	if len(cached.Body) > 0 && c.Request.Method != http.MethodHead {
+		_, _ = c.Writer.Write(cached.Body)
 	}
 }
 
@@ -240,16 +243,16 @@ func isCacheableMethod(method string) bool {
 	return method == http.MethodGet || method == http.MethodHead
 }
 
-func cloneCachedResponse(in *cachedResponse) *cachedResponse {
+func cloneCachedResponse(in *CachedResponse) *CachedResponse {
 	if in == nil {
 		return nil
 	}
-	return &cachedResponse{
-		status:  in.status,
-		header:  cloneHeader(in.header),
-		body:    append([]byte(nil), in.body...),
-		expires: in.expires,
-		etag:    in.etag,
+	return &CachedResponse{
+		Status:  in.Status,
+		Header:  cloneHeader(in.Header),
+		Body:    append([]byte(nil), in.Body...),
+		Expires: in.Expires,
+		ETag:    in.ETag,
 	}
 }
 

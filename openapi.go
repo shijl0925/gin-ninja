@@ -226,23 +226,13 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
 		}
 	} else if op.paginatedItemType != nil {
-		spec.Responses[successCode] = responseSpec{
-			Description: http.StatusText(op.successStatus),
-			Content: map[string]mediaTypeSpec{
-				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
-			},
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
 		}
 	} else if op.outputType != nil {
 		contentType, schema := s.responseSchemaForType(op.outputType)
 		successResponse.Content = map[string]mediaTypeSpec{
 			contentType: {Schema: schema},
-		}
-	} else {
-		successResponse.Description = http.StatusText(op.successStatus)
-	}
-	if op.paginatedItemType != nil {
-		successResponse.Content = map[string]mediaTypeSpec{
-			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
 		}
 	}
 	successResponse.Headers = s.responseHeadersForOperation(op)

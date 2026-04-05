@@ -44,7 +44,7 @@ func newDemoAPI() *ninja.NinjaAPI {
 		ninja.Response(http.StatusNotFound, "Example detailed response", &RequestMetaOutput{}),
 	)
 	ninja.Get(router, "/features", ListFeatureDemos, ninja.Paginated[FeatureItemOut]())
-	ninja.Get(router, "/cache", CachedFeatureDemo, ninja.Cache(time.Minute), ninja.CacheControl("public, max-age=60"))
+	ninja.Get(router, "/cache", CachedFeatureDemo, ninja.Cache(time.Minute))
 	ninja.Get(router, "/limited", LimitedOperation, ninja.RateLimit(1, 1))
 	ninja.Get(router, "/slow", SlowOperation, ninja.Timeout(150*time.Millisecond))
 	ninja.Get(router, "/hidden", HiddenOperation, ninja.ExcludeFromDocs())
