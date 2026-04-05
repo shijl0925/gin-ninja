@@ -39,12 +39,12 @@ type SSEStream struct {
 // Send emits one SSE frame and flushes it to the client.
 func (s *SSEStream) Send(event SSEEvent) error {
 	if s == nil || s.c == nil {
-		return ErrInternal
+		return InternalError()
 	}
 	writer := s.c.Writer
 	flusher, ok := writer.(http.Flusher)
 	if !ok {
-		return ErrInternal
+		return InternalError()
 	}
 	if event.ID != "" {
 		if _, err := fmt.Fprintf(writer, "id: %s\n", event.ID); err != nil {

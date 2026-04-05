@@ -103,7 +103,7 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 	u, err := repo.SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ninja.ErrNotFound
+			return nil, ninja.NotFoundError()
 		}
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 	_, err := repo.SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ninja.ErrNotFound
+			return nil, ninja.NotFoundError()
 		}
 		return nil, err
 	}

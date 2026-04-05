@@ -276,7 +276,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	deleted, err := GetUser(nil, &GetUserInput{UserID: second.ID})
-	if !errors.Is(err, ninja.ErrNotFound) || deleted != nil {
+	if !ninja.IsNotFound(err) || deleted != nil {
 		t.Fatalf("expected deleted user to be missing, got result=%+v err=%v", deleted, err)
 	}
 

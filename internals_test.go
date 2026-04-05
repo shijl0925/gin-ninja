@@ -568,7 +568,7 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 	if err := NewErrorWithCode(http.StatusConflict, "CONFLICT", "duplicate"); err.Code != "CONFLICT" {
 		t.Fatalf("unexpected NewErrorWithCode result: %+v", err)
 	}
-	if ErrForbidden.Error() == "" || (&ValidationError{Errors: []FieldError{{Field: "x", Message: "y"}}}).Error() == "" {
+	if ForbiddenError().Error() == "" || (&ValidationError{Errors: []FieldError{{Field: "x", Message: "y"}}}).Error() == "" {
 		t.Fatal("expected error strings to be non-empty")
 	}
 }

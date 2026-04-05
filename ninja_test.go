@@ -403,7 +403,7 @@ func TestErrorResponse_NotFound(t *testing.T) {
 	r := ninja.NewRouter("/items")
 
 	ninja.Get(r, "/:id", func(ctx *ninja.Context, in *getInput) (*getOutput, error) {
-		return nil, ninja.ErrNotFound
+		return nil, ninja.NotFoundError()
 	})
 	api.AddRouter(r)
 

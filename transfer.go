@@ -26,7 +26,7 @@ func newUploadedFile(header *multipart.FileHeader) *UploadedFile {
 // Open delegates to the underlying multipart.FileHeader.
 func (f *UploadedFile) Open() (multipart.File, error) {
 	if f == nil || f.FileHeader == nil {
-		return nil, ErrBadRequest
+		return nil, BadRequestError()
 	}
 	return f.FileHeader.Open()
 }
