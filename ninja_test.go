@@ -3,6 +3,7 @@ package ninja_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -763,6 +764,37 @@ type cacheOutput struct {
 	Count int `json:"count"`
 }
 
+type externalCacheStore struct {
+	items map[string]*ninja.CachedResponse
+}
+
+func (s *externalCacheStore) Get(key string) (*ninja.CachedResponse, bool) {
+	if s.items == nil {
+		return nil, false
+	}
+	value, ok := s.items[key]
+	if !ok {
+		return nil, false
+	}
+	cloned := *value
+	cloned.Header = value.Header.Clone()
+	cloned.Body = append([]byte(nil), value.Body...)
+	return &cloned, true
+}
+
+func (s *externalCacheStore) Set(key string, value *ninja.CachedResponse) {
+	if value == nil {
+		return
+	}
+	if s.items == nil {
+		s.items = map[string]*ninja.CachedResponse{}
+	}
+	cloned := *value
+	cloned.Header = value.Header.Clone()
+	cloned.Body = append([]byte(nil), value.Body...)
+	s.items[key] = &cloned
+}
+
 func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/cache")
@@ -813,6 +845,34 @@ func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	}
 	if _, ok := headers["Cache-Control"]; !ok {
 		t.Fatalf("expected Cache-Control header to be documented, got %v", headers)
+	}
+}
+
+func TestGet_CacheWithExternalStore(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-store")
+	calls := 0
+	store := &externalCacheStore{}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	first := doRequest(api, http.MethodGet, "/cache-store/", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", first.Code, first.Body.String())
+	}
+	second := doRequest(api, http.MethodGet, "/cache-store/", nil)
+	if second.Code != http.StatusOK {
+		t.Fatalf("expected cached 200, got %d: %s", second.Code, second.Body.String())
+	}
+	if calls != 1 {
+		t.Fatalf("expected external cache store to serve second response, calls=%d", calls)
+	}
+	if len(store.items) != 1 {
+		t.Fatalf("expected one cached item in external store, got %d", len(store.items))
 	}
 }
 
@@ -958,5 +1018,48 @@ func TestSSEAndWebSocketHelpers(t *testing.T) {
 	wsResponses := paths["/stream/ws"].(map[string]interface{})["get"].(map[string]interface{})["responses"].(map[string]interface{})
 	if _, ok := wsResponses["101"]; !ok {
 		t.Fatalf("expected websocket upgrade response documentation, got %v", wsResponses)
+	}
+}
+
+func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/stream")
+	expectedErr := errors.New("handler boom")
+	var loggedErr string
+
+	api.UseGin(func(c *gin.Context) {
+		c.Next()
+		if errs := c.Errors.ByType(gin.ErrorTypePrivate); len(errs) > 0 {
+			loggedErr = errs.String()
+		}
+	})
+
+	ninja.WebSocket(r, "/ws", func(ctx *ninja.Context, in *streamInput, conn *ninja.WebSocketConn) error {
+		if _, err := conn.ReceiveText(); err != nil {
+			return err
+		}
+		return expectedErr
+	})
+	api.AddRouter(r)
+
+	server := httptest.NewServer(api.Handler())
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/stream/ws?name=bot"
+	conn, err := websocket.Dial(wsURL, "", server.URL)
+	if err != nil {
+		t.Fatalf("dial websocket: %v", err)
+	}
+	defer conn.Close()
+
+	if err := websocket.Message.Send(conn, "ping"); err != nil {
+		t.Fatalf("send websocket message: %v", err)
+	}
+	var reply string
+	if err := websocket.Message.Receive(conn, &reply); err == nil {
+		t.Fatalf("expected websocket to close without sending an error payload, got %q", reply)
+	}
+	if !strings.Contains(loggedErr, expectedErr.Error()) {
+		t.Fatalf("expected websocket handler error to be recorded privately, got %q", loggedErr)
 	}
 }

@@ -181,7 +181,9 @@ func newWebSocketOperation[TIn any](path string, handler func(*Context, *TIn, *W
 		websocket.Handler(func(conn *websocket.Conn) {
 			defer conn.Close()
 			if err := handler(ctx, input, &WebSocketConn{Conn: conn}); err != nil {
-				_ = websocket.Message.Send(conn, "error: "+err.Error())
+				// Record the failure for Gin middleware/logging without echoing raw
+				// internal error details back to the WebSocket client.
+				_ = ctx.Error(err)
 			}
 		}).ServeHTTP(c.Writer, c.Request)
 	}
