@@ -180,21 +180,11 @@ func timeLocation(raw string) *time.Location {
 }
 
 func hasMySQLConfig(cfg settings.MySQLConfig) bool {
-	return strings.TrimSpace(cfg.Host) != "" ||
-		strings.TrimSpace(cfg.User) != "" ||
-		strings.TrimSpace(cfg.Password) != "" ||
-		strings.TrimSpace(cfg.Name) != "" ||
-		len(cfg.Params) > 0 ||
-		(cfg.Port != 0 && cfg.Port != 3306)
+	return cfg.IsConfigured()
 }
 
 func hasPostgresConfig(cfg settings.PostgresConfig) bool {
-	return strings.TrimSpace(cfg.Host) != "" ||
-		strings.TrimSpace(cfg.User) != "" ||
-		strings.TrimSpace(cfg.Password) != "" ||
-		strings.TrimSpace(cfg.Name) != "" ||
-		len(cfg.Params) > 0 ||
-		(cfg.Port != 0 && cfg.Port != 5432)
+	return cfg.IsConfigured()
 }
 
 func useRawMySQLDSN(cfg settings.DatabaseConfig) bool {

@@ -298,11 +298,11 @@ func isDefaultDatabaseDSN(dsn string) bool {
 }
 
 func hasMeaningfulMySQLConfig(cfg MySQLConfig) bool {
-	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 3306)
+	return cfg.IsConfigured()
 }
 
 func hasMeaningfulPostgresConfig(cfg PostgresConfig) bool {
-	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 5432)
+	return cfg.IsConfigured()
 }
 
 func hasMeaningfulStructuredDBConfig(host, user, password, name string, params map[string]string, port, defaultPort int) bool {
@@ -312,4 +312,12 @@ func hasMeaningfulStructuredDBConfig(host, user, password, name string, params m
 		strings.TrimSpace(name) != "" ||
 		len(params) > 0 ||
 		(port != 0 && port != defaultPort)
+}
+
+func (cfg MySQLConfig) IsConfigured() bool {
+	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 3306)
+}
+
+func (cfg PostgresConfig) IsConfigured() bool {
+	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 5432)
 }
