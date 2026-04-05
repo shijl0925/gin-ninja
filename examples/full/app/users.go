@@ -73,7 +73,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 
 // ListUsers returns a paginated list of users.
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-	repo := resolveUserRepo(in.Repo)
+	repo := NewUserRepo()
 	query, _ := gormx.NewQuery[User]()
 
 	filterOpts, err := filter.BuildOptions(in)
@@ -99,7 +99,8 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 // GetUser retrieves a single user by ID.
 func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
-	u, err := resolveUserRepo(in.Repo).SelectOneById(int(in.UserID))
+	repo := NewUserRepo()
+	u, err := repo.SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.ErrNotFound
@@ -112,12 +113,13 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 
 // CreateUser creates a new user.
 func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
-	return createUser(resolveUserRepo(in.Repo), in.Name, in.Email, in.Password, in.Age)
+	repo := NewUserRepo()
+	return createUser(repo, in.Name, in.Email, in.Password, in.Age)
 }
 
 // UpdateUser updates an existing user's fields.
 func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
-	repo := resolveUserRepo(in.Repo)
+	repo := NewUserRepo()
 	_, err := repo.SelectOneById(int(in.UserID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -149,7 +151,8 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 
 // DeleteUser removes a user by ID.
 func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
-	if err := resolveUserRepo(in.Repo).DeleteById(int(in.UserID)); err != nil {
+	repo := NewUserRepo()
+	if err := repo.DeleteById(int(in.UserID)); err != nil {
 		return err
 	}
 	return nil
@@ -187,11 +190,4 @@ func createUser(repo IUserRepo, name, email, password string, age int) (*UserOut
 	}
 	out := toUserOut(*u)
 	return &out, nil
-}
-
-func resolveUserRepo(repo IUserRepo) IUserRepo {
-	if repo != nil {
-		return repo
-	}
-	return NewUserRepo()
 }

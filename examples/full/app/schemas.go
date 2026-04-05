@@ -2,9 +2,7 @@ package app
 
 import (
 	ninja "github.com/shijl0925/gin-ninja"
-	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/pagination"
-	"github.com/shijl0925/gin-ninja/settings"
 )
 
 // ---------------------------------------------------------------------------
@@ -49,20 +47,17 @@ type UserOut struct {
 // ListUsersInput holds query parameters for listing users.
 type ListUsersInput struct {
 	pagination.PageInput
-	UserDeps
 	Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
 	IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 
 // GetUserInput holds the path parameter for retrieving a single user.
 type GetUserInput struct {
-	UserDeps
 	UserID uint `path:"id" binding:"required"`
 }
 
 // CreateUserInput is the request body for creating a user.
 type CreateUserInput struct {
-	UserDeps
 	Name     string `json:"name"     binding:"required"        description:"Full name"`
 	Email    string `json:"email"    binding:"required,email"  description:"Email address"`
 	Password string `json:"password" binding:"required,min=8"  description:"Password (min 8 chars)"`
@@ -71,7 +66,6 @@ type CreateUserInput struct {
 
 // UpdateUserInput combines a path param with a JSON body.
 type UpdateUserInput struct {
-	UserDeps
 	UserID uint `path:"id" binding:"required"`
 
 	Name  string `json:"name"  binding:"omitempty"`
@@ -81,15 +75,7 @@ type UpdateUserInput struct {
 
 // DeleteUserInput holds the path parameter for deleting a user.
 type DeleteUserInput struct {
-	UserDeps
 	UserID uint `path:"id" binding:"required"`
-}
-
-// UserDeps demonstrates handler dependency injection for protected user routes.
-type UserDeps struct {
-	Repo        IUserRepo          `inject:""`
-	CurrentUser *middleware.Claims `inject:""`
-	Config      *settings.Config   `inject:"config"`
 }
 
 // toUserOut converts a domain User to the public UserOut representation.

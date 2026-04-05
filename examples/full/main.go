@@ -91,8 +91,6 @@ func main() {
 		},
 		DisableGinDefault: true,
 	})
-	api.MustProvide(app.NewUserRepo)
-	api.MustProvideNamed("config", &cfg)
 	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 		logger.Sync()
 		sqlDB, err := db.DB()

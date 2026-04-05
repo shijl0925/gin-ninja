@@ -339,9 +339,6 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 			}
 			continue
 		}
-		if isInjectedField(f) {
-			continue
-		}
 
 		fieldSchema := annotateSchema(s.registry.schemaForType(f.Type), f)
 

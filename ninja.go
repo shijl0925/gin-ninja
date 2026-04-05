@@ -46,7 +46,6 @@ type NinjaAPI struct {
 	openAPI       *openAPISpec
 	versionSpecs map[string]*openAPISpec
 	routers       []*Router
-	providers     *providerRegistry
 	startupHooks  []LifecycleHook
 	shutdownHooks []LifecycleHook
 	lifecycle     lifecycleState
@@ -81,12 +80,7 @@ func New(config Config) *NinjaAPI {
 		config:    config,
 		openAPI:   newOpenAPISpec(config),
 		versionSpecs: map[string]*openAPISpec{},
-		providers: newProviderRegistry(),
 	}
-	api.engine.Use(func(c *gin.Context) {
-		c.Set(apiContextKey, api)
-		c.Next()
-	})
 
 	api.setupInternalRoutes()
 	return api
