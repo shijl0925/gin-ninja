@@ -75,12 +75,13 @@ func main() {
 			"v1": {
 				Prefix:       "/v1",
 				Description:  "Legacy example API demonstrating deprecation headers.",
-				Deprecated:   true,
+				Deprecated:   false,
 				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
 				MigrationURL: "https://example.com/docs/gin-ninja/v2-migration",
 			},
 			"v2": {
 				Prefix:      "/v2",
+				Deprecated:  true,
 				Description: "Current example API version.",
 			},
 		},
