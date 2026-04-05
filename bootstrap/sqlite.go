@@ -2,8 +2,9 @@ package bootstrap
 
 import (
 	"fmt"
+	"net/url"
 
-	"gorm.io/driver/mysql"
+	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -20,7 +21,11 @@ func mysqlDialector(dsn string) (gorm.Dialector, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("bootstrap: mysql DSN must not be empty")
 	}
-	return mysql.Open(dsn), nil
+	decodedDSN, err := url.QueryUnescape(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("bootstrap: decode mysql DSN: %w", err)
+	}
+	return gormmysql.Open(decodedDSN), nil
 }
 
 func postgresDialector(dsn string) (gorm.Dialector, error) {

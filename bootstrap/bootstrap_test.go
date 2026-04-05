@@ -5,6 +5,7 @@ import (
 
 	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
+	gormmysql "gorm.io/driver/mysql"
 )
 
 func TestBuildDialector(t *testing.T) {
@@ -45,6 +46,23 @@ func TestSQLiteDialectorRequiresDSN(t *testing.T) {
 func TestMySQLDialectorRequiresDSN(t *testing.T) {
 	if _, err := mysqlDialector(""); err == nil {
 		t.Fatal("expected mysql dsn validation error")
+	}
+}
+
+func TestMySQLDialectorDecodesEncodedDSN(t *testing.T) {
+	encoded := "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+
+	dialector, err := mysqlDialector(encoded)
+	if err != nil {
+		t.Fatalf("mysqlDialector: %v", err)
+	}
+
+	mysqlDialector, ok := dialector.(*gormmysql.Dialector)
+	if !ok {
+		t.Fatalf("expected *mysql.Dialector, got %T", dialector)
+	}
+	if mysqlDialector.DSN != "root:p@ss:word@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local" {
+		t.Fatalf("expected decoded DSN, got %q", mysqlDialector.DSN)
 	}
 }
 

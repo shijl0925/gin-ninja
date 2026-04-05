@@ -15,7 +15,8 @@ database:
   dsn: "examples/full/full_example.db"
   # 切换到 MySQL:
   # driver: "mysql"
-  # dsn: "root:password@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+  # dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+  # 如果密码包含 @、:、/、?、# 等特殊字符，请先做 URL 编码
   #
   # 切换到 PostgreSQL:
   # driver: "postgres"

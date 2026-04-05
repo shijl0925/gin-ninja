@@ -169,12 +169,14 @@ MySQL / PostgreSQL can use the same `database` block:
 database:
   # MySQL
   driver: "mysql"
-  dsn: "root:password@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+  dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
 
   # PostgreSQL
   # driver: "postgres"
   # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 ```
+
+If the MySQL password contains reserved characters such as `@`, `:`, `/`, `?`, or `#`, URL-encode the password segment first.
 
 Environment variables override file settings using double-underscore separators:
 ```bash
