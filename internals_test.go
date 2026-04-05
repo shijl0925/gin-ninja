@@ -56,6 +56,11 @@ type multipartBindInput struct {
 	Files []*UploadedFile `file:"files"`
 }
 
+type bindEdgeQueryInput struct {
+	Search string   `form:"search"`
+	Tags   []string `form:"tag"`
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }
@@ -234,6 +239,21 @@ func TestBindInput_MultipartSuccess(t *testing.T) {
 	}
 	if in.Title != "demo" || in.File == nil || in.File.Filename != "single.txt" || len(in.Files) != 2 {
 		t.Fatalf("unexpected multipart input: %+v", in)
+	}
+}
+
+func TestBindInput_QueryBoundaryValues(t *testing.T) {
+	c, _ := newTestContext(http.MethodGet, "/search?search=a%2Bb+%E4%B8%AD%E6%96%87&tag=first&tag=second", "")
+
+	var in bindEdgeQueryInput
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Search != "a+b 中文" {
+		t.Fatalf("expected decoded query string, got %q", in.Search)
+	}
+	if len(in.Tags) != 2 || in.Tags[0] != "first" || in.Tags[1] != "second" {
+		t.Fatalf("expected repeated query values, got %+v", in.Tags)
 	}
 }
 

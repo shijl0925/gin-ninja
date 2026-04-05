@@ -3,21 +3,55 @@ package pagination
 import "testing"
 
 func TestResolveSort(t *testing.T) {
-	input := PageInput{Sort: "name,-created_at"}
-	schema := NewSortSchema("name").Allow("created_at")
+	schema := NewSortSchema("name").Allow("created_at").Allow("score")
+	cases := []struct {
+		name     string
+		sort     string
+		want     []SortField
+		wantErr  bool
+	}{
+		{
+			name: "mixed directions",
+			sort: "name,-created_at",
+			want: []SortField{{Name: "name"}, {Name: "created_at", Desc: true}},
+		},
+		{
+			name: "whitespace empty segments and explicit plus",
+			sort: " , +name , -score ,, ",
+			want: []SortField{{Name: "name"}, {Name: "score", Desc: true}},
+		},
+		{
+			name: "empty after prefix is skipped",
+			sort: "+,-, ,",
+		},
+		{
+			name:    "unknown field",
+			sort:    "password",
+			wantErr: true,
+		},
+	}
 
-	fields, err := input.ResolveSort(schema)
-	if err != nil {
-		t.Fatalf("ResolveSort: %v", err)
-	}
-	if len(fields) != 2 {
-		t.Fatalf("expected 2 fields, got %d", len(fields))
-	}
-	if fields[0].Name != "name" || fields[0].Desc {
-		t.Fatalf("unexpected first field: %+v", fields[0])
-	}
-	if fields[1].Name != "created_at" || !fields[1].Desc {
-		t.Fatalf("unexpected second field: %+v", fields[1])
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fields, err := (PageInput{Sort: tc.sort}).ResolveSort(schema)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected sort validation error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveSort: %v", err)
+			}
+			if len(fields) != len(tc.want) {
+				t.Fatalf("expected %d fields, got %d (%+v)", len(tc.want), len(fields), fields)
+			}
+			for i := range fields {
+				if fields[i] != tc.want[i] {
+					t.Fatalf("unexpected field[%d]: %+v want %+v", i, fields[i], tc.want[i])
+				}
+			}
+		})
 	}
 }
 

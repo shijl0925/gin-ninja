@@ -171,12 +171,31 @@ database:
   driver: "mysql"
   dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
 
+  # Or use structured fields so special characters in passwords are escaped safely:
+  # mysql:
+  #   host: "127.0.0.1"
+  #   port: 3306
+  #   user: "root"
+  #   password: "p@ss:word+plus"
+  #   name: "gin_ninja"
+  #   charset: "utf8mb4"
+  #   parse_time: true
+  #   loc: "Local"
+
   # PostgreSQL
   # driver: "postgres"
   # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+  # postgres:
+  #   host: "127.0.0.1"
+  #   port: 5432
+  #   user: "postgres"
+  #   password: "p@ss word"
+  #   name: "gin_ninja"
+  #   sslmode: "disable"
+  #   time_zone: "Asia/Shanghai"
 ```
 
-If the MySQL password contains reserved characters such as `@`, `:`, `/`, `?`, or `#`, URL-encode the password segment first.
+If you still provide a raw MySQL DSN and the password contains reserved characters such as `@`, `:`, `/`, `?`, `#`, or `+`, URL-encode the password segment first. Structured `database.mysql` / `database.postgres` fields avoid that manual escaping step.
 
 Environment variables override file settings using double-underscore separators:
 ```bash
@@ -209,6 +228,16 @@ orm.Init(db)
 `bootstrap.MustInitDB` now supports `sqlite`, `mysql`, and `postgres` directly.
 
 `examples/full/config.yaml` already includes ready-to-copy MySQL and PostgreSQL DSN examples.
+
+### Boundary-case checklist for parser changes
+
+For any code that parses external strings (DSN, headers, query/form values, filter/sort DSL, version params), verify:
+
+- protocol strings are treated as structured input, not generic text
+- special characters are covered: `@ : / ? # % + = , ;` and spaces
+- empty, malformed, repeated, and mixed-case inputs are tested
+- documentation examples have matching tests
+- pure parsing helpers have fuzz/property coverage to guard against panics and silent reinterpretation
 
 ---
 

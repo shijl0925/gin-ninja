@@ -15,9 +15,9 @@ func buildDialector(cfg *settings.DatabaseConfig) (gorm.Dialector, error) {
 	case "sqlite", "sqlite3":
 		return sqliteDialector(cfg.DSN)
 	case "mysql":
-		return mysqlDialector(cfg.DSN)
+		return mysqlDialector(*cfg)
 	case "postgres", "postgresql":
-		return postgresDialector(cfg.DSN)
+		return postgresDialector(*cfg)
 	default:
 		return nil, fmt.Errorf("bootstrap: unsupported database driver %q", cfg.Driver)
 	}

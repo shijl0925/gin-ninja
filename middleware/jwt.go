@@ -132,9 +132,9 @@ func extractBearerToken(c *gin.Context) string {
 	if auth == "" {
 		return ""
 	}
-	parts := strings.SplitN(auth, " ", 2)
+	parts := strings.Fields(auth)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
 		return ""
 	}
-	return strings.TrimSpace(parts[1])
+	return parts[1]
 }

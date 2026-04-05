@@ -108,12 +108,41 @@ type DatabaseConfig struct {
 	Driver string `mapstructure:"driver"`
 	// DSN is the data source name / connection string.
 	DSN string `mapstructure:"dsn"`
+	// MySQL optionally defines structured MySQL connection settings.
+	MySQL MySQLConfig `mapstructure:"mysql"`
+	// Postgres optionally defines structured PostgreSQL connection settings.
+	Postgres PostgresConfig `mapstructure:"postgres"`
 	// MaxIdleConns is the maximum number of idle connections in the pool.
 	MaxIdleConns int `mapstructure:"max_idle_conns"`
 	// MaxOpenConns is the maximum number of open connections in the pool.
 	MaxOpenConns int `mapstructure:"max_open_conns"`
 	// ConnMaxLifetimeMinutes is the maximum lifetime of a connection (minutes).
 	ConnMaxLifetimeMinutes int `mapstructure:"conn_max_lifetime_minutes"`
+}
+
+// MySQLConfig holds structured MySQL connection settings.
+type MySQLConfig struct {
+	Host      string            `mapstructure:"host"`
+	Port      int               `mapstructure:"port"`
+	User      string            `mapstructure:"user"`
+	Password  string            `mapstructure:"password"`
+	Name      string            `mapstructure:"name"`
+	Charset   string            `mapstructure:"charset"`
+	ParseTime bool              `mapstructure:"parse_time"`
+	Loc       string            `mapstructure:"loc"`
+	Params    map[string]string `mapstructure:"params"`
+}
+
+// PostgresConfig holds structured PostgreSQL connection settings.
+type PostgresConfig struct {
+	Host     string            `mapstructure:"host"`
+	Port     int               `mapstructure:"port"`
+	User     string            `mapstructure:"user"`
+	Password string            `mapstructure:"password"`
+	Name     string            `mapstructure:"name"`
+	SSLMode  string            `mapstructure:"sslmode"`
+	TimeZone string            `mapstructure:"time_zone"`
+	Params   map[string]string `mapstructure:"params"`
 }
 
 // JWTConfig holds JSON Web Token settings.
@@ -216,6 +245,12 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "app.db")
+	v.SetDefault("database.mysql.port", 3306)
+	v.SetDefault("database.mysql.charset", "utf8mb4")
+	v.SetDefault("database.mysql.parse_time", true)
+	v.SetDefault("database.mysql.loc", "Local")
+	v.SetDefault("database.postgres.port", 5432)
+	v.SetDefault("database.postgres.sslmode", "disable")
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.max_open_conns", 100)
 	v.SetDefault("database.conn_max_lifetime_minutes", 60)

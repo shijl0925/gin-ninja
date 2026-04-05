@@ -1,10 +1,13 @@
 package bootstrap
 
 import (
+	"net/url"
+	"strings"
 	"testing"
 
 	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
+	driverpg "gorm.io/driver/postgres"
 	gormmysql "gorm.io/driver/mysql"
 )
 
@@ -17,7 +20,9 @@ func TestBuildDialector(t *testing.T) {
 		{name: "sqlite", cfg: settings.DatabaseConfig{Driver: "sqlite", DSN: "file::memory:?cache=shared"}},
 		{name: "sqlite3", cfg: settings.DatabaseConfig{Driver: "sqlite3", DSN: "file::memory:?cache=shared"}},
 		{name: "mysql", cfg: settings.DatabaseConfig{Driver: "mysql", DSN: "user:pass@tcp(localhost:3306)/app?charset=utf8mb4&parseTime=True&loc=Local"}},
+		{name: "mysql structured", cfg: settings.DatabaseConfig{Driver: "mysql", MySQL: settings.MySQLConfig{Host: "localhost", User: "user", Password: "p@ss:word+plus", Name: "app", Charset: "utf8mb4", ParseTime: true, Loc: "Local"}}},
 		{name: "postgres", cfg: settings.DatabaseConfig{Driver: "postgres", DSN: "host=localhost user=postgres password=postgres dbname=app port=5432 sslmode=disable TimeZone=Asia/Shanghai"}},
+		{name: "postgres structured", cfg: settings.DatabaseConfig{Driver: "postgres", Postgres: settings.PostgresConfig{Host: "localhost", User: "postgres", Password: "p@ss word", Name: "app", SSLMode: "disable", TimeZone: "Asia/Shanghai"}}},
 		{name: "unsupported", cfg: settings.DatabaseConfig{Driver: "oracle", DSN: "dsn"}, wantErr: true},
 	}
 
@@ -44,31 +49,106 @@ func TestSQLiteDialectorRequiresDSN(t *testing.T) {
 }
 
 func TestMySQLDialectorRequiresDSN(t *testing.T) {
-	if _, err := mysqlDialector(""); err == nil {
+	if _, err := mysqlDialector(settings.DatabaseConfig{}); err == nil {
 		t.Fatal("expected mysql dsn validation error")
 	}
 }
 
-func TestMySQLDialectorDecodesEncodedDSN(t *testing.T) {
-	encoded := "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
-
-	dialector, err := mysqlDialector(encoded)
-	if err != nil {
-		t.Fatalf("mysqlDialector: %v", err)
+func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     settings.DatabaseConfig
+		wantDSN string
+		wantErr string
+	}{
+		{
+			name:    "encoded reserved characters",
+			cfg:     settings.DatabaseConfig{DSN: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"},
+			wantDSN: "root:p@ss:word@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local",
+		},
+		{
+			name:    "plus sign stays plus",
+			cfg:     settings.DatabaseConfig{DSN: "root:p%2Bss@tcp(127.0.0.1:3306)/gin_ninja?loc=UTC+8"},
+			wantDSN: "root:p+ss@tcp(127.0.0.1:3306)/gin_ninja?loc=UTC+8",
+		},
+		{
+			name:    "structured config builds escaped password",
+			cfg:     settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1", User: "root", Password: "p@ss:word+plus", Name: "gin_ninja", Charset: "utf8mb4", ParseTime: true, Loc: "Local"}},
+			wantDSN: "root:p@ss:word+plus@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&loc=Local&parseTime=true",
+		},
+		{
+			name:    "bad escape",
+			cfg:     settings.DatabaseConfig{DSN: "root:bad%zz@tcp(localhost:3306)/app"},
+			wantErr: "decode mysql DSN",
+		},
 	}
 
-	mysqlDial, ok := dialector.(*gormmysql.Dialector)
-	if !ok {
-		t.Fatalf("expected *mysql.Dialector, got %T", dialector)
-	}
-	if mysqlDial.DSN != "root:p@ss:word@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local" {
-		t.Fatalf("expected decoded DSN, got %q", mysqlDial.DSN)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dialector, err := mysqlDialector(tc.cfg)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("mysqlDialector: %v", err)
+			}
+
+			mysqlDial, ok := dialector.(*gormmysql.Dialector)
+			if !ok {
+				t.Fatalf("expected *mysql.Dialector, got %T", dialector)
+			}
+			if mysqlDial.DSN != tc.wantDSN {
+				t.Fatalf("expected DSN %q, got %q", tc.wantDSN, mysqlDial.DSN)
+			}
+		})
 	}
 }
 
 func TestPostgresDialectorRequiresDSN(t *testing.T) {
-	if _, err := postgresDialector(""); err == nil {
+	if _, err := postgresDialector(settings.DatabaseConfig{}); err == nil {
 		t.Fatal("expected postgres dsn validation error")
+	}
+}
+
+func TestPostgresDialectorBuildsStructuredDSN(t *testing.T) {
+	dialector, err := postgresDialector(settings.DatabaseConfig{
+		Postgres: settings.PostgresConfig{
+			Host:     "localhost",
+			User:     "postgres",
+			Password: "p@ss word",
+			Name:     "gin_ninja",
+			SSLMode:  "disable",
+			TimeZone: "Asia/Shanghai",
+		},
+	})
+	if err != nil {
+		t.Fatalf("postgresDialector: %v", err)
+	}
+
+	pgDial, ok := dialector.(*driverpg.Dialector)
+	if !ok {
+		t.Fatalf("expected *postgres.Dialector, got %T", dialector)
+	}
+	parsed, err := url.Parse(pgDial.DSN)
+	if err != nil {
+		t.Fatalf("url.Parse: %v", err)
+	}
+	if parsed.Scheme != "postgres" || parsed.Host != "localhost:5432" || parsed.Path != "/gin_ninja" {
+		t.Fatalf("unexpected postgres dsn: %q", pgDial.DSN)
+	}
+	if user := parsed.User.Username(); user != "postgres" {
+		t.Fatalf("expected postgres user, got %q", user)
+	}
+	password, ok := parsed.User.Password()
+	if !ok || password != "p@ss word" {
+		t.Fatalf("expected postgres password to round-trip, got %q ok=%v", password, ok)
+	}
+	query := parsed.Query()
+	if query.Get("sslmode") != "disable" || query.Get("TimeZone") != "Asia/Shanghai" {
+		t.Fatalf("unexpected postgres query params: %v", query)
 	}
 }
 
