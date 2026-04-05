@@ -96,11 +96,34 @@ database:
 	if cfg.Database.Driver != "mysql" {
 		t.Fatalf("expected mysql driver, got %q", cfg.Database.Driver)
 	}
+	if cfg.Database.DSN != "" {
+		t.Fatalf("expected default sqlite dsn to be cleared for mysql structured config, got %q", cfg.Database.DSN)
+	}
 	if cfg.Database.MySQL.Password != "p@ss:word+plus" || cfg.Database.MySQL.Host != "127.0.0.1" {
 		t.Fatalf("unexpected mysql structured config: %+v", cfg.Database.MySQL)
 	}
 	if !cfg.Database.MySQL.ParseTime || cfg.Database.MySQL.Charset != "utf8mb4" {
 		t.Fatalf("unexpected mysql defaults from file: %+v", cfg.Database.MySQL)
+	}
+}
+
+func TestLoad_DatabaseStructuredPostgresClearsDefaultDSN(t *testing.T) {
+	yaml := `
+database:
+  driver: "postgres"
+  postgres:
+    host: "127.0.0.1"
+    user: "postgres"
+    password: "postgres"
+    name: "gin_ninja"
+`
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Database.DSN != "" {
+		t.Fatalf("expected default sqlite dsn to be cleared for postgres structured config, got %q", cfg.Database.DSN)
 	}
 }
 

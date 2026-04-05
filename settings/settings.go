@@ -216,6 +216,7 @@ func Load(cfgFile string) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
+	normalizeDatabaseConfig(&cfg.Database)
 
 	Global = cfg
 	return &cfg, nil
@@ -271,4 +272,45 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")
 	v.SetDefault("log.output", "stdout")
+}
+
+func normalizeDatabaseConfig(cfg *DatabaseConfig) {
+	if cfg == nil {
+		return
+	}
+	if !isDefaultDatabaseDSN(cfg.DSN) {
+		return
+	}
+	switch strings.TrimSpace(cfg.Driver) {
+	case "mysql":
+		if hasMeaningfulMySQLConfig(cfg.MySQL) {
+			cfg.DSN = ""
+		}
+	case "postgres", "postgresql":
+		if hasMeaningfulPostgresConfig(cfg.Postgres) {
+			cfg.DSN = ""
+		}
+	}
+}
+
+func isDefaultDatabaseDSN(dsn string) bool {
+	return strings.TrimSpace(dsn) == "app.db"
+}
+
+func hasMeaningfulMySQLConfig(cfg MySQLConfig) bool {
+	return strings.TrimSpace(cfg.Host) != "" ||
+		strings.TrimSpace(cfg.User) != "" ||
+		strings.TrimSpace(cfg.Password) != "" ||
+		strings.TrimSpace(cfg.Name) != "" ||
+		len(cfg.Params) > 0 ||
+		(cfg.Port != 0 && cfg.Port != 3306)
+}
+
+func hasMeaningfulPostgresConfig(cfg PostgresConfig) bool {
+	return strings.TrimSpace(cfg.Host) != "" ||
+		strings.TrimSpace(cfg.User) != "" ||
+		strings.TrimSpace(cfg.Password) != "" ||
+		strings.TrimSpace(cfg.Name) != "" ||
+		len(cfg.Params) > 0 ||
+		(cfg.Port != 0 && cfg.Port != 5432)
 }

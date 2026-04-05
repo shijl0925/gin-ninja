@@ -24,7 +24,7 @@ func sqliteDialector(dsn string) (gorm.Dialector, error) {
 }
 
 func mysqlDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
-	if strings.TrimSpace(cfg.DSN) != "" {
+	if useRawMySQLDSN(cfg) {
 		dsn, err := mysqlDSN(cfg)
 		if err != nil {
 			return nil, err
@@ -51,7 +51,7 @@ func postgresDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
 }
 
 func mysqlDSN(cfg settings.DatabaseConfig) (string, error) {
-	if strings.TrimSpace(cfg.DSN) != "" {
+	if useRawMySQLDSN(cfg) {
 		return cfg.DSN, nil
 	}
 	dsnCfg, err := mysqlDriverConfig(cfg)
@@ -96,7 +96,7 @@ func mysqlDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error)
 }
 
 func postgresDSN(cfg settings.DatabaseConfig) (string, error) {
-	if strings.TrimSpace(cfg.DSN) != "" {
+	if useRawPostgresDSN(cfg) {
 		return cfg.DSN, nil
 	}
 	if !hasPostgresConfig(cfg.Postgres) {
@@ -180,9 +180,31 @@ func timeLocation(raw string) *time.Location {
 }
 
 func hasMySQLConfig(cfg settings.MySQLConfig) bool {
-	return cfg.Host != "" || cfg.Port != 0 || cfg.User != "" || cfg.Password != "" || cfg.Name != "" || len(cfg.Params) > 0
+	return strings.TrimSpace(cfg.Host) != "" ||
+		strings.TrimSpace(cfg.User) != "" ||
+		strings.TrimSpace(cfg.Password) != "" ||
+		strings.TrimSpace(cfg.Name) != "" ||
+		len(cfg.Params) > 0 ||
+		(cfg.Port != 0 && cfg.Port != 3306)
 }
 
 func hasPostgresConfig(cfg settings.PostgresConfig) bool {
-	return cfg.Host != "" || cfg.Port != 0 || cfg.User != "" || cfg.Password != "" || cfg.Name != "" || len(cfg.Params) > 0
+	return strings.TrimSpace(cfg.Host) != "" ||
+		strings.TrimSpace(cfg.User) != "" ||
+		strings.TrimSpace(cfg.Password) != "" ||
+		strings.TrimSpace(cfg.Name) != "" ||
+		len(cfg.Params) > 0 ||
+		(cfg.Port != 0 && cfg.Port != 5432)
+}
+
+func useRawMySQLDSN(cfg settings.DatabaseConfig) bool {
+	return strings.TrimSpace(cfg.DSN) != "" && !isDefaultSQLiteDSN(cfg.DSN, cfg.Driver, hasMySQLConfig(cfg.MySQL))
+}
+
+func useRawPostgresDSN(cfg settings.DatabaseConfig) bool {
+	return strings.TrimSpace(cfg.DSN) != "" && !isDefaultSQLiteDSN(cfg.DSN, cfg.Driver, hasPostgresConfig(cfg.Postgres))
+}
+
+func isDefaultSQLiteDSN(dsn, driver string, hasStructuredConfig bool) bool {
+	return hasStructuredConfig && strings.TrimSpace(driver) != "sqlite" && strings.TrimSpace(driver) != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
 }

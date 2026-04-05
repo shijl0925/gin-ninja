@@ -121,6 +121,20 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 			},
 		},
 		{
+			name: "structured config wins over default sqlite dsn",
+			cfg:  settings.DatabaseConfig{Driver: "mysql", DSN: "app.db", MySQL: settings.MySQLConfig{Host: "127.0.0.1", User: "root", Password: "root@123", Name: "gin_ninja", Charset: "utf8mb4", ParseTime: true, Loc: "Local"}},
+			verify: func(t *testing.T, dsn string) {
+				t.Helper()
+				parsed, err := drivermysql.ParseDSN(dsn)
+				if err != nil {
+					t.Fatalf("ParseDSN: %v", err)
+				}
+				if parsed.Net != "tcp" || parsed.DBName != "gin_ninja" || parsed.Passwd != "root@123" {
+					t.Fatalf("expected structured mysql config to override default sqlite dsn, got %q", dsn)
+				}
+			},
+		},
+		{
 			name:    "bad escape",
 			cfg:     settings.DatabaseConfig{DSN: "root:bad%zz@tcp(localhost:3306)/app"},
 			wantErr: "decode mysql DSN",
