@@ -1114,8 +1114,10 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 	r := ninja.NewRouter("/stream")
 	expectedErr := errors.New("handler boom")
 	var loggedErr string
+	done := make(chan struct{})
 
 	api.UseGin(func(c *gin.Context) {
+		defer close(done)
 		c.Next()
 		if errs := c.Errors.ByType(gin.ErrorTypePrivate); len(errs) > 0 {
 			loggedErr = errs.String()
@@ -1146,6 +1148,11 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 	var reply string
 	if err := websocket.Message.Receive(conn, &reply); err == nil {
 		t.Fatalf("expected websocket to close without sending an error payload, got %q", reply)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for websocket middleware completion")
 	}
 	if !strings.Contains(loggedErr, expectedErr.Error()) {
 		t.Fatalf("expected websocket handler error to be recorded privately, got %q", loggedErr)
