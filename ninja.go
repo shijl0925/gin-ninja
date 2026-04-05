@@ -62,19 +62,19 @@ type Config struct {
 //	api.AddRouter(usersRouter)
 //	api.Run(":8080")
 type NinjaAPI struct {
-	engine        *gin.Engine
-	config        Config
-	openAPI       *openAPISpec
-	openAPICache  openAPICacheState
-	versionSpecs  map[string]*openAPISpec
-	routers       []*Router
+	engine         *gin.Engine
+	config         Config
+	openAPI        *openAPISpec
+	openAPICache   openAPICacheState
+	versionSpecs   map[string]*openAPISpec
+	routers        []*Router
 	errorMappersMu sync.RWMutex
-	errorMappers  []ErrorMapper
-	hooksMu       sync.RWMutex
-	startupHooks  []LifecycleHook
-	shutdownHooks []LifecycleHook
-	lifecycle     lifecycleState
-	serverState   serverState
+	errorMappers   []ErrorMapper
+	hooksMu        sync.RWMutex
+	startupHooks   []LifecycleHook
+	shutdownHooks  []LifecycleHook
+	lifecycle      lifecycleState
+	serverState    serverState
 }
 
 // New creates a new NinjaAPI with the supplied configuration.
