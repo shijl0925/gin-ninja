@@ -1,0 +1,9 @@
+version = 1
+
+exclude_patterns = []
+
+[[analyzers]]
+name = "go"
+
+  [analyzers.meta]
+  import_root = "github.com/shijl0925/gin-ninja"
