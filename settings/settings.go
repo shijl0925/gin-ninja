@@ -108,12 +108,41 @@ type DatabaseConfig struct {
 	Driver string `mapstructure:"driver"`
 	// DSN is the data source name / connection string.
 	DSN string `mapstructure:"dsn"`
+	// MySQL optionally defines structured MySQL connection settings.
+	MySQL MySQLConfig `mapstructure:"mysql"`
+	// Postgres optionally defines structured PostgreSQL connection settings.
+	Postgres PostgresConfig `mapstructure:"postgres"`
 	// MaxIdleConns is the maximum number of idle connections in the pool.
 	MaxIdleConns int `mapstructure:"max_idle_conns"`
 	// MaxOpenConns is the maximum number of open connections in the pool.
 	MaxOpenConns int `mapstructure:"max_open_conns"`
 	// ConnMaxLifetimeMinutes is the maximum lifetime of a connection (minutes).
 	ConnMaxLifetimeMinutes int `mapstructure:"conn_max_lifetime_minutes"`
+}
+
+// MySQLConfig holds structured MySQL connection settings.
+type MySQLConfig struct {
+	Host      string            `mapstructure:"host"`
+	Port      int               `mapstructure:"port"`
+	User      string            `mapstructure:"user"`
+	Password  string            `mapstructure:"password"`
+	Name      string            `mapstructure:"name"`
+	Charset   string            `mapstructure:"charset"`
+	ParseTime bool              `mapstructure:"parse_time"`
+	Loc       string            `mapstructure:"loc"`
+	Params    map[string]string `mapstructure:"params"`
+}
+
+// PostgresConfig holds structured PostgreSQL connection settings.
+type PostgresConfig struct {
+	Host     string            `mapstructure:"host"`
+	Port     int               `mapstructure:"port"`
+	User     string            `mapstructure:"user"`
+	Password string            `mapstructure:"password"`
+	Name     string            `mapstructure:"name"`
+	SSLMode  string            `mapstructure:"sslmode"`
+	TimeZone string            `mapstructure:"time_zone"`
+	Params   map[string]string `mapstructure:"params"`
 }
 
 // JWTConfig holds JSON Web Token settings.
@@ -187,6 +216,7 @@ func Load(cfgFile string) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
+	normalizeDatabaseConfig(&cfg.Database)
 
 	Global = cfg
 	return &cfg, nil
@@ -216,6 +246,21 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("database.driver", "sqlite")
 	v.SetDefault("database.dsn", "app.db")
+	v.SetDefault("database.mysql.host", "")
+	v.SetDefault("database.mysql.port", 3306)
+	v.SetDefault("database.mysql.user", "")
+	v.SetDefault("database.mysql.password", "")
+	v.SetDefault("database.mysql.name", "")
+	v.SetDefault("database.mysql.charset", "utf8mb4")
+	v.SetDefault("database.mysql.parse_time", true)
+	v.SetDefault("database.mysql.loc", "Local")
+	v.SetDefault("database.postgres.host", "")
+	v.SetDefault("database.postgres.port", 5432)
+	v.SetDefault("database.postgres.user", "")
+	v.SetDefault("database.postgres.password", "")
+	v.SetDefault("database.postgres.name", "")
+	v.SetDefault("database.postgres.sslmode", "disable")
+	v.SetDefault("database.postgres.time_zone", "")
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.max_open_conns", 100)
 	v.SetDefault("database.conn_max_lifetime_minutes", 60)
@@ -227,4 +272,44 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")
 	v.SetDefault("log.output", "stdout")
+}
+
+func normalizeDatabaseConfig(cfg *DatabaseConfig) {
+	if cfg == nil {
+		return
+	}
+	if !isDefaultDatabaseDSN(cfg.DSN) {
+		return
+	}
+	switch strings.TrimSpace(cfg.Driver) {
+	case "mysql":
+		if cfg.MySQL.IsConfigured() {
+			cfg.DSN = ""
+		}
+	case "postgres", "postgresql":
+		if cfg.Postgres.IsConfigured() {
+			cfg.DSN = ""
+		}
+	}
+}
+
+func isDefaultDatabaseDSN(dsn string) bool {
+	return strings.TrimSpace(dsn) == "app.db"
+}
+
+func hasMeaningfulStructuredDBConfig(host, user, password, name string, params map[string]string, port, defaultPort int) bool {
+	return strings.TrimSpace(host) != "" ||
+		strings.TrimSpace(user) != "" ||
+		strings.TrimSpace(password) != "" ||
+		strings.TrimSpace(name) != "" ||
+		len(params) > 0 ||
+		(port != 0 && port != defaultPort)
+}
+
+func (cfg MySQLConfig) IsConfigured() bool {
+	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 3306)
+}
+
+func (cfg PostgresConfig) IsConfigured() bool {
+	return hasMeaningfulStructuredDBConfig(cfg.Host, cfg.User, cfg.Password, cfg.Name, cfg.Params, cfg.Port, 5432)
 }

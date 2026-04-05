@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -110,6 +111,52 @@ func TestParseRejectsInvalidOperator(t *testing.T) {
 	_, err := Parse(&invalidOperatorInput{Search: "alice"})
 	if err == nil || !strings.Contains(err.Error(), "unsupported operator") {
 		t.Fatalf("expected invalid operator error, got %v", err)
+	}
+}
+
+func TestParseTagBoundaryCases(t *testing.T) {
+	field := reflect.TypeOf(struct {
+		Search string `filter:"name|email,like"`
+	}{}).Field(0)
+
+	cases := []struct {
+		name       string
+		tag        string
+		wantFields []string
+		wantOp     Operator
+		wantErr    string
+	}{
+		{name: "doc example", tag: "name|email,like", wantFields: []string{"name", "email"}, wantOp: OpLike},
+		{name: "trim whitespace", tag: " name | email , like ", wantFields: []string{"name", "email"}, wantOp: OpLike},
+		{name: "default operator", tag: "status", wantFields: []string{"status"}, wantOp: OpEq},
+		{name: "empty field", tag: " |email,like", wantErr: "empty field name"},
+		{name: "extra comma", tag: "name,email,like", wantErr: "must be in the form"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fields, op, _, err := parseTag(tc.tag, field)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseTag: %v", err)
+			}
+			if op != tc.wantOp {
+				t.Fatalf("expected op %q, got %q", tc.wantOp, op)
+			}
+			if len(fields) != len(tc.wantFields) {
+				t.Fatalf("expected fields %+v, got %+v", tc.wantFields, fields)
+			}
+			for i := range fields {
+				if fields[i] != tc.wantFields[i] {
+					t.Fatalf("expected fields %+v, got %+v", tc.wantFields, fields)
+				}
+			}
+		})
 	}
 }
 
