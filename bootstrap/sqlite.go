@@ -153,9 +153,9 @@ func timeLocation(raw string) *time.Location {
 }
 
 func hasMySQLConfig(cfg settings.MySQLConfig) bool {
-	return cfg.Host != "" || cfg.Port != 0 || cfg.User != "" || cfg.Password != "" || cfg.Name != "" || cfg.Charset != "" || cfg.ParseTime || cfg.Loc != "" || len(cfg.Params) > 0
+	return cfg.Host != "" || cfg.Port != 0 || cfg.User != "" || cfg.Password != "" || cfg.Name != "" || len(cfg.Params) > 0
 }
 
 func hasPostgresConfig(cfg settings.PostgresConfig) bool {
-	return cfg.Host != "" || cfg.Port != 0 || cfg.User != "" || cfg.Password != "" || cfg.Name != "" || cfg.SSLMode != "" || cfg.TimeZone != "" || len(cfg.Params) > 0
+	return cfg.Host != "" || cfg.Port != 0 || cfg.User != "" || cfg.Password != "" || cfg.Name != "" || len(cfg.Params) > 0
 }

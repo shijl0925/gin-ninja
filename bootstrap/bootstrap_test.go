@@ -39,6 +39,19 @@ func TestBuildDialector(t *testing.T) {
 			if err != nil || dialector == nil {
 				t.Fatalf("expected dialector, got dialector=%v err=%v", dialector, err)
 			}
+			if tc.name == "mysql structured" {
+				mysqlDial, ok := dialector.(*gormmysql.Dialector)
+				if !ok {
+					t.Fatalf("expected *mysql.Dialector, got %T", dialector)
+				}
+				parsed, err := drivermysql.ParseDSN(mysqlDial.DSN)
+				if err != nil {
+					t.Fatalf("ParseDSN: %v", err)
+				}
+				if parsed.Passwd != "p@ss:word+plus" {
+					t.Fatalf("expected structured mysql password to round-trip, got %q", parsed.Passwd)
+				}
+			}
 		})
 	}
 }
