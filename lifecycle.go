@@ -18,6 +18,8 @@ type LifecycleHook func(context.Context, *NinjaAPI) error
 
 type lifecycleState struct {
 	mu          sync.Mutex
+	cond        *sync.Cond
+	starting    bool
 	shutdownRan bool
 }
 
@@ -94,8 +96,19 @@ func (api *NinjaAPI) Shutdown(ctx context.Context) error {
 
 func (api *NinjaAPI) runStartupHooks(ctx context.Context) error {
 	api.lifecycle.mu.Lock()
+	if api.lifecycle.cond == nil {
+		api.lifecycle.cond = sync.NewCond(&api.lifecycle.mu)
+	}
+	api.lifecycle.starting = true
 	api.lifecycle.shutdownRan = false
 	api.lifecycle.mu.Unlock()
+	defer func() {
+		api.lifecycle.mu.Lock()
+		api.lifecycle.starting = false
+		api.lifecycle.cond.Broadcast()
+		api.lifecycle.mu.Unlock()
+	}()
+
 	for _, hook := range api.startupHooks {
 		if err := hook(ctx, api); err != nil {
 			return err
@@ -106,6 +119,12 @@ func (api *NinjaAPI) runStartupHooks(ctx context.Context) error {
 
 func (api *NinjaAPI) runShutdownHooks(ctx context.Context) error {
 	api.lifecycle.mu.Lock()
+	if api.lifecycle.cond == nil {
+		api.lifecycle.cond = sync.NewCond(&api.lifecycle.mu)
+	}
+	for api.lifecycle.starting {
+		api.lifecycle.cond.Wait()
+	}
 	if api.lifecycle.shutdownRan {
 		api.lifecycle.mu.Unlock()
 		return nil
