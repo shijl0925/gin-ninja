@@ -87,6 +87,7 @@ package main
 import (
     "log"
 
+    "github.com/gin-gonic/gin"
     ninja "github.com/shijl0925/gin-ninja"
     "github.com/shijl0925/gin-ninja/middleware"
 )
@@ -111,6 +112,8 @@ func main() {
     })
 
     api.UseGin(
+        gin.Logger(),                // keep native [GIN] access logs
+        gin.Recovery(),              // keep native panic recovery
         middleware.RequestID(),
         middleware.CORS(nil),
     )
@@ -852,11 +855,11 @@ See [examples/full](./examples/full/) for a complete application with:
 - Settings from `config.yaml`
 - Bootstrap (DB + logger initialisation)
 - JWT-protected user CRUD endpoints
-- Auth login endpoint
+- Auth register/login endpoints
 - Structured Zap logging
-- Route-level cache / ETag / Cache-Control examples (via README snippets)
-- Versioned API routing and per-version docs (via README snippets)
-- SSE / WebSocket route registration examples (via README snippets)
+- Route-level cache / ETag / Cache-Control demos
+- Versioned API routing and per-version docs demos
+- SSE / WebSocket demos
 - Multipart single-file and multi-file upload demos
 - Binary download and reader-backed download demos
 
