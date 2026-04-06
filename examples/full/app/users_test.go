@@ -254,13 +254,21 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	sortedPage, err := ListUsers(nil, &ListUsersInput{
-		PageInput: pagination.PageInput{Page: 1, Size: 10, Sort: "-age"},
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		Sort:      "-age",
 	})
 	if err != nil {
 		t.Fatalf("ListUsers sort: %v", err)
 	}
 	if len(sortedPage.Items) != 2 || sortedPage.Items[0].Model.Age < sortedPage.Items[1].Model.Age {
 		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
+	}
+
+	if _, err := ListUsers(nil, &ListUsersInput{
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		Sort:      "-password",
+	}); err == nil {
+		t.Fatal("expected invalid sort to fail")
 	}
 
 	updated, err := UpdateUser(nil, &UpdateUserInput{

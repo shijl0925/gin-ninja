@@ -428,28 +428,27 @@ Behavior notes:
 
 ### Safe sorting
 
-`pagination.PageInput.Sort` accepts a comma-separated sort string. Prefix a field with `-` for descending or `+` for ascending:
+Use a `sort` query parameter with an `order:"..."` allowlist. Prefix a field with `-` for descending or `+` for ascending:
 
 - `sort=name`
 - `sort=-created_at`
 - `sort=name,-age`
 
-For safety, validate requested sort fields against an allowlist before applying them:
+For paginated handlers, keep using `pagination.PageInput` for page/size and declare `Sort` separately:
 
 ```go
-var userSortSchema = pagination.NewSortSchema(
-    "id",
-    "name",
-    "email",
-    "age",
-    "is_admin",
-    "created_at",
-)
+import "github.com/shijl0925/gin-ninja/order"
+
+type ListUsersInput struct {
+    pagination.PageInput
+    Sort   string `form:"sort" order:"id|name|email|age|is_admin|created_at"`
+    Search string `form:"search" filter:"name|email,like"`
+}
 
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
     query, _ := gormx.NewQuery[User]()
 
-    if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
+    if err := order.ApplyOrder(query, in); err != nil {
         return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
     }
 
@@ -461,22 +460,22 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 }
 ```
 
-If you need a public alias that maps to a different database column, add it explicitly:
+If you need a public alias that maps to a different database column, use `alias:column` or `alias=column`:
 
 ```go
-schema := pagination.NewSortSchema("name").
-    Allow("created", "created_at")
+type ListUsersInput struct {
+    Sort string `form:"sort" order:"name|created:created_at"`
+}
 ```
 
 Any sort field outside the allowlist is rejected with an error instead of being passed through to the query layer.
 
 ### Example
 
-The full example app uses both patterns on `GET /api/v1/users`:
+The full example app uses declarative sorting on paginated users:
 
-- `search` → `filter:"name|email,like"`
-- `is_admin` → `filter:"is_admin,eq"`
-- `sort` → validated against `userSortSchema`
+- `GET /api/v1/users` → paginated filtering + sorting
+- `sort` → validated by `order:"..."` allowlists before reaching the query layer
 
 Try requests like:
 

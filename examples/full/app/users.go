@@ -7,13 +7,12 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/filter"
 	"github.com/shijl0925/gin-ninja/middleware"
+	"github.com/shijl0925/gin-ninja/order"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/go-toolkits/gormx"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
-
-var userSortSchema = pagination.NewSortSchema("id", "name", "email", "age", "is_admin", "created_at")
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -80,7 +79,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
 	}
-	if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
+	if err := order.ApplyOrder(query, in); err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
 
