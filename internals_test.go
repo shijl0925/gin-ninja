@@ -3,6 +3,7 @@ package ninja
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"mime/multipart"
 	"net/http"
@@ -48,6 +49,17 @@ type schemaSample struct {
 	Tags  []string          `json:"tags"`
 	Meta  map[string]string `json:"meta"`
 	Skip  string            `json:"-"`
+}
+
+type schemaModel struct {
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type publicSchema struct {
+	ModelSchema[schemaModel] `fields:"id,name,email" exclude:"password"`
 }
 
 type multipartBindInput struct {
@@ -508,6 +520,63 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 	}
 	if got := uintFormat(reflect.Uint64); got != "uint64" {
 		t.Fatalf("expected uint64 format, got %q", got)
+	}
+
+	modelSchemaRef := registry.schemaForType(reflect.TypeOf(publicSchema{}))
+	if modelSchemaRef.Ref == "" {
+		t.Fatalf("expected model schema ref, got %+v", modelSchemaRef)
+	}
+	publicComponent := registry.schemas[typeName(reflect.TypeOf(publicSchema{}))]
+	if publicComponent == nil {
+		t.Fatalf("expected public schema component to be registered")
+	}
+	if _, ok := publicComponent.Properties["password"]; ok {
+		t.Fatalf("expected excluded field to be omitted, got %+v", publicComponent.Properties)
+	}
+	if _, ok := publicComponent.Properties["email"]; !ok {
+		t.Fatalf("expected whitelisted field to remain, got %+v", publicComponent.Properties)
+	}
+}
+
+func TestModelSchemaSerializationAndBinding(t *testing.T) {
+	payload, err := json.Marshal(NewModelSchema(schemaModel{
+		ID:       1,
+		Name:     "alice",
+		Email:    "alice@example.com",
+		Password: "secret",
+	}, Fields("id", "name", "email"), Exclude("password")))
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if _, ok := data["password"]; ok {
+		t.Fatalf("expected password to be excluded, got %v", data)
+	}
+	if data["email"] != "alice@example.com" {
+		t.Fatalf("expected email to remain, got %v", data)
+	}
+
+	typed, err := BindModelSchema[publicSchema](schemaModel{
+		ID:       2,
+		Name:     "bob",
+		Email:    "bob@example.com",
+		Password: "hidden",
+	})
+	if err != nil {
+		t.Fatalf("BindModelSchema: %v", err)
+	}
+	if got := typed.Fields; len(got) != 3 || got[0] != "email" || got[1] != "id" || got[2] != "name" {
+		t.Fatalf("expected fields from tags, got %v", got)
+	}
+	if got := typed.Exclude; len(got) != 1 || got[0] != "password" {
+		t.Fatalf("expected exclude from tags, got %v", got)
+	}
+	if typed.Model.Password != "hidden" {
+		t.Fatalf("expected model to be assigned, got %+v", typed.Model)
 	}
 }
 
