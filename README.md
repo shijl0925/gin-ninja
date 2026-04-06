@@ -87,6 +87,7 @@ package main
 import (
     "log"
 
+    "github.com/gin-gonic/gin"
     ninja "github.com/shijl0925/gin-ninja"
     "github.com/shijl0925/gin-ninja/middleware"
 )
