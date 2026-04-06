@@ -42,7 +42,7 @@ type PageInput struct {
 	// Size is the number of items per page (default: 20, max: 100).
 	Size int `form:"size" binding:"omitempty,min=1,max=100" json:"-"`
 	// Sort is a comma-separated list of fields. Prefix with "-" for descending.
-	// Deprecated: prefer a struct-level `order:"..."` tag with ApplyOrder/ResolveOrder.
+	// Deprecated: prefer a struct level `order:"..."` tag with ApplyOrder/ResolveOrder.
 	Sort string `form:"sort" json:"-"`
 }
 
@@ -308,7 +308,7 @@ func orderRawValue(field reflect.StructField, value reflect.Value) (string, bool
 	case reflect.Struct:
 		sortField := value.FieldByName("Sort")
 		if !sortField.IsValid() || sortField.Kind() != reflect.String {
-			return "", false, fmt.Errorf("order tag on %s requires a string field or embedded struct with exported Sort string", field.Name)
+			return "", false, fmt.Errorf("order tag on %s requires a string field or embedded struct with an exported Sort field", field.Name)
 		}
 		raw := strings.TrimSpace(sortField.String())
 		if raw == "" {
@@ -316,7 +316,7 @@ func orderRawValue(field reflect.StructField, value reflect.Value) (string, bool
 		}
 		return raw, true, nil
 	default:
-		return "", false, fmt.Errorf("order tag on %s requires a string field or embedded struct with exported Sort string", field.Name)
+		return "", false, fmt.Errorf("order tag on %s requires a string field or embedded struct with an exported Sort field", field.Name)
 	}
 }
 
