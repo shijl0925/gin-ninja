@@ -37,11 +37,7 @@ type LoginOutput struct {
 
 // UserOut is the public representation of a user.
 type UserOut struct {
-	ID      uint   `json:"id"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Age     int    `json:"age"`
-	IsAdmin bool   `json:"is_admin"`
+	ninja.ModelSchema[User] `fields:"id,name,email,age,is_admin" exclude:"password"`
 }
 
 // ListUsersInput holds query parameters for listing users.
@@ -79,14 +75,8 @@ type DeleteUserInput struct {
 }
 
 // toUserOut converts a domain User to the public UserOut representation.
-func toUserOut(u User) UserOut {
-	return UserOut{
-		ID:      u.ID,
-		Name:    u.Name,
-		Email:   u.Email,
-		Age:     u.Age,
-		IsAdmin: u.IsAdmin,
-	}
+func toUserOut(u User) (*UserOut, error) {
+	return ninja.BindModelSchema[UserOut](u)
 }
 
 // ---------------------------------------------------------------------------

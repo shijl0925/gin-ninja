@@ -84,15 +84,18 @@ func TestRegister_SucceedsWithoutAuth(t *testing.T) {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
-	var out UserOut
+	var out map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-	if out.Email != "alice@example.com" {
-		t.Fatalf("expected email alice@example.com, got %q", out.Email)
+	if out["email"] != "alice@example.com" {
+		t.Fatalf("expected email alice@example.com, got %v", out["email"])
 	}
-	if out.Name != "Alice" {
-		t.Fatalf("expected name Alice, got %q", out.Name)
+	if out["name"] != "Alice" {
+		t.Fatalf("expected name Alice, got %v", out["name"])
+	}
+	if _, ok := out["password"]; ok {
+		t.Fatalf("expected password to be filtered, got %+v", out)
 	}
 }
 
@@ -136,7 +139,7 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	if registered.Email != "alice@example.com" {
+	if registered.Model.Email != "alice@example.com" {
 		t.Fatalf("unexpected register output: %+v", registered)
 	}
 
@@ -197,7 +200,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	got, err := GetUser(nil, &GetUserInput{UserID: created.ID})
-	if err != nil || got.Email != "alice@example.com" {
+	if err != nil || got.Model.Email != "alice@example.com" {
 		t.Fatalf("GetUser: result=%+v err=%v", got, err)
 	}
 
@@ -208,7 +211,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Email != "alice@example.com" {
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Model.Email != "alice@example.com" {
 		t.Fatalf("unexpected list result: %+v", page)
 	}
 
@@ -219,7 +222,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers email search: %v", err)
 	}
-	if emailPage.Total != 1 || len(emailPage.Items) != 1 || emailPage.Items[0].Email != "bob@example.com" {
+	if emailPage.Total != 1 || len(emailPage.Items) != 1 || emailPage.Items[0].Model.Email != "bob@example.com" {
 		t.Fatalf("unexpected email search result: %+v", emailPage)
 	}
 
@@ -231,7 +234,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers admin filter: %v", err)
 	}
-	if adminPage.Total != 1 || len(adminPage.Items) != 1 || adminPage.Items[0].Email != "bob@example.com" || !adminPage.Items[0].IsAdmin {
+	if adminPage.Total != 1 || len(adminPage.Items) != 1 || adminPage.Items[0].Model.Email != "bob@example.com" || !adminPage.Items[0].Model.IsAdmin {
 		t.Fatalf("unexpected admin list result: %+v", adminPage)
 	}
 
@@ -243,7 +246,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers admin search filter: %v", err)
 	}
-	if adminSearchPage.Total != 1 || len(adminSearchPage.Items) != 1 || adminSearchPage.Items[0].Email != "bob@example.com" {
+	if adminSearchPage.Total != 1 || len(adminSearchPage.Items) != 1 || adminSearchPage.Items[0].Model.Email != "bob@example.com" {
 		t.Fatalf("unexpected admin search result: %+v", adminSearchPage)
 	}
 
@@ -266,7 +269,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateUser: %v", err)
 	}
-	if updated.Name != "Bobby" || updated.Email != "bobby@example.com" || updated.Age != 21 {
+	if updated.Model.Name != "Bobby" || updated.Model.Email != "bobby@example.com" || updated.Model.Age != 21 {
 		t.Fatalf("unexpected updated user: %+v", updated)
 	}
 
@@ -279,8 +282,23 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("expected deleted user to be missing, got result=%+v err=%v", deleted, err)
 	}
 
-	out := toUserOut(User{Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true})
-	if out.Email != "x@example.com" || !out.IsAdmin {
+	out, err := toUserOut(User{Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true, Password: "secret"})
+	if err != nil {
+		t.Fatalf("toUserOut: %v", err)
+	}
+	if out.Model.Email != "x@example.com" || !out.Model.IsAdmin {
 		t.Fatalf("unexpected toUserOut result: %+v", out)
+	}
+
+	data, err := json.Marshal(out)
+	if err != nil {
+		t.Fatalf("marshal UserOut: %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unmarshal UserOut json: %v", err)
+	}
+	if _, ok := payload["password"]; ok {
+		t.Fatalf("expected password to be filtered, got %+v", payload)
 	}
 }
