@@ -8,6 +8,6 @@ func FuzzGetSortFields(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, sort string) {
-		_ = (PageInput{Sort: sort}).GetSortFields()
+		_ = ParseSort(sort)
 	})
 }

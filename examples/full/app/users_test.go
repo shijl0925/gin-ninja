@@ -263,6 +263,12 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
 	}
 
+	if _, err := ListUsers(nil, &ListUsersInput{
+		PageInput: pagination.PageInput{Page: 1, Size: 10, Sort: "-password"},
+	}); err == nil {
+		t.Fatal("expected invalid sort to fail")
+	}
+
 	updated, err := UpdateUser(nil, &UpdateUserInput{
 		UserID: second.Model.ID,
 		Name:   "Bobby",

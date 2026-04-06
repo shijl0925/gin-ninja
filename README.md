@@ -425,28 +425,32 @@ Behavior notes:
 
 ### Safe sorting
 
-`pagination.PageInput.Sort` accepts a comma-separated sort string. Prefix a field with `-` for descending or `+` for ascending:
+Use a `sort` query parameter with an `order:"..."` allowlist. Prefix a field with `-` for descending or `+` for ascending:
 
 - `sort=name`
 - `sort=-created_at`
 - `sort=name,-age`
 
-For safety, validate requested sort fields against an allowlist before applying them:
+For non-paginated handlers, declare a standalone sort field:
 
 ```go
-var userSortSchema = pagination.NewSortSchema(
-    "id",
-    "name",
-    "email",
-    "age",
-    "is_admin",
-    "created_at",
-)
+type ListUsersInput struct {
+    Sort string `form:"sort" order:"id|name|email|age|is_admin|created_at" description:"Sort by id, name, email, age, is_admin, or created_at"`
+}
+```
+
+For paginated handlers, keep using `pagination.PageInput` and attach the allowlist declaratively on the embedded field:
+
+```go
+type ListUsersInput struct {
+    pagination.PageInput `order:"id|name|email|age|is_admin|created_at"`
+    Search string `form:"search" filter:"name|email,like"`
+}
 
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
     query, _ := gormx.NewQuery[User]()
 
-    if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
+    if err := pagination.ApplyOrder(query, in); err != nil {
         return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
     }
 
@@ -458,12 +462,15 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 }
 ```
 
-If you need a public alias that maps to a different database column, add it explicitly:
+If you need a public alias that maps to a different database column, use `alias:column` or `alias=column`:
 
 ```go
-schema := pagination.NewSortSchema("name").
-    Allow("created", "created_at")
+type ListUsersInput struct {
+    Sort string `form:"sort" order:"name|created:created_at"`
+}
 ```
+
+Legacy `pagination.PageInput.Sort` parsing remains available for compatibility, but new code should prefer declarative `order` tags.
 
 Any sort field outside the allowlist is rejected with an error instead of being passed through to the query layer.
 
@@ -473,7 +480,7 @@ The full example app uses both patterns on `GET /api/v1/users`:
 
 - `search` → `filter:"name|email,like"`
 - `is_admin` → `filter:"is_admin,eq"`
-- `sort` → validated against `userSortSchema`
+- `sort` → validated by `order:"id|name|email|age|is_admin|created_at"`
 
 Try requests like:
 

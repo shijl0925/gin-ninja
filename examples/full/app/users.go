@@ -13,8 +13,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var userSortSchema = pagination.NewSortSchema("id", "name", "email", "age", "is_admin", "created_at")
-
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
@@ -80,7 +78,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
 	}
-	if err := pagination.ApplySort(query, in.PageInput, userSortSchema); err != nil {
+	if err := pagination.ApplyOrder(query, in); err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
 
