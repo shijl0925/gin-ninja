@@ -178,7 +178,8 @@ func ParseSort(raw string) []SortField {
 		}
 
 		field := SortField{Name: part}
-		switch part[0] {
+		prefix := part[0]
+		switch prefix {
 		case '-':
 			field.Name = strings.TrimSpace(part[1:])
 			field.Desc = true
@@ -344,6 +345,9 @@ func parseAliasAndColumn(spec string) (alias string, column string) {
 		if alias, column, ok := strings.Cut(spec, separator); ok {
 			alias = strings.TrimSpace(alias)
 			column = strings.TrimSpace(column)
+			if alias == "" || column == "" {
+				return "", ""
+			}
 			return alias, column
 		}
 	}
