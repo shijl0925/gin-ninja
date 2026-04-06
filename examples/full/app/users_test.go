@@ -264,38 +264,11 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
 	}
 
-	allUsers, err := ListAllUsers(nil, &ListAllUsersInput{
-		Sort: "-age",
-	})
-	if err != nil {
-		t.Fatalf("ListAllUsers sort: %v", err)
-	}
-	if len(*allUsers) != 2 || (*allUsers)[0].Model.Age < (*allUsers)[1].Model.Age {
-		t.Fatalf("unexpected non-paginated sorted result: %+v", *allUsers)
-	}
-
-	allAdmins, err := ListAllUsers(nil, &ListAllUsersInput{
-		Sort:    "-created",
-		IsAdmin: &adminOnly,
-	})
-	if err != nil {
-		t.Fatalf("ListAllUsers admin filter: %v", err)
-	}
-	if len(*allAdmins) != 1 || (*allAdmins)[0].Model.Email != "bob@example.com" {
-		t.Fatalf("unexpected non-paginated filtered result: %+v", *allAdmins)
-	}
-
 	if _, err := ListUsers(nil, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		Sort:      "-password",
 	}); err == nil {
 		t.Fatal("expected invalid sort to fail")
-	}
-
-	if _, err := ListAllUsers(nil, &ListAllUsersInput{
-		Sort: "-password",
-	}); err == nil {
-		t.Fatal("expected invalid non-paginated sort to fail")
 	}
 
 	updated, err := UpdateUser(nil, &UpdateUserInput{

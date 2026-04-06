@@ -100,36 +100,6 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 	return pagination.NewPage(out, total, in.PageInput), nil
 }
 
-// ListAllUsers returns all users without pagination while keeping declarative filtering and sorting.
-func ListAllUsers(ctx *ninja.Context, in *ListAllUsersInput) (*[]UserOut, error) {
-	repo := NewUserRepo()
-	query, _ := gormx.NewQuery[User]()
-
-	filterOpts, err := filter.BuildOptions(in)
-	if err != nil {
-		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
-	}
-	if err := order.ApplyOrder(query, in); err != nil {
-		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
-	}
-
-	opts := append(filterOpts, query.ToOptions()...)
-	items, err := repo.SelectListByOpts(opts...)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]UserOut, len(items))
-	for i, item := range items {
-		bound, err := toUserOut(item)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = *bound
-	}
-	return &out, nil
-}
-
 // GetUser retrieves a single user by ID.
 func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 	repo := NewUserRepo()

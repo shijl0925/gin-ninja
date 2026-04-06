@@ -48,13 +48,6 @@ type ListUsersInput struct {
 	IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 
-// ListAllUsersInput holds query parameters for listing all users without pagination.
-type ListAllUsersInput struct {
-	Sort    string `form:"sort"     order:"id|name|email|age|is_admin|created:created_at" description:"Sort by id, name, email, age, is_admin, or created (maps to created_at)"`
-	Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-	IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
-}
-
 // GetUserInput holds the path parameter for retrieving a single user.
 type GetUserInput struct {
 	UserID uint `path:"id" binding:"required"`

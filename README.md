@@ -431,30 +431,6 @@ Use a `sort` query parameter with an `order:"..."` allowlist. Prefix a field wit
 - `sort=-created_at`
 - `sort=name,-age`
 
-For non-paginated handlers, declare a standalone sort field and apply it with the `order` package:
-
-```go
-import "github.com/shijl0925/gin-ninja/order"
-
-type ListAllUsersInput struct {
-    Sort string `form:"sort" order:"id|name|email|age|is_admin|created:created_at"`
-}
-
-func listAllUsers(ctx *ninja.Context, in *ListAllUsersInput) (*[]UserOut, error) {
-    query, _ := gormx.NewQuery[User]()
-
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
-    }
-
-    items, err := repo.SelectListByOpts(query.ToOptions()...)
-    if err != nil {
-        return nil, err
-    }
-    return &items, nil
-}
-```
-
 For paginated handlers, keep using `pagination.PageInput` for page/size and declare `Sort` separately:
 
 ```go
@@ -493,17 +469,15 @@ Any sort field outside the allowlist is rejected with an error instead of being 
 
 ### Example
 
-The full example app uses both patterns:
+The full example app uses declarative sorting on paginated users:
 
 - `GET /api/v1/users` → paginated filtering + sorting
-- `GET /api/v1/users/all` → non-paginated filtering + sorting
 - `sort` → validated by `order:"..."` allowlists before reaching the query layer
 
 Try requests like:
 
 - `/api/v1/users?search=ali`
 - `/api/v1/users?is_admin=true&sort=-age`
-- `/api/v1/users/all?sort=-created`
 
 ---
 
