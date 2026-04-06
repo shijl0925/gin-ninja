@@ -261,12 +261,12 @@ func resolveOrderInto(value reflect.Value, resolved *[]SortField) error {
 }
 
 func resolveTaggedOrder(field reflect.StructField, value reflect.Value, tag string) ([]SortField, bool, error) {
-	raw, ok, err := orderRawValue(field, value)
+	raw, ok, err := extractOrderRawValue(field, value)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
 
-	schema, err := parseOrderSchema(tag, field)
+	schema, err := parseOrderTagSchema(tag, field)
 	if err != nil {
 		return nil, false, err
 	}
@@ -290,7 +290,7 @@ func resolveTaggedOrder(field reflect.StructField, value reflect.Value, tag stri
 	return resolved, true, nil
 }
 
-func orderRawValue(field reflect.StructField, value reflect.Value) (string, bool, error) {
+func extractOrderRawValue(field reflect.StructField, value reflect.Value) (string, bool, error) {
 	for value.Kind() == reflect.Ptr {
 		if value.IsNil() {
 			return "", false, nil
@@ -320,7 +320,7 @@ func orderRawValue(field reflect.StructField, value reflect.Value) (string, bool
 	}
 }
 
-func parseOrderSchema(tag string, field reflect.StructField) (*SortSchema, error) {
+func parseOrderTagSchema(tag string, field reflect.StructField) (*SortSchema, error) {
 	schema := &SortSchema{allowed: map[string]string{}}
 	parts := strings.Split(tag, "|")
 	for _, part := range parts {
@@ -329,7 +329,7 @@ func parseOrderSchema(tag string, field reflect.StructField) (*SortSchema, error
 			return nil, fmt.Errorf("order tag on %s contains an empty field name", field.Name)
 		}
 
-		alias, column := parseOrderSchemaEntry(spec)
+		alias, column := parseAliasAndColumn(spec)
 		if alias == "" || column == "" {
 			return nil, fmt.Errorf("order tag on %s contains an empty field name", field.Name)
 		}
@@ -338,7 +338,7 @@ func parseOrderSchema(tag string, field reflect.StructField) (*SortSchema, error
 	return schema, nil
 }
 
-func parseOrderSchemaEntry(spec string) (string, string) {
+func parseAliasAndColumn(spec string) (alias string, column string) {
 	for _, separator := range []string{":", "="} {
 		if alias, column, ok := strings.Cut(spec, separator); ok {
 			alias = strings.TrimSpace(alias)
