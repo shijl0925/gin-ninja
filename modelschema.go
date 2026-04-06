@@ -308,6 +308,13 @@ func preserveCustomJSONValue(v reflect.Value) (any, bool) {
 			return candidate, true
 		}
 	}
+	if v.Kind() != reflect.Ptr && !v.CanAddr() {
+		copy := reflect.New(v.Type()).Elem()
+		copy.Set(v)
+		if candidate, ok := customJSONValue(copy.Addr()); ok {
+			return candidate, true
+		}
+	}
 	return nil, false
 }
 
