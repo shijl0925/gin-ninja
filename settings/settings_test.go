@@ -353,3 +353,15 @@ func TestMustLoadWithOverridesPanicsOnError(t *testing.T) {
 	settings.MustLoadWithOverrides(filepath.Join(t.TempDir(), "missing.yaml"))
 }
 
+func TestLoadWithOverrides_MalformedOverrideReturnsError(t *testing.T) {
+	base := writeTempConfig(t, `server:\n  port: 8080\n`)
+	// Write an override file with invalid YAML syntax.
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bad.yaml")
+	os.WriteFile(bad, []byte("key: [unclosed bracket"), 0o644) //nolint:errcheck
+
+	if _, err := settings.LoadWithOverrides(base, bad); err == nil {
+		t.Fatal("expected error for malformed override YAML, got nil")
+	}
+}
+

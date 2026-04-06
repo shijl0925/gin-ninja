@@ -33,7 +33,9 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -264,12 +266,17 @@ func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error
 		ov := viper.New()
 		ov.SetConfigFile(f)
 		if err := ov.ReadInConfig(); err != nil {
-			// Silently skip missing override files.
+			// Skip missing override files silently; they are intentionally optional
+			// (e.g. config.local.yaml may only exist on a developer's machine).
 			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 				continue
 			}
-			// Also skip files that simply do not exist on disk.
-			continue
+			// SetConfigFile bypasses viper's search and returns an OS-level error
+			// when the file does not exist, so check for that case as well.
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, fmt.Errorf("settings: read override %q: %w", f, err)
 		}
 		if err := v.MergeConfigMap(ov.AllSettings()); err != nil {
 			return nil, fmt.Errorf("settings: merge %q: %w", f, err)
@@ -318,6 +325,9 @@ func LoadForEnv(baseFile string) (*Config, error) {
 	if baseFile != "" {
 		v.SetConfigFile(baseFile)
 	}
+	// Best-effort read: if the base file is absent or unreadable here we still
+	// proceed to check env vars.  LoadWithOverrides below will perform the
+	// authoritative read and propagate any real errors.
 	_ = v.ReadInConfig()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "__"))
 	v.AutomaticEnv()
