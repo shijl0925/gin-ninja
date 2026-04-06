@@ -181,7 +181,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	if created.ID == 0 {
+	if created.Model.ID == 0 {
 		t.Fatalf("expected created id, got %+v", created)
 	}
 
@@ -195,11 +195,11 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("CreateUser second: %v", err)
 	}
 	repo := NewUserRepo()
-	if err := repo.UpdateById(int(second.ID), map[string]interface{}{"is_admin": true}); err != nil {
+	if err := repo.UpdateById(int(second.Model.ID), map[string]interface{}{"is_admin": true}); err != nil {
 		t.Fatalf("set second user admin: %v", err)
 	}
 
-	got, err := GetUser(nil, &GetUserInput{UserID: created.ID})
+	got, err := GetUser(nil, &GetUserInput{UserID: created.Model.ID})
 	if err != nil || got.Model.Email != "alice@example.com" {
 		t.Fatalf("GetUser: result=%+v err=%v", got, err)
 	}
@@ -256,12 +256,12 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers sort: %v", err)
 	}
-	if len(sortedPage.Items) != 2 || sortedPage.Items[0].Age < sortedPage.Items[1].Age {
+	if len(sortedPage.Items) != 2 || sortedPage.Items[0].Model.Age < sortedPage.Items[1].Model.Age {
 		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
 	}
 
 	updated, err := UpdateUser(nil, &UpdateUserInput{
-		UserID: second.ID,
+		UserID: second.Model.ID,
 		Name:   "Bobby",
 		Email:  "bobby@example.com",
 		Age:    21,
@@ -273,11 +273,11 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected updated user: %+v", updated)
 	}
 
-	if err := DeleteUser(nil, &DeleteUserInput{UserID: second.ID}); err != nil {
+	if err := DeleteUser(nil, &DeleteUserInput{UserID: second.Model.ID}); err != nil {
 		t.Fatalf("DeleteUser: %v", err)
 	}
 
-	deleted, err := GetUser(nil, &GetUserInput{UserID: second.ID})
+	deleted, err := GetUser(nil, &GetUserInput{UserID: second.Model.ID})
 	if !ninja.IsNotFound(err) || deleted != nil {
 		t.Fatalf("expected deleted user to be missing, got result=%+v err=%v", deleted, err)
 	}
