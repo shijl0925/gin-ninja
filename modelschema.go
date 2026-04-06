@@ -309,6 +309,8 @@ func preserveCustomJSONValue(v reflect.Value) (any, bool) {
 		}
 	}
 	if v.Kind() != reflect.Ptr && !v.CanAddr() {
+		// Values copied out of interfaces are not addressable, but pointer-receiver
+		// marshalers still need an addressable value to preserve their JSON encoding.
 		copy := reflect.New(v.Type()).Elem()
 		copy.Set(v)
 		if candidate, ok := customJSONValue(copy.Addr()); ok {

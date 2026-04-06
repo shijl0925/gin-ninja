@@ -209,6 +209,9 @@ func jsonFieldName(f reflect.StructField) string {
 	return parts[0]
 }
 
+// defaultJSONFieldName converts an exported Go field name to the framework's
+// default lower-camel JSON name while preserving acronym word boundaries, so
+// "ID" becomes "id" and "URLValue" becomes "urlValue".
 func defaultJSONFieldName(name string) string {
 	if name == "" {
 		return ""
