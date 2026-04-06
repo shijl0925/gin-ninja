@@ -62,6 +62,16 @@ type schemaRootTime struct {
 	ModelSchema[time.Time]
 }
 
+type pointerMarshaler string
+
+func (p *pointerMarshaler) MarshalJSON() ([]byte, error) {
+	return json.Marshal("wrapped:" + string(*p))
+}
+
+type pointerMarshalerModel struct {
+	Value pointerMarshaler `json:"value"`
+}
+
 type publicSchema struct {
 	ModelSchema[schemaModel] `fields:"id,name,email" exclude:"password"`
 }
@@ -601,6 +611,14 @@ func TestModelSchemaSerializationAndBinding(t *testing.T) {
 	}
 	if string(timePayload) != `"2026-04-06T09:00:00Z"` {
 		t.Fatalf("expected time marshaler output, got %s", string(timePayload))
+	}
+
+	pointerPayload, err := json.Marshal(NewModelSchema(pointerMarshalerModel{Value: pointerMarshaler("demo")}))
+	if err != nil {
+		t.Fatalf("MarshalJSON pointer marshaler field: %v", err)
+	}
+	if string(pointerPayload) != `{"value":"wrapped:demo"}` {
+		t.Fatalf("expected pointer marshaler output, got %s", string(pointerPayload))
 	}
 }
 

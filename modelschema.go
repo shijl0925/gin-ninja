@@ -363,6 +363,10 @@ func serializeModelSchemaStruct(v reflect.Value, filter modelSchemaFilter) (map[
 		if isJSONOmitEmpty(field) && value.IsZero() {
 			continue
 		}
+		if marshaled, ok := preserveCustomJSONValue(value); ok {
+			out[name] = marshaled
+			continue
+		}
 		out[name] = value.Interface()
 	}
 	return out, nil
