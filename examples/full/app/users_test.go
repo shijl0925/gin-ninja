@@ -94,6 +94,9 @@ func TestRegister_SucceedsWithoutAuth(t *testing.T) {
 	if out["name"] != "Alice" {
 		t.Fatalf("expected name Alice, got %v", out["name"])
 	}
+	if _, ok := out["id"]; !ok {
+		t.Fatalf("expected id to be present, got %+v", out)
+	}
 	if _, ok := out["password"]; ok {
 		t.Fatalf("expected password to be filtered, got %+v", out)
 	}
@@ -282,7 +285,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("expected deleted user to be missing, got result=%+v err=%v", deleted, err)
 	}
 
-	out, err := toUserOut(User{Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true, Password: "secret"})
+	out, err := toUserOut(User{Model: gorm.Model{ID: 7}, Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true, Password: "secret"})
 	if err != nil {
 		t.Fatalf("toUserOut: %v", err)
 	}
@@ -300,5 +303,8 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 	if _, ok := payload["password"]; ok {
 		t.Fatalf("expected password to be filtered, got %+v", payload)
+	}
+	if payload["id"] != float64(7) {
+		t.Fatalf("expected id to remain, got %+v", payload)
 	}
 }

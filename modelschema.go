@@ -1,6 +1,7 @@
 package ninja
 
 import (
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -250,6 +251,9 @@ func serializeModelSchemaValue(v reflect.Value, filter modelSchemaFilter) (any, 
 	if !v.IsValid() {
 		return nil, nil
 	}
+	if marshaled, ok := preserveCustomJSONValue(v); ok {
+		return marshaled, nil
+	}
 	switch v.Kind() {
 	case reflect.Ptr:
 		if v.IsNil() {
@@ -283,10 +287,41 @@ func serializeModelSchemaElement(v reflect.Value, filter modelSchemaFilter) (any
 		}
 		v = v.Elem()
 	}
+	if marshaled, ok := preserveCustomJSONValue(v); ok {
+		return marshaled, nil
+	}
 	if v.Kind() == reflect.Struct {
 		return serializeModelSchemaStruct(v, filter)
 	}
 	return v.Interface(), nil
+}
+
+func preserveCustomJSONValue(v reflect.Value) (any, bool) {
+	if !v.IsValid() {
+		return nil, false
+	}
+	if candidate, ok := customJSONValue(v); ok {
+		return candidate, true
+	}
+	if v.Kind() != reflect.Ptr && v.CanAddr() {
+		if candidate, ok := customJSONValue(v.Addr()); ok {
+			return candidate, true
+		}
+	}
+	return nil, false
+}
+
+func customJSONValue(v reflect.Value) (any, bool) {
+	if !v.IsValid() || !v.CanInterface() {
+		return nil, false
+	}
+	value := v.Interface()
+	switch value.(type) {
+	case json.Marshaler, encoding.TextMarshaler:
+		return value, true
+	default:
+		return nil, false
+	}
 }
 
 func serializeModelSchemaStruct(v reflect.Value, filter modelSchemaFilter) (map[string]any, error) {

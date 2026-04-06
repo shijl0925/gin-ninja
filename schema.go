@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // ---------------------------------------------------------------------------
@@ -199,13 +200,31 @@ func typeName(t reflect.Type) string {
 func jsonFieldName(f reflect.StructField) string {
 	tag := f.Tag.Get("json")
 	if tag == "" {
-		return strings.ToLower(f.Name[:1]) + f.Name[1:]
+		return defaultJSONFieldName(f.Name)
 	}
 	parts := strings.Split(tag, ",")
 	if parts[0] == "" {
-		return strings.ToLower(f.Name[:1]) + f.Name[1:]
+		return defaultJSONFieldName(f.Name)
 	}
 	return parts[0]
+}
+
+func defaultJSONFieldName(name string) string {
+	if name == "" {
+		return ""
+	}
+	runes := []rune(name)
+	prefix := 1
+	for prefix < len(runes) && unicode.IsUpper(runes[prefix]) {
+		if prefix+1 < len(runes) && unicode.IsLower(runes[prefix+1]) {
+			break
+		}
+		prefix++
+	}
+	for i := 0; i < prefix; i++ {
+		runes[i] = unicode.ToLower(runes[i])
+	}
+	return string(runes)
 }
 
 // isRequired returns true when the field has a `binding:"required"` constraint.

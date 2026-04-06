@@ -58,6 +58,10 @@ type schemaModel struct {
 	Password string `json:"password"`
 }
 
+type schemaRootTime struct {
+	ModelSchema[time.Time]
+}
+
 type publicSchema struct {
 	ModelSchema[schemaModel] `fields:"id,name,email" exclude:"password"`
 }
@@ -500,6 +504,12 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 	if got := jsonFieldName(reflect.TypeOf(schemaSample{}).Field(1)); got != "name" {
 		t.Fatalf("expected json field name, got %q", got)
 	}
+	if got := defaultJSONFieldName("ID"); got != "id" {
+		t.Fatalf("expected acronym field name id, got %q", got)
+	}
+	if got := defaultJSONFieldName("URLValue"); got != "urlValue" {
+		t.Fatalf("expected acronym camel field name urlValue, got %q", got)
+	}
 	if fileSchema := registry.schemaForType(reflect.TypeOf(UploadedFile{})); fileSchema.Format != "binary" {
 		t.Fatalf("expected binary schema for uploads, got %+v", fileSchema)
 	}
@@ -533,6 +543,9 @@ func TestSchemaAndHelperFunctions(t *testing.T) {
 	if _, ok := publicComponent.Properties["password"]; ok {
 		t.Fatalf("expected excluded field to be omitted, got %+v", publicComponent.Properties)
 	}
+	if _, ok := publicComponent.Properties["id"]; !ok {
+		t.Fatalf("expected id field to remain, got %+v", publicComponent.Properties)
+	}
 	if _, ok := publicComponent.Properties["email"]; !ok {
 		t.Fatalf("expected whitelisted field to remain, got %+v", publicComponent.Properties)
 	}
@@ -556,6 +569,9 @@ func TestModelSchemaSerializationAndBinding(t *testing.T) {
 	if _, ok := data["password"]; ok {
 		t.Fatalf("expected password to be excluded, got %v", data)
 	}
+	if data["id"] != float64(1) {
+		t.Fatalf("expected id to remain, got %v", data)
+	}
 	if data["email"] != "alice@example.com" {
 		t.Fatalf("expected email to remain, got %v", data)
 	}
@@ -577,6 +593,14 @@ func TestModelSchemaSerializationAndBinding(t *testing.T) {
 	}
 	if typed.Model.Password != "hidden" {
 		t.Fatalf("expected model to be assigned, got %+v", typed.Model)
+	}
+
+	timePayload, err := json.Marshal(NewModelSchema(time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC)))
+	if err != nil {
+		t.Fatalf("MarshalJSON time root: %v", err)
+	}
+	if string(timePayload) != `"2026-04-06T09:00:00Z"` {
+		t.Fatalf("expected time marshaler output, got %s", string(timePayload))
 	}
 }
 
