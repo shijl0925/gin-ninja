@@ -308,7 +308,7 @@ func orderRawValue(field reflect.StructField, value reflect.Value) (string, bool
 	case reflect.Struct:
 		sortField := value.FieldByName("Sort")
 		if !sortField.IsValid() || sortField.Kind() != reflect.String {
-			return "", false, fmt.Errorf("order tag on %s requires a string field or embedded struct with an exported Sort field", field.Name)
+			return "", false, fmt.Errorf("order tag on %s requires a string field or struct with an exported Sort field", field.Name)
 		}
 		raw := strings.TrimSpace(sortField.String())
 		if raw == "" {
@@ -316,7 +316,7 @@ func orderRawValue(field reflect.StructField, value reflect.Value) (string, bool
 		}
 		return raw, true, nil
 	default:
-		return "", false, fmt.Errorf("order tag on %s requires a string field or embedded struct with an exported Sort field", field.Name)
+		return "", false, fmt.Errorf("order tag on %s requires a string field or struct with an exported Sort field, got %s", field.Name, value.Kind())
 	}
 }
 

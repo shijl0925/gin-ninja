@@ -81,7 +81,7 @@ func TestResolveOrder(t *testing.T) {
 			want:  []SortField{{Name: "age", Desc: true}, {Name: "created_at"}},
 		},
 		{
-			name:  "empty sort ignored",
+			name:  "blank tokens ignored",
 			input: &taggedSortInput{Sort: " , + , "},
 		},
 		{
