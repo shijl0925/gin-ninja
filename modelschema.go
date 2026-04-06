@@ -147,22 +147,18 @@ func resolveModelSchemaDescriptor(t reflect.Type) (modelSchemaDescriptor, bool) 
 	if t == nil {
 		return modelSchemaDescriptor{}, false
 	}
-	if descriptor, ok := directModelSchemaDescriptor(t); ok {
-		return descriptor, true
-	}
 	s := deref(t)
-	if s.Kind() != reflect.Struct {
-		return modelSchemaDescriptor{}, false
-	}
-	if embedded, ok := findEmbeddedModelSchemaField(s); ok {
-		field := s.FieldByIndex(embedded.index)
-		if descriptor, ok := directModelSchemaDescriptor(field.Type); ok {
-			descriptor.filter = embedded.filter
-			descriptor.componentName = sanitizeComponentName(typeName(s))
-			return descriptor, true
+	if s.Kind() == reflect.Struct {
+		if embedded, ok := findEmbeddedModelSchemaField(s); ok {
+			field := s.FieldByIndex(embedded.index)
+			if descriptor, ok := directModelSchemaDescriptor(field.Type); ok {
+				descriptor.filter = embedded.filter
+				descriptor.componentName = sanitizeComponentName(typeName(s))
+				return descriptor, true
+			}
 		}
 	}
-	return modelSchemaDescriptor{}, false
+	return directModelSchemaDescriptor(t)
 }
 
 func directModelSchemaDescriptor(t reflect.Type) (modelSchemaDescriptor, bool) {

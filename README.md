@@ -15,6 +15,7 @@ A **django-ninja** inspired web framework built on top of [Gin](https://github.c
 - **Gin middleware support** – `UseGin()` on both the API and individual routers.
 - **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
 - **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
+- **ModelSchema-style responses** – wrap models with `fields` / `exclude` controls for filtered JSON output and OpenAPI schemas.
 - **Route-level caching** – built-in `Cache(...)`, `ETag()`, and `CacheControl(...)` support for read-heavy endpoints.
 - **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
 - **Streaming endpoints** – first-class SSE and WebSocket route registration helpers.
@@ -123,6 +124,36 @@ func main() {
 ```
 
 Visit `http://localhost:8080/docs` for the Swagger UI.
+
+---
+
+## ModelSchema-style Responses
+
+```go
+type User struct {
+    ID       uint   `json:"id"`
+    Name     string `json:"name"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+
+type UserOut struct {
+    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+}
+
+func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
+    return ninja.BindModelSchema[UserOut](User{
+        ID:       1,
+        Name:     "alice",
+        Email:    "alice@example.com",
+        Password: "secret",
+    })
+}
+```
+
+`fields:"..."` keeps only the listed serializable fields, while `exclude:"..."` removes sensitive fields from both the JSON response and generated OpenAPI schema.
+
+If you only need ad-hoc filtering without defining a new response type, use `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`.
 
 ---
 
