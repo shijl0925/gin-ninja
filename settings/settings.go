@@ -34,6 +34,7 @@ package settings
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -230,6 +231,127 @@ func MustLoad(cfgFile string) *Config {
 		panic(fmt.Sprintf("settings: MustLoad: %v", err))
 	}
 	return cfg
+}
+
+// LoadWithOverrides loads the base configuration file and then merges each
+// override file on top of it in order.  Later files take precedence over
+// earlier ones.  Missing override files are silently skipped so that you
+// can always include an environment-specific file path without requiring it to
+// exist in every environment.
+//
+//	settings.LoadWithOverrides("config.yaml", "config.local.yaml")
+func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
+	v := viper.New()
+	setDefaults(v)
+
+	if baseFile != "" {
+		v.SetConfigFile(baseFile)
+	} else {
+		v.SetConfigName("config")
+		v.SetConfigType("yaml")
+		v.AddConfigPath(".")
+		v.AddConfigPath("./config")
+		v.AddConfigPath("/etc/app")
+	}
+
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, fmt.Errorf("settings: read base config: %w", err)
+		}
+	}
+
+	for _, f := range overrideFiles {
+		ov := viper.New()
+		ov.SetConfigFile(f)
+		if err := ov.ReadInConfig(); err != nil {
+			// Silently skip missing override files.
+			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+				continue
+			}
+			// Also skip files that simply do not exist on disk.
+			continue
+		}
+		if err := v.MergeConfigMap(ov.AllSettings()); err != nil {
+			return nil, fmt.Errorf("settings: merge %q: %w", f, err)
+		}
+	}
+
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "__"))
+	v.AutomaticEnv()
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("settings: unmarshal: %w", err)
+	}
+	normalizeDatabaseConfig(&cfg.Database)
+
+	Global = cfg
+	return &cfg, nil
+}
+
+// MustLoadWithOverrides calls LoadWithOverrides and panics on error.
+func MustLoadWithOverrides(baseFile string, overrideFiles ...string) *Config {
+	cfg, err := LoadWithOverrides(baseFile, overrideFiles...)
+	if err != nil {
+		panic(fmt.Sprintf("settings: MustLoadWithOverrides: %v", err))
+	}
+	return cfg
+}
+
+// LoadForEnv loads the base configuration file and then automatically merges
+// an environment-specific override file if it exists.  The override file name
+// is derived by inserting the active environment name before the extension:
+//
+//   - base "config.yaml", env "production" → override "config.production.yaml"
+//   - base "config/app.yaml", env "staging" → override "config/app.staging.yaml"
+//
+// The active environment is read from the base file's app.env key (or the
+// APP__ENV environment variable, which takes precedence).  If unset, it
+// defaults to "development".
+//
+//	// Loads config.yaml, then merges config.development.yaml (if present).
+//	settings.LoadForEnv("config.yaml")
+func LoadForEnv(baseFile string) (*Config, error) {
+	// Peek at app.env without a full unmarshal to avoid double-setting Global.
+	v := viper.New()
+	setDefaults(v)
+	if baseFile != "" {
+		v.SetConfigFile(baseFile)
+	}
+	_ = v.ReadInConfig()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "__"))
+	v.AutomaticEnv()
+
+	env := strings.TrimSpace(v.GetString("app.env"))
+	if env == "" {
+		env = "development"
+	}
+
+	overridePath := envOverridePath(baseFile, env)
+	return LoadWithOverrides(baseFile, overridePath)
+}
+
+// MustLoadForEnv calls LoadForEnv and panics on error.
+func MustLoadForEnv(baseFile string) *Config {
+	cfg, err := LoadForEnv(baseFile)
+	if err != nil {
+		panic(fmt.Sprintf("settings: MustLoadForEnv: %v", err))
+	}
+	return cfg
+}
+
+// envOverridePath returns the path to an environment-specific override file.
+// For base "config.yaml" and env "production" it returns "config.production.yaml".
+// For base "config/app.yaml" and env "staging" it returns "config/app.staging.yaml".
+func envOverridePath(baseFile, env string) string {
+	if baseFile == "" {
+		return ""
+	}
+	dir := filepath.Dir(baseFile)
+	base := filepath.Base(baseFile)
+	ext := filepath.Ext(base)
+	name := strings.TrimSuffix(base, ext)
+	return filepath.Join(dir, name+"."+env+ext)
 }
 
 // setDefaults registers sensible defaults into the viper instance.

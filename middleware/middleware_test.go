@@ -243,3 +243,59 @@ func TestGenerateTokenWithSecret_DoesNotUseGlobalIssuer(t *testing.T) {
 		t.Fatalf("expected default issuer, got %q", claims.Issuer)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// I18n middleware
+// ---------------------------------------------------------------------------
+
+func TestI18n_SetsLocaleFromHeader(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.I18n())
+	r.GET("/", func(c *gin.Context) {
+		locale := middleware.GetLocale(c)
+		c.String(http.StatusOK, locale)
+	})
+
+	cases := []struct {
+		header string
+		want   string
+	}{
+		{"en", "en"},
+		{"en-US,en;q=0.9", "en"},
+		{"zh-CN,zh;q=0.9", "zh"},
+		{"zh", "zh"},
+		{"fr", "en"}, // unsupported → fallback
+		{"", "en"},   // missing → fallback
+	}
+
+	for _, tc := range cases {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		if tc.header != "" {
+			req.Header.Set("Accept-Language", tc.header)
+		}
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Body.String() != tc.want {
+			t.Errorf("Accept-Language=%q: expected locale %q, got %q", tc.header, tc.want, w.Body.String())
+		}
+	}
+}
+
+func TestI18n_GetLocaleDefault(t *testing.T) {
+	r := gin.New()
+	// No I18n middleware registered.
+	r.GET("/", func(c *gin.Context) {
+		locale := middleware.GetLocale(c)
+		c.String(http.StatusOK, locale)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Body.String() != "en" {
+		t.Errorf("expected default locale en, got %q", w.Body.String())
+	}
+}
+
