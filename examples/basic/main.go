@@ -177,6 +177,8 @@ func main() {
 
 	// Attach infrastructure middleware.
 	api.UseGin(
+		ginpkg.Logger(),
+		ginpkg.Recovery(),
 		middleware.RequestID(),
 		middleware.CORS(nil),
 		orm.Middleware(db),

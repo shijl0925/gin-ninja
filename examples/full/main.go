@@ -108,6 +108,7 @@ func main() {
 
 	// ── 5. Global middleware (engine level) ──────────────────────────────────
 	api.UseGin(
+		ginpkg.Logger(),
 		middleware.RequestID(),
 		middleware.Recovery(log_),
 		middleware.Logger(log_),

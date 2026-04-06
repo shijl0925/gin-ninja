@@ -111,6 +111,8 @@ func main() {
     })
 
     api.UseGin(
+        gin.Logger(),                // keep native [GIN] access logs
+        gin.Recovery(),              // keep native panic recovery
         middleware.RequestID(),
         middleware.CORS(nil),
     )
