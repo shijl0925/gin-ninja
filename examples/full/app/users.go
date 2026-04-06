@@ -92,7 +92,11 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 	out := make([]UserOut, len(items))
 	for i, item := range items {
-		out[i] = toUserOut(item)
+		bound, err := toUserOut(item)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = *bound
 	}
 	return pagination.NewPage(out, total, in.PageInput), nil
 }
@@ -107,8 +111,7 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 		}
 		return nil, err
 	}
-	out := toUserOut(u)
-	return &out, nil
+	return toUserOut(u)
 }
 
 // CreateUser creates a new user.
@@ -145,8 +148,7 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 	}
 
 	u, _ := repo.SelectOneById(int(in.UserID))
-	out := toUserOut(u)
-	return &out, nil
+	return toUserOut(u)
 }
 
 // DeleteUser removes a user by ID.
@@ -188,6 +190,5 @@ func createUser(repo IUserRepo, name, email, password string, age int) (*UserOut
 	if err := repo.Insert(u); err != nil {
 		return nil, err
 	}
-	out := toUserOut(*u)
-	return &out, nil
+	return toUserOut(*u)
 }

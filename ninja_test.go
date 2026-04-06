@@ -189,6 +189,17 @@ type listOutput struct {
 	Page  int      `json:"page"`
 }
 
+type modelSchemaUser struct {
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type modelSchemaUserOut struct {
+	ninja.ModelSchema[modelSchemaUser] `fields:"id,name,email" exclude:"password"`
+}
+
 func TestGet_QueryParams(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/items", ninja.WithTags("items"))
@@ -213,6 +224,63 @@ func TestGet_QueryParams(t *testing.T) {
 	}
 	if out.Page != 3 {
 		t.Errorf("expected page=3, got %d", out.Page)
+	}
+}
+
+func TestModelSchemaResponseAndOpenAPI(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/model-schema")
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*modelSchemaUserOut, error) {
+		return ninja.BindModelSchema[modelSchemaUserOut](modelSchemaUser{
+			ID:       1,
+			Name:     "alice",
+			Email:    "alice@example.com",
+			Password: "secret",
+		})
+	})
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/model-schema/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if _, ok := payload["password"]; ok {
+		t.Fatalf("expected password to be excluded, got %v", payload)
+	}
+	if payload["email"] != "alice@example.com" {
+		t.Fatalf("expected email to be present, got %v", payload)
+	}
+
+	specResponse := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	if specResponse.Code != http.StatusOK {
+		t.Fatalf("expected openapi 200, got %d: %s", specResponse.Code, specResponse.Body.String())
+	}
+
+	var spec map[string]interface{}
+	if err := json.Unmarshal(specResponse.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("parse openapi: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/model-schema/"].(map[string]interface{})["get"].(map[string]interface{})
+	schema := get["responses"].(map[string]interface{})["200"].(map[string]interface{})["content"].(map[string]interface{})["application/json"].(map[string]interface{})["schema"].(map[string]interface{})
+	ref := schema["$ref"].(string)
+	const prefix = "#/components/schemas/"
+	name := strings.TrimPrefix(ref, prefix)
+	component := spec["components"].(map[string]interface{})["schemas"].(map[string]interface{})[name].(map[string]interface{})
+	properties := component["properties"].(map[string]interface{})
+	if _, ok := properties["password"]; ok {
+		t.Fatalf("expected password to be excluded from docs, got %v", properties)
+	}
+	if _, ok := properties["email"]; !ok {
+		t.Fatalf("expected email to remain in docs, got %v", properties)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,14 @@ func newSchemaRegistry() *schemaRegistry {
 // named struct types, registers the schema in the registry so it can be
 // referenced via $ref.
 func (r *schemaRegistry) schemaForType(t reflect.Type) *Schema {
+	return r.schemaForTypeWithFilter(t, modelSchemaFilter{})
+}
+
+func (r *schemaRegistry) schemaForTypeWithFilter(t reflect.Type, filter modelSchemaFilter) *Schema {
+	if descriptor, ok := resolveModelSchemaDescriptor(t); ok {
+		return r.schemaForDescriptor(descriptor)
+	}
+
 	// Dereference pointers.
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -72,7 +81,7 @@ func (r *schemaRegistry) schemaForType(t reflect.Type) *Schema {
 		return &Schema{Type: "string"}
 
 	case reflect.Slice, reflect.Array:
-		items := r.schemaForType(t.Elem())
+		items := r.schemaForTypeWithFilter(t.Elem(), filter)
 		return &Schema{Type: "array", Items: items}
 
 	case reflect.Map:
@@ -82,23 +91,38 @@ func (r *schemaRegistry) schemaForType(t reflect.Type) *Schema {
 		if isUploadedFileType(t) {
 			return &Schema{Type: "string", Format: "binary"}
 		}
-		// Use a $ref for named types that have at least one field so we can
-		// reuse the definition in the components section.
-		name := typeName(t)
-		if _, ok := r.schemas[name]; !ok {
-			// Prevent infinite recursion for self-referential types.
-			r.schemas[name] = &Schema{Type: "object"}
-			r.schemas[name] = r.buildStructSchema(t)
-		}
-		return &Schema{Ref: fmt.Sprintf("#/components/schemas/%s", name)}
+		return r.schemaForDescriptor(modelSchemaDescriptor{
+			target: t,
+			filter: filter,
+		})
 
 	default:
 		return &Schema{Type: "string"}
 	}
 }
 
+func (r *schemaRegistry) schemaForDescriptor(descriptor modelSchemaDescriptor) *Schema {
+	t := deref(descriptor.target)
+	if t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
+		return r.schemaForTypeWithFilter(t, descriptor.filter)
+	}
+	name := descriptor.componentName
+	if name == "" {
+		name = modelSchemaComponentName(t, descriptor.filter)
+	}
+	if _, ok := r.schemas[name]; !ok {
+		r.schemas[name] = &Schema{Type: "object"}
+		r.schemas[name] = r.buildStructSchemaWithFilter(t, descriptor.filter)
+	}
+	return &Schema{Ref: fmt.Sprintf("#/components/schemas/%s", name)}
+}
+
 // buildStructSchema constructs the full Schema object for a struct type.
 func (r *schemaRegistry) buildStructSchema(t reflect.Type) *Schema {
+	return r.buildStructSchemaWithFilter(t, modelSchemaFilter{})
+}
+
+func (r *schemaRegistry) buildStructSchemaWithFilter(t reflect.Type, filter modelSchemaFilter) *Schema {
 	s := &Schema{
 		Type:       "object",
 		Properties: make(map[string]*Schema),
@@ -112,7 +136,7 @@ func (r *schemaRegistry) buildStructSchema(t reflect.Type) *Schema {
 
 		// Flatten embedded / anonymous structs.
 		if f.Anonymous {
-			embedded := r.buildStructSchema(deref(f.Type))
+			embedded := r.buildStructSchemaWithFilter(deref(f.Type), filter)
 			for k, v := range embedded.Properties {
 				s.Properties[k] = v
 			}
@@ -121,7 +145,7 @@ func (r *schemaRegistry) buildStructSchema(t reflect.Type) *Schema {
 		}
 
 		fieldName := jsonFieldName(f)
-		if fieldName == "-" {
+		if fieldName == "-" || !filter.includes(f, fieldName) {
 			continue
 		}
 
@@ -137,6 +161,21 @@ func (r *schemaRegistry) buildStructSchema(t reflect.Type) *Schema {
 	}
 
 	return s
+}
+
+func modelSchemaComponentName(t reflect.Type, filter modelSchemaFilter) string {
+	name := typeName(t)
+	if filter.isZero() {
+		return name
+	}
+	parts := []string{name}
+	if len(filter.fields) > 0 {
+		parts = append(parts, "fields", strings.Join(filter.fields, "_"))
+	}
+	if len(filter.exclude) > 0 {
+		parts = append(parts, "exclude", strings.Join(filter.exclude, "_"))
+	}
+	return sanitizeComponentName(strings.Join(parts, "__"))
 }
 
 // ---------------------------------------------------------------------------
@@ -161,13 +200,34 @@ func typeName(t reflect.Type) string {
 func jsonFieldName(f reflect.StructField) string {
 	tag := f.Tag.Get("json")
 	if tag == "" {
-		return strings.ToLower(f.Name[:1]) + f.Name[1:]
+		return defaultJSONFieldName(f.Name)
 	}
 	parts := strings.Split(tag, ",")
 	if parts[0] == "" {
-		return strings.ToLower(f.Name[:1]) + f.Name[1:]
+		return defaultJSONFieldName(f.Name)
 	}
 	return parts[0]
+}
+
+// defaultJSONFieldName converts an exported Go field name to the framework's
+// default lower-camel JSON name while preserving acronym word boundaries, so
+// "ID" becomes "id" and "URLValue" becomes "urlValue".
+func defaultJSONFieldName(name string) string {
+	if name == "" {
+		return ""
+	}
+	runes := []rune(name)
+	prefix := 1
+	for prefix < len(runes) && unicode.IsUpper(runes[prefix]) {
+		if prefix+1 < len(runes) && unicode.IsLower(runes[prefix+1]) {
+			break
+		}
+		prefix++
+	}
+	for i := 0; i < prefix; i++ {
+		runes[i] = unicode.ToLower(runes[i])
+	}
+	return string(runes)
 }
 
 // isRequired returns true when the field has a `binding:"required"` constraint.
