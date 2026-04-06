@@ -43,8 +43,8 @@ type UserOut struct {
 // ListUsersInput holds query parameters for listing users.
 type ListUsersInput struct {
 	pagination.PageInput `order:"id|name|email|age|is_admin|created_at"`
-	Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-	IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+	Search               string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
+	IsAdmin              *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 
 // GetUserInput holds the path parameter for retrieving a single user.
