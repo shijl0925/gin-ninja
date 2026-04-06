@@ -21,13 +21,15 @@ A **django-ninja** inspired web framework built on top of [Gin](https://github.c
 - **Streaming endpoints** – first-class SSE and WebSocket route registration helpers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
-- **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, panic recovery, and **i18n locale negotiation**.
+- **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, panic recovery, i18n locale negotiation, **HMAC-signed cookie sessions**, **CSRF protection**, **security response headers**, and **upload size/content-type limits**.
 - **Lifecycle hooks** – startup and shutdown hooks with graceful server shutdown.
 - **Settings** – Viper-based YAML/env configuration management with **multi-environment override** support.
 - **Logger** – Zap-based structured logger with console/JSON output.
 - **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
+- **Business errors** – `BusinessError` type with integer codes integrated into the error pipeline.
 - **Bootstrap helpers** – one-call database and logger initialization.
 - **i18n / L10n** – locale negotiation via `Accept-Language`, translated validation errors and general messages in English and Chinese.
+- **API version deprecation** – RFC-compliant `Deprecation` and `Sunset` date headers, migration link.
 
 ---
 
@@ -46,11 +48,15 @@ gin-ninja/
 │
 ├── middleware/       ← production-ready HTTP middleware
 │   ├── cors.go       ← CORS (gin-contrib/cors)
+│   ├── csrf.go       ← CSRF double-submit cookie protection
 │   ├── i18n.go       ← locale negotiation (Accept-Language)
 │   ├── jwt.go        ← JWT auth (golang-jwt/jwt)
 │   ├── logger.go     ← structured request logger (Zap)
 │   ├── recovery.go   ← panic recovery
-│   └── requestid.go  ← X-Request-ID injection
+│   ├── requestid.go  ← X-Request-ID injection
+│   ├── secure.go     ← security response headers
+│   ├── session.go    ← HMAC-signed cookie sessions
+│   └── upload.go     ← upload size limit + content-type whitelist
 │
 ├── pkg/
 │   ├── i18n/         ← locale negotiation + validation-error translation
@@ -406,6 +412,155 @@ msg2   := i18n.T(locale, "not_found")                     // "not found" / "资�
 
 Available general message keys: `bad_request`, `unauthorized`, `forbidden`, `not_found`,
 `conflict`, `internal`, `timeout`, `validation`, `rate_limited`.
+
+### Session / Cookie Authentication
+
+`middleware.SessionMiddleware` provides HMAC-SHA256-signed, cookie-based sessions without external
+dependencies.  The session data (a `map[string]string`) is serialised as JSON, signed, and stored
+in a single cookie.  Tampered cookies are automatically discarded.
+
+```go
+api.UseGin(middleware.SessionMiddleware(&middleware.SessionConfig{
+    Secret:   "change-me-in-production",
+    MaxAge:   86400,          // 24 h
+    Secure:   true,           // HTTPS only
+    HTTPOnly: true,
+}))
+
+// In a handler:
+session := middleware.GetSession(c)
+session.Set("user_id", "42")          // mutations are saved automatically
+v, ok := session.Get("user_id")
+session.Delete("user_id")
+
+// Generate a fresh session ID (for server-side session stores):
+id := middleware.NewSessionID()
+```
+
+### CSRF Protection
+
+`middleware.CSRF` implements the **double-submit cookie** pattern.  A random token is set as a
+cookie on the first safe request and must be echoed back in the `X-CSRF-Token` header (or
+`csrf_token` form field) for all state-changing methods (POST, PUT, PATCH, DELETE).
+
+```go
+api.UseGin(middleware.CSRF(nil))   // defaults
+
+// Custom config:
+api.UseGin(middleware.CSRF(&middleware.CSRFConfig{
+    CookieSecure: true,
+    CookieSameSite: http.SameSiteStrictMode,
+}))
+
+// Embed the token in forms / single-page apps:
+token := middleware.CSRFToken(c)
+```
+
+Requests with missing or mismatched tokens are rejected with HTTP 403.
+
+### Security Response Headers
+
+`middleware.SecureHeaders` sets industry-standard security headers in a single call:
+
+```go
+// Sensible defaults:
+api.UseGin(middleware.SecureHeaders(nil))
+
+// Strict production config (HTTPS):
+api.UseGin(middleware.SecureHeadersStrict())
+
+// Custom config:
+api.UseGin(middleware.SecureHeaders(&middleware.SecurityConfig{
+    ContentTypeNoSniff:    true,
+    FrameOption:           "SAMEORIGIN",
+    XSSProtection:         true,
+    ReferrerPolicy:        "strict-origin-when-cross-origin",
+    HSTSMaxAge:            31536000,       // 1 year
+    HSTSIncludeSubDomains: true,
+    ContentSecurityPolicy: "default-src 'self'",
+    PermissionsPolicy:     "geolocation=()",
+}))
+```
+
+HSTS is only emitted when the request arrives over HTTPS (or the `X-Forwarded-Proto: https`
+proxy header is present).
+
+### Upload Size Limit and Content-Type Whitelist
+
+`middleware.UploadLimit` rejects oversized bodies (HTTP 413) and requests with disallowed
+content types (HTTP 415) for POST/PUT/PATCH endpoints:
+
+```go
+api.UseGin(middleware.UploadLimit(&middleware.UploadConfig{
+    MaxSize:          5 << 20,   // 5 MiB
+    AllowedMIMETypes: []string{
+        "application/json",
+        "image/",   // prefix: matches image/jpeg, image/png, etc.
+    },
+}))
+```
+
+Pass `nil` to use defaults (10 MiB limit, no content-type checking).
+
+---
+
+## Business Errors
+
+`BusinessError` is a domain-level error that always produces an HTTP 200 response body with a
+non-zero integer business code — following the `{"code": <int>, "message": "...", "data": null}`
+envelope used by the `pkg/response` package:
+
+```go
+// Return a business error from any handler:
+return nil, ninja.NewBusinessError(10001, "account is disabled")
+return nil, ninja.NewBusinessErrorWithDetail(10002, "quota exceeded", map[string]int{"limit": 100})
+
+// Compare:
+if errors.Is(err, ninja.NewBusinessError(10001, "")) { ... }
+```
+
+Response:
+```json
+{"code": 10001, "message": "account is disabled", "data": null}
+```
+
+This is distinct from `*ninja.Error` (which sets a non-200 HTTP status code).  Use
+`BusinessError` for domain / application-layer failures and `*ninja.Error` for protocol-level
+failures (authentication, not found, etc.).
+
+---
+
+## API Version Deprecation Policy
+
+`VersionConfig` now supports richer deprecation metadata:
+
+```go
+api := ninja.New(ninja.Config{
+    Versions: map[string]ninja.VersionConfig{
+        "v1": {
+            Deprecated:      true,
+            // Optional: emit an HTTP-date in the Deprecation header (RFC 8594):
+            DeprecatedSince: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+            // Optional: emit a Sunset header:
+            SunsetTime:      time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC),
+            // Or use a pre-formatted string:
+            // Sunset: "Tue, 01 Jul 2025 00:00:00 GMT",
+            // Optional: emit a Link header pointing to migration docs:
+            MigrationURL: "https://example.com/migrate-to-v2",
+        },
+    },
+})
+```
+
+Response headers on any deprecated version endpoint:
+
+```
+Deprecation: Mon, 01 Jan 2024 00:00:00 GMT
+Sunset:      Tue, 01 Jul 2025 00:00:00 GMT
+Link:        <https://example.com/migrate-to-v2>; rel="deprecation"
+```
+
+When `DeprecatedSince` is zero the `Deprecation` header falls back to the literal `"true"`.
 
 ---
 
