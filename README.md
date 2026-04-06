@@ -455,13 +455,14 @@ func listAllUsers(ctx *ninja.Context, in *ListAllUsersInput) (*[]UserOut, error)
 }
 ```
 
-For paginated handlers, keep using `pagination.PageInput` and attach the allowlist declaratively on the embedded field:
+For paginated handlers, keep using `pagination.PageInput` for page/size and declare `Sort` separately:
 
 ```go
 import "github.com/shijl0925/gin-ninja/order"
 
 type ListUsersInput struct {
-    pagination.PageInput `order:"id|name|email|age|is_admin|created_at"`
+    pagination.PageInput
+    Sort   string `form:"sort" order:"id|name|email|age|is_admin|created_at"`
     Search string `form:"search" filter:"name|email,like"`
 }
 
@@ -487,8 +488,6 @@ type ListUsersInput struct {
     Sort string `form:"sort" order:"name|created:created_at"`
 }
 ```
-
-Legacy `pagination.PageInput.Sort` parsing and `pagination.ApplyOrder(...)` remain available for compatibility, but new code should prefer `order.ApplyOrder(...)` with declarative `order` tags.
 
 Any sort field outside the allowlist is rejected with an error instead of being passed through to the query layer.
 

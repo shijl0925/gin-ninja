@@ -254,7 +254,8 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	sortedPage, err := ListUsers(nil, &ListUsersInput{
-		PageInput: pagination.PageInput{Page: 1, Size: 10, Sort: "-age"},
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		Sort:      "-age",
 	})
 	if err != nil {
 		t.Fatalf("ListUsers sort: %v", err)
@@ -285,7 +286,8 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	if _, err := ListUsers(nil, &ListUsersInput{
-		PageInput: pagination.PageInput{Page: 1, Size: 10, Sort: "-password"},
+		PageInput: pagination.PageInput{Page: 1, Size: 10},
+		Sort:      "-password",
 	}); err == nil {
 		t.Fatal("expected invalid sort to fail")
 	}

@@ -1,8 +1,8 @@
-package pagination
+package order
 
 import "testing"
 
-func FuzzGetSortFields(f *testing.F) {
+func FuzzParseSort(f *testing.F) {
 	for _, seed := range []string{"name,-created_at", " , +name , -score ,, ", "+", "", "中文,-时间"} {
 		f.Add(seed)
 	}

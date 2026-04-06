@@ -12,12 +12,7 @@
 //	}
 package pagination
 
-import (
-	"math"
-
-	"github.com/shijl0925/gin-ninja/order"
-	"github.com/shijl0925/go-toolkits/gormx"
-)
+import "math"
 
 // DefaultPage is the default page number when not specified.
 const DefaultPage = 1
@@ -39,16 +34,7 @@ type PageInput struct {
 	Page int `form:"page" binding:"omitempty,min=1" json:"-"`
 	// Size is the number of items per page (default: 20, max: 100).
 	Size int `form:"size" binding:"omitempty,min=1,max=100" json:"-"`
-	// Sort is a comma-separated list of fields. Prefix with "-" for descending.
-	// Deprecated: prefer a struct level `order:"..."` tag with ApplyOrder/ResolveOrder.
-	Sort string `form:"sort" json:"-"`
 }
-
-// SortField is a backward-compatible alias for order.SortField.
-type SortField = order.SortField
-
-// SortSchema is a backward-compatible alias for order.SortSchema.
-type SortSchema = order.SortSchema
 
 // GetPage returns the effective page number (at least 1).
 func (p PageInput) GetPage() int {
@@ -78,46 +64,6 @@ func (p PageInput) Offset() int {
 // Limit returns the SQL LIMIT value (identical to GetSize).
 func (p PageInput) Limit() int {
 	return p.GetSize()
-}
-
-// NewSortSchema creates a sort schema and allows each field as its own alias.
-// Deprecated: prefer github.com/shijl0925/gin-ninja/order.NewSortSchema.
-func NewSortSchema(fields ...string) *SortSchema {
-	return order.NewSortSchema(fields...)
-}
-
-// GetSortFields parses the raw sort string.
-func (p PageInput) GetSortFields() []SortField {
-	return order.ParseSort(p.Sort)
-}
-
-// ResolveSort validates the sort string against a schema.
-func (p PageInput) ResolveSort(schema *SortSchema) ([]SortField, error) {
-	return order.ResolveSort(p.Sort, schema)
-}
-
-// ApplySort validates and applies the sort string to a gormx query.
-// Deprecated: prefer github.com/shijl0925/gin-ninja/order.ApplySort.
-func ApplySort[T any](query *gormx.Query[T], input PageInput, schema *SortSchema) error {
-	return order.ApplySort(query, input.Sort, schema)
-}
-
-// ParseSort parses a raw comma-separated sort string.
-// Deprecated: prefer github.com/shijl0925/gin-ninja/order.ParseSort.
-func ParseSort(raw string) []SortField {
-	return order.ParseSort(raw)
-}
-
-// ResolveOrder resolves declarative sort clauses from `order:"..."` tags.
-// Deprecated: prefer github.com/shijl0925/gin-ninja/order.ResolveOrder.
-func ResolveOrder(input any) ([]SortField, error) {
-	return order.ResolveOrder(input)
-}
-
-// ApplyOrder validates and applies declarative sorting to a gormx query.
-// Deprecated: prefer github.com/shijl0925/gin-ninja/order.ApplyOrder.
-func ApplyOrder[T any](query *gormx.Query[T], input any) error {
-	return order.ApplyOrder(query, input)
 }
 
 // Page is the paginated response envelope returned by list endpoints.

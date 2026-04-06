@@ -42,9 +42,10 @@ type UserOut struct {
 
 // ListUsersInput holds query parameters for listing users.
 type ListUsersInput struct {
-	pagination.PageInput `order:"id|name|email|age|is_admin|created_at"`
-	Search               string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-	IsAdmin              *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+	pagination.PageInput
+	Sort    string `form:"sort"     order:"id|name|email|age|is_admin|created_at" description:"Sort by id, name, email, age, is_admin, or created_at"`
+	Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
+	IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 
 // ListAllUsersInput holds query parameters for listing all users without pagination.
