@@ -143,6 +143,10 @@ func main() {
 		ninja.Timeout(2*time.Second),
 		ninja.RateLimit(20, 40),
 	)
+	ninja.Get(usersRouter, "/all", app.ListAllUsers,
+		ninja.Summary("List all users"),
+		ninja.Description("Returns all users without pagination while still supporting declarative filtering and sorting."),
+	)
 	ninja.Get(usersRouter, "/:id", app.GetUser,
 		ninja.Summary("Get user"))
 	ninja.Post(usersRouter, "/", app.CreateUser,

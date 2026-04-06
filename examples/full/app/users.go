@@ -7,6 +7,7 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/filter"
 	"github.com/shijl0925/gin-ninja/middleware"
+	"github.com/shijl0925/gin-ninja/order"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/go-toolkits/gormx"
 	"golang.org/x/crypto/bcrypt"
@@ -78,7 +79,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
 	}
-	if err := pagination.ApplyOrder(query, in); err != nil {
+	if err := order.ApplyOrder(query, in); err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
 
@@ -97,6 +98,36 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 		out[i] = *bound
 	}
 	return pagination.NewPage(out, total, in.PageInput), nil
+}
+
+// ListAllUsers returns all users without pagination while keeping declarative filtering and sorting.
+func ListAllUsers(ctx *ninja.Context, in *ListAllUsersInput) (*[]UserOut, error) {
+	repo := NewUserRepo()
+	query, _ := gormx.NewQuery[User]()
+
+	filterOpts, err := filter.BuildOptions(in)
+	if err != nil {
+		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+	}
+	if err := order.ApplyOrder(query, in); err != nil {
+		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+	}
+
+	opts := append(filterOpts, query.ToOptions()...)
+	items, err := repo.SelectListByOpts(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]UserOut, len(items))
+	for i, item := range items {
+		bound, err := toUserOut(item)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = *bound
+	}
+	return &out, nil
 }
 
 // GetUser retrieves a single user by ID.
