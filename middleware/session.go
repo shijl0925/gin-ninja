@@ -9,7 +9,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -224,15 +223,13 @@ func sessionHMAC(payload, secret string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// generateSessionID generates a random 16-byte URL-safe token.
+// generateSessionID generates a random 32-byte URL-safe token.
 func generateSessionID() string {
-	b := make([]byte, 16)
+	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback: use current time bytes (should not happen in practice).
-		now := time.Now().UnixNano()
-		for i := range b {
-			b[i] = byte(now >> (i * 8))
-		}
+		// crypto/rand failure is a system-level error (e.g. /dev/urandom unavailable).
+		// Using a predictable fallback would be insecure, so panic instead.
+		panic("session: crypto/rand unavailable: " + err.Error())
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }

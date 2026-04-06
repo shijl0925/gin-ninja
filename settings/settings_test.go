@@ -282,18 +282,22 @@ func TestLoadForEnv_AutoMergesEnvFile(t *testing.T) {
 	base := filepath.Join(dir, "config.yaml")
 	envFile := filepath.Join(dir, "config.production.yaml")
 
-	os.WriteFile(base, []byte(`
+	if err := os.WriteFile(base, []byte(`
 app:
   name: "My App"
   env: "production"
 server:
   port: 8080
-`), 0o644) //nolint:errcheck
+`), 0o644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
 
-	os.WriteFile(envFile, []byte(`
+	if err := os.WriteFile(envFile, []byte(`
 server:
   port: 9443
-`), 0o644) //nolint:errcheck
+`), 0o644); err != nil {
+		t.Fatalf("write env file: %v", err)
+	}
 
 	cfg, err := settings.LoadForEnv(base)
 	if err != nil {
@@ -311,10 +315,12 @@ func TestLoadForEnv_DefaultsDevelopment(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "config.yaml")
 	// No app.env set → defaults to "development".
-	os.WriteFile(base, []byte(`
+	if err := os.WriteFile(base, []byte(`
 server:
   port: 8080
-`), 0o644) //nolint:errcheck
+`), 0o644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
 
 	// No config.development.yaml → should just use base.
 	cfg, err := settings.LoadForEnv(base)
@@ -358,7 +364,9 @@ func TestLoadWithOverrides_MalformedOverrideReturnsError(t *testing.T) {
 	// Write an override file with invalid YAML syntax.
 	dir := t.TempDir()
 	bad := filepath.Join(dir, "bad.yaml")
-	os.WriteFile(bad, []byte("key: [unclosed bracket"), 0o644) //nolint:errcheck
+	if err := os.WriteFile(bad, []byte("key: [unclosed bracket"), 0o644); err != nil {
+		t.Fatalf("write bad file: %v", err)
+	}
 
 	if _, err := settings.LoadWithOverrides(base, bad); err == nil {
 		t.Fatal("expected error for malformed override YAML, got nil")
