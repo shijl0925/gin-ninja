@@ -48,6 +48,9 @@ func (cfg *SessionConfig) withDefaults() *SessionConfig {
 	if out.SameSite == 0 {
 		out.SameSite = http.SameSiteLaxMode
 	}
+	if !out.HTTPOnly {
+		out.HTTPOnly = true
+	}
 	return &out
 }
 

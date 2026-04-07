@@ -334,6 +334,9 @@ sessionCookie = c
 if sessionCookie == nil {
 t.Fatal("expected session cookie to be set")
 }
+if !sessionCookie.HttpOnly {
+	t.Fatal("expected session cookie to default to HttpOnly")
+}
 
 req = httptest.NewRequest(http.MethodGet, "/get", nil)
 req.AddCookie(sessionCookie)

@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var csrfRandRead = rand.Read
+
 // CSRFConfig holds configuration for the CSRF middleware.
 type CSRFConfig struct {
 	// CookieName is the name of the cookie that stores the CSRF token.
@@ -162,7 +164,9 @@ func CSRFToken(c *gin.Context) string {
 
 func generateCSRFToken() string {
 	b := make([]byte, 32)
-	_, _ = rand.Read(b)
+	if _, err := csrfRandRead(b); err != nil {
+		panic("csrf: crypto/rand unavailable: " + err.Error())
+	}
 	return hex.EncodeToString(b)
 }
 
