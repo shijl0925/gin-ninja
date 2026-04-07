@@ -73,6 +73,28 @@ func main() {
 	}
 	orm.Init(db)
 
+	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
+	var cacheStoreShutdown func(context.Context) error
+	if cfg.Redis.Enabled {
+		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+			Addr:     cfg.Redis.Addr,
+			Username: cfg.Redis.Username,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+			Prefix:   cfg.Redis.Prefix,
+		})
+		if err != nil {
+			log.Printf("cache: falling back to in-memory store: %v", err)
+		} else if err := redisStore.Ping(context.Background()); err != nil {
+			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
+			_ = redisStore.Close()
+		} else {
+			cacheStore = redisStore
+			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
+			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
+		}
+	}
+
 	// ── 4. Build API ─────────────────────────────────────────────────────────
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,
@@ -105,6 +127,11 @@ func main() {
 		}
 		return sqlDB.Close()
 	})
+	if cacheStoreShutdown != nil {
+		api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+			return cacheStoreShutdown(ctx)
+		})
+	}
 
 	// ── 5. Global middleware (engine level) ──────────────────────────────────
 	api.UseGin(
@@ -178,8 +205,11 @@ func main() {
 	)
 	ninja.Get(exampleRouter, "/cache", app.CachedFeatureDemo,
 		ninja.Summary("Cache + ETag endpoint"),
-		ninja.Description("Demonstrates route-level response caching, Cache-Control, and conditional requests with ETag."),
-		ninja.Cache(time.Minute),
+		ninja.Description("Demonstrates route-level response caching with pluggable memory/Redis stores, Cache-Control, and conditional requests with ETag."),
+		ninja.Cache(time.Minute,
+			ninja.CacheWithStore(cacheStore),
+			ninja.CacheWithTags(func(ctx *ninja.Context) []string { return []string{"examples", "examples:cache"} }),
+		),
 	)
 	ninja.Get(exampleRouter, "/limited", app.LimitedOperation,
 		ninja.Summary("Rate-limited endpoint"),

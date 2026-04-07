@@ -16,7 +16,7 @@ A **django-ninja** inspired web framework built on top of [Gin](https://github.c
 - **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
 - **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
 - **ModelSchema-style responses** – wrap models with `fields` / `exclude` controls for filtered JSON output and OpenAPI schemas.
-- **Route-level caching** – built-in `Cache(...)`, `ETag()`, and `CacheControl(...)` support for read-heavy endpoints.
+- **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, cache tags, and pluggable memory/Redis stores for read-heavy endpoints.
 - **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
 - **Streaming endpoints** – first-class SSE and WebSocket route registration helpers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
@@ -668,10 +668,11 @@ ninja.Get(articles, "/:slug", getArticle,
 
 Behavior:
 
-- `Cache(ttl)` enables in-memory route caching
+- `Cache(ttl)` enables route caching with the default in-memory backend
 - successful GET/HEAD responses automatically include `ETag`
 - when `CacheControl(...)` is not set explicitly, `Cache(ttl)` emits `Cache-Control: public, max-age=<ttl>`
 - requests with `If-None-Match` return `304 Not Modified` when the cached entity tag matches
+- the same API can target Redis by passing `CacheWithStore(...)`
 
 Useful options:
 
@@ -684,16 +685,35 @@ ninja.Get(articles, "/:slug", getArticle,
         ninja.CacheWithKey(func(ctx *ninja.Context) string {
             return "article:" + ctx.Param("slug")
         }),
+        ninja.CacheWithTags(func(ctx *ninja.Context) []string {
+            return []string{"articles", "article:" + ctx.Param("slug")}
+        }),
     ),
     ninja.CacheControl("public, max-age=300, stale-while-revalidate=60"),
     ninja.ETag(),
 )
 ```
 
+Redis-backed store:
+
+```go
+store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+    Addr:   "127.0.0.1:6379",
+    Prefix: "myapp:",
+})
+if err != nil {
+    panic(err)
+}
+
+invalidator := ninja.NewCacheInvalidator(store)
+invalidator.InvalidateTags("article:welcome")
+```
+
 Notes:
 
 - cache support is intended for safe read endpoints
 - SSE / WebSocket routes are not cached
+- `NewCacheInvalidator(store)` provides a unified delete / tag-invalidation / lock entry point
 - OpenAPI automatically documents `ETag` and `Cache-Control` response headers
 
 ---
