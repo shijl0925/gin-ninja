@@ -50,23 +50,23 @@ func CachedFeatureDemo(ctx *ninja.Context, _ *struct{}) (*CacheDemoOutput, error
 	}, nil
 }
 
-// VersionedInfoV1 demonstrates a deprecated versioned endpoint.
+// VersionedInfoV1 demonstrates the current non-deprecated versioned endpoint.
 func VersionedInfoV1(ctx *ninja.Context, _ *struct{}) (*VersionDemoOutput, error) {
 	return &VersionDemoOutput{
 		Version:    "v1",
-		Deprecated: true,
+		Deprecated: false,
 		DocsURL:    "/docs/v1",
 		OpenAPIURL: "/openapi/v1.json",
 	}, nil
 }
 
-// VersionedInfoV2 demonstrates a current versioned endpoint.
-func VersionedInfoV2(ctx *ninja.Context, _ *struct{}) (*VersionDemoOutput, error) {
+// VersionedInfoV0 demonstrates a deprecated versioned endpoint.
+func VersionedInfoV0(ctx *ninja.Context, _ *struct{}) (*VersionDemoOutput, error) {
 	return &VersionDemoOutput{
-		Version:    "v2",
-		Deprecated: false,
-		DocsURL:    "/docs/v2",
-		OpenAPIURL: "/openapi/v2.json",
+		Version:    "v0",
+		Deprecated: true,
+		DocsURL:    "/docs/v0",
+		OpenAPIURL: "/openapi/v0.json",
 	}, nil
 }
 

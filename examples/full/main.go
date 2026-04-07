@@ -26,10 +26,10 @@
 // Then visit:
 //   - http://localhost:8080/docs           – Swagger UI (all routes)
 //   - http://localhost:8080/docs/v1        – versioned Swagger UI for v1
-//   - http://localhost:8080/docs/v2        – versioned Swagger UI for v2
+//   - http://localhost:8080/docs/v0        – versioned Swagger UI for v0
 //   - http://localhost:8080/openapi.json   – raw OpenAPI spec (all routes)
 //   - http://localhost:8080/openapi/v1.json – raw OpenAPI spec for v1
-//   - http://localhost:8080/openapi/v2.json – raw OpenAPI spec for v2
+//   - http://localhost:8080/openapi/v0.json – raw OpenAPI spec for v0
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
 //   - GET  http://localhost:8080/api/v1/users         – list users (requires JWT)
@@ -37,8 +37,8 @@
 //   - GET  http://localhost:8080/api/v1/examples/cache          – cache / ETag demo
 //   - GET  http://localhost:8080/api/v1/examples/events?name=bot – SSE demo
 //   - WS   ws://localhost:8080/api/v1/examples/ws?name=bot      – WebSocket demo
-//   - GET  http://localhost:8080/api/v1/examples/versioned/info – deprecated version route demo
-//   - GET  http://localhost:8080/api/v2/examples/versioned/info – current version route demo
+//   - GET  http://localhost:8080/api/v1/examples/versioned/info – current version route demo
+//   - GET  http://localhost:8080/api/v0/examples/versioned/info – deprecated version route demo
 package main
 
 import (
@@ -81,16 +81,15 @@ func main() {
 		Prefix:      "/api",
 		Versions: map[string]ninja.VersionConfig{
 			"v1": {
-				Prefix:       "/v1",
+				Prefix:      "/v1",
+				Description: "Current example API version.",
+			},
+			"v0": {
+				Prefix:       "/v0",
 				Description:  "Legacy example API demonstrating deprecation headers.",
 				Deprecated:   true,
 				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
-				MigrationURL: "https://example.com/docs/gin-ninja/v2-migration",
-			},
-			"v2": {
-				Prefix:      "/v2",
-				Deprecated:  false,
-				Description: "Current example API version.",
+				MigrationURL: "https://example.com/docs/gin-ninja/v1-migration",
 			},
 		},
 		SecuritySchemes: map[string]ninja.SecurityScheme{
@@ -229,20 +228,20 @@ func main() {
 	)
 	ninja.Get(versionedV1Router, "/info", app.VersionedInfoV1,
 		ninja.Summary("Versioned info (v1)"),
-		ninja.Description("Demonstrates version-scoped routing and deprecation headers on a legacy version."),
+		ninja.Description("Demonstrates version-scoped routing for the current API version."),
 	)
 	api.AddRouter(versionedV1Router)
 
-	versionedV2Router := ninja.NewRouter(
+	versionedV0Router := ninja.NewRouter(
 		"/examples/versioned",
 		ninja.WithTags("Examples"),
-		ninja.WithVersion("v2"),
+		ninja.WithVersion("v0"),
 	)
-	ninja.Get(versionedV2Router, "/info", app.VersionedInfoV2,
-		ninja.Summary("Versioned info (v2)"),
-		ninja.Description("Demonstrates version-scoped routing for the current API version."),
+	ninja.Get(versionedV0Router, "/info", app.VersionedInfoV0,
+		ninja.Summary("Versioned info (v0)"),
+		ninja.Description("Demonstrates version-scoped routing and deprecation headers on a legacy version."),
 	)
-	api.AddRouter(versionedV2Router)
+	api.AddRouter(versionedV0Router)
 
 	// ── 9. Health-check (no auth) ─────────────────────────────────────────────
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
