@@ -1340,7 +1340,7 @@ t.Error("expected Link header with migration URL")
 }
 
 func TestVersionDeprecation_FallsBackToLiteralTrue(t *testing.T) {
-api := ninja.New(ninja.Config{
+	api := ninja.New(ninja.Config{
 Title: "Test",
 Versions: map[string]ninja.VersionConfig{
 "v1": {Deprecated: true},
@@ -1355,4 +1355,44 @@ w := doRequest(api, http.MethodGet, "/v1/ping/", nil)
 if got := w.Header().Get("Deprecation"); got != "true" {
 t.Errorf("expected Deprecation: true (no date), got %q", got)
 }
+}
+
+func TestVersionDeprecation_OpenAPIDocumentsSunsetTimeHeader(t *testing.T) {
+	sunsetAt, _ := time.Parse(time.RFC1123, "Mon, 01 Jul 2025 00:00:00 GMT")
+
+	api := ninja.New(ninja.Config{
+		Title: "Test",
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {
+				Deprecated:   true,
+				SunsetTime:   sunsetAt,
+				MigrationURL: "https://example.com/migrate",
+			},
+		},
+	})
+
+	r := ninja.NewRouter("/users", ninja.WithVersion("v1"))
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi/v1.json", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("unmarshal openapi: %v", err)
+	}
+
+	get := spec["paths"].(map[string]interface{})["/v1/users/"].(map[string]interface{})["get"].(map[string]interface{})
+	headers := get["responses"].(map[string]interface{})["200"].(map[string]interface{})["headers"].(map[string]interface{})
+	if _, ok := headers["Sunset"]; !ok {
+		t.Fatalf("expected Sunset header in OpenAPI, got %v", headers)
+	}
+	if _, ok := headers["Link"]; !ok {
+		t.Fatalf("expected Link header in OpenAPI, got %v", headers)
+	}
 }
