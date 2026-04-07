@@ -310,7 +310,7 @@ users.RegisterMiddlewareChain("audit",
 )
 users.UseChain("audit")
 
-ninja.Get(users, "/", listUsers, ninja.MiddlewareChain("audit"))
+ninja.Get(users, "/", listUsers)
 ```
 
 ### Global / route interceptors

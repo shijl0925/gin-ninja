@@ -374,6 +374,8 @@ func newVoidOperation[TIn any](
 
 func (op *operation) finalize() {
 	if op.handlerBuilder != nil {
+		// Typed operations are wrapped when routeHandler builds the final runtime
+		// handler so inherited interceptors and transformers are included.
 		return
 	}
 	if op.ginHandler == nil {
