@@ -763,7 +763,7 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 	}, nil)
 
 	c, _ := newTestContext(http.MethodGet, "/", "")
-	op.ginHandler(c)
+	op.routeHandler(routePipeline{})(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for nil output, got %d", c.Writer.Status())
 	}
@@ -772,7 +772,7 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 		return nil
 	}, nil)
 	c, _ = newTestContext(http.MethodDelete, "/1", "")
-	voidOp.ginHandler(c)
+	voidOp.routeHandler(routePipeline{})(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for void operation, got %d", c.Writer.Status())
 	}

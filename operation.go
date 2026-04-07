@@ -305,8 +305,6 @@ func newOperation[TIn any, TOut any](
 		}
 	}
 
-	op.ginHandler = op.handlerBuilder(routePipeline{})
-
 	return op
 }
 
@@ -371,14 +369,11 @@ func newVoidOperation[TIn any](
 		}
 	}
 
-	op.ginHandler = op.handlerBuilder(routePipeline{})
-
 	return op
 }
 
 func (op *operation) finalize() {
 	if op.handlerBuilder != nil {
-		op.ginHandler = op.wrapHandler(op.handlerBuilder(routePipeline{}))
 		return
 	}
 	if op.ginHandler == nil {
