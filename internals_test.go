@@ -734,6 +734,11 @@ func TestOptionHelpers(t *testing.T) {
 	PaginatedResponse[schemaSample](http.StatusPartialContent, "partial")(op)
 	Timeout(time.Second)(op)
 	RateLimit(2, 3)(op)
+	UseMiddleware(func(ctx *Context) error { return nil })(op)
+	MiddlewareChain("auth")(op)
+	Intercept(func(ctx *Context, next NextHandler) (any, error) { return next(ctx) })(op)
+	TransformRequest(func(ctx *Context, input any) error { return nil })(op)
+	TransformResponse(func(ctx *Context, output any) (any, error) { return output, nil })(op)
 
 	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
@@ -746,6 +751,9 @@ func TestOptionHelpers(t *testing.T) {
 	}
 	if len(op.responses) != 3 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil {
 		t.Fatalf("unexpected documented responses: %+v", op.responses)
+	}
+	if len(op.middleware) != 1 || len(op.middlewareChainNames) != 1 || len(op.interceptors) != 1 || len(op.requestTransformers) != 1 || len(op.responseTransformers) != 1 {
+		t.Fatalf("unexpected pipeline options: %+v", op)
 	}
 }
 

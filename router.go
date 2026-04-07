@@ -62,15 +62,20 @@ func WithVersion(version string) RouterOption {
 // Router groups a set of API endpoints under a common URL prefix.
 // Routers can be nested arbitrarily.
 type Router struct {
-	prefix          string
-	tags            []string
-	tagDescriptions map[string]string
-	operations      []*operation
-	subrouters      []*Router
-	security        []SecurityRequirement
-	middleware      []func(*Context) error
-	ginMiddleware   []gin.HandlerFunc
-	version         string
+	prefix               string
+	tags                 []string
+	tagDescriptions      map[string]string
+	operations           []*operation
+	subrouters           []*Router
+	security             []SecurityRequirement
+	middleware           []MiddlewareFunc
+	middlewareChains     map[string][]MiddlewareFunc
+	middlewareChainNames []string
+	ginMiddleware        []gin.HandlerFunc
+	interceptors         []Interceptor
+	requestTransformers  []RequestTransformer
+	responseTransformers []ResponseTransformer
+	version              string
 }
 
 // NewRouter creates a new Router with the given URL prefix and options.
@@ -93,8 +98,24 @@ func (r *Router) AddRouter(sub *Router) {
 // Use adds a typed middleware function that runs before every handler on this
 // router.  Returning a non-nil error aborts the request with an appropriate
 // error response.
-func (r *Router) Use(mw func(*Context) error) {
+func (r *Router) Use(mw MiddlewareFunc) {
 	r.middleware = append(r.middleware, mw)
+}
+
+// RegisterMiddlewareChain declares a reusable typed middleware chain on this router.
+func (r *Router) RegisterMiddlewareChain(name string, middleware ...MiddlewareFunc) {
+	if name == "" {
+		return
+	}
+	if r.middlewareChains == nil {
+		r.middlewareChains = map[string][]MiddlewareFunc{}
+	}
+	r.middlewareChains[name] = append([]MiddlewareFunc(nil), middleware...)
+}
+
+// UseChain attaches one or more named middleware chains to this router.
+func (r *Router) UseChain(names ...string) {
+	r.middlewareChainNames = append(r.middlewareChainNames, names...)
 }
 
 // UseGin adds one or more raw gin.HandlerFunc middleware to this router.
@@ -105,6 +126,21 @@ func (r *Router) Use(mw func(*Context) error) {
 //	r.UseGin(middleware.JWTAuthWithSecret("secret"))
 func (r *Router) UseGin(mw ...gin.HandlerFunc) {
 	r.ginMiddleware = append(r.ginMiddleware, mw...)
+}
+
+// UseInterceptor attaches one or more interceptors to this router.
+func (r *Router) UseInterceptor(interceptors ...Interceptor) {
+	r.interceptors = append(r.interceptors, interceptors...)
+}
+
+// UseRequestTransformer attaches request transformers to this router.
+func (r *Router) UseRequestTransformer(transformers ...RequestTransformer) {
+	r.requestTransformers = append(r.requestTransformers, transformers...)
+}
+
+// UseResponseTransformer attaches response transformers to this router.
+func (r *Router) UseResponseTransformer(transformers ...ResponseTransformer) {
+	r.responseTransformers = append(r.responseTransformers, transformers...)
 }
 
 // ---------------------------------------------------------------------------

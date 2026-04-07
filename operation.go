@@ -159,31 +159,37 @@ type documentedResponse struct {
 // operation holds all metadata about a single API endpoint and the
 // gin-compatible handler function that wraps the user-supplied typed handler.
 type operation struct {
-	method            string
-	path              string
-	ginHandler        gin.HandlerFunc
-	inputType         reflect.Type
-	outputType        reflect.Type
-	summary           string
-	description       string
-	operationID       string
-	tags              []string
-	tagDescriptions   map[string]string
-	security          []SecurityRequirement
-	deprecated        bool
-	successStatus     int
-	responses         []documentedResponse
-	paginatedItemType reflect.Type
-	timeout           time.Duration
-	rateLimit         *rateLimiter
-	excludeFromDocs   bool
-	withTransaction   bool
-	cache             *routeCacheConfig
-	cacheControl      string
-	etagEnabled       bool
-	version           string
-	versionInfo       *VersionConfig
-	stream            *streamConfig
+	method               string
+	path                 string
+	ginHandler           gin.HandlerFunc
+	handlerBuilder       func(routePipeline) gin.HandlerFunc
+	inputType            reflect.Type
+	outputType           reflect.Type
+	summary              string
+	description          string
+	operationID          string
+	tags                 []string
+	tagDescriptions      map[string]string
+	security             []SecurityRequirement
+	deprecated           bool
+	successStatus        int
+	responses            []documentedResponse
+	paginatedItemType    reflect.Type
+	timeout              time.Duration
+	rateLimit            *rateLimiter
+	excludeFromDocs      bool
+	withTransaction      bool
+	cache                *routeCacheConfig
+	cacheControl         string
+	etagEnabled          bool
+	version              string
+	versionInfo          *VersionConfig
+	stream               *streamConfig
+	middleware           []MiddlewareFunc
+	middlewareChainNames []string
+	interceptors         []Interceptor
+	requestTransformers  []RequestTransformer
+	responseTransformers []ResponseTransformer
 }
 
 // WithTransaction wraps the operation in a request-scoped database transaction.
@@ -246,50 +252,60 @@ func newOperation[TIn any, TOut any](
 		successStatus: http.StatusOK,
 	}
 
-	op.ginHandler = func(c *gin.Context) {
-		ctx := newContext(c)
+	op.handlerBuilder = func(pipeline routePipeline) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			ctx := newContext(c)
 
-		// Allocate and populate the typed input.
-		input := new(TIn)
-		if err := bindInput(c, method, input); err != nil {
-			writeError(c, err)
-			return
-		}
-
-		// Invoke the user handler.
-		var (
-			output *TOut
-			err    error
-		)
-		invoke := func() error {
-			output, err = handler(ctx, input)
-			return err
-		}
-		if op.withTransaction {
-			if contextWithTx == nil {
-				err = errTransactionUnavailable()
-			} else {
-				err = contextWithTx(c, invoke)
+			input := new(TIn)
+			if err := bindInput(c, method, input); err != nil {
+				writeError(c, err)
+				return
 			}
-		} else {
-			err = invoke()
-		}
-		if err != nil {
-			writeError(c, err)
-			return
-		}
+			if err := applyRequestTransformers(ctx, any(input), pipeline.requestTransformers); err != nil {
+				writeError(c, err)
+				return
+			}
 
-		// Write the response.
-		if output == nil {
-			c.Status(http.StatusNoContent)
-			return
+			output, err := runInterceptors(ctx, pipeline.interceptors, func(current *Context) (any, error) {
+				var (
+					result  *TOut
+					callErr error
+				)
+				invoke := func() error {
+					result, callErr = handler(current, input)
+					return callErr
+				}
+				if op.withTransaction {
+					if contextWithTx == nil {
+						callErr = errTransactionUnavailable()
+					} else {
+						callErr = contextWithTx(c, invoke)
+					}
+				} else {
+					callErr = invoke()
+				}
+				if callErr != nil {
+					return nil, callErr
+				}
+				if result == nil {
+					return nil, nil
+				}
+				return any(result), nil
+			})
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			output, err = applyResponseTransformers(ctx, output, pipeline.responseTransformers)
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			writeSuccess(c, op.successStatus, output)
 		}
-		if writer, ok := any(output).(responseWriter); ok {
-			writer.writeTo(c, op.successStatus)
-			return
-		}
-		c.JSON(op.successStatus, output)
 	}
+
+	op.ginHandler = op.handlerBuilder(routePipeline{})
 
 	return op
 }
@@ -313,45 +329,76 @@ func newVoidOperation[TIn any](
 		successStatus: http.StatusNoContent,
 	}
 
-	op.ginHandler = func(c *gin.Context) {
-		ctx := newContext(c)
+	op.handlerBuilder = func(pipeline routePipeline) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			ctx := newContext(c)
 
-		input := new(TIn)
-		if err := bindInput(c, method, input); err != nil {
-			writeError(c, err)
-			return
-		}
-
-		invoke := func() error {
-			return handler(ctx, input)
-		}
-		var err error
-		if op.withTransaction {
-			if contextWithTx == nil {
-				err = errTransactionUnavailable()
-			} else {
-				err = contextWithTx(c, invoke)
+			input := new(TIn)
+			if err := bindInput(c, method, input); err != nil {
+				writeError(c, err)
+				return
 			}
-		} else {
-			err = invoke()
-		}
-		if err != nil {
-			writeError(c, err)
-			return
-		}
+			if err := applyRequestTransformers(ctx, any(input), pipeline.requestTransformers); err != nil {
+				writeError(c, err)
+				return
+			}
 
-		c.Status(http.StatusNoContent)
+			output, err := runInterceptors(ctx, pipeline.interceptors, func(current *Context) (any, error) {
+				invoke := func() error {
+					return handler(current, input)
+				}
+				if op.withTransaction {
+					if contextWithTx == nil {
+						return nil, errTransactionUnavailable()
+					}
+					if err := contextWithTx(c, invoke); err != nil {
+						return nil, err
+					}
+					return nil, nil
+				}
+				return nil, invoke()
+			})
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			output, err = applyResponseTransformers(ctx, output, pipeline.responseTransformers)
+			if err != nil {
+				writeError(c, err)
+				return
+			}
+			writeSuccess(c, op.successStatus, output)
+		}
 	}
+
+	op.ginHandler = op.handlerBuilder(routePipeline{})
 
 	return op
 }
 
 func (op *operation) finalize() {
+	if op.handlerBuilder != nil {
+		op.ginHandler = op.wrapHandler(op.handlerBuilder(routePipeline{}))
+		return
+	}
 	if op.ginHandler == nil {
 		return
 	}
+	op.ginHandler = op.wrapHandler(op.ginHandler)
+}
 
-	handler := op.ginHandler
+func (op *operation) routeHandler(inherited routePipeline) gin.HandlerFunc {
+	if op.handlerBuilder == nil {
+		return op.ginHandler
+	}
+	pipeline := inherited.extend(op.interceptors, op.requestTransformers, op.responseTransformers)
+	return op.wrapHandler(op.handlerBuilder(pipeline))
+}
+
+func (op *operation) wrapHandler(handler gin.HandlerFunc) gin.HandlerFunc {
+	if handler == nil {
+		return nil
+	}
 	if op.timeout > 0 {
 		handler = wrapTimeout(op.timeout, handler)
 	}
@@ -361,7 +408,39 @@ func (op *operation) finalize() {
 	if op.rateLimit != nil {
 		handler = wrapRateLimit(op.rateLimit, handler)
 	}
-	op.ginHandler = handler
+	return handler
+}
+
+func applyRequestTransformers(ctx *Context, input any, transformers []RequestTransformer) error {
+	for _, transformer := range transformers {
+		if err := transformer(ctx, input); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func applyResponseTransformers(ctx *Context, output any, transformers []ResponseTransformer) (any, error) {
+	var err error
+	for _, transformer := range transformers {
+		output, err = transformer(ctx, output)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return output, nil
+}
+
+func writeSuccess(c *gin.Context, status int, output any) {
+	if output == nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	if writer, ok := output.(responseWriter); ok {
+		writer.writeTo(c, status)
+		return
+	}
+	c.JSON(status, output)
 }
 
 func writeError(c *gin.Context, err error) {

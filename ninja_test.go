@@ -921,6 +921,136 @@ func TestRouter_UseGin_MiddlewareRuns(t *testing.T) {
 	}
 }
 
+func TestRouter_MiddlewareChainsRun(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/pipeline")
+	r.RegisterMiddlewareChain("audit",
+		func(ctx *ninja.Context) error {
+			ctx.Set("chain-router-1", true)
+			return nil
+		},
+		func(ctx *ninja.Context) error {
+			ctx.Set("chain-router-2", true)
+			return nil
+		},
+	)
+	r.RegisterMiddlewareChain("route",
+		func(ctx *ninja.Context) error {
+			ctx.Set("chain-route", true)
+			return nil
+		},
+	)
+	r.UseChain("audit")
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*map[string]bool, error) {
+		router1, _ := ctx.Get("chain-router-1")
+		router2, _ := ctx.Get("chain-router-2")
+		routeOnly, _ := ctx.Get("chain-route")
+		return &map[string]bool{
+			"router1": router1 == true,
+			"router2": router2 == true,
+			"route":   routeOnly == true,
+		}, nil
+	}, ninja.MiddlewareChain("route"))
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/pipeline/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var out map[string]bool
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if !out["router1"] || !out["router2"] || !out["route"] {
+		t.Fatalf("expected middleware chains to run, got %+v", out)
+	}
+}
+
+func TestInterceptors_GlobalAndRouteLevel(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/interceptors")
+	var order []string
+
+	api.UseInterceptor(func(ctx *ninja.Context, next ninja.NextHandler) (any, error) {
+		order = append(order, "global-before")
+		out, err := next(ctx)
+		order = append(order, "global-after")
+		return out, err
+	})
+	r.UseInterceptor(func(ctx *ninja.Context, next ninja.NextHandler) (any, error) {
+		order = append(order, "router-before")
+		out, err := next(ctx)
+		order = append(order, "router-after")
+		return out, err
+	})
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*map[string]string, error) {
+		order = append(order, "handler")
+		return &map[string]string{"status": "ok"}, nil
+	}, ninja.Intercept(func(ctx *ninja.Context, next ninja.NextHandler) (any, error) {
+		order = append(order, "route-before")
+		out, err := next(ctx)
+		order = append(order, "route-after")
+		return out, err
+	}))
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/interceptors/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	got := strings.Join(order, ",")
+	want := "global-before,router-before,route-before,handler,route-after,router-after,global-after"
+	if got != want {
+		t.Fatalf("unexpected interceptor order: got %q want %q", got, want)
+	}
+}
+
+func TestRequestAndResponseTransformers(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/transformers")
+
+	type transformerInput struct {
+		Name string `json:"name"`
+	}
+	type transformerOutput struct {
+		Name string `json:"name"`
+	}
+
+	api.UseRequestTransformer(func(ctx *ninja.Context, input any) error {
+		payload := input.(*transformerInput)
+		payload.Name = strings.TrimSpace(payload.Name)
+		return nil
+	})
+	r.UseRequestTransformer(func(ctx *ninja.Context, input any) error {
+		payload := input.(*transformerInput)
+		payload.Name = strings.ToUpper(payload.Name)
+		return nil
+	})
+
+	ninja.Post(r, "/", func(ctx *ninja.Context, in *transformerInput) (*transformerOutput, error) {
+		return &transformerOutput{Name: in.Name}, nil
+	}, ninja.TransformResponse(func(ctx *ninja.Context, output any) (any, error) {
+		payload := output.(*transformerOutput)
+		return map[string]string{"name": "hello " + strings.ToLower(payload.Name)}, nil
+	}))
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodPost, "/transformers/", map[string]string{"name": "  Ninja  "})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	if got := strings.TrimSpace(w.Body.String()); got != `{"name":"hello ninja"}` {
+		t.Fatalf("unexpected transformed response: %s", got)
+	}
+}
+
 func TestDisableGinDefault(t *testing.T) {
 	// Just verify that DisableGinDefault: true doesn't panic and the API works.
 	api := ninja.New(ninja.Config{

@@ -62,19 +62,22 @@ type Config struct {
 //	api.AddRouter(usersRouter)
 //	api.Run(":8080")
 type NinjaAPI struct {
-	engine         *gin.Engine
-	config         Config
-	openAPI        *openAPISpec
-	openAPICache   openAPICacheState
-	versionSpecs   map[string]*openAPISpec
-	routers        []*Router
-	errorMappersMu sync.RWMutex
-	errorMappers   []ErrorMapper
-	hooksMu        sync.RWMutex
-	startupHooks   []LifecycleHook
-	shutdownHooks  []LifecycleHook
-	lifecycle      lifecycleState
-	serverState    serverState
+	engine               *gin.Engine
+	config               Config
+	openAPI              *openAPISpec
+	openAPICache         openAPICacheState
+	versionSpecs         map[string]*openAPISpec
+	routers              []*Router
+	interceptors         []Interceptor
+	requestTransformers  []RequestTransformer
+	responseTransformers []ResponseTransformer
+	errorMappersMu       sync.RWMutex
+	errorMappers         []ErrorMapper
+	hooksMu              sync.RWMutex
+	startupHooks         []LifecycleHook
+	shutdownHooks        []LifecycleHook
+	lifecycle            lifecycleState
+	serverState          serverState
 }
 
 // New creates a new NinjaAPI with the supplied configuration.
@@ -151,12 +154,39 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 	api.engine.Use(mw...)
 }
 
+// UseInterceptor registers one or more global interceptors.
+func (api *NinjaAPI) UseInterceptor(interceptors ...Interceptor) {
+	api.interceptors = append(api.interceptors, interceptors...)
+}
+
+// UseRequestTransformer registers global request transformers.
+func (api *NinjaAPI) UseRequestTransformer(transformers ...RequestTransformer) {
+	api.requestTransformers = append(api.requestTransformers, transformers...)
+}
+
+// UseResponseTransformer registers global response transformers.
+func (api *NinjaAPI) UseResponseTransformer(transformers ...ResponseTransformer) {
+	api.responseTransformers = append(api.responseTransformers, transformers...)
+}
+
 // AddRouter mounts a Router under the API.
 // All operations defined on the router (and any nested sub-routers) are
 // registered with the gin engine and included in the OpenAPI spec.
 func (api *NinjaAPI) AddRouter(router *Router) {
 	api.routers = append(api.routers, router)
-	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, "", nil, router)
+	api.registerRouter(
+		api.engine.Group(api.config.Prefix),
+		api.config.Prefix,
+		"",
+		nil,
+		router,
+		routePipeline{
+			interceptors:         append([]Interceptor(nil), api.interceptors...),
+			requestTransformers:  append([]RequestTransformer(nil), api.requestTransformers...),
+			responseTransformers: append([]ResponseTransformer(nil), api.responseTransformers...),
+		},
+		nil,
+	)
 	api.invalidateOpenAPICache()
 }
 
@@ -200,7 +230,7 @@ func (api *NinjaAPI) Run(addr string) error {
 // ---------------------------------------------------------------------------
 
 // registerRouter recursively registers all routes from a Router tree.
-func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inheritedVersion string, inheritedInfo *VersionConfig, router *Router) {
+func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inheritedVersion string, inheritedInfo *VersionConfig, router *Router, inheritedPipeline routePipeline, inheritedChains map[string][]MiddlewareFunc) {
 	currentVersion := inheritedVersion
 	currentInfo := cloneVersionInfo(inheritedInfo)
 	groupPrefix := router.prefix
@@ -225,19 +255,17 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 		group.Use(router.ginMiddleware...)
 	}
 
-	// Convert typed ninja middleware into gin.HandlerFunc.
-	for _, mw := range router.middleware {
-		mw := mw // capture loop var
-		group.Use(func(c *gin.Context) {
-			ctx := newContext(c)
-			if err := mw(ctx); err != nil {
-				writeError(c, err)
-				c.Abort()
-				return
-			}
-			c.Next()
-		})
+	chains := mergeMiddlewareChains(inheritedChains, router.middlewareChains)
+	routerChainMiddleware, err := resolveMiddlewareChains(chains, router.middlewareChainNames)
+	if err != nil {
+		group.Use(errorAbortHandler(err))
+	} else {
+		for _, mw := range append(routerChainMiddleware, router.middleware...) {
+			group.Use(typedMiddlewareHandler(mw))
+		}
 	}
+
+	pipeline := inheritedPipeline.extend(router.interceptors, router.requestTransformers, router.responseTransformers)
 
 	for _, op := range router.operations {
 		// Build a copy of the operation with the correct full path for the spec.
@@ -253,11 +281,21 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 			api.versionSpec(currentVersion).addOperation(&opForSpec)
 		}
 
-		group.Handle(op.method, op.path, op.ginHandler)
+		handlers := make([]gin.HandlerFunc, 0, len(op.middleware)+len(op.middlewareChainNames)+1)
+		opChainMiddleware, chainErr := resolveMiddlewareChains(chains, op.middlewareChainNames)
+		if chainErr != nil {
+			handlers = append(handlers, errorAbortHandler(chainErr))
+		} else {
+			for _, mw := range append(opChainMiddleware, op.middleware...) {
+				handlers = append(handlers, typedMiddlewareHandler(mw))
+			}
+		}
+		handlers = append(handlers, op.routeHandler(pipeline))
+		group.Handle(op.method, op.path, handlers...)
 	}
 
 	for _, sub := range router.subrouters {
-		api.registerRouter(group, prefix, currentVersion, currentInfo, sub)
+		api.registerRouter(group, prefix, currentVersion, currentInfo, sub, pipeline, chains)
 	}
 }
 
