@@ -1046,8 +1046,12 @@ func TestRequestAndResponseTransformers(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
 	}
-	if got := strings.TrimSpace(w.Body.String()); got != `{"name":"hello ninja"}` {
-		t.Fatalf("unexpected transformed response: %s", got)
+	var out map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if out["name"] != "hello ninja" {
+		t.Fatalf("unexpected transformed response: %+v", out)
 	}
 }
 

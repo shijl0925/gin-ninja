@@ -137,11 +137,13 @@ func errorAbortHandler(err error) gin.HandlerFunc {
 func runInterceptors(ctx *Context, interceptors []Interceptor, final NextHandler) (any, error) {
 	next := final
 	for i := len(interceptors) - 1; i >= 0; i-- {
-		interceptor := interceptors[i]
-		previous := next
-		next = func(current *Context) (any, error) {
-			return interceptor(current, previous)
-		}
+		next = wrapInterceptor(interceptors[i], next)
 	}
 	return next(ctx)
+}
+
+func wrapInterceptor(interceptor Interceptor, next NextHandler) NextHandler {
+	return func(current *Context) (any, error) {
+		return interceptor(current, next)
+	}
 }

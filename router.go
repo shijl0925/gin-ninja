@@ -105,7 +105,7 @@ func (r *Router) Use(mw MiddlewareFunc) {
 // RegisterMiddlewareChain declares a reusable typed middleware chain on this router.
 func (r *Router) RegisterMiddlewareChain(name string, middleware ...MiddlewareFunc) {
 	if name == "" {
-		return
+		panic("ninja: middleware chain name must not be empty")
 	}
 	if r.middlewareChains == nil {
 		r.middlewareChains = map[string][]MiddlewareFunc{}
