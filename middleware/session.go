@@ -26,7 +26,11 @@ type SessionConfig struct {
 	// Secure marks the cookie as Secure (HTTPS only).
 	Secure bool
 	// HTTPOnly marks the cookie as HttpOnly (no JavaScript access).  Defaults to true.
+	// To explicitly disable HttpOnly, set HTTPOnlySet to true as well.
 	HTTPOnly bool
+	// HTTPOnlySet applies the HTTPOnly value even when it is false.
+	// When false, HTTPOnly defaults to true.
+	HTTPOnlySet bool
 	// SameSite controls the SameSite attribute.  Defaults to http.SameSiteLaxMode.
 	SameSite http.SameSite
 	// Secret is the HMAC-SHA256 key used to sign the cookie value.
@@ -48,7 +52,7 @@ func (cfg *SessionConfig) withDefaults() *SessionConfig {
 	if out.SameSite == 0 {
 		out.SameSite = http.SameSiteLaxMode
 	}
-	if !out.HTTPOnly {
+	if !out.HTTPOnlySet {
 		out.HTTPOnly = true
 	}
 	return &out

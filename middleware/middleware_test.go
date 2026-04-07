@@ -372,6 +372,37 @@ t.Errorf("tampered session should be ignored, got %q", w.Body.String())
 }
 }
 
+func TestSession_HTTPOnlyCanBeExplicitlyDisabled(t *testing.T) {
+r := gin.New()
+r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
+Secret:      "test-secret",
+HTTPOnly:    false,
+HTTPOnlySet: true,
+}))
+r.POST("/", func(c *gin.Context) {
+s := middleware.GetSession(c)
+s.Set("user_id", "42")
+c.Status(http.StatusNoContent)
+})
+
+req := httptest.NewRequest(http.MethodPost, "/", nil)
+w := httptest.NewRecorder()
+r.ServeHTTP(w, req)
+
+var sessionCookie *http.Cookie
+for _, c := range w.Result().Cookies() {
+if c.Name == "session" {
+sessionCookie = c
+}
+}
+if sessionCookie == nil {
+t.Fatal("expected session cookie to be set")
+}
+if sessionCookie.HttpOnly {
+t.Fatal("expected session cookie HttpOnly to remain disabled")
+}
+}
+
 func TestSession_NilMiddleware_GetSessionReturnsNil(t *testing.T) {
 r := gin.New()
 r.GET("/", func(c *gin.Context) {

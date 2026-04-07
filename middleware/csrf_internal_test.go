@@ -7,7 +7,8 @@ import (
 
 func TestGenerateCSRFToken_PanicsWhenRandomFails(t *testing.T) {
 	original := csrfRandRead
-	csrfRandRead = func([]byte) (int, error) {
+	csrfRandRead = func(b []byte) (int, error) {
+		_ = b
 		return 0, errors.New("entropy unavailable")
 	}
 	defer func() {
