@@ -23,7 +23,19 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("[%d] %s: %s", e.Status, e.Code, e.Message)
+	if e == nil {
+		return "<nil>"
+	}
+	switch {
+	case e.Code != "" && e.Message != "":
+		return fmt.Sprintf("[%d] %s: %s", e.Status, e.Code, e.Message)
+	case e.Code != "":
+		return fmt.Sprintf("[%d] %s", e.Status, e.Code)
+	case e.Message != "":
+		return fmt.Sprintf("[%d] %s", e.Status, e.Message)
+	default:
+		return fmt.Sprintf("[%d]", e.Status)
+	}
 }
 
 // Is reports whether the target error represents the same API error kind.
@@ -97,7 +109,6 @@ type businessErrorResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
-
 
 type ValidationError struct {
 	// Errors contains the individual field validation errors.

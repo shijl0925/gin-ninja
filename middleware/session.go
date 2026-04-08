@@ -65,9 +65,44 @@ const sessionContextKey = "gin_ninja_session"
 // Changes are only persisted to the client when Save is called (or when the
 // middleware saves it automatically at the end of the handler chain).
 type Session struct {
-	cfg     *SessionConfig
-	data    map[string]string
-	dirty   bool
+	cfg   *SessionConfig
+	data  map[string]string
+	dirty bool
+}
+
+type sessionResponseWriter struct {
+	gin.ResponseWriter
+	ctx       *gin.Context
+	session   *Session
+	persisted bool
+}
+
+func (w *sessionResponseWriter) ensureSessionSaved() {
+	if w == nil || w.persisted || w.session == nil || !w.session.dirty {
+		return
+	}
+	_ = w.session.Save(w.ctx)
+	w.persisted = true
+}
+
+func (w *sessionResponseWriter) WriteHeader(code int) {
+	w.ensureSessionSaved()
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *sessionResponseWriter) WriteHeaderNow() {
+	w.ensureSessionSaved()
+	w.ResponseWriter.WriteHeaderNow()
+}
+
+func (w *sessionResponseWriter) Write(data []byte) (int, error) {
+	w.ensureSessionSaved()
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *sessionResponseWriter) WriteString(s string) (int, error) {
+	w.ensureSessionSaved()
+	return w.ResponseWriter.WriteString(s)
 }
 
 // Get returns the value for key and whether it was found.
@@ -162,10 +197,16 @@ func SessionMiddleware(cfg *SessionConfig) gin.HandlerFunc {
 		}
 
 		c.Set(sessionContextKey, sess)
+		writer := &sessionResponseWriter{
+			ResponseWriter: c.Writer,
+			ctx:            c,
+			session:        sess,
+		}
+		c.Writer = writer
 		c.Next()
 
 		if sess.dirty {
-			_ = sess.Save(c)
+			writer.ensureSessionSaved()
 		}
 	}
 }
