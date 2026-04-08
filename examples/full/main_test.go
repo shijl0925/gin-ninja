@@ -171,8 +171,8 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		path       string
-		wantTitle  string
+		path        string
+		wantTitle   string
 		wantSpecURL string
 	}{
 		{path: "/docs", wantTitle: "Full Example - API Docs", wantSpecURL: "/openapi.json"},
@@ -317,8 +317,8 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		path       string
-		wantPath   string
+		path        string
+		wantPath    string
 		missingPath string
 	}{
 		{path: "/openapi/v1.json", wantPath: "/api/v1/users/", missingPath: "/api/v0/examples/versioned/info"},
@@ -376,7 +376,7 @@ func TestFullExampleRunReturnsListenError(t *testing.T) {
 
 func TestFullExampleInitDBAndMainHelpers(t *testing.T) {
 	cfg := settings.Config{
-		App: settings.AppConfig{Name: "Full Example", Version: "1.0.0"},
+		App:    settings.AppConfig{Name: "Full Example", Version: "1.0.0"},
 		Server: settings.ServerConfig{Host: "127.0.0.1", Port: 8080},
 		Database: settings.DatabaseConfig{
 			Driver: "sqlite",
