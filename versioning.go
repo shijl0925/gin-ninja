@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,8 +14,23 @@ import (
 type VersionConfig struct {
 	Prefix       string
 	Description  string
+	// Deprecated marks the API version as deprecated.  Requests to deprecated
+	// routes receive a `Deprecation: true` response header (and a date-formatted
+	// `Deprecation` header when DeprecatedSince is set).
 	Deprecated   bool
+	// DeprecatedSince is the optional RFC 1123 date at which deprecation was
+	// announced.  When set, the `Deprecation` header is emitted as an HTTP-date
+	// (e.g. "Mon, 01 Jan 2024 00:00:00 GMT") instead of the literal "true".
+	DeprecatedSince time.Time
+	// Sunset is an RFC 1123 date string indicating when the version will be
+	// removed (e.g. "Mon, 01 Jul 2025 00:00:00 GMT").  When set, the
+	// `Sunset` response header is emitted.
 	Sunset       string
+	// SunsetTime is an optional parsed form of Sunset.  If non-zero it takes
+	// precedence over the Sunset string and is formatted as an HTTP-date.
+	SunsetTime   time.Time
+	// MigrationURL is a URL pointing to migration documentation.  When set,
+	// a `Link: <url>; rel="deprecation"` header is emitted.
 	MigrationURL string
 }
 
@@ -115,10 +131,26 @@ func joinDescription(parts ...string) string {
 func versionDeprecationMiddleware(cfg VersionConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if cfg.Deprecated {
-			c.Header("Deprecation", "true")
-			if cfg.Sunset != "" {
-				c.Header("Sunset", cfg.Sunset)
+			// Emit the Deprecation header.  Use an HTTP-date when DeprecatedSince
+			// is set (RFC 8594), otherwise fall back to the boolean "true".
+			if !cfg.DeprecatedSince.IsZero() {
+				c.Header("Deprecation", cfg.DeprecatedSince.UTC().Format(http.TimeFormat))
+			} else {
+				c.Header("Deprecation", "true")
 			}
+
+			// Emit the Sunset header.  SunsetTime takes precedence over the raw
+			// Sunset string.
+			sunsetValue := ""
+			if !cfg.SunsetTime.IsZero() {
+				sunsetValue = cfg.SunsetTime.UTC().Format(http.TimeFormat)
+			} else if cfg.Sunset != "" {
+				sunsetValue = cfg.Sunset
+			}
+			if sunsetValue != "" {
+				c.Header("Sunset", sunsetValue)
+			}
+
 			if cfg.MigrationURL != "" {
 				c.Header("Link", fmt.Sprintf(`<%s>; rel="deprecation"`, cfg.MigrationURL))
 			}
