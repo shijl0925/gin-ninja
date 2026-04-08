@@ -340,6 +340,59 @@ protected := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
 protected.UseGin(middleware.JWTAuth())  // JWT auth for /admin/* only
 ```
 
+### Declarative middleware chains
+
+```go
+api := ninja.New(ninja.Config{})
+users := ninja.NewRouter("/users")
+
+users.RegisterMiddlewareChain("audit",
+    func(ctx *ninja.Context) error {
+        ctx.Set("request-start", time.Now())
+        return nil
+    },
+)
+users.UseChain("audit")
+
+ninja.Get(users, "/", listUsers)
+```
+
+### Global / route interceptors
+
+```go
+api.UseInterceptor(func(ctx *ninja.Context, next ninja.NextHandler) (any, error) {
+    started := time.Now()
+    out, err := next(ctx)
+    log.Printf("%s %s took %s", ctx.Request.Method, ctx.FullPath(), time.Since(started))
+    return out, err
+})
+
+ninja.Get(users, "/:id", getUser,
+    ninja.Intercept(func(ctx *ninja.Context, next ninja.NextHandler) (any, error) {
+        if ctx.GetUserID() == 0 {
+            return nil, ninja.UnauthorizedError()
+        }
+        return next(ctx)
+    }),
+)
+```
+
+### Request / response transformers
+
+```go
+api.UseRequestTransformer(func(ctx *ninja.Context, input any) error {
+    payload := input.(*CreateUserInput)
+    payload.Email = strings.TrimSpace(strings.ToLower(payload.Email))
+    return nil
+})
+
+ninja.Post(users, "/", createUser,
+    ninja.TransformResponse(func(ctx *ninja.Context, output any) (any, error) {
+        return response.OK(output), nil
+    }),
+)
+```
+
 ### JWT Authentication
 
 ```go
