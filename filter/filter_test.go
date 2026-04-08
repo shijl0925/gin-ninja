@@ -114,6 +114,12 @@ func TestParseRejectsInvalidOperator(t *testing.T) {
 	}
 }
 
+func TestParseRejectsNonStructInput(t *testing.T) {
+	if _, err := Parse("alice"); err == nil || !strings.Contains(err.Error(), "struct or pointer to struct") {
+		t.Fatalf("expected invalid input error, got %v", err)
+	}
+}
+
 func TestParseTagBoundaryCases(t *testing.T) {
 	field := reflect.TypeOf(struct {
 		Search string `filter:"name|email,like"`
@@ -221,6 +227,59 @@ func TestApplySingleFieldFilters(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("unexpected filtered users: %+v", got)
 	}
+}
+
+func TestApplyNilQueryReturnsNil(t *testing.T) {
+	if err := Apply[userRecord](nil, &embeddedFilter{}); err != nil {
+		t.Fatalf("Apply(nil) error = %v", err)
+	}
+}
+
+func TestBuildOptionAndHelperEdges(t *testing.T) {
+	t.Run("unsupported combiner", func(t *testing.T) {
+		_, err := buildOption(Clause{
+			Fields:   []string{"name", "email"},
+			Op:       OpLike,
+			Value:    "alice",
+			Combiner: "and",
+		})
+		if err == nil || !strings.Contains(err.Error(), "unsupported filter combiner") {
+			t.Fatalf("expected unsupported combiner error, got %v", err)
+		}
+	})
+
+	t.Run("like requires string", func(t *testing.T) {
+		_, err := buildExpression("name", OpLike, 123)
+		if err == nil || !strings.Contains(err.Error(), "requires a string value") {
+			t.Fatalf("expected like string error, got %v", err)
+		}
+	})
+
+	t.Run("column and values helpers", func(t *testing.T) {
+		column := toColumn("users.email")
+		if column.Table != "users" || column.Name != "email" {
+			t.Fatalf("unexpected column %+v", column)
+		}
+
+		values := toValues([]int{1, 2, 3})
+		if len(values) != 3 || values[0] != 1 || values[2] != 3 {
+			t.Fatalf("unexpected slice values %+v", values)
+		}
+
+		scalar := toValues("alice")
+		if len(scalar) != 1 || scalar[0] != "alice" {
+			t.Fatalf("unexpected scalar values %+v", scalar)
+		}
+	})
+
+	t.Run("empty value helpers", func(t *testing.T) {
+		if !isEmptyValue(reflect.ValueOf("")) {
+			t.Fatal("expected empty string to be empty")
+		}
+		if isEmptyValue(reflect.ValueOf(false)) {
+			t.Fatal("expected false bool to remain non-empty")
+		}
+	})
 }
 
 func setupFilterTestDB(t *testing.T) {

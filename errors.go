@@ -23,7 +23,19 @@ type Error struct {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("[%d] %s: %s", e.Status, e.Code, e.Message)
+	if e == nil {
+		return "<nil>"
+	}
+	switch {
+	case e.Code != "" && e.Message != "":
+		return fmt.Sprintf("[%d] %s: %s", e.Status, e.Code, e.Message)
+	case e.Code != "":
+		return fmt.Sprintf("[%d] %s", e.Status, e.Code)
+	case e.Message != "":
+		return fmt.Sprintf("[%d] %s", e.Status, e.Message)
+	default:
+		return fmt.Sprintf("[%d]", e.Status)
+	}
 }
 
 // Is reports whether the target error represents the same API error kind.
@@ -45,7 +57,59 @@ func (e *Error) Is(target error) bool {
 	}
 }
 
-// ValidationError represents one or more validation failures on the request.
+// BusinessError represents a domain-level business logic failure.
+// Unlike *Error (which carries an HTTP status code), BusinessError always
+// produces an HTTP 200 response body using the standard business envelope:
+//
+//	{"code": <non-zero int>, "message": "...", "data": null}
+//
+// This mirrors the pkg/response.R convention used for business-level codes.
+//
+// Example:
+//
+//	return nil, ninja.NewBusinessError(10001, "user account is disabled")
+type BusinessError struct {
+	// Code is the application-level integer error code (must be != 0).
+	Code int `json:"code"`
+	// Message is a human-readable description of the failure.
+	Message string `json:"message"`
+	// Detail carries optional structured diagnostic data.
+	Detail interface{} `json:"detail,omitempty"`
+}
+
+func (e *BusinessError) Error() string {
+	return fmt.Sprintf("[business:%d] %s", e.Code, e.Message)
+}
+
+// Is reports whether the target represents the same business error.
+func (e *BusinessError) Is(target error) bool {
+	if e == nil || target == nil {
+		return false
+	}
+	other, ok := target.(*BusinessError)
+	if !ok || other == nil {
+		return false
+	}
+	return e.Code != 0 && e.Code == other.Code
+}
+
+// NewBusinessError creates a BusinessError with the given code and message.
+func NewBusinessError(code int, message string) *BusinessError {
+	return &BusinessError{Code: code, Message: message}
+}
+
+// NewBusinessErrorWithDetail creates a BusinessError with a detail payload.
+func NewBusinessErrorWithDetail(code int, message string, detail interface{}) *BusinessError {
+	return &BusinessError{Code: code, Message: message, Detail: detail}
+}
+
+// businessErrorResponse is the JSON envelope for business errors.
+type businessErrorResponse struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
+}
+
 type ValidationError struct {
 	// Errors contains the individual field validation errors.
 	Errors []FieldError `json:"errors"`
@@ -170,6 +234,12 @@ func WriteError(c *gin.Context, err error) {
 	}
 
 	switch e := err.(type) {
+	case *BusinessError:
+		c.AbortWithStatusJSON(http.StatusOK, businessErrorResponse{
+			Code:    e.Code,
+			Message: e.Message,
+			Data:    e.Detail,
+		})
 	case *Error:
 		status := e.Status
 		if status == 0 {

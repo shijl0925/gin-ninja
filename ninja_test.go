@@ -63,6 +63,9 @@ func TestNew_DefaultConfig(t *testing.T) {
 	if api == nil {
 		t.Fatal("expected non-nil NinjaAPI")
 	}
+	if api.Engine() == nil {
+		t.Fatal("expected Engine() to expose the underlying gin engine")
+	}
 }
 
 func TestNew_DocsRouteExists(t *testing.T) {
@@ -88,6 +91,13 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 	if spec["openapi"] != "3.0.3" {
 		t.Errorf("expected openapi 3.0.3 got %v", spec["openapi"])
+	}
+}
+
+func TestRun_InvalidAddress(t *testing.T) {
+	api := newTestAPI()
+	if err := api.Run(":-1"); err == nil {
+		t.Fatal("expected Run() to fail for an invalid address")
 	}
 }
 
@@ -1050,6 +1060,44 @@ func TestGet_CacheWithExternalStore(t *testing.T) {
 	}
 }
 
+func TestGet_CacheWithCustomKey(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-key")
+	calls := 0
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithKey(func(ctx *ninja.Context) string {
+		return ctx.Request.Method + ":" + ctx.GetHeader("X-Cache-Key")
+	})))
+	api.AddRouter(r)
+
+	first := doRequestWithHeaders(api, http.MethodGet, "/cache-key/", nil, func(req *http.Request) {
+		req.Header.Set("X-Cache-Key", "shared")
+	})
+	second := doRequestWithHeaders(api, http.MethodGet, "/cache-key/", nil, func(req *http.Request) {
+		req.Header.Set("X-Cache-Key", "shared")
+	})
+	third := doRequestWithHeaders(api, http.MethodGet, "/cache-key/", nil, func(req *http.Request) {
+		req.Header.Set("X-Cache-Key", "other")
+	})
+
+	if first.Code != http.StatusOK || second.Code != http.StatusOK || third.Code != http.StatusOK {
+		t.Fatalf("expected 200 responses, got %d/%d/%d", first.Code, second.Code, third.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected cache key function to share only matching requests, calls=%d", calls)
+	}
+	if second.Body.String() != first.Body.String() {
+		t.Fatalf("expected matching cache key to reuse response, got %q vs %q", second.Body.String(), first.Body.String())
+	}
+	if third.Body.String() == first.Body.String() {
+		t.Fatalf("expected distinct cache key to bypass cached response, got %q", third.Body.String())
+	}
+}
+
+
 func TestMemoryCacheStore_TagInvalidationAndLocking(t *testing.T) {
 	store := ninja.NewMemoryCacheStore()
 	store.Set("users:list", &ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
@@ -1158,6 +1206,7 @@ func TestRedisCacheStore_GetTagInvalidateAndLock(t *testing.T) {
 		t.Fatal("expected redis lock acquisition to succeed after unlock")
 	}
 }
+
 
 type versionOutput struct {
 	Version string `json:"version"`
@@ -1351,5 +1400,158 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 	}
 	if !strings.Contains(loggedErr, expectedErr.Error()) {
 		t.Fatalf("expected websocket handler error to be recorded privately, got %q", loggedErr)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// BusinessError
+// ---------------------------------------------------------------------------
+
+func TestBusinessError_WrittenAsHTTP200(t *testing.T) {
+api := newTestAPI()
+r := ninja.NewRouter("/biz")
+
+type emptyIn struct{}
+ninja.Get(r, "/error", func(ctx *ninja.Context, in *emptyIn) (*emptyIn, error) {
+return nil, ninja.NewBusinessError(10001, "account disabled")
+})
+api.AddRouter(r)
+
+w := doRequest(api, http.MethodGet, "/biz/error", nil)
+if w.Code != http.StatusOK {
+t.Fatalf("BusinessError should use HTTP 200, got %d: %s", w.Code, w.Body.String())
+}
+
+var body map[string]interface{}
+if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+t.Fatalf("parse body: %v", err)
+}
+if code, _ := body["code"].(float64); int(code) != 10001 {
+t.Errorf("expected code=10001, got %v", body["code"])
+}
+if msg, _ := body["message"].(string); msg != "account disabled" {
+t.Errorf("expected message='account disabled', got %q", msg)
+}
+}
+
+func TestBusinessError_IsComparison(t *testing.T) {
+err := ninja.NewBusinessError(10001, "disabled")
+target := ninja.NewBusinessError(10001, "something else")
+
+if !errors.Is(err, target) {
+t.Error("expected errors.Is to match on same code")
+}
+
+other := ninja.NewBusinessError(10002, "disabled")
+if errors.Is(err, other) {
+t.Error("expected errors.Is to NOT match on different code")
+}
+}
+
+// ---------------------------------------------------------------------------
+// Version deprecation headers (enhanced)
+// ---------------------------------------------------------------------------
+
+func TestVersionDeprecation_DateHeaders(t *testing.T) {
+deprecatedAt, _ := time.Parse(time.RFC1123, "Mon, 01 Jan 2024 00:00:00 GMT")
+sunsetAt, _ := time.Parse(time.RFC1123, "Mon, 01 Jul 2025 00:00:00 GMT")
+
+api := ninja.New(ninja.Config{
+Title: "Test",
+Versions: map[string]ninja.VersionConfig{
+"v1": {
+Deprecated:      true,
+DeprecatedSince: deprecatedAt,
+SunsetTime:      sunsetAt,
+MigrationURL:    "https://example.com/migrate",
+},
+},
+})
+
+r := ninja.NewRouter("/users", ninja.WithVersion("v1"))
+ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*struct{}, error) {
+return nil, nil
+})
+api.AddRouter(r)
+
+w := doRequest(api, http.MethodGet, "/v1/users/", nil)
+if w.Code != http.StatusNoContent {
+t.Fatalf("expected 204, got %d", w.Code)
+}
+
+deprecation := w.Header().Get("Deprecation")
+if deprecation == "" {
+t.Error("expected Deprecation header")
+}
+if deprecation == "true" {
+t.Errorf("expected a date in Deprecation header, got literal 'true'")
+}
+
+sunset := w.Header().Get("Sunset")
+if sunset == "" {
+t.Error("expected Sunset header")
+}
+
+link := w.Header().Get("Link")
+if link == "" {
+t.Error("expected Link header with migration URL")
+}
+}
+
+func TestVersionDeprecation_FallsBackToLiteralTrue(t *testing.T) {
+	api := ninja.New(ninja.Config{
+Title: "Test",
+Versions: map[string]ninja.VersionConfig{
+"v1": {Deprecated: true},
+},
+})
+
+r := ninja.NewRouter("/ping", ninja.WithVersion("v1"))
+ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*struct{}, error) { return nil, nil })
+api.AddRouter(r)
+
+w := doRequest(api, http.MethodGet, "/v1/ping/", nil)
+if got := w.Header().Get("Deprecation"); got != "true" {
+t.Errorf("expected Deprecation: true (no date), got %q", got)
+}
+}
+
+func TestVersionDeprecation_OpenAPIDocumentsSunsetTimeHeader(t *testing.T) {
+	sunsetAt, _ := time.Parse(time.RFC1123, "Mon, 01 Jul 2025 00:00:00 GMT")
+
+	api := ninja.New(ninja.Config{
+		Title: "Test",
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {
+				Deprecated:   true,
+				SunsetTime:   sunsetAt,
+				MigrationURL: "https://example.com/migrate",
+			},
+		},
+	})
+
+	r := ninja.NewRouter("/users", ninja.WithVersion("v1"))
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi/v1.json", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("unmarshal openapi: %v", err)
+	}
+
+	get := spec["paths"].(map[string]interface{})["/v1/users/"].(map[string]interface{})["get"].(map[string]interface{})
+	headers := get["responses"].(map[string]interface{})["200"].(map[string]interface{})["headers"].(map[string]interface{})
+	if _, ok := headers["Sunset"]; !ok {
+		t.Fatalf("expected Sunset header in OpenAPI, got %v", headers)
+	}
+	if _, ok := headers["Link"]; !ok {
+		t.Fatalf("expected Link header in OpenAPI, got %v", headers)
 	}
 }

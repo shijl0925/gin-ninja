@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
+	"github.com/shijl0925/gin-ninja/pkg/i18n"
 )
 
 const (
@@ -84,6 +85,30 @@ func (c *Context) GetUserID() uint {
 		return cl.GetUserID()
 	}
 	return 0
+}
+
+// Locale returns the negotiated locale stored by the I18n middleware.
+// Returns "en" if the I18n middleware is not registered or the context does
+// not contain a locale value.
+//
+//	locale := ctx.Locale()  // "en" or "zh"
+func (c *Context) Locale() string {
+	v, exists := c.Get(contextkeys.Locale)
+	if !exists {
+		return i18n.Default
+	}
+	if s, ok := v.(string); ok && s != "" {
+		return s
+	}
+	return i18n.Default
+}
+
+// T returns the translated message for key in the request locale.  Variadic
+// args are applied with fmt.Sprintf when the message contains format verbs.
+//
+//	msg := ctx.T("not_found")           // "not found" or "资源不存在"
+func (c *Context) T(key string, args ...interface{}) string {
+	return i18n.T(c.Locale(), key, args...)
 }
 
 // JSON200 is a convenience method to respond with 200 OK and a JSON body.

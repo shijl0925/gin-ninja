@@ -24,13 +24,16 @@ func newDemoAPI() *ninja.NinjaAPI {
 		Prefix:  "/api",
 		Versions: map[string]ninja.VersionConfig{
 			"v1": {
-				Prefix:       "/v1",
+				Prefix:      "/v1",
+				Description: "Current example API",
+			},
+			"v0": {
+				Prefix:       "/v0",
 				Description:  "Legacy example API",
 				Deprecated:   true,
 				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
-				MigrationURL: "https://example.com/docs/gin-ninja/v2-migration",
+				MigrationURL: "https://example.com/docs/gin-ninja/v1-migration",
 			},
-			"v2": {Prefix: "/v2"},
 		},
 	})
 	router := ninja.NewRouter(
@@ -60,9 +63,9 @@ func newDemoAPI() *ninja.NinjaAPI {
 	ninja.Get(versionedV1, "/info", VersionedInfoV1)
 	api.AddRouter(versionedV1)
 
-	versionedV2 := ninja.NewRouter("/examples/versioned", ninja.WithTags("Examples"), ninja.WithVersion("v2"))
-	ninja.Get(versionedV2, "/info", VersionedInfoV2)
-	api.AddRouter(versionedV2)
+	versionedV0 := ninja.NewRouter("/examples/versioned", ninja.WithTags("Examples"), ninja.WithVersion("v0"))
+	ninja.Get(versionedV0, "/info", VersionedInfoV0)
+	api.AddRouter(versionedV0)
 
 	return api
 }
@@ -263,19 +266,22 @@ func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
 	if v1.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", v1.Code, v1.Body.String())
 	}
-	if v1.Header().Get("Deprecation") != "true" {
-		t.Fatalf("expected deprecation header, got %v", v1.Header())
+	if v1.Header().Get("Deprecation") != "" {
+		t.Fatalf("did not expect deprecation header on v1, got %v", v1.Header())
 	}
-	if v1.Header().Get("Sunset") == "" || v1.Header().Get("Link") == "" {
-		t.Fatalf("expected sunset and link headers, got %v", v1.Header())
+	if v1.Header().Get("Sunset") != "" || v1.Header().Get("Link") != "" {
+		t.Fatalf("did not expect sunset/link headers on v1, got %v", v1.Header())
 	}
 
-	v2 := doDemoRequest(api, http.MethodGet, "/api/v2/examples/versioned/info", nil)
-	if v2.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", v2.Code, v2.Body.String())
+	v0 := doDemoRequest(api, http.MethodGet, "/api/v0/examples/versioned/info", nil)
+	if v0.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v0.Code, v0.Body.String())
 	}
-	if v2.Header().Get("Deprecation") != "" {
-		t.Fatalf("did not expect deprecation header on v2, got %v", v2.Header())
+	if v0.Header().Get("Deprecation") != "true" {
+		t.Fatalf("expected deprecation header, got %v", v0.Header())
+	}
+	if v0.Header().Get("Sunset") == "" || v0.Header().Get("Link") == "" {
+		t.Fatalf("expected sunset and link headers, got %v", v0.Header())
 	}
 
 	sse := doDemoRequest(api, http.MethodGet, "/api/v1/examples/events?name=bot", nil)
@@ -380,23 +386,23 @@ func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) 
 	if _, ok := v1Paths["/api/v1/examples/versioned/info"]; !ok {
 		t.Fatalf("expected v1 versioned path, got %v", v1Paths)
 	}
-	if _, ok := v1Paths["/api/v2/examples/versioned/info"]; ok {
-		t.Fatalf("did not expect v2 path in v1 docs, got %v", v1Paths)
+	if _, ok := v1Paths["/api/v0/examples/versioned/info"]; ok {
+		t.Fatalf("did not expect v0 path in v1 docs, got %v", v1Paths)
 	}
 
-	v2Docs := doDemoRequest(api, http.MethodGet, "/openapi/v2.json", nil)
-	if v2Docs.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", v2Docs.Code, v2Docs.Body.String())
+	v0Docs := doDemoRequest(api, http.MethodGet, "/openapi/v0.json", nil)
+	if v0Docs.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v0Docs.Code, v0Docs.Body.String())
 	}
-	var v2Spec map[string]interface{}
-	if err := json.Unmarshal(v2Docs.Body.Bytes(), &v2Spec); err != nil {
-		t.Fatalf("unmarshal v2 openapi: %v", err)
+	var v0Spec map[string]interface{}
+	if err := json.Unmarshal(v0Docs.Body.Bytes(), &v0Spec); err != nil {
+		t.Fatalf("unmarshal v0 openapi: %v", err)
 	}
-	v2Paths := v2Spec["paths"].(map[string]interface{})
-	if _, ok := v2Paths["/api/v2/examples/versioned/info"]; !ok {
-		t.Fatalf("expected v2 versioned path, got %v", v2Paths)
+	v0Paths := v0Spec["paths"].(map[string]interface{})
+	if _, ok := v0Paths["/api/v0/examples/versioned/info"]; !ok {
+		t.Fatalf("expected v0 versioned path, got %v", v0Paths)
 	}
-	if _, ok := v2Paths["/api/v1/examples/versioned/info"]; ok {
-		t.Fatalf("did not expect v1 path in v2 docs, got %v", v2Paths)
+	if _, ok := v0Paths["/api/v1/examples/versioned/info"]; ok {
+		t.Fatalf("did not expect v1 path in v0 docs, got %v", v0Paths)
 	}
 }

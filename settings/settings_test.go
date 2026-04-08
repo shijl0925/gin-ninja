@@ -224,3 +224,187 @@ func TestMustLoadPanicsOnError(t *testing.T) {
 	}()
 	settings.MustLoad(filepath.Join(t.TempDir(), "missing.yaml"))
 }
+
+// ---------------------------------------------------------------------------
+// LoadWithOverrides
+// ---------------------------------------------------------------------------
+
+func TestLoadWithOverrides_MissingOverrideIsSkipped(t *testing.T) {
+	base := writeTempConfig(t, `
+app:
+  name: "Base API"
+  version: "1.0.0"
+`)
+	// Override file does not exist – should not error.
+	cfg, err := settings.LoadWithOverrides(base, filepath.Join(t.TempDir(), "nonexistent.yaml"))
+	if err != nil {
+		t.Fatalf("LoadWithOverrides: %v", err)
+	}
+	if cfg.App.Name != "Base API" {
+		t.Errorf("expected base name, got %q", cfg.App.Name)
+	}
+}
+
+func TestLoadWithOverrides_OverrideWins(t *testing.T) {
+	base := writeTempConfig(t, `
+app:
+  name: "Base API"
+  version: "1.0.0"
+server:
+  port: 8080
+`)
+	override := writeTempConfig(t, `
+app:
+  name: "Override API"
+server:
+  port: 9090
+`)
+	cfg, err := settings.LoadWithOverrides(base, override)
+	if err != nil {
+		t.Fatalf("LoadWithOverrides: %v", err)
+	}
+	if cfg.App.Name != "Override API" {
+		t.Errorf("expected overridden name, got %q", cfg.App.Name)
+	}
+	if cfg.Server.Port != 9090 {
+		t.Errorf("expected overridden port 9090, got %d", cfg.Server.Port)
+	}
+	// Non-overridden field keeps base value.
+	if cfg.App.Version != "1.0.0" {
+		t.Errorf("expected base version, got %q", cfg.App.Version)
+	}
+}
+
+func TestLoadWithOverrides_MultipleOverrides(t *testing.T) {
+	base := writeTempConfig(t, `
+app:
+  name: "Base"
+server:
+  port: 8080
+`)
+	o1 := writeTempConfig(t, `
+server:
+  port: 8081
+`)
+	o2 := writeTempConfig(t, `
+server:
+  port: 8082
+`)
+	cfg, err := settings.LoadWithOverrides(base, o1, o2)
+	if err != nil {
+		t.Fatalf("LoadWithOverrides: %v", err)
+	}
+	// Last override wins.
+	if cfg.Server.Port != 8082 {
+		t.Errorf("expected port 8082, got %d", cfg.Server.Port)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LoadForEnv
+// ---------------------------------------------------------------------------
+
+func TestLoadForEnv_AutoMergesEnvFile(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "config.yaml")
+	envFile := filepath.Join(dir, "config.production.yaml")
+
+	if err := os.WriteFile(base, []byte(`
+app:
+  name: "My App"
+  env: "production"
+server:
+  port: 8080
+`), 0o644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+
+	if err := os.WriteFile(envFile, []byte(`
+server:
+  port: 9443
+`), 0o644); err != nil {
+		t.Fatalf("write env file: %v", err)
+	}
+
+	cfg, err := settings.LoadForEnv(base)
+	if err != nil {
+		t.Fatalf("LoadForEnv: %v", err)
+	}
+	if cfg.Server.Port != 9443 {
+		t.Errorf("expected env-override port 9443, got %d", cfg.Server.Port)
+	}
+	if cfg.App.Name != "My App" {
+		t.Errorf("expected base name, got %q", cfg.App.Name)
+	}
+}
+
+func TestLoadForEnv_DefaultsDevelopment(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "config.yaml")
+	// No app.env set → defaults to "development".
+	if err := os.WriteFile(base, []byte(`
+server:
+  port: 8080
+`), 0o644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+
+	// No config.development.yaml → should just use base.
+	cfg, err := settings.LoadForEnv(base)
+	if err != nil {
+		t.Fatalf("LoadForEnv: %v", err)
+	}
+	if cfg.Server.Port != 8080 {
+		t.Errorf("expected port 8080, got %d", cfg.Server.Port)
+	}
+}
+
+func TestLoadForEnv_MissingEnvFileIsOK(t *testing.T) {
+	base := writeTempConfig(t, `
+app:
+  env: "staging"
+server:
+  port: 7777
+`)
+	// No config.staging.yaml present – should not error.
+	cfg, err := settings.LoadForEnv(base)
+	if err != nil {
+		t.Fatalf("LoadForEnv with missing env file: %v", err)
+	}
+	if cfg.Server.Port != 7777 {
+		t.Errorf("expected 7777, got %d", cfg.Server.Port)
+	}
+}
+
+func TestMustLoadWithOverridesPanicsOnError(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	// Pass a non-existent base file to trigger an error.
+	settings.MustLoadWithOverrides(filepath.Join(t.TempDir(), "missing.yaml"))
+}
+
+func TestMustLoadForEnvPanicsOnError(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
+	}()
+	settings.MustLoadForEnv(filepath.Join(t.TempDir(), "missing.yaml"))
+}
+
+func TestLoadWithOverrides_MalformedOverrideReturnsError(t *testing.T) {
+	base := writeTempConfig(t, `server:\n  port: 8080\n`)
+	// Write an override file with invalid YAML syntax.
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "bad.yaml")
+	if err := os.WriteFile(bad, []byte("key: [unclosed bracket"), 0o644); err != nil {
+		t.Fatalf("write bad file: %v", err)
+	}
+
+	if _, err := settings.LoadWithOverrides(base, bad); err == nil {
+		t.Fatal("expected error for malformed override YAML, got nil")
+	}
+}

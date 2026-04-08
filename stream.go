@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -80,18 +79,30 @@ type WebSocketConn struct {
 }
 
 func (c *WebSocketConn) SendJSON(v any) error {
+	if c == nil || c.Conn == nil {
+		return InternalError()
+	}
 	return websocket.JSON.Send(c.Conn, v)
 }
 
 func (c *WebSocketConn) ReceiveJSON(v any) error {
+	if c == nil || c.Conn == nil {
+		return InternalError()
+	}
 	return websocket.JSON.Receive(c.Conn, v)
 }
 
 func (c *WebSocketConn) SendText(value string) error {
+	if c == nil || c.Conn == nil {
+		return InternalError()
+	}
 	return websocket.Message.Send(c.Conn, value)
 }
 
 func (c *WebSocketConn) ReceiveText() (string, error) {
+	if c == nil || c.Conn == nil {
+		return "", InternalError()
+	}
 	var value string
 	err := websocket.Message.Receive(c.Conn, &value)
 	return value, err
@@ -199,10 +210,10 @@ func sseData(value any) string {
 		return v
 	case []byte:
 		return string(v)
+	case time.Duration:
+		return v.String()
 	case fmt.Stringer:
 		return v.String()
-	case time.Duration:
-		return strconv.FormatInt(v.Milliseconds(), 10)
 	default:
 		data, err := json.Marshal(v)
 		if err != nil {

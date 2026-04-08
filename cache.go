@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -592,8 +593,11 @@ func (w *captureResponseWriter) WriteHeader(statusCode int) {
 	}
 }
 
-func (w *captureResponseWriter) WriteHeaderNow() {}
-
+func (w *captureResponseWriter) WriteHeaderNow() {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+}
 func (w *captureResponseWriter) Write(data []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
@@ -620,10 +624,31 @@ func (w *captureResponseWriter) Written() bool {
 
 func (w *captureResponseWriter) Flush() {}
 
-func (w *captureResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, err error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
 		return nil, nil, http.ErrNotSupported
 	}
+	if unwrapper, ok := w.ResponseWriter.(interface{ Unwrap() http.ResponseWriter }); ok &&
+		isGinResponseWriter(w.ResponseWriter) &&
+		!supportsHijacker(unwrapper.Unwrap()) {
+		return nil, nil, http.ErrNotSupported
+	}
 	return hijacker.Hijack()
+}
+
+func supportsHijacker(writer any) bool {
+	_, ok := writer.(http.Hijacker)
+	return ok
+}
+
+func isGinResponseWriter(writer any) bool {
+	typ := reflect.TypeOf(writer)
+	if typ == nil {
+		return false
+	}
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+	return typ.PkgPath() == "github.com/gin-gonic/gin" && typ.Name() == "responseWriter"
 }
