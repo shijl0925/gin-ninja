@@ -70,6 +70,8 @@ type Session struct {
 	dirty bool
 }
 
+// sessionResponseWriter wraps Gin's response writer so dirty session state can
+// be persisted before headers/body are committed to the client.
 type sessionResponseWriter struct {
 	gin.ResponseWriter
 	ctx       *gin.Context
@@ -81,7 +83,10 @@ func (w *sessionResponseWriter) ensureSessionSaved() {
 	if w == nil || w.persisted || w.session == nil || !w.session.dirty {
 		return
 	}
-	_ = w.session.Save(w.ctx)
+	if err := w.session.Save(w.ctx); err != nil {
+		_ = w.ctx.Error(err)
+		return
+	}
 	w.persisted = true
 }
 
