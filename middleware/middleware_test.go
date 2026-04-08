@@ -594,9 +594,11 @@ t.Errorf("expected includeSubDomains in HSTS header, got %q", got)
 }
 
 func TestSecureHeaders_TLSAndStrict(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SecureHeadersStrict())
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	t.Parallel()
+
+	r := gin.New()
+	r.Use(middleware.SecureHeadersStrict())
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 req := httptest.NewRequest(http.MethodGet, "/", nil)
 req.TLS = &tls.ConnectionState{}
@@ -612,8 +614,10 @@ t.Errorf("expected strict HSTS header, got %q", got)
 }
 
 func TestSecureHeaders_InvalidFrameOptionAndPermissions(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+	t.Parallel()
+
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
 FrameOption:           "ALLOWALL",
 PermissionsPolicy:     "geolocation=()",
 ContentTypeNoSniff:    false,
