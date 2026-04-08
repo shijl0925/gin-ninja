@@ -749,6 +749,42 @@ func TestOptionHelpers(t *testing.T) {
 	}
 }
 
+func TestRouterRegistrationHelpers(t *testing.T) {
+	router := NewRouter("/items", WithTags("Items"))
+	WithTagDescriptions(map[string]string{
+		"Items": "item operations",
+		"Admin": "admin operations",
+	})(router)
+
+	Put[schemaSample, schemaSample](router, "/:id", func(ctx *Context, in *schemaSample) (*schemaSample, error) {
+		return in, nil
+	})
+	Patch[schemaSample, schemaSample](router, "/:id", func(ctx *Context, in *schemaSample) (*schemaSample, error) {
+		return in, nil
+	})
+
+	if len(router.operations) != 2 {
+		t.Fatalf("expected 2 operations, got %d", len(router.operations))
+	}
+
+	putOp := router.operations[0]
+	patchOp := router.operations[1]
+	if putOp.method != http.MethodPut || patchOp.method != http.MethodPatch {
+		t.Fatalf("unexpected methods: %s %s", putOp.method, patchOp.method)
+	}
+	if putOp.successStatus != http.StatusOK || patchOp.successStatus != http.StatusOK {
+		t.Fatalf("unexpected success statuses: %d %d", putOp.successStatus, patchOp.successStatus)
+	}
+	if putOp.tagDescriptions["Items"] != "item operations" || patchOp.tagDescriptions["Admin"] != "admin operations" {
+		t.Fatalf("expected tag descriptions to be copied into operations: %+v %+v", putOp.tagDescriptions, patchOp.tagDescriptions)
+	}
+
+	router.tagDescriptions["Items"] = "mutated"
+	if putOp.tagDescriptions["Items"] != "item operations" || patchOp.tagDescriptions["Items"] != "item operations" {
+		t.Fatalf("expected operation tag descriptions to be cloned, got %+v %+v", putOp.tagDescriptions, patchOp.tagDescriptions)
+	}
+}
+
 func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 	op := newOperation(http.MethodGet, "/", func(ctx *Context, input *struct{}) (*struct{}, error) {
 		return nil, nil

@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -589,6 +590,60 @@ t.Error("expected HSTS header when X-Forwarded-Proto is https")
 }
 if !strings.Contains(got, "includeSubDomains") {
 t.Errorf("expected includeSubDomains in HSTS header, got %q", got)
+}
+}
+
+func TestSecureHeaders_TLSAndStrict(t *testing.T) {
+r := gin.New()
+r.Use(middleware.SecureHeadersStrict())
+r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+req := httptest.NewRequest(http.MethodGet, "/", nil)
+req.TLS = &tls.ConnectionState{}
+w := httptest.NewRecorder()
+r.ServeHTTP(w, req)
+
+if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
+t.Errorf("expected strict frame option DENY, got %q", got)
+}
+if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "max-age=31536000") || !strings.Contains(got, "includeSubDomains") {
+t.Errorf("expected strict HSTS header, got %q", got)
+}
+}
+
+func TestSecureHeaders_InvalidFrameOptionAndPermissions(t *testing.T) {
+r := gin.New()
+r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+FrameOption:           "ALLOWALL",
+PermissionsPolicy:     "geolocation=()",
+ContentTypeNoSniff:    false,
+XSSProtection:         false,
+ReferrerPolicy:        "",
+HSTSMaxAge:            31536000,
+HSTSPreload:           true,
+ContentSecurityPolicy: "default-src 'none'",
+}))
+r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+req := httptest.NewRequest(http.MethodGet, "/", nil)
+req.TLS = &tls.ConnectionState{}
+w := httptest.NewRecorder()
+r.ServeHTTP(w, req)
+
+if got := w.Header().Get("X-Frame-Options"); got != "" {
+t.Errorf("expected invalid frame option to be ignored, got %q", got)
+}
+if got := w.Header().Get("Permissions-Policy"); got != "geolocation=()" {
+t.Errorf("expected permissions policy header, got %q", got)
+}
+if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "preload") {
+t.Errorf("expected preload in HSTS header, got %q", got)
+}
+if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'none'" {
+t.Errorf("expected CSP header, got %q", got)
+}
+if got := w.Header().Get("X-Content-Type-Options"); got != "" {
+t.Errorf("expected nosniff to be disabled, got %q", got)
 }
 }
 
