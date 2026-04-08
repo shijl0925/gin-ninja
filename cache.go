@@ -290,7 +290,7 @@ func matchesETag(ifNoneMatch, etag string) bool {
 func normalizeWeakETag(value string) string {
 	value = strings.TrimSpace(value)
 	if len(value) >= 2 && strings.EqualFold(value[:2], "W/") {
-		return strings.TrimSpace(value[2:])
+		return value[2:]
 	}
 	return value
 }

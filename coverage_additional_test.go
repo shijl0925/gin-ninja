@@ -20,7 +20,7 @@ import (
 type readErrorBody struct{}
 
 func (readErrorBody) Read([]byte) (int, error) { return 0, errors.New("read failed") }
-func (readErrorBody) Close() error              { return nil }
+func (readErrorBody) Close() error             { return nil }
 
 type badJSONMarshaler struct{}
 
@@ -310,10 +310,10 @@ func TestSchemaAdditionalCoverage(t *testing.T) {
 	}
 	if got := registry.buildStructSchema(reflect.TypeOf(struct {
 		private string
-		Name    string `json:",omitempty" default:"demo"`
-		Enabled bool   `default:"true"`
-		Count   int    `default:"7"`
-		Score   uint   `default:"9"`
+		Name    string  `json:",omitempty" default:"demo"`
+		Enabled bool    `default:"true"`
+		Count   int     `default:"7"`
+		Score   uint    `default:"9"`
 		Ratio   float64 `default:"1.5"`
 	}{})); got.Properties["name"].Default != "demo" {
 		t.Fatalf("unexpected struct schema defaults: %+v", got)
@@ -420,6 +420,9 @@ func TestCacheAndInternalRouteAdditionalCoverage(t *testing.T) {
 		}
 		if !matchesETag(`"a", "b"`, `"b"`) {
 			t.Fatal("expected ETag match")
+		}
+		if !matchesETag(`"tag"`, `W/"tag"`) {
+			t.Fatal("expected strong If-None-Match to match weak cached ETag")
 		}
 		if len(splitCommaValues(" a, ,b ")) != 2 {
 			t.Fatal("expected split comma values to trim empties")
