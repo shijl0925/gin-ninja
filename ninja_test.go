@@ -1147,6 +1147,27 @@ func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
 	})
 }
 
+func TestGetRoutesAnswerHeadRequests(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/head")
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		return &cacheOutput{Count: 7}, nil
+	})
+	api.AddRouter(r)
+
+	resp := doRequest(api, http.MethodHead, "/head/", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected HEAD 200, got %d", resp.Code)
+	}
+	if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+		t.Fatalf("expected JSON content type header, got %q", got)
+	}
+	if resp.Body.Len() != 0 {
+		t.Fatalf("expected empty HEAD body, got %q", resp.Body.String())
+	}
+}
+
 type versionOutput struct {
 	Version string `json:"version"`
 }
@@ -1252,6 +1273,12 @@ func TestSSEAndWebSocketHelpers(t *testing.T) {
 	}
 	if ct := sse.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/event-stream") {
 		t.Fatalf("expected SSE content type, got %q", ct)
+	}
+	if got := sse.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Fatalf("expected SSE cache-control header, got %q", got)
+	}
+	if got := sse.Header().Get("Connection"); got != "keep-alive" {
+		t.Fatalf("expected SSE connection header, got %q", got)
 	}
 	if body := sse.Body.String(); !strings.Contains(body, "event: hello") || !strings.Contains(body, `data: {"name":"bot"}`) {
 		t.Fatalf("unexpected SSE body %q", body)

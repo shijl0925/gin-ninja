@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,8 +32,9 @@ type SSEEvent struct {
 
 // SSEStream writes compliant server-sent event frames.
 type SSEStream struct {
-	c    *gin.Context
-	sent bool
+	c          *gin.Context
+	sent       bool
+	headerOnce sync.Once
 }
 
 // Send emits one SSE frame and flushes it to the client.
@@ -40,11 +42,13 @@ func (s *SSEStream) Send(event SSEEvent) error {
 	if s == nil || s.c == nil {
 		return InternalError()
 	}
-	s.c.Header("Content-Type", "text/event-stream")
-	if s.c.Writer.Header().Get("Cache-Control") == "" {
-		s.c.Header("Cache-Control", "no-cache")
-	}
-	s.c.Header("Connection", "keep-alive")
+	s.headerOnce.Do(func() {
+		s.c.Header("Content-Type", "text/event-stream")
+		if s.c.Writer.Header().Get("Cache-Control") == "" {
+			s.c.Header("Cache-Control", "no-cache")
+		}
+		s.c.Header("Connection", "keep-alive")
+	})
 
 	writer := s.c.Writer
 	flusher, ok := writer.(http.Flusher)
