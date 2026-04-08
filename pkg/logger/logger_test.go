@@ -101,4 +101,8 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 			t.Fatalf("expected log content %q in %s", want, content)
 		}
 	}
+
+	if sink := buildSink("stderr"); sink == nil {
+		t.Fatal("expected stderr sink")
+	}
 }
