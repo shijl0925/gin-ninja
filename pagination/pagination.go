@@ -93,6 +93,9 @@ func NewPage[T any](items []T, total int64, input PageInput) *Page[T] {
 	if total > 0 && pages < 1 {
 		pages = 1
 	}
+	if items == nil {
+		items = []T{}
+	}
 	return &Page[T]{
 		Items: items,
 		Total: total,

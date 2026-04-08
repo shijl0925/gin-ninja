@@ -65,9 +65,53 @@ const sessionContextKey = "gin_ninja_session"
 // Changes are only persisted to the client when Save is called (or when the
 // middleware saves it automatically at the end of the handler chain).
 type Session struct {
-	cfg     *SessionConfig
-	data    map[string]string
-	dirty   bool
+	cfg   *SessionConfig
+	data  map[string]string
+	dirty bool
+}
+
+// sessionResponseWriter wraps Gin's response writer so dirty session state can
+// be persisted before headers/body are committed to the client.
+type sessionResponseWriter struct {
+	gin.ResponseWriter
+	ctx       *gin.Context
+	session   *Session
+	persisted bool
+}
+
+// ensureSessionSaved persists the session before response bytes are committed.
+// The save is best-effort: if persistence fails after handler execution has
+// already begun, the error is attached to the Gin context for logging while the
+// response continues rather than risking a partially-written failure response.
+func (w *sessionResponseWriter) ensureSessionSaved() {
+	if w == nil || w.persisted || w.session == nil || !w.session.dirty {
+		return
+	}
+	if err := w.session.Save(w.ctx); err != nil {
+		_ = w.ctx.Error(err)
+		return
+	}
+	w.persisted = true
+}
+
+func (w *sessionResponseWriter) WriteHeader(code int) {
+	w.ensureSessionSaved()
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *sessionResponseWriter) WriteHeaderNow() {
+	w.ensureSessionSaved()
+	w.ResponseWriter.WriteHeaderNow()
+}
+
+func (w *sessionResponseWriter) Write(data []byte) (int, error) {
+	w.ensureSessionSaved()
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *sessionResponseWriter) WriteString(s string) (int, error) {
+	w.ensureSessionSaved()
+	return w.ResponseWriter.WriteString(s)
 }
 
 // Get returns the value for key and whether it was found.
@@ -162,10 +206,16 @@ func SessionMiddleware(cfg *SessionConfig) gin.HandlerFunc {
 		}
 
 		c.Set(sessionContextKey, sess)
+		writer := &sessionResponseWriter{
+			ResponseWriter: c.Writer,
+			ctx:            c,
+			session:        sess,
+		}
+		c.Writer = writer
 		c.Next()
 
 		if sess.dirty {
-			_ = sess.Save(c)
+			writer.ensureSessionSaved()
 		}
 	}
 }

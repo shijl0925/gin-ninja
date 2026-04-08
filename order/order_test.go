@@ -14,6 +14,25 @@ type embeddedTaggedSortInput struct {
 	legacySortInput `order:"id|name|email|age|created_at"`
 }
 
+type equalsTaggedSortInput struct {
+	Sort string `order:"display_name = users.name | created = users.created_at"`
+}
+
+func TestParseSort(t *testing.T) {
+	t.Parallel()
+
+	got := ParseSort(" +name , -created_at,score ,, ")
+	want := []SortField{{Name: "name"}, {Name: "created_at", Desc: true}, {Name: "score"}}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d fields, got %d (%+v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("unexpected field[%d]: %+v want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 func TestResolveSort(t *testing.T) {
 	schema := NewSortSchema("name").Allow("created_at").Allow("score")
 	cases := []struct {
@@ -85,6 +104,11 @@ func TestResolveOrder(t *testing.T) {
 			want:  []SortField{{Name: "age", Desc: true}, {Name: "created_at"}},
 		},
 		{
+			name:  "equals separator with explicit columns",
+			input: &equalsTaggedSortInput{Sort: "display_name,-created"},
+			want:  []SortField{{Name: "users.name"}, {Name: "users.created_at", Desc: true}},
+		},
+		{
 			name:  "blank tokens ignored",
 			input: &taggedSortInput{Sort: " , + , "},
 		},
@@ -126,5 +150,28 @@ func TestResolveOrderRejectsInvalidOrderTagTarget(t *testing.T) {
 
 	if _, err := ResolveOrder(input); err == nil {
 		t.Fatal("expected invalid order tag target error")
+	}
+}
+
+func TestResolveOrderInputValidation(t *testing.T) {
+	t.Parallel()
+
+	if fields, err := ResolveOrder(nil); err != nil || len(fields) != 0 {
+		t.Fatalf("ResolveOrder(nil) = (%+v, %v)", fields, err)
+	}
+	if _, err := ResolveOrder("name"); err == nil {
+		t.Fatal("expected non-struct ResolveOrder error")
+	}
+}
+
+func TestApplySortAndApplyOrderNilQuery(t *testing.T) {
+	t.Parallel()
+
+	schema := NewSortSchema("name")
+	if err := ApplySort[struct{}](nil, "name", schema); err != nil {
+		t.Fatalf("ApplySort(nil) error = %v", err)
+	}
+	if err := ApplyOrder[struct{}](nil, &taggedSortInput{Sort: "name"}); err != nil {
+		t.Fatalf("ApplyOrder(nil) error = %v", err)
 	}
 }
