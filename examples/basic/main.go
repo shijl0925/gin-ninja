@@ -220,6 +220,6 @@ func run(dsn, addr string) error {
 
 func main() {
 	if err := runBasicMain("users.db", ":8080"); err != nil {
-		fatalBasic("db:", err)
+		fatalBasic(err)
 	}
 }

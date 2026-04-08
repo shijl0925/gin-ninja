@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/bootstrap"
@@ -208,7 +209,8 @@ func TestFullExampleInitDBAndMainHelpers(t *testing.T) {
 		called = true
 		return nil
 	}
-	if err := os.Chdir("/home/runner/work/gin-ninja/gin-ninja"); err != nil {
+	root := filepath.Clean(filepath.Join(wd, "..", ".."))
+	if err := os.Chdir(root); err != nil {
 		t.Fatalf("Chdir: %v", err)
 	}
 	main()
