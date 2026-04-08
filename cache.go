@@ -278,12 +278,21 @@ func matchesETag(ifNoneMatch, etag string) bool {
 	if ifNoneMatch == "" || etag == "" {
 		return false
 	}
+	normalizedETag := normalizeWeakETag(etag)
 	for _, candidate := range splitCommaValues(ifNoneMatch) {
-		if candidate == "*" || candidate == etag {
+		if candidate == "*" || normalizeWeakETag(candidate) == normalizedETag {
 			return true
 		}
 	}
 	return false
+}
+
+func normalizeWeakETag(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 && strings.EqualFold(value[:2], "W/") {
+		return strings.TrimSpace(value[2:])
+	}
+	return value
 }
 
 func splitCommaValues(value string) []string {

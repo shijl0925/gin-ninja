@@ -1157,6 +1157,13 @@ func TestGet_CacheETagWildcardAndMultipleValues(t *testing.T) {
 	if multi.Code != http.StatusNotModified {
 		t.Fatalf("expected multi-value If-None-Match to return 304, got %d", multi.Code)
 	}
+
+	weak := doRequestWithHeaders(api, http.MethodGet, "/cache-etag/", nil, func(req *http.Request) {
+		req.Header.Set("If-None-Match", "W/"+etag)
+	})
+	if weak.Code != http.StatusNotModified {
+		t.Fatalf("expected weak If-None-Match to return 304, got %d", weak.Code)
+	}
 }
 
 func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
