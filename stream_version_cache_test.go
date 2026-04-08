@@ -1,0 +1,262 @@
+package ninja
+
+import (
+	"bufio"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/net/websocket"
+)
+
+type sseStringer string
+
+func (s sseStringer) String() string { return string(s) }
+
+func TestWebSocketConnNilHelpersReturnInternalError(t *testing.T) {
+	t.Parallel()
+
+	var conn *WebSocketConn
+
+	if err := conn.SendJSON(map[string]string{"ok": "1"}); !IsInternal(err) {
+		t.Fatalf("SendJSON() error = %v, want internal error", err)
+	}
+	if err := conn.ReceiveJSON(&map[string]string{}); !IsInternal(err) {
+		t.Fatalf("ReceiveJSON() error = %v, want internal error", err)
+	}
+	if err := conn.SendText("ping"); !IsInternal(err) {
+		t.Fatalf("SendText() error = %v, want internal error", err)
+	}
+	if _, err := conn.ReceiveText(); !IsInternal(err) {
+		t.Fatalf("ReceiveText() error = %v, want internal error", err)
+	}
+}
+
+func TestWebSocketConnJSONHelpers(t *testing.T) {
+	server := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+		defer conn.Close()
+
+		wrapped := &WebSocketConn{Conn: conn}
+		var input map[string]string
+		if err := wrapped.ReceiveJSON(&input); err != nil {
+			t.Errorf("ReceiveJSON() error = %v", err)
+			return
+		}
+		if err := wrapped.SendJSON(map[string]string{"reply": input["name"] + "-ok"}); err != nil {
+			t.Errorf("SendJSON() error = %v", err)
+		}
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, err := websocket.Dial(wsURL, "", server.URL)
+	if err != nil {
+		t.Fatalf("Dial() error = %v", err)
+	}
+	defer conn.Close()
+
+	client := &WebSocketConn{Conn: conn}
+	if err := client.SendJSON(map[string]string{"name": "bot"}); err != nil {
+		t.Fatalf("SendJSON() error = %v", err)
+	}
+
+	var reply map[string]string
+	if err := client.ReceiveJSON(&reply); err != nil {
+		t.Fatalf("ReceiveJSON() error = %v", err)
+	}
+	if reply["reply"] != "bot-ok" {
+		t.Fatalf("unexpected reply: %+v", reply)
+	}
+}
+
+func TestSSEDataFormatsCommonTypes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{name: "nil", value: nil, want: ""},
+		{name: "string", value: "hello", want: "hello"},
+		{name: "bytes", value: []byte("world"), want: "world"},
+		{name: "stringer", value: sseStringer("fmt"), want: "fmt"},
+		{name: "duration", value: 1500 * time.Millisecond, want: "1500"},
+		{name: "json", value: map[string]int{"count": 2}, want: `{"count":2}`},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sseData(tc.value); got != tc.want {
+				t.Fatalf("sseData(%s) = %q, want %q", tc.name, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVersioningHelpersAndNotFound(t *testing.T) {
+	t.Parallel()
+
+	if got := versionedDocsPattern("/docs/"); got != "/docs/:version" {
+		t.Fatalf("versionedDocsPattern() = %q", got)
+	}
+	if got := versionedDocsPath("/docs/", "v1"); got != "/docs/v1" {
+		t.Fatalf("versionedDocsPath() = %q", got)
+	}
+	if got := versionedOpenAPIPattern("/openapi.json"); got != "/openapi/:version.json" {
+		t.Fatalf("versionedOpenAPIPattern() = %q", got)
+	}
+	if got := versionedOpenAPIPath("/openapi.json", "v2"); got != "/openapi/v2.json" {
+		t.Fatalf("versionedOpenAPIPath() = %q", got)
+	}
+	if root, ext := splitPathExt("/nested/spec.yaml"); root != "/nested/spec" || ext != ".yaml" {
+		t.Fatalf("splitPathExt() = (%q, %q)", root, ext)
+	}
+	if got := normalizeVersionParam("v1.json"); got != "v1" {
+		t.Fatalf("normalizeVersionParam() = %q", got)
+	}
+
+	docsCtx, _ := newTestContext(http.MethodGet, "/docs/v3", "")
+	docsCtx.Params = gin.Params{{Key: "version", Value: "v3"}}
+	if got := requestVersion(docsCtx); got != "v3" {
+		t.Fatalf("requestVersion(docs) = %q", got)
+	}
+
+	openapiCtx, _ := newTestContext(http.MethodGet, "/openapi/v4.json", "")
+	openapiCtx.Params = gin.Params{{Key: "version.json", Value: "v4.json"}}
+	if got := requestVersion(openapiCtx); got != "v4" {
+		t.Fatalf("requestVersion(openapi) = %q", got)
+	}
+
+	notFoundCtx, notFoundWriter := newTestContext(http.MethodGet, "/openapi/missing.json", "")
+	versionNotFound(notFoundCtx)
+	if notFoundWriter.Code != http.StatusNotFound || !strings.Contains(notFoundWriter.Body.String(), "API version not found") {
+		t.Fatalf("unexpected versionNotFound response: %d %s", notFoundWriter.Code, notFoundWriter.Body.String())
+	}
+}
+
+func TestVersionDeprecationMiddlewareHeaders(t *testing.T) {
+	t.Parallel()
+
+	cfg := VersionConfig{
+		Deprecated:      true,
+		DeprecatedSince: time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
+		SunsetTime:      time.Date(2026, time.June, 7, 8, 9, 10, 0, time.UTC),
+		MigrationURL:    "https://example.com/migrate",
+	}
+
+	r := gin.New()
+	r.Use(versionDeprecationMiddleware(cfg))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Deprecation"); got != cfg.DeprecatedSince.Format(http.TimeFormat) {
+		t.Fatalf("Deprecation header = %q", got)
+	}
+	if got := w.Header().Get("Sunset"); got != cfg.SunsetTime.Format(http.TimeFormat) {
+		t.Fatalf("Sunset header = %q", got)
+	}
+	if got := w.Header().Get("Link"); !strings.Contains(got, cfg.MigrationURL) {
+		t.Fatalf("Link header = %q", got)
+	}
+}
+
+func TestCaptureResponseWriterWriteHeaderNowAndHelpers(t *testing.T) {
+	t.Parallel()
+
+	c, _ := newTestContext(http.MethodGet, "/cache", "")
+	recorder := newCaptureResponseWriter(c.Writer)
+
+	recorder.WriteHeaderNow()
+	if recorder.Status() != http.StatusOK {
+		t.Fatalf("Status() = %d, want %d", recorder.Status(), http.StatusOK)
+	}
+	if !recorder.Written() {
+		t.Fatal("expected recorder to be marked written after WriteHeaderNow")
+	}
+	if _, err := recorder.WriteString("cached"); err != nil {
+		t.Fatalf("WriteString() error = %v", err)
+	}
+	if recorder.Size() != len("cached") {
+		t.Fatalf("Size() = %d, want %d", recorder.Size(), len("cached"))
+	}
+	if string(recorder.body) != "cached" {
+		t.Fatalf("body = %q, want %q", string(recorder.body), "cached")
+	}
+}
+
+func TestMemoryCacheStoreRemovesExpiredEntriesAndClonesValues(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStoreWithLimit(2)
+	store.Set("expired", &CachedResponse{Status: http.StatusAccepted, Expires: time.Now().Add(-time.Second)})
+	store.Set("fresh", &CachedResponse{
+		Status: http.StatusCreated,
+		Header: http.Header{"X-Test": []string{"value"}},
+		Body:   []byte("ok"),
+	})
+
+	if _, ok := store.Get("expired"); ok {
+		t.Fatal("expected expired cache entry to be removed")
+	}
+	if _, exists := store.items["expired"]; exists {
+		t.Fatal("expected expired cache entry to be deleted from store")
+	}
+
+	value, ok := store.Get("fresh")
+	if !ok {
+		t.Fatal("expected fresh cache entry")
+	}
+	value.Header.Set("X-Test", "changed")
+	value.Body[0] = 'X'
+
+	again, ok := store.Get("fresh")
+	if !ok {
+		t.Fatal("expected fresh cache entry on second read")
+	}
+	if again.Header.Get("X-Test") != "value" {
+		t.Fatalf("expected cached header clone, got %q", again.Header.Get("X-Test"))
+	}
+	if string(again.Body) != "ok" {
+		t.Fatalf("expected cached body clone, got %q", string(again.Body))
+	}
+}
+
+type hijackableResponseRecorder struct {
+	*httptest.ResponseRecorder
+}
+
+func (w *hijackableResponseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	server, client := net.Pipe()
+	reader := bufio.NewReadWriter(bufio.NewReader(server), bufio.NewWriter(server))
+	return client, reader, nil
+}
+
+func TestCaptureResponseWriterHijackFallbackAndDelegate(t *testing.T) {
+	t.Parallel()
+
+	c, _ := newTestContext(http.MethodGet, "/cache", "")
+	recorder := newCaptureResponseWriter(c.Writer)
+	if _, _, err := recorder.Hijack(); err != http.ErrNotSupported {
+		t.Fatalf("Hijack() error = %v, want %v", err, http.ErrNotSupported)
+	}
+
+	base := &hijackableResponseRecorder{ResponseRecorder: httptest.NewRecorder()}
+	c2, _ := gin.CreateTestContext(base)
+	c2.Request = httptest.NewRequest(http.MethodGet, "/cache", nil)
+	recorder = newCaptureResponseWriter(c2.Writer)
+	conn, rw, err := recorder.Hijack()
+	if err != nil || conn == nil || rw == nil {
+		t.Fatalf("Hijack() = (%v, %v, %v)", conn, rw, err)
+	}
+	_ = conn.Close()
+}

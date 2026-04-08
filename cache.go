@@ -356,8 +356,11 @@ func (w *captureResponseWriter) WriteHeader(statusCode int) {
 	}
 }
 
-func (w *captureResponseWriter) WriteHeaderNow() {}
-
+func (w *captureResponseWriter) WriteHeaderNow() {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+}
 func (w *captureResponseWriter) Write(data []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
@@ -384,10 +387,17 @@ func (w *captureResponseWriter) Written() bool {
 
 func (w *captureResponseWriter) Flush() {}
 
-func (w *captureResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, err error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)
 	if !ok {
 		return nil, nil, http.ErrNotSupported
 	}
+	defer func() {
+		if recover() != nil {
+			conn = nil
+			rw = nil
+			err = http.ErrNotSupported
+		}
+	}()
 	return hijacker.Hijack()
 }
