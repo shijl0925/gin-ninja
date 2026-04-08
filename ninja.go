@@ -254,6 +254,9 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 		}
 
 		group.Handle(op.method, op.path, op.ginHandler)
+		if op.method == http.MethodGet {
+			group.Handle(http.MethodHead, op.path, op.ginHandler)
+		}
 	}
 
 	for _, sub := range router.subrouters {
