@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -211,10 +210,6 @@ func sseData(value any) string {
 		return v
 	case []byte:
 		return string(v)
-	case time.Duration:
-		// SSE "retry" values are defined in milliseconds, and duration payloads
-		// are most useful in that machine-readable form as well.
-		return strconv.FormatInt(v.Milliseconds(), 10)
 	case fmt.Stringer:
 		return v.String()
 	default:

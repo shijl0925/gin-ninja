@@ -85,7 +85,7 @@ func TestSSEDataFormatsCommonTypes(t *testing.T) {
 		{name: "string", value: "hello", want: "hello"},
 		{name: "bytes", value: []byte("world"), want: "world"},
 		{name: "stringer", value: sseStringer("fmt"), want: "fmt"},
-		{name: "duration", value: 1500 * time.Millisecond, want: "1500"},
+		{name: "duration", value: 1500 * time.Millisecond, want: "1.5s"},
 		{name: "json", value: map[string]int{"count": 2}, want: `{"count":2}`},
 	}
 
