@@ -11,3 +11,14 @@ func FuzzParseSort(f *testing.F) {
 		_ = ParseSort(sort)
 	})
 }
+
+func FuzzResolveOrder(f *testing.F) {
+	for _, seed := range []string{"name,-created", "display_name", "password", "", " , +name "} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, sort string) {
+		_, _ = ResolveOrder(&taggedSortInput{Sort: sort})
+		_, _ = ResolveOrder(&equalsTaggedSortInput{Sort: sort})
+	})
+}

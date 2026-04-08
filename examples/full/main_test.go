@@ -268,6 +268,17 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 		t.Fatalf("expected deprecation headers on v0, got %v", v0.Header)
 	}
 	v0.Body.Close()
+
+	for _, path := range []string{"/docs/v9", "/openapi/v9.json"} {
+		resp, err := http.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s: expected 404, got %d", path, resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
 }
 
 func TestFullExampleOpenAPIContracts(t *testing.T) {
@@ -344,6 +355,15 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 		}
 		if _, ok := versionedPaths[tc.missingPath]; ok {
 			t.Fatalf("%s: did not expect path %s, got %v", tc.path, tc.missingPath, versionedPaths)
+		}
+		if tc.path == "/openapi/v0.json" {
+			responses := versionedPaths["/api/v0/examples/versioned/info"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
+			headers := responses["200"].(map[string]any)["headers"].(map[string]any)
+			for _, name := range []string{"Deprecation", "Sunset", "Link"} {
+				if _, ok := headers[name]; !ok {
+					t.Fatalf("%s: expected header %s in deprecated version docs, got %v", tc.path, name, headers)
+				}
+			}
 		}
 	}
 }

@@ -1096,6 +1096,57 @@ func TestGet_CacheWithCustomKey(t *testing.T) {
 	}
 }
 
+func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
+	t.Run("head requests are cached separately and keep headers without body", func(t *testing.T) {
+		api := newTestAPI()
+		r := ninja.NewRouter("/cache-head")
+		var calls int32
+
+		ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+			return &cacheOutput{Count: int(atomic.AddInt32(&calls, 1))}, nil
+		}, ninja.Cache(time.Minute))
+		api.AddRouter(r)
+
+		first := doRequest(api, http.MethodHead, "/cache-head/", nil)
+		second := doRequest(api, http.MethodHead, "/cache-head/", nil)
+
+		if first.Code != http.StatusOK || second.Code != http.StatusOK {
+			t.Fatalf("expected HEAD 200 responses, got %d/%d", first.Code, second.Code)
+		}
+		if first.Body.Len() != 0 || second.Body.Len() != 0 {
+			t.Fatalf("expected empty HEAD bodies, got %q / %q", first.Body.String(), second.Body.String())
+		}
+		if got := second.Header().Get("Cache-Control"); got != "public, max-age=60" {
+			t.Fatalf("expected cache-control header, got %q", got)
+		}
+		if atomic.LoadInt32(&calls) != 1 {
+			t.Fatalf("expected cached HEAD response on second call, calls=%d", calls)
+		}
+	})
+
+	t.Run("non-success responses are not cached", func(t *testing.T) {
+		api := newTestAPI()
+		r := ninja.NewRouter("/cache-errors")
+		var calls int32
+
+		ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+			atomic.AddInt32(&calls, 1)
+			return nil, ninja.NewErrorWithCode(http.StatusBadGateway, "UPSTREAM", "upstream failed")
+		}, ninja.Cache(time.Minute))
+		api.AddRouter(r)
+
+		first := doRequest(api, http.MethodGet, "/cache-errors/", nil)
+		second := doRequest(api, http.MethodGet, "/cache-errors/", nil)
+
+		if first.Code != http.StatusBadGateway || second.Code != http.StatusBadGateway {
+			t.Fatalf("expected uncached 502 responses, got %d/%d", first.Code, second.Code)
+		}
+		if atomic.LoadInt32(&calls) != 2 {
+			t.Fatalf("expected error responses not to be cached, calls=%d", calls)
+		}
+	})
+}
+
 type versionOutput struct {
 	Version string `json:"version"`
 }
@@ -1239,6 +1290,76 @@ func TestSSEAndWebSocketHelpers(t *testing.T) {
 	if _, ok := wsResponses["101"]; !ok {
 		t.Fatalf("expected websocket upgrade response documentation, got %v", wsResponses)
 	}
+}
+
+func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
+	t.Run("sse error before first event writes normal error response", func(t *testing.T) {
+		api := newTestAPI()
+		r := ninja.NewRouter("/stream-boundary")
+
+		ninja.SSE(r, "/before", func(ctx *ninja.Context, in *streamInput, stream *ninja.SSEStream) error {
+			return ninja.NewErrorWithCode(http.StatusBadRequest, "STREAM_INPUT", "invalid stream input")
+		})
+		api.AddRouter(r)
+
+		resp := doRequest(api, http.MethodGet, "/stream-boundary/before?name=bot", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body.String())
+		}
+		if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+			t.Fatalf("expected JSON error content type, got %q", got)
+		}
+		if body := resp.Body.String(); !strings.Contains(body, `"code":"STREAM_INPUT"`) {
+			t.Fatalf("expected JSON error body, got %q", body)
+		}
+	})
+
+	t.Run("sse error after first event does not append json error payload", func(t *testing.T) {
+		api := newTestAPI()
+		r := ninja.NewRouter("/stream-boundary")
+
+		ninja.SSE(r, "/after", func(ctx *ninja.Context, in *streamInput, stream *ninja.SSEStream) error {
+			if err := stream.Send(ninja.SSEEvent{Event: "hello", Data: in.Name}); err != nil {
+				return err
+			}
+			return errors.New("stream ended")
+		})
+		api.AddRouter(r)
+
+		resp := doRequest(api, http.MethodGet, "/stream-boundary/after?name=bot", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+		}
+		body := resp.Body.String()
+		if !strings.Contains(body, "event: hello") || !strings.Contains(body, "data: bot") {
+			t.Fatalf("expected SSE event body, got %q", body)
+		}
+		if strings.Contains(body, `"error"`) {
+			t.Fatalf("did not expect JSON error to leak into SSE stream, got %q", body)
+		}
+	})
+
+	t.Run("websocket bind failure returns bad request without upgrading", func(t *testing.T) {
+		api := newTestAPI()
+		r := ninja.NewRouter("/stream-boundary")
+
+		type wsInput struct {
+			Count int `form:"count"`
+		}
+
+		ninja.WebSocket(r, "/ws", func(ctx *ninja.Context, in *wsInput, conn *ninja.WebSocketConn) error {
+			return conn.SendText("count")
+		})
+		api.AddRouter(r)
+
+		resp := doRequest(api, http.MethodGet, "/stream-boundary/ws?count=bad", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body.String())
+		}
+		if got := resp.Header().Get("Upgrade"); got != "" {
+			t.Fatalf("did not expect websocket upgrade header, got %q", got)
+		}
+	})
 }
 
 func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {

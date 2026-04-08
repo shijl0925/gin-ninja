@@ -754,6 +754,57 @@ func TestUploadLimit_ContentTypeAllowed(t *testing.T) {
 	}
 }
 
+func TestUploadLimit_ContentTypeParametersAndNormalization(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          10 << 20,
+		AllowedMIMETypes: []string{" application/json ", "image/"},
+	}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"ok":true}`))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for normalized content type, got %d", w.Code)
+	}
+}
+
+func TestUploadLimit_CustomErrorHandler(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          4,
+		AllowedMIMETypes: []string{"application/json"},
+		ErrorHandler: func(c *gin.Context, status int, code, message string) {
+			c.AbortWithStatusJSON(status, gin.H{
+				"status":  status,
+				"code":    code,
+				"message": message,
+			})
+		},
+	}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"toolong":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = 99
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d", w.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error response: %v", err)
+	}
+	if body["code"] != "PAYLOAD_TOO_LARGE" {
+		t.Fatalf("expected custom error code, got %+v", body)
+	}
+}
+
 func TestUploadLimit_GetRequestNotAffected(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
