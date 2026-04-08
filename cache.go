@@ -392,21 +392,10 @@ func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, e
 	if !ok {
 		return nil, nil, http.ErrNotSupported
 	}
-	if !supportsHijacker(unwrappedResponseWriter(w.ResponseWriter)) {
+	if unwrapper, ok := w.ResponseWriter.(interface{ Unwrap() http.ResponseWriter }); ok && !supportsHijacker(unwrapper.Unwrap()) {
 		return nil, nil, http.ErrNotSupported
 	}
 	return hijacker.Hijack()
-}
-
-func unwrappedResponseWriter(writer any) any {
-	for writer != nil {
-		unwrapper, ok := writer.(interface{ Unwrap() http.ResponseWriter })
-		if !ok {
-			return writer
-		}
-		writer = unwrapper.Unwrap()
-	}
-	return nil
 }
 
 func supportsHijacker(writer any) bool {
