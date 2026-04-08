@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -101,7 +102,7 @@ func SecureHeaders(cfg *SecurityConfig) gin.HandlerFunc {
 
 		if hstsValue != "" {
 			// Only emit HSTS over HTTPS connections.
-			if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+			if c.Request.TLS != nil || forwardedProtoIsHTTPS(c.GetHeader("X-Forwarded-Proto")) {
 				w.Header().Set("Strict-Transport-Security", hstsValue)
 			}
 		}
@@ -116,6 +117,15 @@ func SecureHeaders(cfg *SecurityConfig) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func forwardedProtoIsHTTPS(value string) bool {
+	for _, part := range strings.Split(value, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), "https") {
+			return true
+		}
+	}
+	return false
 }
 
 // SecureHeadersStrict is a convenience wrapper that returns SecureHeaders with

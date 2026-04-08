@@ -614,6 +614,23 @@ func TestSecureHeaders_HSTS_ForwardedHTTPS(t *testing.T) {
 	}
 }
 
+func TestSecureHeaders_HSTS_ForwardedHTTPSListAndCaseInsensitive(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+		HSTSMaxAge: 31536000,
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-Proto", "HTTPS, http")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Strict-Transport-Security"); got == "" {
+		t.Fatal("expected HSTS header when forwarded proto list contains HTTPS")
+	}
+}
+
 func TestSecureHeaders_TLSAndStrict(t *testing.T) {
 	t.Parallel()
 
