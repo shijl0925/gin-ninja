@@ -392,20 +392,24 @@ func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, e
 	if !ok {
 		return nil, nil, http.ErrNotSupported
 	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			// Gin's response writer advertises Hijacker even when the underlying
-			// writer (for example httptest.ResponseRecorder) does not support it.
-			// Normalize that specific mismatch to ErrNotSupported but re-panic for
-			// unrelated Hijack failures.
-			if strings.Contains(fmt.Sprint(recovered), "not http.Hijacker") {
-				conn = nil
-				rw = nil
-				err = http.ErrNotSupported
-				return
-			}
-			panic(recovered)
-		}
-	}()
+	if !supportsHijacker(unwrappedResponseWriter(w.ResponseWriter)) {
+		return nil, nil, http.ErrNotSupported
+	}
 	return hijacker.Hijack()
+}
+
+func unwrappedResponseWriter(writer any) any {
+	for writer != nil {
+		unwrapper, ok := writer.(interface{ Unwrap() http.ResponseWriter })
+		if !ok {
+			return writer
+		}
+		writer = unwrapper.Unwrap()
+	}
+	return nil
+}
+
+func supportsHijacker(writer any) bool {
+	_, ok := writer.(http.Hijacker)
+	return ok
 }
