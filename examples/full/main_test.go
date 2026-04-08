@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/bootstrap"
@@ -140,6 +142,210 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 		t.Fatalf("expected deprecated version response, got status=%d headers=%v", versioned.StatusCode, versioned.Header)
 	}
 	versioned.Body.Close()
+}
+
+func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	unauthorized := doFullJSON(t, server, http.MethodGet, "/api/v1/users", nil, "")
+	if unauthorized.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized users list to return 401, got %d", unauthorized.StatusCode)
+	}
+	unauthorized.Body.Close()
+
+	healthResp, err := http.Get(server.URL + "/health")
+	if err != nil {
+		t.Fatalf("GET /health: %v", err)
+	}
+	defer healthResp.Body.Close()
+	if healthResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected health 200, got %d", healthResp.StatusCode)
+	}
+	var health map[string]string
+	if err := json.NewDecoder(healthResp.Body).Decode(&health); err != nil {
+		t.Fatalf("decode health: %v", err)
+	}
+	if health["status"] != "ok" {
+		t.Fatalf("unexpected health payload: %+v", health)
+	}
+
+	for _, tc := range []struct {
+		path       string
+		wantTitle  string
+		wantSpecURL string
+	}{
+		{path: "/docs", wantTitle: "Full Example - API Docs", wantSpecURL: "/openapi.json"},
+		{path: "/docs/v1", wantTitle: "Full Example (v1) - API Docs", wantSpecURL: "/openapi/v1.json"},
+		{path: "/docs/v0", wantTitle: "Full Example (v0) - API Docs", wantSpecURL: "/openapi/v0.json"},
+	} {
+		resp, err := http.Get(server.URL + tc.path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", tc.path, err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatalf("read %s body: %v", tc.path, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d", tc.path, resp.StatusCode)
+		}
+		html := string(body)
+		if !strings.Contains(html, tc.wantTitle) || !strings.Contains(html, tc.wantSpecURL) {
+			t.Fatalf("%s: unexpected docs body %q", tc.path, html)
+		}
+	}
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+		"email":    "alice@example.com",
+		"password": "password123",
+	}, "")
+	if login.StatusCode != http.StatusCreated {
+		t.Fatalf("expected login 201, got %d", login.StatusCode)
+	}
+	var auth struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	login.Body.Close()
+	if auth.Token == "" {
+		t.Fatal("expected login token")
+	}
+
+	list := doFullJSON(t, server, http.MethodGet, "/api/v1/users?sort=-age", nil, auth.Token)
+	if list.StatusCode != http.StatusOK {
+		t.Fatalf("expected list users 200, got %d", list.StatusCode)
+	}
+	var page map[string]any
+	if err := json.NewDecoder(list.Body).Decode(&page); err != nil {
+		t.Fatalf("decode user list: %v", err)
+	}
+	list.Body.Close()
+	if _, ok := page["items"]; !ok {
+		t.Fatalf("expected paginated users payload, got %+v", page)
+	}
+
+	detail := doFullJSON(t, server, http.MethodGet, "/api/v1/users/1", nil, auth.Token)
+	if detail.StatusCode != http.StatusOK {
+		t.Fatalf("expected get user 200, got %d", detail.StatusCode)
+	}
+	detail.Body.Close()
+
+	v1, err := http.Get(server.URL + "/api/v1/examples/versioned/info")
+	if err != nil {
+		t.Fatalf("GET versioned v1: %v", err)
+	}
+	if v1.StatusCode != http.StatusOK {
+		t.Fatalf("expected v1 versioned info 200, got %d", v1.StatusCode)
+	}
+	if v1.Header.Get("Deprecation") != "" || v1.Header.Get("Sunset") != "" || v1.Header.Get("Link") != "" {
+		t.Fatalf("did not expect deprecation headers on v1, got %v", v1.Header)
+	}
+	v1.Body.Close()
+
+	v0, err := http.Get(server.URL + "/api/v0/examples/versioned/info")
+	if err != nil {
+		t.Fatalf("GET versioned v0: %v", err)
+	}
+	if v0.StatusCode != http.StatusOK {
+		t.Fatalf("expected v0 versioned info 200, got %d", v0.StatusCode)
+	}
+	if v0.Header.Get("Deprecation") == "" || v0.Header.Get("Sunset") == "" || v0.Header.Get("Link") == "" {
+		t.Fatalf("expected deprecation headers on v0, got %v", v0.Header)
+	}
+	v0.Body.Close()
+}
+
+func TestFullExampleOpenAPIContracts(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	openAPIResp, err := http.Get(server.URL + "/openapi.json")
+	if err != nil {
+		t.Fatalf("GET /openapi.json: %v", err)
+	}
+	defer openAPIResp.Body.Close()
+	if openAPIResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected /openapi.json 200, got %d", openAPIResp.StatusCode)
+	}
+
+	var spec map[string]any
+	if err := json.NewDecoder(openAPIResp.Body).Decode(&spec); err != nil {
+		t.Fatalf("decode openapi: %v", err)
+	}
+
+	components := spec["components"].(map[string]any)
+	securitySchemes := components["securitySchemes"].(map[string]any)
+	bearerAuth := securitySchemes["bearerAuth"].(map[string]any)
+	if bearerAuth["type"] != "http" || bearerAuth["scheme"] != "bearer" || bearerAuth["bearerFormat"] != "JWT" {
+		t.Fatalf("unexpected bearer auth scheme: %+v", bearerAuth)
+	}
+
+	paths := spec["paths"].(map[string]any)
+	for _, path := range []string{
+		"/api/v1/auth/login",
+		"/api/v1/users/",
+		"/api/v1/examples/request-meta",
+		"/api/v0/examples/versioned/info",
+	} {
+		if _, ok := paths[path]; !ok {
+			t.Fatalf("expected path %s in root spec, got keys=%v", path, paths)
+		}
+	}
+
+	usersGet := paths["/api/v1/users/"].(map[string]any)["get"].(map[string]any)
+	security := usersGet["security"].([]any)
+	if len(security) != 1 {
+		t.Fatalf("expected one security requirement, got %v", security)
+	}
+	if _, ok := security[0].(map[string]any)["bearerAuth"]; !ok {
+		t.Fatalf("expected bearerAuth security requirement, got %v", security[0])
+	}
+
+	for _, tc := range []struct {
+		path       string
+		wantPath   string
+		missingPath string
+	}{
+		{path: "/openapi/v1.json", wantPath: "/api/v1/users/", missingPath: "/api/v0/examples/versioned/info"},
+		{path: "/openapi/v0.json", wantPath: "/api/v0/examples/versioned/info", missingPath: "/api/v1/users/"},
+	} {
+		resp, err := http.Get(server.URL + tc.path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", tc.path, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: expected 200, got %d", tc.path, resp.StatusCode)
+		}
+		var versionedSpec map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&versionedSpec); err != nil {
+			resp.Body.Close()
+			t.Fatalf("decode %s: %v", tc.path, err)
+		}
+		resp.Body.Close()
+
+		versionedPaths := versionedSpec["paths"].(map[string]any)
+		if _, ok := versionedPaths[tc.wantPath]; !ok {
+			t.Fatalf("%s: expected path %s, got %v", tc.path, tc.wantPath, versionedPaths)
+		}
+		if _, ok := versionedPaths[tc.missingPath]; ok {
+			t.Fatalf("%s: did not expect path %s, got %v", tc.path, tc.missingPath, versionedPaths)
+		}
+	}
 }
 
 func TestFullExampleRunReturnsListenError(t *testing.T) {

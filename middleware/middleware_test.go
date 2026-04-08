@@ -756,8 +756,8 @@ t.Errorf("expected 200 for image/png via prefix, got %d", w.Code)
 }
 
 func TestUploadLimit_GetRequestNotAffected(t *testing.T) {
-r := gin.New()
-r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
 MaxSize:          1,
 AllowedMIMETypes: []string{"text/plain"},
 }))
@@ -767,7 +767,136 @@ req := httptest.NewRequest(http.MethodGet, "/", nil)
 w := httptest.NewRecorder()
 r.ServeHTTP(w, req)
 
-if w.Code != http.StatusOK {
-t.Errorf("GET should not be affected by upload limit, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("GET should not be affected by upload limit, got %d", w.Code)
+	}
 }
+
+func TestMiddleware_HTTPIntegration_SessionCSRFSecureHeadersAndUploadLimit(t *testing.T) {
+	t.Parallel()
+
+	r := gin.New()
+	r.Use(
+		middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}),
+		middleware.CSRF(nil),
+		middleware.SecureHeadersStrict(),
+		middleware.UploadLimit(&middleware.UploadConfig{
+			MaxSize:          32,
+			AllowedMIMETypes: []string{"application/json"},
+		}),
+	)
+	r.GET("/bootstrap", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		if _, ok := s.Get("count"); !ok {
+			s.Set("count", "1")
+		}
+		count, _ := s.Get("count")
+		c.JSON(http.StatusOK, gin.H{
+			"count": count,
+			"csrf":  middleware.CSRFToken(c),
+		})
+	})
+	r.GET("/state", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		count, _ := s.Get("count")
+		c.JSON(http.StatusOK, gin.H{"count": count})
+	})
+	r.POST("/submit", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		s.Set("count", "2")
+		c.JSON(http.StatusOK, gin.H{"ok": true, "count": "2"})
+	})
+
+	bootstrapReq := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
+	bootstrapReq.TLS = &tls.ConnectionState{}
+	bootstrapResp := httptest.NewRecorder()
+	r.ServeHTTP(bootstrapResp, bootstrapReq)
+
+	if bootstrapResp.Code != http.StatusOK {
+		t.Fatalf("expected bootstrap 200, got %d: %s", bootstrapResp.Code, bootstrapResp.Body.String())
+	}
+	if got := bootstrapResp.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("expected strict frame header, got %q", got)
+	}
+	if got := bootstrapResp.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "max-age=31536000") {
+		t.Fatalf("expected HSTS header, got %q", got)
+	}
+
+	var bootstrapBody map[string]string
+	if err := json.Unmarshal(bootstrapResp.Body.Bytes(), &bootstrapBody); err != nil {
+		t.Fatalf("unmarshal bootstrap response: %v", err)
+	}
+	if bootstrapBody["count"] != "1" || len(bootstrapBody["csrf"]) < 16 {
+		t.Fatalf("unexpected bootstrap payload: %+v", bootstrapBody)
+	}
+
+	var sessionCookie, csrfCookie *http.Cookie
+	for _, cookie := range bootstrapResp.Result().Cookies() {
+		switch cookie.Name {
+		case "session":
+			sessionCookie = cookie
+		case "csrf_token":
+			csrfCookie = cookie
+		}
+	}
+	if sessionCookie == nil || csrfCookie == nil {
+		t.Fatalf("expected session and csrf cookies, got session=%v csrf=%v", sessionCookie, csrfCookie)
+	}
+
+	submitReq := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(`{"ok":true}`))
+	submitReq.TLS = &tls.ConnectionState{}
+	submitReq.Header.Set("Content-Type", "application/json")
+	submitReq.Header.Set("X-CSRF-Token", bootstrapBody["csrf"])
+	submitReq.AddCookie(sessionCookie)
+	submitReq.AddCookie(csrfCookie)
+	submitResp := httptest.NewRecorder()
+	r.ServeHTTP(submitResp, submitReq)
+
+	if submitResp.Code != http.StatusOK {
+		t.Fatalf("expected submit 200, got %d: %s", submitResp.Code, submitResp.Body.String())
+	}
+	if got := submitResp.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected nosniff header, got %q", got)
+	}
+
+	updatedSessionCookie := sessionCookie
+	for _, cookie := range submitResp.Result().Cookies() {
+		if cookie.Name == "session" {
+			updatedSessionCookie = cookie
+			break
+		}
+	}
+
+	stateReq := httptest.NewRequest(http.MethodGet, "/state", nil)
+	stateReq.TLS = &tls.ConnectionState{}
+	stateReq.AddCookie(updatedSessionCookie)
+	stateResp := httptest.NewRecorder()
+	r.ServeHTTP(stateResp, stateReq)
+
+	if stateResp.Code != http.StatusOK {
+		t.Fatalf("expected state 200, got %d: %s", stateResp.Code, stateResp.Body.String())
+	}
+	if !strings.Contains(stateResp.Body.String(), `"count":"2"`) {
+		t.Fatalf("expected persisted session count, got %s", stateResp.Body.String())
+	}
+
+	oversizedReq := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(`{"payload":"this-body-is-too-large-for-the-limit"}`))
+	oversizedReq.TLS = &tls.ConnectionState{}
+	oversizedReq.Header.Set("Content-Type", "application/json")
+	oversizedReq.Header.Set("X-CSRF-Token", bootstrapBody["csrf"])
+	oversizedReq.AddCookie(updatedSessionCookie)
+	oversizedReq.AddCookie(csrfCookie)
+	oversizedReq.ContentLength = 1024
+	oversizedResp := httptest.NewRecorder()
+	r.ServeHTTP(oversizedResp, oversizedReq)
+
+	if oversizedResp.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected oversized upload to return 413, got %d: %s", oversizedResp.Code, oversizedResp.Body.String())
+	}
+	if !strings.Contains(oversizedResp.Body.String(), "PAYLOAD_TOO_LARGE") {
+		t.Fatalf("expected payload-too-large error, got %s", oversizedResp.Body.String())
+	}
+	if got := oversizedResp.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("expected security headers on rejected upload, got %q", got)
+	}
 }
