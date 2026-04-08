@@ -1059,6 +1059,39 @@ func TestGet_CacheWithExternalStore(t *testing.T) {
 	}
 }
 
+func TestGet_CacheWithExternalStoreSkipsExpiredEntries(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-expired")
+	calls := 0
+	store := &externalCacheStore{
+		items: map[string]*ninja.CachedResponse{
+			`GET:/cache-expired/`: {
+				Status:  http.StatusOK,
+				Header:  http.Header{"Content-Type": []string{"application/json; charset=utf-8"}},
+				Body:    []byte(`{"count":99}`),
+				Expires: time.Now().Add(-time.Minute),
+			},
+		},
+	}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	resp := doRequest(api, http.MethodGet, "/cache-expired/", nil)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+	if calls != 1 {
+		t.Fatalf("expected expired external cache entry to be bypassed, calls=%d", calls)
+	}
+	if body := resp.Body.String(); !strings.Contains(body, `"count":1`) {
+		t.Fatalf("expected fresh handler response, got %q", body)
+	}
+}
+
 func TestGet_CacheWithCustomKey(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/cache-key")
@@ -1093,6 +1126,36 @@ func TestGet_CacheWithCustomKey(t *testing.T) {
 	}
 	if third.Body.String() == first.Body.String() {
 		t.Fatalf("expected distinct cache key to bypass cached response, got %q", third.Body.String())
+	}
+}
+
+func TestGet_CacheETagWildcardAndMultipleValues(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-etag")
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		return &cacheOutput{Count: 1}, nil
+	}, ninja.Cache(time.Minute))
+	api.AddRouter(r)
+
+	first := doRequest(api, http.MethodGet, "/cache-etag/", nil)
+	etag := first.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("expected ETag header")
+	}
+
+	wildcard := doRequestWithHeaders(api, http.MethodGet, "/cache-etag/", nil, func(req *http.Request) {
+		req.Header.Set("If-None-Match", "*")
+	})
+	if wildcard.Code != http.StatusNotModified {
+		t.Fatalf("expected wildcard If-None-Match to return 304, got %d", wildcard.Code)
+	}
+
+	multi := doRequestWithHeaders(api, http.MethodGet, "/cache-etag/", nil, func(req *http.Request) {
+		req.Header.Set("If-None-Match", `"other", `+etag)
+	})
+	if multi.Code != http.StatusNotModified {
+		t.Fatalf("expected multi-value If-None-Match to return 304, got %d", multi.Code)
 	}
 }
 

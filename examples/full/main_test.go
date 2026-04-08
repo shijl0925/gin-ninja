@@ -279,6 +279,19 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 		}
 		resp.Body.Close()
 	}
+
+	docsHeadReq, err := http.NewRequest(http.MethodHead, server.URL+"/docs/v1", nil)
+	if err != nil {
+		t.Fatalf("new HEAD docs request: %v", err)
+	}
+	docsHeadResp, err := http.DefaultClient.Do(docsHeadReq)
+	if err != nil {
+		t.Fatalf("HEAD /docs/v1: %v", err)
+	}
+	if docsHeadResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected HEAD /docs/v1 to follow current internal-route behavior and return 404, got %d", docsHeadResp.StatusCode)
+	}
+	docsHeadResp.Body.Close()
 }
 
 func TestFullExampleOpenAPIContracts(t *testing.T) {

@@ -805,6 +805,30 @@ func TestUploadLimit_CustomErrorHandler(t *testing.T) {
 	}
 }
 
+func TestUploadLimit_PatchRequestAllowedAndEmptyContentTypeRejected(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          10 << 20,
+		AllowedMIMETypes: []string{"application/json"},
+	}))
+	r.PATCH("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	allowed := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(`{"ok":true}`))
+	allowed.Header.Set("Content-Type", "application/json")
+	allowedW := httptest.NewRecorder()
+	r.ServeHTTP(allowedW, allowed)
+	if allowedW.Code != http.StatusOK {
+		t.Fatalf("expected PATCH request to be checked like other body methods, got %d", allowedW.Code)
+	}
+
+	rejected := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(`{"ok":true}`))
+	rejectedW := httptest.NewRecorder()
+	r.ServeHTTP(rejectedW, rejected)
+	if rejectedW.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected empty content type to be rejected, got %d", rejectedW.Code)
+	}
+}
+
 func TestUploadLimit_GetRequestNotAffected(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.UploadLimit(&middleware.UploadConfig{

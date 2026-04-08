@@ -172,8 +172,10 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		cacheKey, cacheStore := cacheLookup(op, ctx)
 		if cacheStore != nil && cacheKey != "" {
 			if cached, ok := cacheStore.Get(cacheKey); ok {
-				writeCachedResponse(c, cached, op.cacheControl)
-				return
+				if !isExpiredCachedResponse(cached, time.Now()) {
+					writeCachedResponse(c, cached, op.cacheControl)
+					return
+				}
 			}
 		}
 
@@ -311,6 +313,10 @@ func cloneCachedResponse(in *CachedResponse) *CachedResponse {
 		Expires: in.Expires,
 		ETag:    in.ETag,
 	}
+}
+
+func isExpiredCachedResponse(value *CachedResponse, now time.Time) bool {
+	return value != nil && !value.Expires.IsZero() && now.After(value.Expires)
 }
 
 func cloneHeader(in http.Header) http.Header {
