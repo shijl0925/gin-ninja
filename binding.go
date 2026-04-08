@@ -15,6 +15,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	"github.com/shijl0925/gin-ninja/internal/contextkeys"
+	"github.com/shijl0925/gin-ninja/pkg/i18n"
 )
 
 var validate = func() *validator.Validate {
@@ -94,7 +96,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	if err := validate.Struct(input); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
-			return buildValidationError(ve)
+			return buildValidationError(ve, localeFromContext(c))
 		}
 		return err
 	}
@@ -411,36 +413,32 @@ func hasFormValue(c *gin.Context, name string) bool {
 	return false
 }
 
+// localeFromContext returns the negotiated locale stored by the I18n middleware.
+// Falls back to the default locale ("en") when the middleware is absent or the
+// context is nil.
+func localeFromContext(c *gin.Context) string {
+	if c == nil {
+		return i18n.Default
+	}
+	v, exists := c.Get(contextkeys.Locale)
+	if !exists {
+		return i18n.Default
+	}
+	if s, ok := v.(string); ok && s != "" {
+		return s
+	}
+	return i18n.Default
+}
+
 // buildValidationError converts validator.ValidationErrors into our ValidationError type.
-func buildValidationError(ve validator.ValidationErrors) *ValidationError {
+// Messages are translated using the supplied locale (e.g. "en", "zh").
+func buildValidationError(ve validator.ValidationErrors, locale string) *ValidationError {
 	errs := make([]FieldError, 0, len(ve))
 	for _, fe := range ve {
 		errs = append(errs, FieldError{
 			Field:   strings.ToLower(fe.Field()),
-			Message: humanizeValidationError(fe),
+			Message: i18n.TranslateValidation(fe.Tag(), fe.Param(), locale),
 		})
 	}
 	return &ValidationError{Errors: errs}
-}
-
-// humanizeValidationError turns a single validator.FieldError into a readable message.
-func humanizeValidationError(fe validator.FieldError) string {
-	switch fe.Tag() {
-	case "required":
-		return "field is required"
-	case "min":
-		return fmt.Sprintf("must be at least %s", fe.Param())
-	case "max":
-		return fmt.Sprintf("must be at most %s", fe.Param())
-	case "email":
-		return "must be a valid email address"
-	case "url":
-		return "must be a valid URL"
-	case "len":
-		return fmt.Sprintf("length must be exactly %s", fe.Param())
-	case "oneof":
-		return fmt.Sprintf("must be one of [%s]", fe.Param())
-	default:
-		return fmt.Sprintf("failed validation '%s'", fe.Tag())
-	}
 }
