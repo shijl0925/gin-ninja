@@ -50,7 +50,7 @@ type ListUsersInput struct {
 
 // GetUserInput holds the path parameter for retrieving a single user.
 type GetUserInput struct {
-	UserID uint `path:"id" binding:"required"`
+	UserID uint `path:"id" json:"-" binding:"required"`
 }
 
 // CreateUserInput is the request body for creating a user.
@@ -63,7 +63,7 @@ type CreateUserInput struct {
 
 // UpdateUserInput combines a path param with a JSON body.
 type UpdateUserInput struct {
-	UserID uint `path:"id" binding:"required"`
+	UserID uint `path:"id" json:"-" binding:"required"`
 
 	Name  string `json:"name"  binding:"omitempty"`
 	Email string `json:"email" binding:"omitempty,email"`
@@ -72,7 +72,7 @@ type UpdateUserInput struct {
 
 // DeleteUserInput holds the path parameter for deleting a user.
 type DeleteUserInput struct {
-	UserID uint `path:"id" binding:"required"`
+	UserID uint `path:"id" json:"-" binding:"required"`
 }
 
 // toUserOut converts a domain User to the public UserOut representation.

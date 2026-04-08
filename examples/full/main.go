@@ -25,13 +25,16 @@
 //
 // Then visit:
 //   - http://localhost:8080/docs           – Swagger UI (all routes)
+//   - http://localhost:8080/docs/v2        – versioned Swagger UI for v2 cached users CRUD
 //   - http://localhost:8080/docs/v1        – versioned Swagger UI for v1
 //   - http://localhost:8080/docs/v0        – versioned Swagger UI for v0
 //   - http://localhost:8080/openapi.json   – raw OpenAPI spec (all routes)
+//   - http://localhost:8080/openapi/v2.json – raw OpenAPI spec for v2
 //   - http://localhost:8080/openapi/v1.json – raw OpenAPI spec for v1
 //   - http://localhost:8080/openapi/v0.json – raw OpenAPI spec for v0
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
+//   - GET  http://localhost:8080/api/v2/users         – cached users CRUD demo (requires JWT)
 //   - GET  http://localhost:8080/api/v1/users         – list users (requires JWT)
 //   - GET  http://localhost:8080/api/v1/examples/request-meta   – binding/defaults demo
 //   - GET  http://localhost:8080/api/v1/examples/cache          – cache / ETag demo
@@ -102,6 +105,10 @@ func main() {
 		Description: "A full-featured gin-ninja example with bootstrap, middleware, settings, caching, streaming, and API versioning demos.",
 		Prefix:      "/api",
 		Versions: map[string]ninja.VersionConfig{
+			"v2": {
+				Prefix:      "/v2",
+				Description: "Cached users CRUD example with explicit invalidation.",
+			},
 			"v1": {
 				Prefix:      "/v1",
 				Description: "Current example API version.",
@@ -131,6 +138,7 @@ func main() {
 			return cacheStoreShutdown(ctx)
 		})
 	}
+	app.ConfigureUsersV2Cache(cacheStore)
 
 	// ── 5. Global middleware (engine level) ──────────────────────────────────
 	api.UseGin(
@@ -183,6 +191,50 @@ func main() {
 		ninja.WithTransaction())
 
 	api.AddRouter(usersRouter)
+
+	usersV2Router := ninja.NewRouter(
+		"/users",
+		ninja.WithTags("Users"),
+		ninja.WithTagDescription("Users", "JWT-protected user CRUD endpoints"),
+		ninja.WithBearerAuth(),
+		ninja.WithVersion("v2"),
+	)
+	usersV2Router.UseGin(middleware.JWTAuth())
+
+	ninja.Get(usersV2Router, "/", app.ListUsersV2,
+		ninja.Summary("List users (cached CRUD demo)"),
+		ninja.Description("Demonstrates cached list responses plus tag-based invalidation after create, update, and delete operations."),
+		ninja.Paginated[app.UserOut](),
+		ninja.Cache(time.Minute,
+			ninja.CacheWithStore(cacheStore),
+			ninja.CacheWithTags(app.UsersV2ListCacheTags),
+		),
+	)
+	ninja.Get(usersV2Router, "/:id", app.GetUserV2,
+		ninja.Summary("Get user (cached CRUD demo)"),
+		ninja.Description("Demonstrates detail response caching with a stable cache key and explicit invalidation after update or delete."),
+		ninja.Cache(time.Minute,
+			ninja.CacheWithStore(cacheStore),
+			ninja.CacheWithKey(app.UsersV2DetailCacheKey),
+			ninja.CacheWithTags(app.UsersV2DetailCacheTags),
+		),
+	)
+	ninja.Post(usersV2Router, "/", app.CreateUserV2,
+		ninja.Summary("Create user (invalidates cached lists)"),
+		ninja.Description("Creates a user and invalidates cached list queries so subsequent reads observe the new record."),
+		ninja.WithTransaction(),
+	)
+	ninja.Put(usersV2Router, "/:id", app.UpdateUserV2,
+		ninja.Summary("Update user (invalidates cached detail + lists)"),
+		ninja.Description("Updates a user, deletes the cached detail entry, and invalidates cached list queries."),
+		ninja.WithTransaction(),
+	)
+	ninja.Delete(usersV2Router, "/:id", app.DeleteUserV2,
+		ninja.Summary("Delete user (invalidates cached detail + lists)"),
+		ninja.Description("Deletes a user and invalidates cached detail and list responses."),
+		ninja.WithTransaction(),
+	)
+	api.AddRouter(usersV2Router)
 
 	// ── 8. Feature demos (public, for manual testing) ────────────────────────
 	exampleRouter := ninja.NewRouter(
