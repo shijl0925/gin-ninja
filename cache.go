@@ -394,6 +394,9 @@ func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, e
 	}
 	defer func() {
 		if recover() != nil {
+			// Gin's response writer advertises Hijacker even when the underlying
+			// writer (for example httptest.ResponseRecorder) does not support it.
+			// Normalize that mismatch to ErrNotSupported for cache-wrapper callers.
 			conn = nil
 			rw = nil
 			err = http.ErrNotSupported

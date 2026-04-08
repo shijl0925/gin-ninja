@@ -83,6 +83,9 @@ func (w *sessionResponseWriter) ensureSessionSaved() {
 	if w == nil || w.persisted || w.session == nil || !w.session.dirty {
 		return
 	}
+	// Persisting the cookie is best-effort here: once response writing starts we
+	// can no longer surface an error to the client without risking a partial
+	// response, so record the error on the Gin context for downstream logging.
 	if err := w.session.Save(w.ctx); err != nil {
 		_ = w.ctx.Error(err)
 		return
