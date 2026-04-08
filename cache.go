@@ -393,13 +393,18 @@ func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, e
 		return nil, nil, http.ErrNotSupported
 	}
 	defer func() {
-		if recover() != nil {
+		if recovered := recover(); recovered != nil {
 			// Gin's response writer advertises Hijacker even when the underlying
 			// writer (for example httptest.ResponseRecorder) does not support it.
-			// Normalize that mismatch to ErrNotSupported for cache-wrapper callers.
-			conn = nil
-			rw = nil
-			err = http.ErrNotSupported
+			// Normalize that specific mismatch to ErrNotSupported but re-panic for
+			// unrelated Hijack failures.
+			if strings.Contains(fmt.Sprint(recovered), "not http.Hijacker") {
+				conn = nil
+				rw = nil
+				err = http.ErrNotSupported
+				return
+			}
+			panic(recovered)
 		}
 	}()
 	return hijacker.Hijack()

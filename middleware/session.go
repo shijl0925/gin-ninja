@@ -79,13 +79,14 @@ type sessionResponseWriter struct {
 	persisted bool
 }
 
+// ensureSessionSaved persists the session before response bytes are committed.
+// The save is best-effort: if persistence fails after handler execution has
+// already begun, the error is attached to the Gin context for logging while the
+// response continues rather than risking a partially-written failure response.
 func (w *sessionResponseWriter) ensureSessionSaved() {
 	if w == nil || w.persisted || w.session == nil || !w.session.dirty {
 		return
 	}
-	// Persisting the cookie is best-effort here: once response writing starts we
-	// can no longer surface an error to the client without risking a partial
-	// response, so record the error on the Gin context for downstream logging.
 	if err := w.session.Save(w.ctx); err != nil {
 		_ = w.ctx.Error(err)
 		return

@@ -210,6 +210,8 @@ func sseData(value any) string {
 		return v
 	case []byte:
 		return string(v)
+	case time.Duration:
+		return v.String()
 	case fmt.Stringer:
 		return v.String()
 	default:
