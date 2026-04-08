@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -88,7 +89,7 @@ func TestSession_ClearPersistsEmptySession(t *testing.T) {
 	})
 	r.GET("/count", func(c *gin.Context) {
 		s := middleware.GetSession(c)
-		c.String(http.StatusOK, string(rune(len(s.Keys())+'0')))
+		c.String(http.StatusOK, strconv.Itoa(len(s.Keys())))
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/set", nil)

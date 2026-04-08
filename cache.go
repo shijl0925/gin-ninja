@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -392,7 +393,9 @@ func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, e
 	if !ok {
 		return nil, nil, http.ErrNotSupported
 	}
-	if unwrapper, ok := w.ResponseWriter.(interface{ Unwrap() http.ResponseWriter }); ok && !supportsHijacker(unwrapper.Unwrap()) {
+	if unwrapper, ok := w.ResponseWriter.(interface{ Unwrap() http.ResponseWriter }); ok &&
+		isGinResponseWriter(w.ResponseWriter) &&
+		!supportsHijacker(unwrapper.Unwrap()) {
 		return nil, nil, http.ErrNotSupported
 	}
 	return hijacker.Hijack()
@@ -401,4 +404,15 @@ func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, e
 func supportsHijacker(writer any) bool {
 	_, ok := writer.(http.Hijacker)
 	return ok
+}
+
+func isGinResponseWriter(writer any) bool {
+	typ := reflect.TypeOf(writer)
+	if typ == nil {
+		return false
+	}
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+	return typ.PkgPath() == "github.com/gin-gonic/gin" && typ.Name() == "responseWriter"
 }
