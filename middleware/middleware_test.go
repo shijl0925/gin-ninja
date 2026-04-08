@@ -180,6 +180,28 @@ func TestCORS_CustomConfig(t *testing.T) {
 	}
 }
 
+func TestCORS_CustomConfigDefaults(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.CORS(&middleware.CORSConfig{
+		AllowCredentials: true,
+	}))
+	r.OPTIONS("/", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	req := httptest.NewRequest(http.MethodOptions, "http://localhost/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected default allow-origin header, got %q", got)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, "PATCH") {
+		t.Fatalf("expected default methods, got %q", got)
+	}
+}
+
 func TestJWTAuth_UsesGlobalSettings(t *testing.T) {
 	prev := settings.Global.JWT
 	t.Cleanup(func() { settings.Global.JWT = prev })

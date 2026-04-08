@@ -316,3 +316,47 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("expected id to remain, got %+v", payload)
 	}
 }
+
+func TestUserDirectHelpers(t *testing.T) {
+	setupAppTestDB(t)
+
+	repo := NewUserRepo()
+	created, err := createUser(repo, "Alice", "alice@example.com", "password123", 18)
+	if err != nil {
+		t.Fatalf("createUser helper: %v", err)
+	}
+	if created.Model.Email != "alice@example.com" {
+		t.Fatalf("unexpected created helper output: %+v", created)
+	}
+
+	updated, err := UpdateUser(nil, &UpdateUserInput{UserID: created.Model.ID})
+	if err != nil {
+		t.Fatalf("UpdateUser empty update: %v", err)
+	}
+	if updated.Model.ID != created.Model.ID {
+		t.Fatalf("expected user to remain unchanged, got %+v", updated)
+	}
+
+	if !checkPassword(hashPassword("password123"), "password123") {
+		t.Fatal("expected password helpers to round-trip")
+	}
+
+	if err := DeleteUser(nil, &DeleteUserInput{UserID: created.Model.ID}); err != nil {
+		t.Fatalf("DeleteUser helper: %v", err)
+	}
+
+	if _, err := createUser(repo, "Alice", "alice@example.com", "password123", 18); err == nil {
+		t.Fatal("expected duplicate helper create to fail")
+	}
+
+	if _, err := UpdateUser(nil, &UpdateUserInput{UserID: created.Model.ID + 100}); !ninja.IsNotFound(err) {
+		t.Fatalf("expected missing user error, got %v", err)
+	}
+
+	prevJWT := settings.Global.JWT
+	t.Cleanup(func() { settings.Global.JWT = prevJWT })
+	settings.Global.JWT.Secret = ""
+	if _, err := Login(nil, &LoginInput{Email: "alice@example.com", Password: "password123"}); err == nil {
+		t.Fatal("expected Login to fail when token generation is misconfigured")
+	}
+}
