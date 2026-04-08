@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,25 @@ import (
 type sseStringer string
 
 func (s sseStringer) String() string { return string(s) }
+
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingResponseWriter) WriteHeader(statusCode int) {}
+
+func (w *failingResponseWriter) Write(p []byte) (int, error) {
+	return 0, errors.New("write failed")
+}
+
+func (w *failingResponseWriter) Flush() {}
 
 func TestWebSocketConnNilHelpersReturnInternalError(t *testing.T) {
 	t.Parallel()
@@ -100,6 +120,47 @@ func TestSSEDataFormatsCommonTypes(t *testing.T) {
 	}
 }
 
+func TestSSEStreamSend(t *testing.T) {
+	t.Run("writes framed event", func(t *testing.T) {
+		c, w := newTestContext(http.MethodGet, "/events", "")
+		stream := &SSEStream{c: c}
+
+		err := stream.Send(SSEEvent{
+			ID:    "42",
+			Event: "update",
+			Data:  "first\nsecond",
+			Retry: 1500 * time.Millisecond,
+		})
+		if err != nil {
+			t.Fatalf("Send() error = %v", err)
+		}
+		if !stream.sent {
+			t.Fatal("expected stream to be marked sent")
+		}
+		if got := w.Body.String(); got != "id: 42\nevent: update\nretry: 1500\ndata: first\ndata: second\n\n" {
+			t.Fatalf("unexpected SSE frame %q", got)
+		}
+	})
+
+	t.Run("nil stream returns internal error", func(t *testing.T) {
+		var stream *SSEStream
+		if err := stream.Send(SSEEvent{Data: "ignored"}); !IsInternal(err) {
+			t.Fatalf("Send() error = %v, want internal error", err)
+		}
+	})
+
+	t.Run("write failure propagates", func(t *testing.T) {
+		base := &failingResponseWriter{}
+		c, _ := gin.CreateTestContext(base)
+		c.Request = httptest.NewRequest(http.MethodGet, "/events", nil)
+
+		stream := &SSEStream{c: c}
+		if err := stream.Send(SSEEvent{Data: "boom"}); err == nil || err.Error() != "write failed" {
+			t.Fatalf("expected write failure, got %v", err)
+		}
+	})
+}
+
 func TestVersioningHelpersAndNotFound(t *testing.T) {
 	t.Parallel()
 
@@ -121,6 +182,12 @@ func TestVersioningHelpersAndNotFound(t *testing.T) {
 	if got := normalizeVersionParam("v1.json"); got != "v1" {
 		t.Fatalf("normalizeVersionParam() = %q", got)
 	}
+	if got := versionedDocsPattern(""); got != "" {
+		t.Fatalf("versionedDocsPattern(empty) = %q", got)
+	}
+	if got := versionedOpenAPIPath("", "v2"); got != "" {
+		t.Fatalf("versionedOpenAPIPath(empty) = %q", got)
+	}
 
 	docsCtx, _ := newTestContext(http.MethodGet, "/docs/v3", "")
 	docsCtx.Params = gin.Params{{Key: "version", Value: "v3"}}
@@ -138,6 +205,34 @@ func TestVersioningHelpersAndNotFound(t *testing.T) {
 	versionNotFound(notFoundCtx)
 	if notFoundWriter.Code != http.StatusNotFound || !strings.Contains(notFoundWriter.Body.String(), "API version not found") {
 		t.Fatalf("unexpected versionNotFound response: %d %s", notFoundWriter.Code, notFoundWriter.Body.String())
+	}
+}
+
+func TestVersionConfigHelpers(t *testing.T) {
+	t.Parallel()
+
+	cfg := normalizeVersionConfig("v1", VersionConfig{})
+	if cfg.Prefix != "/v1" {
+		t.Fatalf("normalizeVersionConfig() prefix = %q", cfg.Prefix)
+	}
+
+	cfg = normalizeVersionConfig("v2", VersionConfig{Prefix: "api/v2"})
+	if cfg.Prefix != "/api/v2" {
+		t.Fatalf("normalizeVersionConfig(custom) prefix = %q", cfg.Prefix)
+	}
+
+	spec := versionSpecConfig(Config{
+		Title:       "Demo API",
+		Description: "base",
+	}, "v3", VersionConfig{Description: "versioned"})
+	if spec.Title != "Demo API (v3)" || spec.Version != "v3" {
+		t.Fatalf("versionSpecConfig() = %+v", spec)
+	}
+	if spec.Description != "base\n\nversioned" {
+		t.Fatalf("versionSpecConfig() description = %q", spec.Description)
+	}
+	if got := joinDescription(" first ", "", "second"); got != "first\n\nsecond" {
+		t.Fatalf("joinDescription() = %q", got)
 	}
 }
 
