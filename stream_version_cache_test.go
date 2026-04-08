@@ -287,6 +287,7 @@ func TestCaptureResponseWriterWriteHeaderNowAndHelpers(t *testing.T) {
 	if string(recorder.body) != "cached" {
 		t.Fatalf("body = %q, want %q", string(recorder.body), "cached")
 	}
+	recorder.Flush()
 }
 
 func TestMemoryCacheStoreRemovesExpiredEntriesAndClonesValues(t *testing.T) {
@@ -323,6 +324,34 @@ func TestMemoryCacheStoreRemovesExpiredEntriesAndClonesValues(t *testing.T) {
 	}
 	if string(again.Body) != "ok" {
 		t.Fatalf("expected cached body clone, got %q", string(again.Body))
+	}
+}
+
+func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStoreWithLimit(0)
+	if store.maxEntries != defaultMemoryCacheMaxEntries {
+		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaultMemoryCacheMaxEntries)
+	}
+
+	store.Set("ignored", nil)
+	if len(store.items) != 0 || len(store.order) != 0 {
+		t.Fatalf("expected nil cache writes to be ignored, got items=%d order=%d", len(store.items), len(store.order))
+	}
+
+	store.Set("shared", &CachedResponse{Status: http.StatusAccepted, Body: []byte("first")})
+	store.Set("shared", &CachedResponse{Status: http.StatusCreated, Body: []byte("second")})
+	if len(store.order) != 1 {
+		t.Fatalf("expected existing key updates not to duplicate order, got %v", store.order)
+	}
+
+	value, ok := store.Get("shared")
+	if !ok {
+		t.Fatal("expected updated cache entry")
+	}
+	if value.Status != http.StatusCreated || string(value.Body) != "second" {
+		t.Fatalf("unexpected updated cache value: %+v", value)
 	}
 }
 

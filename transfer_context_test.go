@@ -1,9 +1,11 @@
 package ninja
 
 import (
+	"bytes"
 	"context"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
@@ -23,6 +25,49 @@ func TestUploadedFileNilHelpers(t *testing.T) {
 	}
 	if _, err := file.Bytes(); !IsBadRequest(err) {
 		t.Fatalf("Bytes() error = %v, want bad request", err)
+	}
+}
+
+func TestUploadedFileOpenAndBytes(t *testing.T) {
+	t.Parallel()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "hello.txt")
+	if err != nil {
+		t.Fatalf("CreateFormFile: %v", err)
+	}
+	if _, err := part.Write([]byte("hello multipart")); err != nil {
+		t.Fatalf("part.Write: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err := req.ParseMultipartForm(1 << 20); err != nil {
+		t.Fatalf("ParseMultipartForm: %v", err)
+	}
+
+	headers := req.MultipartForm.File["file"]
+	if len(headers) != 1 {
+		t.Fatalf("expected 1 multipart header, got %d", len(headers))
+	}
+
+	file := newUploadedFile(headers[0])
+	opened, err := file.Open()
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	_ = opened.Close()
+
+	data, err := file.Bytes()
+	if err != nil {
+		t.Fatalf("Bytes() error = %v", err)
+	}
+	if string(data) != "hello multipart" {
+		t.Fatalf("Bytes() = %q, want %q", string(data), "hello multipart")
 	}
 }
 
