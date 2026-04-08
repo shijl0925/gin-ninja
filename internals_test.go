@@ -734,6 +734,7 @@ func TestOptionHelpers(t *testing.T) {
 	PaginatedResponse[schemaSample](http.StatusPartialContent, "partial")(op)
 	Timeout(time.Second)(op)
 	RateLimit(2, 3)(op)
+	WithTransaction()(op)
 
 	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
@@ -746,6 +747,9 @@ func TestOptionHelpers(t *testing.T) {
 	}
 	if len(op.responses) != 3 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil {
 		t.Fatalf("unexpected documented responses: %+v", op.responses)
+	}
+	if !op.withTransaction {
+		t.Fatalf("expected WithTransaction to enable transaction wrapping: %+v", op)
 	}
 }
 
@@ -803,5 +807,81 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 	voidOp.ginHandler(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for void operation, got %d", c.Writer.Status())
+	}
+}
+
+func TestOperationsWithTransactionHandlers(t *testing.T) {
+	previousBegin := contextBeginTx
+	previousCommit := contextCommitTx
+	previousRollback := contextRollbackTx
+	previousWithTx := contextWithTx
+	t.Cleanup(func() {
+		contextBeginTx = previousBegin
+		contextCommitTx = previousCommit
+		contextRollbackTx = previousRollback
+		contextWithTx = previousWithTx
+	})
+
+	beginCalled := false
+	commitCalled := false
+	rollbackCalled := false
+	withTxCalled := false
+	RegisterTransactionHandlers(
+		func(*gin.Context) error {
+			beginCalled = true
+			return nil
+		},
+		func(*gin.Context) error {
+			commitCalled = true
+			return nil
+		},
+		func(*gin.Context) error {
+			rollbackCalled = true
+			return nil
+		},
+		func(c *gin.Context, fn func() error) error {
+			withTxCalled = true
+			if err := contextBeginTx(c); err != nil {
+				return err
+			}
+			if err := fn(); err != nil {
+				_ = contextRollbackTx(c)
+				return err
+			}
+			return contextCommitTx(c)
+		},
+	)
+
+	op := newOperation(http.MethodGet, "/", func(ctx *Context, input *struct{}) (*schemaSample, error) {
+		return &schemaSample{Name: "ok"}, nil
+	}, nil)
+	WithTransaction()(op)
+
+	c, w := newTestContext(http.MethodGet, "/", "")
+	op.ginHandler(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for transaction-wrapped operation, got %d", w.Code)
+	}
+	if !withTxCalled || !beginCalled || !commitCalled || rollbackCalled {
+		t.Fatalf("unexpected transaction calls: with=%v begin=%v commit=%v rollback=%v", withTxCalled, beginCalled, commitCalled, rollbackCalled)
+	}
+
+	beginCalled = false
+	commitCalled = false
+	rollbackCalled = false
+	withTxCalled = false
+
+	voidOp := newVoidOperation(http.MethodDelete, "/:id", func(ctx *Context, input *struct{}) error {
+		return errors.New("boom")
+	}, nil)
+	WithTransaction()(voidOp)
+
+	c, w = newTestContext(http.MethodDelete, "/1", "")
+	voidOp.ginHandler(c)
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected 500 for transaction-wrapped void operation error, got %d", w.Code)
+	}
+	if !withTxCalled || !beginCalled || !rollbackCalled || commitCalled {
+		t.Fatalf("unexpected void transaction calls: with=%v begin=%v commit=%v rollback=%v", withTxCalled, beginCalled, commitCalled, rollbackCalled)
 	}
 }

@@ -62,6 +62,9 @@ func TestNew_DefaultConfig(t *testing.T) {
 	if api == nil {
 		t.Fatal("expected non-nil NinjaAPI")
 	}
+	if api.Engine() == nil {
+		t.Fatal("expected Engine() to expose the underlying gin engine")
+	}
 }
 
 func TestNew_DocsRouteExists(t *testing.T) {
@@ -87,6 +90,13 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 	if spec["openapi"] != "3.0.3" {
 		t.Errorf("expected openapi 3.0.3 got %v", spec["openapi"])
+	}
+}
+
+func TestRun_InvalidAddress(t *testing.T) {
+	api := newTestAPI()
+	if err := api.Run(":-1"); err == nil {
+		t.Fatal("expected Run() to fail for an invalid address")
 	}
 }
 
@@ -1046,6 +1056,43 @@ func TestGet_CacheWithExternalStore(t *testing.T) {
 	}
 	if len(store.items) != 1 {
 		t.Fatalf("expected one cached item in external store, got %d", len(store.items))
+	}
+}
+
+func TestGet_CacheWithCustomKey(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-key")
+	calls := 0
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithKey(func(ctx *ninja.Context) string {
+		return ctx.Request.Method + ":" + ctx.GetHeader("X-Cache-Key")
+	})))
+	api.AddRouter(r)
+
+	first := doRequestWithHeaders(api, http.MethodGet, "/cache-key/", nil, func(req *http.Request) {
+		req.Header.Set("X-Cache-Key", "shared")
+	})
+	second := doRequestWithHeaders(api, http.MethodGet, "/cache-key/", nil, func(req *http.Request) {
+		req.Header.Set("X-Cache-Key", "shared")
+	})
+	third := doRequestWithHeaders(api, http.MethodGet, "/cache-key/", nil, func(req *http.Request) {
+		req.Header.Set("X-Cache-Key", "other")
+	})
+
+	if first.Code != http.StatusOK || second.Code != http.StatusOK || third.Code != http.StatusOK {
+		t.Fatalf("expected 200 responses, got %d/%d/%d", first.Code, second.Code, third.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected cache key function to share only matching requests, calls=%d", calls)
+	}
+	if second.Body.String() != first.Body.String() {
+		t.Fatalf("expected matching cache key to reuse response, got %q vs %q", second.Body.String(), first.Body.String())
+	}
+	if third.Body.String() == first.Body.String() {
+		t.Fatalf("expected distinct cache key to bypass cached response, got %q", third.Body.String())
 	}
 }
 

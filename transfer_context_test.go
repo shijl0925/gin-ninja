@@ -2,11 +2,13 @@ package ninja
 
 import (
 	"context"
+	"mime/multipart"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
 	"github.com/shijl0925/gin-ninja/pkg/i18n"
 )
@@ -21,6 +23,17 @@ func TestUploadedFileNilHelpers(t *testing.T) {
 	}
 	if _, err := file.Bytes(); !IsBadRequest(err) {
 		t.Fatalf("Bytes() error = %v, want bad request", err)
+	}
+}
+
+func TestTransferTypeHelpers(t *testing.T) {
+	t.Parallel()
+
+	if !isMultipartFileHeaderSliceType(reflect.TypeOf([]*multipart.FileHeader{})) {
+		t.Fatal("expected []*multipart.FileHeader to be detected as multipart header slice")
+	}
+	if isMultipartFileHeaderSliceType(reflect.TypeOf([]multipart.FileHeader{})) {
+		t.Fatal("expected []multipart.FileHeader not to be treated as multipart header pointer slice")
 	}
 }
 
@@ -151,6 +164,44 @@ func TestContextHelpersAndErrorUtilities(t *testing.T) {
 	}
 	if err := ctx.RollbackTx(); err == nil {
 		t.Fatal("expected RollbackTx() to fail when transaction handlers are unavailable")
+	}
+
+	previousBegin := contextBeginTx
+	previousCommit := contextCommitTx
+	previousRollback := contextRollbackTx
+	t.Cleanup(func() {
+		contextBeginTx = previousBegin
+		contextCommitTx = previousCommit
+		contextRollbackTx = previousRollback
+	})
+
+	beginCalled := false
+	commitCalled := false
+	rollbackCalled := false
+	contextBeginTx = func(*gin.Context) error {
+		beginCalled = true
+		return nil
+	}
+	contextCommitTx = func(*gin.Context) error {
+		commitCalled = true
+		return nil
+	}
+	contextRollbackTx = func(*gin.Context) error {
+		rollbackCalled = true
+		return nil
+	}
+
+	if err := ctx.BeginTx(); err != nil {
+		t.Fatalf("BeginTx() error = %v", err)
+	}
+	if err := ctx.CommitTx(); err != nil {
+		t.Fatalf("CommitTx() error = %v", err)
+	}
+	if err := ctx.RollbackTx(); err != nil {
+		t.Fatalf("RollbackTx() error = %v", err)
+	}
+	if !beginCalled || !commitCalled || !rollbackCalled {
+		t.Fatalf("expected transaction handlers to run, got begin=%v commit=%v rollback=%v", beginCalled, commitCalled, rollbackCalled)
 	}
 
 	badRequest := BadRequestError()
