@@ -158,8 +158,8 @@ func benchmarkGinRouteHandler() http.Handler {
 
 func benchmarkNinjaBindingHandler() http.Handler {
 	api := New(Config{DisableGinDefault: true})
-	router := NewRouter("/bindings")
-	Post(router, "", func(_ *Context, input *benchmarkBindingInput) (*benchmarkBindingOutput, error) {
+	router := NewRouter("")
+	Post(router, "/bindings", func(_ *Context, input *benchmarkBindingInput) (*benchmarkBindingOutput, error) {
 		return &benchmarkBindingOutput{
 			Limit: input.Limit,
 			Name:  input.Name,
