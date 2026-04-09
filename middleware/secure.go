@@ -119,6 +119,8 @@ func SecureHeaders(cfg *SecurityConfig) gin.HandlerFunc {
 	}
 }
 
+// forwardedProtoIsHTTPS reports whether a proxy chain contains HTTPS in a
+// comma-separated X-Forwarded-Proto header, ignoring case and whitespace.
 func forwardedProtoIsHTTPS(value string) bool {
 	for _, part := range strings.Split(value, ",") {
 		if strings.EqualFold(strings.TrimSpace(part), "https") {

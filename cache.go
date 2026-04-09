@@ -287,6 +287,8 @@ func matchesETag(ifNoneMatch, etag string) bool {
 	return false
 }
 
+// normalizeWeakETag strips the weak validator prefix so GET/HEAD conditional
+// requests use weak comparison semantics when matching ETags.
 func normalizeWeakETag(value string) string {
 	value = strings.TrimSpace(value)
 	if len(value) >= 2 && strings.EqualFold(value[:2], "W/") {
@@ -324,6 +326,9 @@ func cloneCachedResponse(in *CachedResponse) *CachedResponse {
 	}
 }
 
+// isExpiredCachedResponse reports whether a cached response has a non-zero
+// expiry time that is already in the past; nil entries and zero expiries are
+// treated as not expired so callers can safely skip extra nil checks.
 func isExpiredCachedResponse(value *CachedResponse, now time.Time) bool {
 	return value != nil && !value.Expires.IsZero() && now.After(value.Expires)
 }
