@@ -10,6 +10,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+/*
+Hot path benchmark usage:
+  - Run all hot path benchmarks:
+    go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem .
+  - Run a single benchmark group:
+    go test -run '^$' -bench '^BenchmarkHotpathsRouting$' -benchmem .
+  - Run only one sub-benchmark implementation:
+    go test -run '^$' -bench '^BenchmarkHotpathsRouting/gin-ninja$' -benchmem .
+  - Reduce noise when comparing results:
+    go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem -count=5 .
+*/
+
 type benchmarkRouteInput struct {
 	ID string `path:"id"`
 }
@@ -41,15 +53,6 @@ type benchmarkBindingBody struct {
 	Count int    `json:"count" binding:"required,gte=1"`
 }
 
-// Hot path benchmark usage:
-//   - Run all hot path benchmarks:
-//     go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem .
-//   - Run a single benchmark group:
-//     go test -run '^$' -bench '^BenchmarkHotpathsRouting$' -benchmem .
-//   - Run only one sub-benchmark implementation:
-//     go test -run '^$' -bench '^BenchmarkHotpathsRouting/gin-ninja$' -benchmem .
-//   - Reduce noise when comparing results:
-//     go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem -count=5 .
 func BenchmarkHotpathsRouting(b *testing.B) {
 	b.Run("gin-ninja", func(b *testing.B) {
 		handler := benchmarkNinjaRouteHandler()
