@@ -41,6 +41,15 @@ type benchmarkBindingBody struct {
 	Count int    `json:"count" binding:"required,gte=1"`
 }
 
+// Hotpath benchmark usage:
+//   - Run all hotpath benchmarks:
+//     go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem .
+//   - Run a single benchmark group:
+//     go test -run '^$' -bench '^BenchmarkHotpathsRouting$' -benchmem .
+//   - Run only one sub-benchmark implementation:
+//     go test -run '^$' -bench '^BenchmarkHotpathsRouting/gin-ninja$' -benchmem .
+//   - Reduce noise when comparing results:
+//     go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem -count=5 .
 func BenchmarkHotpathsRouting(b *testing.B) {
 	b.Run("gin-ninja", func(b *testing.B) {
 		handler := benchmarkNinjaRouteHandler()
