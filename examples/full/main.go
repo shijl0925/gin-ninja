@@ -79,7 +79,34 @@ func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
+func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context.Context) error) {
+	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
+	var cacheStoreShutdown func(context.Context) error
+	if cfg.Redis.Enabled {
+		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+			Addr:     cfg.Redis.Addr,
+			Username: cfg.Redis.Username,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+			Prefix:   cfg.Redis.Prefix,
+		})
+		if err != nil {
+			log.Printf("cache: falling back to in-memory store: %v", err)
+		} else if err := redisStore.Ping(context.Background()); err != nil {
+			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
+			_ = redisStore.Close()
+		} else {
+			cacheStore = redisStore
+			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
+			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
+		}
+	}
+	return cacheStore, cacheStoreShutdown
+}
+
 func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAPI {
+	cacheStore, cacheStoreShutdown := initCacheStore(cfg)
+
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
@@ -319,28 +346,6 @@ func run(cfg settings.Config, log_ *zap.Logger) error {
 	db, err := initDB(&cfg.Database)
 	if err != nil {
 		return err
-	}
-
-	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
-	var cacheStoreShutdown func(context.Context) error
-	if cfg.Redis.Enabled {
-		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-			Addr:     cfg.Redis.Addr,
-			Username: cfg.Redis.Username,
-			Password: cfg.Redis.Password,
-			DB:       cfg.Redis.DB,
-			Prefix:   cfg.Redis.Prefix,
-		})
-		if err != nil {
-			log.Printf("cache: falling back to in-memory store: %v", err)
-		} else if err := redisStore.Ping(context.Background()); err != nil {
-			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
-			_ = redisStore.Close()
-		} else {
-			cacheStore = redisStore
-			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
-			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
-		}
 	}
 
 	api := buildAPI(cfg, db, log_)
