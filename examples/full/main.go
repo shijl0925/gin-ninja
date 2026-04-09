@@ -25,13 +25,16 @@
 //
 // Then visit:
 //   - http://localhost:8080/docs           – Swagger UI (all routes)
+//   - http://localhost:8080/docs/v2        – versioned Swagger UI for v2 cached users CRUD
 //   - http://localhost:8080/docs/v1        – versioned Swagger UI for v1
 //   - http://localhost:8080/docs/v0        – versioned Swagger UI for v0
 //   - http://localhost:8080/openapi.json   – raw OpenAPI spec (all routes)
+//   - http://localhost:8080/openapi/v2.json – raw OpenAPI spec for v2
 //   - http://localhost:8080/openapi/v1.json – raw OpenAPI spec for v1
 //   - http://localhost:8080/openapi/v0.json – raw OpenAPI spec for v0
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
+//   - GET  http://localhost:8080/api/v2/users         – cached users CRUD demo (requires JWT)
 //   - GET  http://localhost:8080/api/v1/users         – list users (requires JWT)
 //   - GET  http://localhost:8080/api/v1/examples/request-meta   – binding/defaults demo
 //   - GET  http://localhost:8080/api/v1/examples/cache          – cache / ETag demo
@@ -76,13 +79,44 @@ func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
+func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context.Context) error) {
+	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
+	var cacheStoreShutdown func(context.Context) error
+	if cfg.Redis.Enabled {
+		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+			Addr:     cfg.Redis.Addr,
+			Username: cfg.Redis.Username,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+			Prefix:   cfg.Redis.Prefix,
+		})
+		if err != nil {
+			log.Printf("cache: falling back to in-memory store: %v", err)
+		} else if err := redisStore.Ping(context.Background()); err != nil {
+			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
+			_ = redisStore.Close()
+		} else {
+			cacheStore = redisStore
+			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
+			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
+		}
+	}
+	return cacheStore, cacheStoreShutdown
+}
+
 func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAPI {
+	cacheStore, cacheStoreShutdown := initCacheStore(cfg)
+
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
 		Description: "A full-featured gin-ninja example with bootstrap, middleware, settings, caching, streaming, and API versioning demos.",
 		Prefix:      "/api",
 		Versions: map[string]ninja.VersionConfig{
+			"v2": {
+				Prefix:      "/v2",
+				Description: "Cached users CRUD example with explicit invalidation.",
+			},
 			"v1": {
 				Prefix:      "/v1",
 				Description: "Current example API version.",
@@ -107,6 +141,13 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 		}
 		return sqlDB.Close()
 	})
+
+	if cacheStoreShutdown != nil {
+		api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
+			return cacheStoreShutdown(ctx)
+		})
+	}
+	app.ConfigureUsersV2Cache(cacheStore)
 
 	// ── 5. Global middleware (engine level) ──────────────────────────────────
 	api.UseGin(
@@ -160,6 +201,50 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 
 	api.AddRouter(usersRouter)
 
+	usersV2Router := ninja.NewRouter(
+		"/users",
+		ninja.WithTags("Users"),
+		ninja.WithTagDescription("Users", "JWT-protected user CRUD endpoints"),
+		ninja.WithBearerAuth(),
+		ninja.WithVersion("v2"),
+	)
+	usersV2Router.UseGin(middleware.JWTAuth())
+
+	ninja.Get(usersV2Router, "/", app.ListUsersV2,
+		ninja.Summary("List users (cached CRUD demo)"),
+		ninja.Description("Demonstrates cached list responses plus tag-based invalidation after create, update, and delete operations."),
+		ninja.Paginated[app.UserOut](),
+		ninja.Cache(time.Minute,
+			ninja.CacheWithStore(cacheStore),
+			ninja.CacheWithTags(app.UsersV2ListCacheTags),
+		),
+	)
+	ninja.Get(usersV2Router, "/:id", app.GetUserV2,
+		ninja.Summary("Get user (cached CRUD demo)"),
+		ninja.Description("Demonstrates detail response caching with a stable cache key and explicit invalidation after update or delete."),
+		ninja.Cache(time.Minute,
+			ninja.CacheWithStore(cacheStore),
+			ninja.CacheWithKey(app.UsersV2DetailCacheKey),
+			ninja.CacheWithTags(app.UsersV2DetailCacheTags),
+		),
+	)
+	ninja.Post(usersV2Router, "/", app.CreateUserV2,
+		ninja.Summary("Create user (invalidates cached lists)"),
+		ninja.Description("Creates a user and invalidates cached list queries so subsequent reads observe the new record."),
+		ninja.WithTransaction(),
+	)
+	ninja.Put(usersV2Router, "/:id", app.UpdateUserV2,
+		ninja.Summary("Update user (invalidates cached detail + lists)"),
+		ninja.Description("Updates a user, deletes the cached detail entry, and invalidates cached list queries."),
+		ninja.WithTransaction(),
+	)
+	ninja.Delete(usersV2Router, "/:id", app.DeleteUserV2,
+		ninja.Summary("Delete user (invalidates cached detail + lists)"),
+		ninja.Description("Deletes a user and invalidates cached detail and list responses."),
+		ninja.WithTransaction(),
+	)
+	api.AddRouter(usersV2Router)
+
 	// ── 8. Feature demos (public, for manual testing) ────────────────────────
 	exampleRouter := ninja.NewRouter(
 		"/examples",
@@ -180,8 +265,11 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 	)
 	ninja.Get(exampleRouter, "/cache", app.CachedFeatureDemo,
 		ninja.Summary("Cache + ETag endpoint"),
-		ninja.Description("Demonstrates route-level response caching, Cache-Control, and conditional requests with ETag."),
-		ninja.Cache(time.Minute),
+		ninja.Description("Demonstrates route-level response caching with pluggable memory/Redis stores, Cache-Control, and conditional requests with ETag."),
+		ninja.Cache(time.Minute,
+			ninja.CacheWithStore(cacheStore),
+			ninja.CacheWithTags(func(ctx *ninja.Context) []string { return []string{"examples", "examples:cache"} }),
+		),
 	)
 	ninja.Get(exampleRouter, "/limited", app.LimitedOperation,
 		ninja.Summary("Rate-limited endpoint"),

@@ -74,6 +74,7 @@ func VersionedInfoV0(ctx *ninja.Context, _ *struct{}) (*VersionDemoOutput, error
 func ListFeatureDemos(ctx *ninja.Context, in *FeatureListInput) (*pagination.Page[FeatureItemOut], error) {
 	items := []FeatureItemOut{
 		{Code: "route-cache", Title: "Route-level cache and ETag", Enabled: true},
+		{Code: "cached-crud-v2", Title: "Versioned users CRUD cache invalidation", Enabled: true},
 		{Code: "api-versioning", Title: "Versioned routers and docs", Enabled: true},
 		{Code: "sse", Title: "Server-sent events", Enabled: true},
 		{Code: "websocket", Title: "WebSocket streaming", Enabled: true},

@@ -75,6 +75,29 @@ jwt:
 	}
 }
 
+func TestLoad_RedisConfig(t *testing.T) {
+	yaml := `
+redis:
+  enabled: true
+  addr: "127.0.0.1:6380"
+  username: "cache-user"
+  password: "cache-pass"
+  db: 3
+  prefix: "demo:"
+`
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.Redis.Enabled || cfg.Redis.Addr != "127.0.0.1:6380" || cfg.Redis.Username != "cache-user" {
+		t.Fatalf("unexpected redis config: %+v", cfg.Redis)
+	}
+	if cfg.Redis.Password != "cache-pass" || cfg.Redis.DB != 3 || cfg.Redis.Prefix != "demo:" {
+		t.Fatalf("unexpected redis config values: %+v", cfg.Redis)
+	}
+}
+
 func TestLoad_DatabaseStructuredConfig(t *testing.T) {
 	yaml := `
 database:
@@ -172,6 +195,7 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	t.Setenv("SERVER__PORT", "7070")
 	t.Setenv("DATABASE__MYSQL__PASSWORD", "env:p@ss+word")
 	t.Setenv("DATABASE__POSTGRES__TIME_ZONE", "Asia/Shanghai")
+	t.Setenv("REDIS__ADDR", "cache.internal:6379")
 
 	path := writeTempConfig(t, "{}")
 	cfg, err := settings.Load(path)
@@ -186,6 +210,9 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	}
 	if cfg.Database.Postgres.TimeZone != "Asia/Shanghai" {
 		t.Fatalf("expected env override postgres timezone, got %q", cfg.Database.Postgres.TimeZone)
+	}
+	if cfg.Redis.Addr != "cache.internal:6379" {
+		t.Fatalf("expected env override redis addr, got %q", cfg.Redis.Addr)
 	}
 }
 

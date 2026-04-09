@@ -42,6 +42,15 @@ database:
   max_idle_conns: 5
   max_open_conns: 10
 
+redis:
+  enabled: false
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  prefix: "gin-ninja:example:"
+  # 启用后，/api/v1/examples/cache 会优先使用 Redis 作为响应缓存后端。
+
 jwt:
   secret: "change-me-in-production-please"
   expire_hours: 24

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/pagination"
@@ -1128,6 +1129,116 @@ func TestGet_CacheWithCustomKey(t *testing.T) {
 		t.Fatalf("expected distinct cache key to bypass cached response, got %q", third.Body.String())
 	}
 }
+
+func TestMemoryCacheStore_TagInvalidationAndLocking(t *testing.T) {
+	store := ninja.NewMemoryCacheStore()
+	store.Set("users:list", &ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
+	store.Set("users:1", &ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
+	store.AddTags("users:list", "users", "users:list")
+	store.AddTags("users:1", "users", "users:detail:1")
+
+	invalidator := ninja.NewCacheInvalidator(store)
+	if removed := invalidator.InvalidateTags("users:detail:1"); removed != 1 {
+		t.Fatalf("expected one invalidated key, got %d", removed)
+	}
+	if _, ok := store.Get("users:1"); ok {
+		t.Fatal("expected tagged detail key to be deleted")
+	}
+	if _, ok := store.Get("users:list"); !ok {
+		t.Fatal("expected unrelated key to remain cached")
+	}
+
+	unlock, ok := invalidator.AcquireLock("users:list", time.Second)
+	if !ok || unlock == nil {
+		t.Fatal("expected first lock acquisition to succeed")
+	}
+	if _, ok := invalidator.AcquireLock("users:list", time.Second); ok {
+		t.Fatal("expected second lock acquisition to fail while lock is held")
+	}
+	unlock()
+	if _, ok := invalidator.AcquireLock("users:list", time.Second); !ok {
+		t.Fatal("expected lock acquisition to succeed after unlock")
+	}
+}
+
+func TestGet_CacheWithTagsSupportsInvalidation(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-tags")
+	store := ninja.NewMemoryCacheStore()
+	invalidator := ninja.NewCacheInvalidator(store)
+	calls := 0
+
+	ninja.Get(r, "/:id", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute,
+		ninja.CacheWithStore(store),
+		ninja.CacheWithTags(func(ctx *ninja.Context) []string {
+			return []string{"users", "users:" + ctx.Param("id")}
+		}),
+	))
+	api.AddRouter(r)
+
+	first := doRequest(api, http.MethodGet, "/cache-tags/42", nil)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", first.Code, first.Body.String())
+	}
+	second := doRequest(api, http.MethodGet, "/cache-tags/42", nil)
+	if second.Code != http.StatusOK || calls != 1 {
+		t.Fatalf("expected cached response before invalidation, code=%d calls=%d", second.Code, calls)
+	}
+	if removed := invalidator.InvalidateTags("users:42"); removed != 1 {
+		t.Fatalf("expected one invalidated key, got %d", removed)
+	}
+	third := doRequest(api, http.MethodGet, "/cache-tags/42", nil)
+	if third.Code != http.StatusOK || calls != 2 {
+		t.Fatalf("expected cache miss after invalidation, code=%d calls=%d", third.Code, calls)
+	}
+}
+
+func TestRedisCacheStore_GetTagInvalidateAndLock(t *testing.T) {
+	mr := miniredis.RunT(t)
+	store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+		Addr:   mr.Addr(),
+		Prefix: "test:",
+	})
+	if err != nil {
+		t.Fatalf("NewRedisCacheStore: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	store.Set("users:1", &ninja.CachedResponse{
+		Status:  http.StatusOK,
+		Header:  http.Header{"Content-Type": []string{"application/json"}},
+		Body:    []byte(`{"count":1}`),
+		Expires: time.Now().Add(time.Minute),
+	})
+	store.AddTags("users:1", "users", "users:1")
+
+	cached, ok := store.Get("users:1")
+	if !ok || cached == nil || cached.Status != http.StatusOK {
+		t.Fatalf("expected cached redis response, got ok=%v cached=%+v", ok, cached)
+	}
+	if removed := store.InvalidateTags("users:1"); removed != 1 {
+		t.Fatalf("expected one invalidated redis key, got %d", removed)
+	}
+	if _, ok := store.Get("users:1"); ok {
+		t.Fatal("expected redis key to be removed after tag invalidation")
+	}
+
+	unlock, ok := store.AcquireLock("users:1", time.Second)
+	if !ok || unlock == nil {
+		t.Fatal("expected first redis lock acquisition to succeed")
+	}
+	if _, ok := store.AcquireLock("users:1", time.Second); ok {
+		t.Fatal("expected second redis lock acquisition to fail while held")
+	}
+	unlock()
+	if _, ok := store.AcquireLock("users:1", time.Second); !ok {
+		t.Fatal("expected redis lock acquisition to succeed after unlock")
+	}
+}
+
 
 func TestGet_CacheETagWildcardAndMultipleValues(t *testing.T) {
 	api := newTestAPI()
