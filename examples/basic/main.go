@@ -24,6 +24,9 @@ import (
 	"gorm.io/gorm"
 )
 
+var runBasicMain = run
+var fatalBasic = func(v ...any) { log.Fatal(v...) }
+
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
@@ -156,18 +159,19 @@ func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
 	return newUserRepo().DeleteById(int(in.UserID))
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
-func main() {
-	db, err := gorm.Open(gormdriver.Open("users.db"), &gorm.Config{})
+func initDB(dsn string) (*gorm.DB, error) {
+	db, err := gorm.Open(gormdriver.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("db:", err)
+		return nil, err
 	}
-	db.AutoMigrate(&User{}) //nolint:errcheck
+	if err := db.AutoMigrate(&User{}); err != nil {
+		return nil, err
+	}
 	orm.Init(db)
+	return db, nil
+}
 
+func buildAPI(db *gorm.DB) *ninja.NinjaAPI {
 	api := ninja.New(ninja.Config{
 		Title:             "Gin Ninja Basic Example",
 		Version:           "1.0.0",
@@ -196,6 +200,26 @@ func main() {
 		c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 	})
 
+	return api
+}
+
+func run(dsn, addr string) error {
+	db, err := initDB(dsn)
+	if err != nil {
+		return err
+	}
+	api := buildAPI(db)
+
 	log.Println("Docs: http://localhost:8080/docs")
-	log.Fatal(api.Run(":8080"))
+	return api.Run(addr)
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+func main() {
+	if err := runBasicMain("users.db", ":8080"); err != nil {
+		fatalBasic(err)
+	}
 }

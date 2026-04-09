@@ -18,3 +18,25 @@ func FuzzParseTag(f *testing.F) {
 		_, _, _, _ = parseTag(tag, field)
 	})
 }
+
+func FuzzParseListInput(f *testing.F) {
+	for _, seed := range []struct {
+		search string
+		age    int
+	}{
+		{search: "alice", age: 18},
+		{search: "", age: 0},
+		{search: "中文", age: -1},
+	} {
+		f.Add(seed.search, seed.age)
+	}
+
+	f.Fuzz(func(t *testing.T, search string, age int) {
+		admin := age%2 == 0
+		_, _ = Parse(&listInput{
+			embeddedFilter: embeddedFilter{IsAdmin: &admin},
+			Search:         search,
+			AgeMin:         age,
+		})
+	})
+}

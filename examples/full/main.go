@@ -46,6 +46,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -57,48 +58,28 @@ import (
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
+	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/shijl0925/gin-ninja/examples/full/app"
 )
 
-func main() {
-	// ── 1. Load configuration ────────────────────────────────────────────────
-	cfg := settings.MustLoad("examples/full/config.yaml")
+var runFullMain = run
+var fatalFull = func(v ...any) { log.Fatal(v...) }
 
-	// ── 2. Initialise logger ─────────────────────────────────────────────────
-	log_ := bootstrap.InitLogger(&cfg.Log)
-	defer logger.Sync()
-
-	// ── 3. Initialise database ───────────────────────────────────────────────
-	db := bootstrap.MustInitDB(&cfg.Database)
+func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
+	db, err := bootstrap.InitDB(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("init db: %w", err)
+	}
 	if err := db.AutoMigrate(&app.User{}); err != nil {
-		log.Fatal("auto migrate:", err)
+		return nil, fmt.Errorf("auto migrate: %w", err)
 	}
 	orm.Init(db)
+	return db, nil
+}
 
-	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
-	var cacheStoreShutdown func(context.Context) error
-	if cfg.Redis.Enabled {
-		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-			Addr:     cfg.Redis.Addr,
-			Username: cfg.Redis.Username,
-			Password: cfg.Redis.Password,
-			DB:       cfg.Redis.DB,
-			Prefix:   cfg.Redis.Prefix,
-		})
-		if err != nil {
-			log.Printf("cache: falling back to in-memory store: %v", err)
-		} else if err := redisStore.Ping(context.Background()); err != nil {
-			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
-			_ = redisStore.Close()
-		} else {
-			cacheStore = redisStore
-			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
-			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
-		}
-	}
-
-	// ── 4. Build API ─────────────────────────────────────────────────────────
+func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAPI {
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
@@ -133,6 +114,7 @@ func main() {
 		}
 		return sqlDB.Close()
 	})
+
 	if cacheStoreShutdown != nil {
 		api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 			return cacheStoreShutdown(ctx)
@@ -330,11 +312,53 @@ func main() {
 		c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 	})
 
-	// ── 10. Start server ──────────────────────────────────────────────────────
+	return api
+}
+
+func run(cfg settings.Config, log_ *zap.Logger) error {
+	db, err := initDB(&cfg.Database)
+	if err != nil {
+		return err
+	}
+
+	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
+	var cacheStoreShutdown func(context.Context) error
+	if cfg.Redis.Enabled {
+		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+			Addr:     cfg.Redis.Addr,
+			Username: cfg.Redis.Username,
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+			Prefix:   cfg.Redis.Prefix,
+		})
+		if err != nil {
+			log.Printf("cache: falling back to in-memory store: %v", err)
+		} else if err := redisStore.Ping(context.Background()); err != nil {
+			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
+			_ = redisStore.Close()
+		} else {
+			cacheStore = redisStore
+			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
+			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
+		}
+	}
+
+	api := buildAPI(cfg, db, log_)
 	addr := cfg.Server.Addr()
 	log.Printf("Starting %s v%s on http://%s", cfg.App.Name, cfg.App.Version, addr)
 	log.Printf("Swagger UI: http://%s/docs", addr)
-	if err := api.Run(addr); err != nil {
-		log.Fatal(err)
+	return api.Run(addr)
+}
+
+func main() {
+	// ── 1. Load configuration ────────────────────────────────────────────────
+	cfg := settings.MustLoad("examples/full/config.yaml")
+
+	// ── 2. Initialise logger ─────────────────────────────────────────────────
+	log_ := bootstrap.InitLogger(&cfg.Log)
+	defer logger.Sync()
+
+	if err := runFullMain(*cfg, log_); err != nil {
+		fatalFull(err)
 	}
 }

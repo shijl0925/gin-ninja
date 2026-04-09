@@ -1,9 +1,23 @@
 version = 1
 
-exclude_patterns = []
+exclude_patterns = [
+  "**/*_test.go",
+  "**/test/**",
+  "**/tests/**"
+]
 
 [[analyzers]]
 name = "go"
+enabled = true
 
   [analyzers.meta]
   import_root = "github.com/shijl0925/gin-ninja"
+
+[[analyzers]]
+name = "test-coverage"
+enabled = true
+
+[[test_coverage]]
+name = "go"
+enabled = true
+report_file = "coverage.out"
