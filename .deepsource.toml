@@ -12,3 +12,8 @@ enabled = true
 
   [analyzers.meta]
   import_root = "github.com/shijl0925/gin-ninja"
+
+[[test_coverage]]
+name = "go"
+enabled = true
+report_file = "coverage.out"
