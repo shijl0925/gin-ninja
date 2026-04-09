@@ -22,8 +22,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Run unit tests
+      - name: Test with coverage
         run: go test ./... -coverprofile=coverage.out
+
+      - name: Install DeepSource CLI
+        run: curl -fsSL https://cli.deepsource.com/install | BINDIR=./bin sh
+
+      - name: Upload coverage to DeepSource
+        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage.out
+        env:
+          DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
 
       - name: Build
         run: go build ./...
