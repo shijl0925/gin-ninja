@@ -288,6 +288,11 @@ func newOperation[TIn any, TOut any](
 			writer.writeTo(c, op.successStatus)
 			return
 		}
+		if c.Request.Method == http.MethodHead {
+			c.Header("Content-Type", "application/json; charset=utf-8")
+			c.Status(op.successStatus)
+			return
+		}
 		c.JSON(op.successStatus, output)
 	}
 

@@ -172,8 +172,10 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		cacheKey, cacheStore := cacheLookup(op, ctx)
 		if cacheStore != nil && cacheKey != "" {
 			if cached, ok := cacheStore.Get(cacheKey); ok {
-				writeCachedResponse(c, cached, op.cacheControl)
-				return
+				if !isExpiredCachedResponse(cached, time.Now()) {
+					writeCachedResponse(c, cached, op.cacheControl)
+					return
+				}
 			}
 		}
 
@@ -276,12 +278,23 @@ func matchesETag(ifNoneMatch, etag string) bool {
 	if ifNoneMatch == "" || etag == "" {
 		return false
 	}
+	normalizedETag := normalizeWeakETag(etag)
 	for _, candidate := range splitCommaValues(ifNoneMatch) {
-		if candidate == "*" || candidate == etag {
+		if candidate == "*" || normalizeWeakETag(candidate) == normalizedETag {
 			return true
 		}
 	}
 	return false
+}
+
+// normalizeWeakETag strips the weak validator prefix so GET/HEAD conditional
+// requests use weak comparison semantics when matching ETags.
+func normalizeWeakETag(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 && strings.EqualFold(value[:2], "W/") {
+		return value[2:]
+	}
+	return value
 }
 
 func splitCommaValues(value string) []string {
@@ -311,6 +324,13 @@ func cloneCachedResponse(in *CachedResponse) *CachedResponse {
 		Expires: in.Expires,
 		ETag:    in.ETag,
 	}
+}
+
+// isExpiredCachedResponse reports whether a cached response has a non-zero
+// expiry time that is already in the past; nil entries and zero expiries are
+// treated as not expired so callers can safely skip extra nil checks.
+func isExpiredCachedResponse(value *CachedResponse, now time.Time) bool {
+	return value != nil && !value.Expires.IsZero() && now.After(value.Expires)
 }
 
 func cloneHeader(in http.Header) http.Header {

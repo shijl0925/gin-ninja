@@ -322,135 +322,134 @@ func TestI18n_GetLocaleDefault(t *testing.T) {
 	}
 }
 
-
 // ---------------------------------------------------------------------------
 // SessionMiddleware
 // ---------------------------------------------------------------------------
 
 func TestSession_SetAndGet(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}))
-r.POST("/set", func(c *gin.Context) {
-s := middleware.GetSession(c)
-s.Set("user_id", "42")
-c.Status(http.StatusNoContent)
-})
-r.GET("/get", func(c *gin.Context) {
-s := middleware.GetSession(c)
-v, _ := s.Get("user_id")
-c.String(http.StatusOK, v)
-})
+	r := gin.New()
+	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}))
+	r.POST("/set", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		s.Set("user_id", "42")
+		c.Status(http.StatusNoContent)
+	})
+	r.GET("/get", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		v, _ := s.Get("user_id")
+		c.String(http.StatusOK, v)
+	})
 
-req := httptest.NewRequest(http.MethodPost, "/set", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
-if w.Code != http.StatusNoContent {
-t.Fatalf("expected 204, got %d", w.Code)
-}
+	req := httptest.NewRequest(http.MethodPost, "/set", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", w.Code)
+	}
 
-var sessionCookie *http.Cookie
-for _, c := range w.Result().Cookies() {
-if c.Name == "session" {
-sessionCookie = c
-}
-}
-if sessionCookie == nil {
-t.Fatal("expected session cookie to be set")
-}
-if !sessionCookie.HttpOnly {
-	t.Fatal("expected session cookie to default to HttpOnly")
-}
+	var sessionCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "session" {
+			sessionCookie = c
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected session cookie to be set")
+	}
+	if !sessionCookie.HttpOnly {
+		t.Fatal("expected session cookie to default to HttpOnly")
+	}
 
-req = httptest.NewRequest(http.MethodGet, "/get", nil)
-req.AddCookie(sessionCookie)
-w = httptest.NewRecorder()
-r.ServeHTTP(w, req)
-if w.Code != http.StatusOK {
-t.Fatalf("expected 200, got %d", w.Code)
-}
-if w.Body.String() != "42" {
-t.Errorf("expected user_id=42, got %q", w.Body.String())
-}
+	req = httptest.NewRequest(http.MethodGet, "/get", nil)
+	req.AddCookie(sessionCookie)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if w.Body.String() != "42" {
+		t.Errorf("expected user_id=42, got %q", w.Body.String())
+	}
 }
 
 func TestSession_TamperedCookieIsIgnored(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}))
-r.GET("/", func(c *gin.Context) {
-s := middleware.GetSession(c)
-v, ok := s.Get("admin")
-if ok && v == "true" {
-c.String(http.StatusOK, "admin")
-} else {
-c.String(http.StatusOK, "user")
-}
-})
+	r := gin.New()
+	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}))
+	r.GET("/", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		v, ok := s.Get("admin")
+		if ok && v == "true" {
+			c.String(http.StatusOK, "admin")
+		} else {
+			c.String(http.StatusOK, "user")
+		}
+	})
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.AddCookie(&http.Cookie{Name: "session", Value: "tampered.invalidsig"})
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
-if w.Body.String() != "user" {
-t.Errorf("tampered session should be ignored, got %q", w.Body.String())
-}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "session", Value: "tampered.invalidsig"})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Body.String() != "user" {
+		t.Errorf("tampered session should be ignored, got %q", w.Body.String())
+	}
 }
 
 func TestSession_HTTPOnlyCanBeExplicitlyDisabled(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
-Secret:      "test-secret",
-HTTPOnly:    false,
-HTTPOnlySet: true,
-}))
-r.POST("/", func(c *gin.Context) {
-s := middleware.GetSession(c)
-s.Set("user_id", "42")
-c.Status(http.StatusNoContent)
-})
+	r := gin.New()
+	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
+		Secret:      "test-secret",
+		HTTPOnly:    false,
+		HTTPOnlySet: true,
+	}))
+	r.POST("/", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		s.Set("user_id", "42")
+		c.Status(http.StatusNoContent)
+	})
 
-req := httptest.NewRequest(http.MethodPost, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-var sessionCookie *http.Cookie
-for _, c := range w.Result().Cookies() {
-if c.Name == "session" {
-sessionCookie = c
-}
-}
-if sessionCookie == nil {
-t.Fatal("expected session cookie to be set")
-}
-if sessionCookie.HttpOnly {
-t.Fatal("expected session cookie HttpOnly to remain disabled")
-}
+	var sessionCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "session" {
+			sessionCookie = c
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected session cookie to be set")
+	}
+	if sessionCookie.HttpOnly {
+		t.Fatal("expected session cookie HttpOnly to remain disabled")
+	}
 }
 
 func TestSession_NilMiddleware_GetSessionReturnsNil(t *testing.T) {
-r := gin.New()
-r.GET("/", func(c *gin.Context) {
-s := middleware.GetSession(c)
-if s != nil {
-c.String(http.StatusOK, "not-nil")
-} else {
-c.String(http.StatusOK, "nil")
-}
-})
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
-if w.Body.String() != "nil" {
-t.Errorf("expected nil session when middleware is absent")
-}
+	r := gin.New()
+	r.GET("/", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		if s != nil {
+			c.String(http.StatusOK, "not-nil")
+		} else {
+			c.String(http.StatusOK, "nil")
+		}
+	})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Body.String() != "nil" {
+		t.Errorf("expected nil session when middleware is absent")
+	}
 }
 
 func TestSession_PanicOnEmptySecret(t *testing.T) {
-defer func() {
-if recover() == nil {
-t.Fatal("expected panic on empty secret")
-}
-}()
-middleware.SessionMiddleware(&middleware.SessionConfig{Secret: ""})
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic on empty secret")
+		}
+	}()
+	middleware.SessionMiddleware(&middleware.SessionConfig{Secret: ""})
 }
 
 // ---------------------------------------------------------------------------
@@ -458,80 +457,80 @@ middleware.SessionMiddleware(&middleware.SessionConfig{Secret: ""})
 // ---------------------------------------------------------------------------
 
 func TestCSRF_SafeMethodsSetsToken(t *testing.T) {
-r := gin.New()
-r.Use(middleware.CSRF(nil))
-r.GET("/", func(c *gin.Context) {
-token := middleware.CSRFToken(c)
-c.String(http.StatusOK, token)
-})
+	r := gin.New()
+	r.Use(middleware.CSRF(nil))
+	r.GET("/", func(c *gin.Context) {
+		token := middleware.CSRFToken(c)
+		c.String(http.StatusOK, token)
+	})
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusOK {
-t.Fatalf("expected 200, got %d", w.Code)
-}
-token := w.Body.String()
-if len(token) < 16 {
-t.Errorf("expected a token in the response body, got %q", token)
-}
-var csrfCookie *http.Cookie
-for _, c := range w.Result().Cookies() {
-if c.Name == "csrf_token" {
-csrfCookie = c
-}
-}
-if csrfCookie == nil {
-t.Fatal("expected csrf_token cookie to be set")
-}
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	token := w.Body.String()
+	if len(token) < 16 {
+		t.Errorf("expected a token in the response body, got %q", token)
+	}
+	var csrfCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "csrf_token" {
+			csrfCookie = c
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatal("expected csrf_token cookie to be set")
+	}
 }
 
 func TestCSRF_PostWithValidToken(t *testing.T) {
-r := gin.New()
-r.Use(middleware.CSRF(nil))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.CSRF(nil))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-token := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-req := httptest.NewRequest(http.MethodPost, "/", nil)
-req.AddCookie(&http.Cookie{Name: "csrf_token", Value: token})
-req.Header.Set("X-CSRF-Token", token)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	token := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: token})
+	req.Header.Set("X-CSRF-Token", token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusOK {
-t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-}
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
 }
 
 func TestCSRF_PostWithMissingToken(t *testing.T) {
-r := gin.New()
-r.Use(middleware.CSRF(nil))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.CSRF(nil))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodPost, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusForbidden {
-t.Errorf("expected 403 for missing CSRF token, got %d", w.Code)
-}
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for missing CSRF token, got %d", w.Code)
+	}
 }
 
 func TestCSRF_PostWithWrongToken(t *testing.T) {
-r := gin.New()
-r.Use(middleware.CSRF(nil))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.CSRF(nil))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodPost, "/", nil)
-req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "correct-token-12345678901234567890"})
-req.Header.Set("X-CSRF-Token", "wrong-token-12345678901234567890")
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "correct-token-12345678901234567890"})
+	req.Header.Set("X-CSRF-Token", "wrong-token-12345678901234567890")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusForbidden {
-t.Errorf("expected 403 for wrong CSRF token, got %d", w.Code)
-}
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for wrong CSRF token, got %d", w.Code)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -539,80 +538,97 @@ t.Errorf("expected 403 for wrong CSRF token, got %d", w.Code)
 // ---------------------------------------------------------------------------
 
 func TestSecureHeaders_Defaults(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SecureHeaders(nil))
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(nil))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
-t.Errorf("X-Content-Type-Options: expected nosniff, got %q", got)
-}
-if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
-t.Errorf("X-Frame-Options: expected DENY, got %q", got)
-}
-if got := w.Header().Get("X-XSS-Protection"); got != "1; mode=block" {
-t.Errorf("X-XSS-Protection: expected '1; mode=block', got %q", got)
-}
-if got := w.Header().Get("Referrer-Policy"); got != "strict-origin-when-cross-origin" {
-t.Errorf("Referrer-Policy: expected strict-origin-when-cross-origin, got %q", got)
-}
+	if got := w.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options: expected nosniff, got %q", got)
+	}
+	if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Errorf("X-Frame-Options: expected DENY, got %q", got)
+	}
+	if got := w.Header().Get("X-XSS-Protection"); got != "1; mode=block" {
+		t.Errorf("X-XSS-Protection: expected '1; mode=block', got %q", got)
+	}
+	if got := w.Header().Get("Referrer-Policy"); got != "strict-origin-when-cross-origin" {
+		t.Errorf("Referrer-Policy: expected strict-origin-when-cross-origin, got %q", got)
+	}
 }
 
 func TestSecureHeaders_CSP(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
-ContentSecurityPolicy: "default-src 'self'",
-}))
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+		ContentSecurityPolicy: "default-src 'self'",
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'self'" {
-t.Errorf("CSP header: got %q", got)
-}
+	if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'self'" {
+		t.Errorf("CSP header: got %q", got)
+	}
 }
 
 func TestSecureHeaders_HSTS_HTTP(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
-HSTSMaxAge: 31536000,
-}))
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+		HSTSMaxAge: 31536000,
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if got := w.Header().Get("Strict-Transport-Security"); got != "" {
-t.Errorf("HSTS should not be emitted over HTTP, got %q", got)
-}
+	if got := w.Header().Get("Strict-Transport-Security"); got != "" {
+		t.Errorf("HSTS should not be emitted over HTTP, got %q", got)
+	}
 }
 
 func TestSecureHeaders_HSTS_ForwardedHTTPS(t *testing.T) {
-r := gin.New()
-r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
-HSTSMaxAge:            31536000,
-HSTSIncludeSubDomains: true,
-}))
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+		HSTSMaxAge:            31536000,
+		HSTSIncludeSubDomains: true,
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.Header.Set("X-Forwarded-Proto", "https")
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-got := w.Header().Get("Strict-Transport-Security")
-if got == "" {
-t.Error("expected HSTS header when X-Forwarded-Proto is https")
+	got := w.Header().Get("Strict-Transport-Security")
+	if got == "" {
+		t.Error("expected HSTS header when X-Forwarded-Proto is https")
+	}
+	if !strings.Contains(got, "includeSubDomains") {
+		t.Errorf("expected includeSubDomains in HSTS header, got %q", got)
+	}
 }
-if !strings.Contains(got, "includeSubDomains") {
-t.Errorf("expected includeSubDomains in HSTS header, got %q", got)
-}
+
+func TestSecureHeaders_HSTS_ForwardedHTTPSListAndCaseInsensitive(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+		HSTSMaxAge: 31536000,
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-Proto", "HTTPS, http")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Strict-Transport-Security"); got == "" {
+		t.Fatal("expected HSTS header when forwarded proto list contains HTTPS")
+	}
 }
 
 func TestSecureHeaders_TLSAndStrict(t *testing.T) {
@@ -622,17 +638,17 @@ func TestSecureHeaders_TLSAndStrict(t *testing.T) {
 	r.Use(middleware.SecureHeadersStrict())
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.TLS = &tls.ConnectionState{}
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.TLS = &tls.ConnectionState{}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
-t.Errorf("expected strict frame option DENY, got %q", got)
-}
-if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "max-age=31536000") || !strings.Contains(got, "includeSubDomains") {
-t.Errorf("expected strict HSTS header, got %q", got)
-}
+	if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Errorf("expected strict frame option DENY, got %q", got)
+	}
+	if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "max-age=31536000") || !strings.Contains(got, "includeSubDomains") {
+		t.Errorf("expected strict HSTS header, got %q", got)
+	}
 }
 
 func TestSecureHeaders_InvalidFrameOptionAndPermissions(t *testing.T) {
@@ -640,37 +656,37 @@ func TestSecureHeaders_InvalidFrameOptionAndPermissions(t *testing.T) {
 
 	r := gin.New()
 	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
-FrameOption:           "ALLOWALL",
-PermissionsPolicy:     "geolocation=()",
-ContentTypeNoSniff:    false,
-XSSProtection:         false,
-ReferrerPolicy:        "",
-HSTSMaxAge:            31536000,
-HSTSPreload:           true,
-ContentSecurityPolicy: "default-src 'none'",
-}))
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+		FrameOption:           "ALLOWALL",
+		PermissionsPolicy:     "geolocation=()",
+		ContentTypeNoSniff:    false,
+		XSSProtection:         false,
+		ReferrerPolicy:        "",
+		HSTSMaxAge:            31536000,
+		HSTSPreload:           true,
+		ContentSecurityPolicy: "default-src 'none'",
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-req.TLS = &tls.ConnectionState{}
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.TLS = &tls.ConnectionState{}
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if got := w.Header().Get("X-Frame-Options"); got != "" {
-t.Errorf("expected invalid frame option to be ignored, got %q", got)
-}
-if got := w.Header().Get("Permissions-Policy"); got != "geolocation=()" {
-t.Errorf("expected permissions policy header, got %q", got)
-}
-if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "preload") {
-t.Errorf("expected preload in HSTS header, got %q", got)
-}
-if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'none'" {
-t.Errorf("expected CSP header, got %q", got)
-}
-if got := w.Header().Get("X-Content-Type-Options"); got != "" {
-t.Errorf("expected nosniff to be disabled, got %q", got)
-}
+	if got := w.Header().Get("X-Frame-Options"); got != "" {
+		t.Errorf("expected invalid frame option to be ignored, got %q", got)
+	}
+	if got := w.Header().Get("Permissions-Policy"); got != "geolocation=()" {
+		t.Errorf("expected permissions policy header, got %q", got)
+	}
+	if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "preload") {
+		t.Errorf("expected preload in HSTS header, got %q", got)
+	}
+	if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'none'" {
+		t.Errorf("expected CSP header, got %q", got)
+	}
+	if got := w.Header().Get("X-Content-Type-Options"); got != "" {
+		t.Errorf("expected nosniff to be disabled, got %q", got)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -678,96 +694,300 @@ t.Errorf("expected nosniff to be disabled, got %q", got)
 // ---------------------------------------------------------------------------
 
 func TestUploadLimit_DefaultAllows(t *testing.T) {
-r := gin.New()
-r.Use(middleware.UploadLimit(nil))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.UploadLimit(nil))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-body := strings.NewReader(`{"key":"value"}`)
-req := httptest.NewRequest(http.MethodPost, "/", body)
-req.Header.Set("Content-Type", "application/json")
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	body := strings.NewReader(`{"key":"value"}`)
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusOK {
-t.Errorf("expected 200, got %d", w.Code)
-}
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
 }
 
 func TestUploadLimit_ExceedsDeclaredSize(t *testing.T) {
-r := gin.New()
-r.Use(middleware.UploadLimit(&middleware.UploadConfig{MaxSize: 10}))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{MaxSize: 10}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-body := strings.NewReader(`{"key":"value_that_is_too_long"}`)
-req := httptest.NewRequest(http.MethodPost, "/", body)
-req.Header.Set("Content-Type", "application/json")
-req.ContentLength = 9999
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	body := strings.NewReader(`{"key":"value_that_is_too_long"}`)
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = 9999
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusRequestEntityTooLarge {
-t.Errorf("expected 413, got %d", w.Code)
-}
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("expected 413, got %d", w.Code)
+	}
 }
 
 func TestUploadLimit_ContentTypeNotAllowed(t *testing.T) {
-r := gin.New()
-r.Use(middleware.UploadLimit(&middleware.UploadConfig{
-MaxSize:          10 << 20,
-AllowedMIMETypes: []string{"image/jpeg", "image/png"},
-}))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          10 << 20,
+		AllowedMIMETypes: []string{"image/jpeg", "image/png"},
+	}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-body := strings.NewReader(`{"key":"value"}`)
-req := httptest.NewRequest(http.MethodPost, "/", body)
-req.Header.Set("Content-Type", "application/json")
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	body := strings.NewReader(`{"key":"value"}`)
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusUnsupportedMediaType {
-t.Errorf("expected 415, got %d", w.Code)
-}
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("expected 415, got %d", w.Code)
+	}
 }
 
 func TestUploadLimit_ContentTypeAllowed(t *testing.T) {
-r := gin.New()
-r.Use(middleware.UploadLimit(&middleware.UploadConfig{
-MaxSize:          10 << 20,
-AllowedMIMETypes: []string{"application/json", "image/"},
-}))
-r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          10 << 20,
+		AllowedMIMETypes: []string{"application/json", "image/"},
+	}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-body := strings.NewReader(`{}`)
-req := httptest.NewRequest(http.MethodPost, "/", body)
-req.Header.Set("Content-Type", "application/json")
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
-if w.Code != http.StatusOK {
-t.Errorf("expected 200 for allowed type, got %d", w.Code)
+	body := strings.NewReader(`{}`)
+	req := httptest.NewRequest(http.MethodPost, "/", body)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for allowed type, got %d", w.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader("data"))
+	req.Header.Set("Content-Type", "image/png")
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for image/png via prefix, got %d", w.Code)
+	}
 }
 
-req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader("data"))
-req.Header.Set("Content-Type", "image/png")
-w = httptest.NewRecorder()
-r.ServeHTTP(w, req)
-if w.Code != http.StatusOK {
-t.Errorf("expected 200 for image/png via prefix, got %d", w.Code)
+func TestUploadLimit_ContentTypeParametersAndNormalization(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          10 << 20,
+		AllowedMIMETypes: []string{" application/json ", "image/"},
+	}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"ok":true}`))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for normalized content type, got %d", w.Code)
+	}
 }
+
+func TestUploadLimit_CustomErrorHandler(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          4,
+		AllowedMIMETypes: []string{"application/json"},
+		ErrorHandler: func(c *gin.Context, status int, code, message string) {
+			c.AbortWithStatusJSON(status, gin.H{
+				"status":  status,
+				"code":    code,
+				"message": message,
+			})
+		},
+	}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"toolong":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = 99
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d", w.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error response: %v", err)
+	}
+	if body["code"] != "PAYLOAD_TOO_LARGE" {
+		t.Fatalf("expected custom error code, got %+v", body)
+	}
+}
+
+func TestUploadLimit_PatchRequestAllowedAndEmptyContentTypeRejected(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          10 << 20,
+		AllowedMIMETypes: []string{"application/json"},
+	}))
+	r.PATCH("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	allowed := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(`{"ok":true}`))
+	allowed.Header.Set("Content-Type", "application/json")
+	allowedW := httptest.NewRecorder()
+	r.ServeHTTP(allowedW, allowed)
+	if allowedW.Code != http.StatusOK {
+		t.Fatalf("expected PATCH request to be checked like other body methods, got %d", allowedW.Code)
+	}
+
+	rejected := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(`{"ok":true}`))
+	rejectedW := httptest.NewRecorder()
+	r.ServeHTTP(rejectedW, rejected)
+	if rejectedW.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("expected empty content type to be rejected, got %d", rejectedW.Code)
+	}
 }
 
 func TestUploadLimit_GetRequestNotAffected(t *testing.T) {
-r := gin.New()
-r.Use(middleware.UploadLimit(&middleware.UploadConfig{
-MaxSize:          1,
-AllowedMIMETypes: []string{"text/plain"},
-}))
-r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+	r := gin.New()
+	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
+		MaxSize:          1,
+		AllowedMIMETypes: []string{"text/plain"},
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-req := httptest.NewRequest(http.MethodGet, "/", nil)
-w := httptest.NewRecorder()
-r.ServeHTTP(w, req)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-if w.Code != http.StatusOK {
-t.Errorf("GET should not be affected by upload limit, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("GET should not be affected by upload limit, got %d", w.Code)
+	}
 }
+
+func TestMiddleware_HTTPIntegration_SessionCSRFSecureHeadersAndUploadLimit(t *testing.T) {
+	t.Parallel()
+
+	r := gin.New()
+	r.Use(
+		middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}),
+		middleware.CSRF(nil),
+		middleware.SecureHeadersStrict(),
+		middleware.UploadLimit(&middleware.UploadConfig{
+			MaxSize:          32,
+			AllowedMIMETypes: []string{"application/json"},
+		}),
+	)
+	r.GET("/bootstrap", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		if _, ok := s.Get("count"); !ok {
+			s.Set("count", "1")
+		}
+		count, _ := s.Get("count")
+		c.JSON(http.StatusOK, gin.H{
+			"count": count,
+			"csrf":  middleware.CSRFToken(c),
+		})
+	})
+	r.GET("/state", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		count, _ := s.Get("count")
+		c.JSON(http.StatusOK, gin.H{"count": count})
+	})
+	r.POST("/submit", func(c *gin.Context) {
+		s := middleware.GetSession(c)
+		s.Set("count", "2")
+		c.JSON(http.StatusOK, gin.H{"ok": true, "count": "2"})
+	})
+
+	bootstrapReq := httptest.NewRequest(http.MethodGet, "/bootstrap", nil)
+	bootstrapReq.TLS = &tls.ConnectionState{}
+	bootstrapResp := httptest.NewRecorder()
+	r.ServeHTTP(bootstrapResp, bootstrapReq)
+
+	if bootstrapResp.Code != http.StatusOK {
+		t.Fatalf("expected bootstrap 200, got %d: %s", bootstrapResp.Code, bootstrapResp.Body.String())
+	}
+	if got := bootstrapResp.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("expected strict frame header, got %q", got)
+	}
+	if got := bootstrapResp.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "max-age=31536000") {
+		t.Fatalf("expected HSTS header, got %q", got)
+	}
+
+	var bootstrapBody map[string]string
+	if err := json.Unmarshal(bootstrapResp.Body.Bytes(), &bootstrapBody); err != nil {
+		t.Fatalf("unmarshal bootstrap response: %v", err)
+	}
+	if bootstrapBody["count"] != "1" || len(bootstrapBody["csrf"]) < 16 {
+		t.Fatalf("unexpected bootstrap payload: %+v", bootstrapBody)
+	}
+
+	var sessionCookie, csrfCookie *http.Cookie
+	for _, cookie := range bootstrapResp.Result().Cookies() {
+		switch cookie.Name {
+		case "session":
+			sessionCookie = cookie
+		case "csrf_token":
+			csrfCookie = cookie
+		}
+	}
+	if sessionCookie == nil || csrfCookie == nil {
+		t.Fatalf("expected session and csrf cookies, got session=%v csrf=%v", sessionCookie, csrfCookie)
+	}
+
+	submitReq := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(`{"ok":true}`))
+	submitReq.TLS = &tls.ConnectionState{}
+	submitReq.Header.Set("Content-Type", "application/json")
+	submitReq.Header.Set("X-CSRF-Token", bootstrapBody["csrf"])
+	submitReq.AddCookie(sessionCookie)
+	submitReq.AddCookie(csrfCookie)
+	submitResp := httptest.NewRecorder()
+	r.ServeHTTP(submitResp, submitReq)
+
+	if submitResp.Code != http.StatusOK {
+		t.Fatalf("expected submit 200, got %d: %s", submitResp.Code, submitResp.Body.String())
+	}
+	if got := submitResp.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected nosniff header, got %q", got)
+	}
+
+	updatedSessionCookie := sessionCookie
+	for _, cookie := range submitResp.Result().Cookies() {
+		if cookie.Name == "session" {
+			updatedSessionCookie = cookie
+			break
+		}
+	}
+
+	stateReq := httptest.NewRequest(http.MethodGet, "/state", nil)
+	stateReq.TLS = &tls.ConnectionState{}
+	stateReq.AddCookie(updatedSessionCookie)
+	stateResp := httptest.NewRecorder()
+	r.ServeHTTP(stateResp, stateReq)
+
+	if stateResp.Code != http.StatusOK {
+		t.Fatalf("expected state 200, got %d: %s", stateResp.Code, stateResp.Body.String())
+	}
+	if !strings.Contains(stateResp.Body.String(), `"count":"2"`) {
+		t.Fatalf("expected persisted session count, got %s", stateResp.Body.String())
+	}
+
+	oversizedReq := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(`{"payload":"this-body-is-too-large-for-the-limit"}`))
+	oversizedReq.TLS = &tls.ConnectionState{}
+	oversizedReq.Header.Set("Content-Type", "application/json")
+	oversizedReq.Header.Set("X-CSRF-Token", bootstrapBody["csrf"])
+	oversizedReq.AddCookie(updatedSessionCookie)
+	oversizedReq.AddCookie(csrfCookie)
+	oversizedReq.ContentLength = 1024
+	oversizedResp := httptest.NewRecorder()
+	r.ServeHTTP(oversizedResp, oversizedReq)
+
+	if oversizedResp.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected oversized upload to return 413, got %d: %s", oversizedResp.Code, oversizedResp.Body.String())
+	}
+	if !strings.Contains(oversizedResp.Body.String(), "PAYLOAD_TOO_LARGE") {
+		t.Fatalf("expected payload-too-large error, got %s", oversizedResp.Body.String())
+	}
+	if got := oversizedResp.Header().Get("X-Frame-Options"); got != "DENY" {
+		t.Fatalf("expected security headers on rejected upload, got %q", got)
+	}
 }
