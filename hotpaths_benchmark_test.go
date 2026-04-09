@@ -41,8 +41,8 @@ type benchmarkBindingBody struct {
 	Count int    `json:"count" binding:"required,gte=1"`
 }
 
-// Hotpath benchmark usage:
-//   - Run all hotpath benchmarks:
+// Hot path benchmark usage:
+//   - Run all hot path benchmarks:
 //     go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem .
 //   - Run a single benchmark group:
 //     go test -run '^$' -bench '^BenchmarkHotpathsRouting$' -benchmem .
