@@ -424,8 +424,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "const apiBase = '/api/v1/admin'") {
 		t.Fatalf("expected admin api base in html: %q", html)
 	}
-	if !strings.Contains(html, "buildInput(field)") {
-		t.Fatalf("expected dynamic form builder in html: %q", html)
+	if !strings.Contains(html, "selectRecord(row)") {
+		t.Fatalf("expected record selection flow in html: %q", html)
+	}
+	if !strings.Contains(html, "Updated record #") {
+		t.Fatalf("expected update flow in html: %q", html)
+	}
+	if !strings.Contains(html, "Deleted record #") {
+		t.Fatalf("expected delete flow in html: %q", html)
 	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
@@ -518,6 +524,42 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	projectList.Body.Close()
 	if !strings.Contains(projectListBody, "First Project") {
 		t.Fatalf("expected created project in list, got %s", projectListBody)
+	}
+
+	updateProject := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/projects/1", map[string]any{
+		"title":    "Renamed Project",
+		"summary":  "updated via admin api",
+		"owner_id": 1,
+	}, auth.Token)
+	if updateProject.StatusCode != http.StatusOK {
+		t.Fatalf("expected update project 200, got %d body=%s", updateProject.StatusCode, readBody(t, updateProject.Body))
+	}
+	updateProject.Body.Close()
+
+	projectDetail := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/1", nil, auth.Token)
+	if projectDetail.StatusCode != http.StatusOK {
+		t.Fatalf("expected project detail 200, got %d", projectDetail.StatusCode)
+	}
+	projectDetailBody := readBody(t, projectDetail.Body)
+	projectDetail.Body.Close()
+	if !strings.Contains(projectDetailBody, "Renamed Project") {
+		t.Fatalf("expected updated project detail, got %s", projectDetailBody)
+	}
+
+	deleteProject := doFullJSON(t, server, http.MethodDelete, "/api/v1/admin/resources/projects/1", nil, auth.Token)
+	if deleteProject.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected delete project 204, got %d body=%s", deleteProject.StatusCode, readBody(t, deleteProject.Body))
+	}
+	deleteProject.Body.Close()
+
+	projectListAfterDelete := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects", nil, auth.Token)
+	if projectListAfterDelete.StatusCode != http.StatusOK {
+		t.Fatalf("expected project list after delete 200, got %d", projectListAfterDelete.StatusCode)
+	}
+	projectListAfterDeleteBody := readBody(t, projectListAfterDelete.Body)
+	projectListAfterDelete.Body.Close()
+	if strings.Contains(projectListAfterDeleteBody, "Renamed Project") {
+		t.Fatalf("expected deleted project to be absent, got %s", projectListAfterDeleteBody)
 	}
 }
 
