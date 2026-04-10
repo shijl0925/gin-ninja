@@ -474,10 +474,9 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 		}
 
 		allowedIDs := make([]any, 0, len(ids))
-		scopedDB := r.scopedDB(ctx, orm.WithContext(ctx.Context))
 		for _, id := range ids {
 			model := r.newModel()
-			if err := scopedDB.First(model, id).Error; err != nil {
+			if err := r.scopedDB(ctx, orm.WithContext(ctx.Context)).First(model, id).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					continue
 				}
