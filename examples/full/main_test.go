@@ -427,6 +427,18 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "selectRecord(row)") {
 		t.Fatalf("expected record selection flow in html: %q", html)
 	}
+	if !strings.Contains(html, "renderFilterControls()") {
+		t.Fatalf("expected filter controls in html: %q", html)
+	}
+	if !strings.Contains(html, "scheduleRelationSearch(") {
+		t.Fatalf("expected relation search flow in html: %q", html)
+	}
+	if !strings.Contains(html, "localStorage.setItem(tokenStorageKey, token)") {
+		t.Fatalf("expected token persistence in html: %q", html)
+	}
+	if !strings.Contains(html, "/bulk-delete") {
+		t.Fatalf("expected bulk delete endpoint usage in html: %q", html)
+	}
 	if !strings.Contains(html, "Updated record #") {
 		t.Fatalf("expected update flow in html: %q", html)
 	}
@@ -526,6 +538,26 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected created project in list, got %s", projectListBody)
 	}
 
+	createProjectTwo := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects", map[string]any{
+		"title":    "A Project",
+		"summary":  "admin ui demo",
+		"owner_id": 1,
+	}, auth.Token)
+	if createProjectTwo.StatusCode != http.StatusCreated {
+		t.Fatalf("expected second create project 201, got %d body=%s", createProjectTwo.StatusCode, readBody(t, createProjectTwo.Body))
+	}
+	createProjectTwo.Body.Close()
+
+	sortedProjects := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects?search=Project&sort=-title", nil, auth.Token)
+	if sortedProjects.StatusCode != http.StatusOK {
+		t.Fatalf("expected sorted project list 200, got %d", sortedProjects.StatusCode)
+	}
+	sortedProjectsBody := readBody(t, sortedProjects.Body)
+	sortedProjects.Body.Close()
+	if strings.Index(sortedProjectsBody, "First Project") == -1 || strings.Index(sortedProjectsBody, "A Project") == -1 || strings.Index(sortedProjectsBody, "First Project") > strings.Index(sortedProjectsBody, "A Project") {
+		t.Fatalf("expected sorted projects in descending title order, got %s", sortedProjectsBody)
+	}
+
 	updateProject := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/projects/1", map[string]any{
 		"title":    "Renamed Project",
 		"summary":  "updated via admin api",
@@ -560,6 +592,33 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	projectListAfterDelete.Body.Close()
 	if strings.Contains(projectListAfterDeleteBody, "Renamed Project") {
 		t.Fatalf("expected deleted project to be absent, got %s", projectListAfterDeleteBody)
+	}
+
+	bulkDeleteProjects := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects/bulk-delete", map[string]any{
+		"ids": []int{2},
+	}, auth.Token)
+	if bulkDeleteProjects.StatusCode != http.StatusCreated {
+		t.Fatalf("expected bulk delete project 201, got %d body=%s", bulkDeleteProjects.StatusCode, readBody(t, bulkDeleteProjects.Body))
+	}
+	var bulkDelete struct {
+		Deleted int64 `json:"deleted"`
+	}
+	if err := json.NewDecoder(bulkDeleteProjects.Body).Decode(&bulkDelete); err != nil {
+		t.Fatalf("decode bulk delete: %v", err)
+	}
+	bulkDeleteProjects.Body.Close()
+	if bulkDelete.Deleted != 1 {
+		t.Fatalf("expected one bulk deleted project, got %+v", bulkDelete)
+	}
+
+	projectListAfterBulkDelete := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects?search=Project", nil, auth.Token)
+	if projectListAfterBulkDelete.StatusCode != http.StatusOK {
+		t.Fatalf("expected project list after bulk delete 200, got %d", projectListAfterBulkDelete.StatusCode)
+	}
+	projectListAfterBulkDeleteBody := readBody(t, projectListAfterBulkDelete.Body)
+	projectListAfterBulkDelete.Body.Close()
+	if strings.Contains(projectListAfterBulkDeleteBody, "A Project") {
+		t.Fatalf("expected bulk deleted project to be absent, got %s", projectListAfterBulkDeleteBody)
 	}
 }
 
