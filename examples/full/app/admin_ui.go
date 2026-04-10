@@ -18,6 +18,19 @@ const adminPrototypeHTML = `<!doctype html>
     header, main { max-width: 1280px; margin: 0 auto; padding: 16px; }
     .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
     .grid { display: grid; gap: 16px; grid-template-columns: 260px 1fr; }
+    .login-shell { display:grid; gap:16px; }
+    .session-panel { position:relative; overflow:hidden; }
+    .session-toolbar-copy { display:grid; gap:4px; }
+    .login-marketing, .login-lead, .login-credentials { display:none; }
+    .eyebrow { display:inline-flex; width:max-content; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#e0e7ff; color:#3730a3; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; }
+    .login-marketing { align-content:start; }
+    .login-marketing h2, .login-lead h2 { margin:0; line-height:1.1; }
+    .login-marketing p, .login-lead p { margin:0; }
+    .login-feature-list { display:grid; gap:12px; }
+    .login-feature { display:grid; gap:4px; padding:16px 18px; background:rgba(255,255,255,0.08); border:1px solid rgba(191,219,254,0.18); border-radius:16px; }
+    .login-feature strong { font-size:15px; }
+    .login-credentials { gap:8px; padding:12px 14px; border-radius:12px; background:#f8fafc; border:1px solid #dbeafe; }
+    .login-credentials code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; background:#fff; border:1px solid #dbeafe; border-radius:8px; padding:2px 6px; }
     .two-col { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
     .stack { display: grid; gap: 12px; }
     .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
@@ -54,8 +67,32 @@ const adminPrototypeHTML = `<!doctype html>
     th, td { border-bottom: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 14px; vertical-align: top; }
     pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; padding: 12px; border-radius: 8px; }
     .muted { color: #6b7280; font-size: 14px; }
+    body.standalone-login-page { background:
+      radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 36%),
+      radial-gradient(circle at bottom right, rgba(99,102,241,0.22), transparent 34%),
+      linear-gradient(180deg, #eef4ff 0%, #f8fafc 45%, #eef2ff 100%);
+    }
+    body.standalone-login-page header,
+    body.standalone-login-page main { max-width: 1120px; padding: 24px; }
+    body.standalone-login-page header { padding-top: 48px; }
+    body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.1fr) minmax(360px, 420px); align-items:stretch; }
+    body.standalone-login-page .login-marketing { display:grid; gap:18px; color:#e5eefb; background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); border-radius:24px; padding:32px; box-shadow:0 24px 60px rgba(15, 23, 42, 0.22); }
+    body.standalone-login-page .login-lead,
+    body.standalone-login-page .login-credentials { display:grid; }
+    body.standalone-login-page .session-panel { margin:0; padding:28px; border-color:#dbeafe; border-radius:24px; box-shadow:0 24px 60px rgba(15, 23, 42, 0.12); }
+    body.standalone-login-page #sessionToolbar { display:none; }
+    body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
+    body.standalone-login-page #loginForm label { font-size:13px; font-weight:600; color:#475569; }
+    body.standalone-login-page input { min-height:48px; border-color:#cbd5e1; background:#fff; }
+    body.standalone-login-page button { min-height:48px; }
+    body.standalone-login-page #loginButton { width:100%; background:linear-gradient(135deg, #111827 0%, #1d4ed8 100%); box-shadow:0 12px 24px rgba(29, 78, 216, 0.2); }
+    body.standalone-login-page #status { background:#0f172a; border:1px solid #0f172a; }
+    body.standalone-login-page #authBadge { background:#eff6ff; color:#1d4ed8; }
     @media (max-width: 960px) {
-      .grid, .detail-layout { grid-template-columns: 1fr; }
+      .grid, .detail-layout, body.standalone-login-page .login-shell { grid-template-columns: 1fr; }
+      body.standalone-login-page header,
+      body.standalone-login-page main { padding: 16px; }
+      body.standalone-login-page header { padding-top: 24px; }
     }
   </style>
 </head>
@@ -65,13 +102,45 @@ const adminPrototypeHTML = `<!doctype html>
     <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
   </header>
   <main class="stack">
-    <section class="panel stack">
-      <div class="toolbar">
+    <section class="login-shell">
+      <section class="login-marketing">
+        <span class="eyebrow">Admin Console</span>
+        <div class="stack">
+          <h2>A cleaner sign-in for the standalone admin console.</h2>
+          <p>Use a dedicated entrypoint to authenticate, then jump straight into the example back-office experience.</p>
+        </div>
+        <div class="login-feature-list">
+          <div class="login-feature">
+            <strong>Dedicated admin entrypoint</strong>
+            <span>Keep login, redirects, and restored JWT sessions separate from the prototype page.</span>
+          </div>
+          <div class="login-feature">
+            <strong>Metadata-driven operations</strong>
+            <span>Explore resources, filters, relations, and bulk actions after sign-in.</span>
+          </div>
+          <div class="login-feature">
+            <strong>Demo-friendly access</strong>
+            <span>Use the seeded example account to try the full admin flow without extra setup.</span>
+          </div>
+        </div>
+      </section>
+      <section class="panel stack session-panel">
+      <div id="sessionToolbar" class="toolbar">
         <div>
           <h2 style="margin:0;">Admin session</h2>
           <p id="authDescription" class="muted">Sign in to access the example admin APIs.</p>
         </div>
         <span id="authBadge" class="badge">Logged out</span>
+      </div>
+      <div class="login-lead">
+        <span class="eyebrow">Secure Sign In</span>
+        <h2>Welcome back</h2>
+        <p class="muted">Authenticate with the seeded demo admin account to enter the standalone console.</p>
+      </div>
+      <div class="login-credentials">
+        <strong>Demo credentials</strong>
+        <div class="muted">Email: <code>alice@example.com</code></div>
+        <div class="muted">Password: <code>password123</code></div>
       </div>
       <form id="loginForm" class="two-col">
         <label>Email
@@ -95,6 +164,7 @@ const adminPrototypeHTML = `<!doctype html>
         <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
       </div>
       <pre id="status">Ready.</pre>
+      </section>
     </section>
     <section id="adminShell" class="grid" hidden>
       <aside class="panel">
@@ -290,6 +360,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function updatePageChrome() {
+      document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage());
       if (isStandaloneLoginPage()) {
         document.title = 'Gin Ninja Admin Login';
         els.pageTitle.textContent = 'Gin Ninja Admin Login';

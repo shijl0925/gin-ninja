@@ -421,6 +421,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
+	if !strings.Contains(loginHTML, "A cleaner sign-in for the standalone admin console.") {
+		t.Fatalf("expected polished login marketing copy in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "Demo credentials") {
+		t.Fatalf("expected demo credentials card in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
+		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
+	}
 	if !strings.Contains(loginHTML, "window.location.replace(adminPagePath)") {
 		t.Fatalf("expected standalone login redirect to /admin in html: %q", loginHTML)
 	}
