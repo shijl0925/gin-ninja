@@ -439,6 +439,18 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "/bulk-delete") {
 		t.Fatalf("expected bulk delete endpoint usage in html: %q", html)
 	}
+	if !strings.Contains(html, "highlightMatch(") {
+		t.Fatalf("expected relation highlight flow in html: %q", html)
+	}
+	if !strings.Contains(html, "bulkEditForm") {
+		t.Fatalf("expected bulk edit form in html: %q", html)
+	}
+	if !strings.Contains(html, "paginationInfo") {
+		t.Fatalf("expected pagination controls in html: %q", html)
+	}
+	if !strings.Contains(html, "detail-layout") {
+		t.Fatalf("expected detail layout styles in html: %q", html)
+	}
 	if !strings.Contains(html, "Updated record #") {
 		t.Fatalf("expected update flow in html: %q", html)
 	}
@@ -560,6 +572,28 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected sorted projects in descending title order, got %s", sortedProjectsBody)
 	}
 
+	pagedProjects := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects?page=2&size=1&sort=title", nil, auth.Token)
+	if pagedProjects.StatusCode != http.StatusOK {
+		t.Fatalf("expected paged project list 200, got %d", pagedProjects.StatusCode)
+	}
+	var paged struct {
+		Items []map[string]any `json:"items"`
+		Total int             `json:"total"`
+		Page  int             `json:"page"`
+		Size  int             `json:"size"`
+		Pages int             `json:"pages"`
+	}
+	if err := json.NewDecoder(pagedProjects.Body).Decode(&paged); err != nil {
+		t.Fatalf("decode paged projects: %v", err)
+	}
+	pagedProjects.Body.Close()
+	if paged.Total != 2 || paged.Page != 2 || paged.Size != 1 || paged.Pages != 2 || len(paged.Items) != 1 {
+		t.Fatalf("unexpected paged project payload: %+v", paged)
+	}
+	if paged.Items[0]["title"] != "First Project" {
+		t.Fatalf("expected second page to contain First Project, got %+v", paged.Items)
+	}
+
 	updateProject := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/projects/1", map[string]any{
 		"title":    "Renamed Project",
 		"summary":  "updated via admin api",
@@ -578,6 +612,24 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	projectDetail.Body.Close()
 	if !strings.Contains(projectDetailBody, "Renamed Project") {
 		t.Fatalf("expected updated project detail, got %s", projectDetailBody)
+	}
+
+	partialUpdate := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/projects/2", map[string]any{
+		"summary": "bulk edit compatible partial update",
+	}, auth.Token)
+	if partialUpdate.StatusCode != http.StatusOK {
+		t.Fatalf("expected partial update 200, got %d body=%s", partialUpdate.StatusCode, readBody(t, partialUpdate.Body))
+	}
+	partialUpdate.Body.Close()
+
+	projectDetailTwo := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/2", nil, auth.Token)
+	if projectDetailTwo.StatusCode != http.StatusOK {
+		t.Fatalf("expected second project detail 200, got %d", projectDetailTwo.StatusCode)
+	}
+	projectDetailTwoBody := readBody(t, projectDetailTwo.Body)
+	projectDetailTwo.Body.Close()
+	if !strings.Contains(projectDetailTwoBody, "bulk edit compatible partial update") {
+		t.Fatalf("expected partial update summary in second project detail, got %s", projectDetailTwoBody)
 	}
 
 	deleteProject := doFullJSON(t, server, http.MethodDelete, "/api/v1/admin/resources/projects/1", nil, auth.Token)
