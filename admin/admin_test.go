@@ -369,7 +369,7 @@ func TestHumanizeHandlesEmptyAndUnicodeParts(t *testing.T) {
 	}{
 		{name: "empty", input: "", want: ""},
 		{name: "separators only", input: "__--__", want: ""},
-		{name: "unicode", input: "éXample_name", want: "Éxample Name"},
+		{name: "unicode", input: "éclair_name", want: "Éclair Name"},
 		{name: "camel case", input: "userID", want: "User Id"},
 	}
 
