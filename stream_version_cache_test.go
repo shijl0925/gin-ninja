@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -324,6 +326,132 @@ func TestMemoryCacheStoreRemovesExpiredEntriesAndClonesValues(t *testing.T) {
 	}
 	if string(again.Body) != "ok" {
 		t.Fatalf("expected cached body clone, got %q", string(again.Body))
+	}
+}
+
+func TestOpenAPICacheConcurrentAccess(t *testing.T) {
+	t.Parallel()
+
+	api := New(Config{
+		Title:   "cache",
+		Version: "1.0.0",
+		Versions: map[string]VersionConfig{
+			"v1": {Prefix: "/v1"},
+		},
+	})
+	router := NewRouter("/items", WithVersion("v1"))
+	Get(router, "/", func(ctx *Context, in *struct{}) (*struct {
+		OK bool `json:"ok"`
+	}, error) {
+		return &struct {
+			OK bool `json:"ok"`
+		}{OK: true}, nil
+	})
+	api.AddRouter(router)
+
+	const workers = 24
+	start := make(chan struct{})
+	errs := make(chan error, workers*2)
+	var wg sync.WaitGroup
+
+	for range workers {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			got, err := api.openAPIBytes()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if len(got) == 0 {
+				errs <- errors.New("empty main openapi bytes")
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			got, ok, err := api.versionOpenAPIBytes("v1")
+			if err != nil {
+				errs <- err
+				return
+			}
+			if !ok {
+				errs <- errors.New("expected version spec")
+				return
+			}
+			if len(got) == 0 {
+				errs <- errors.New("empty version openapi bytes")
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		t.Fatalf("concurrent openapi access failed: %v", err)
+	}
+
+	api.invalidateOpenAPICache()
+	if got, err := api.openAPIBytes(); err != nil || len(got) == 0 {
+		t.Fatalf("openAPIBytes() after invalidation = %q, %v", string(got), err)
+	}
+}
+
+func TestMemoryCacheStoreConcurrentLockingAndBoundaryInputs(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStore()
+	store.Set("users:1", &CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
+	store.AddTags("users:1", "", "users", " users ", "users")
+
+	if removed := store.InvalidateTags("", " ", "users", "users"); removed != 1 {
+		t.Fatalf("InvalidateTags() removed %d keys, want 1", removed)
+	}
+	if _, ok := store.Get("users:1"); ok {
+		t.Fatal("expected tagged key to be deleted")
+	}
+	if _, ok := store.AcquireLock("   ", 0); ok {
+		t.Fatal("expected blank cache key lock acquisition to fail")
+	}
+	if _, ok := store.AcquireLock("", 0); ok {
+		t.Fatal("expected empty cache key lock acquisition to fail")
+	}
+
+	const contenders = 32
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var wins int32
+	unlocks := make(chan func(), contenders)
+
+	for range contenders {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			unlock, ok := store.AcquireLock("shared", 0)
+			if !ok {
+				return
+			}
+			atomic.AddInt32(&wins, 1)
+			unlocks <- unlock
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(unlocks)
+
+	if got := atomic.LoadInt32(&wins); got != 1 {
+		t.Fatalf("expected one lock winner, got %d", got)
+	}
+
+	unlock := <-unlocks
+	unlock()
+	if unlock, ok := store.AcquireLock("shared", 0); !ok || unlock == nil {
+		t.Fatal("expected lock acquisition to succeed after releasing default-ttl lock")
 	}
 }
 

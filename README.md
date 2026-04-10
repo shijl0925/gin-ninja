@@ -504,6 +504,19 @@ api.UseGin(middleware.UploadLimit(&middleware.UploadConfig{
 
 Pass `nil` to use defaults (10 MiB limit, no content-type checking).
 
+### Security Best Practices
+
+For production deployments, combine the built-in middleware with a few operational safeguards:
+
+- **Use strong secrets**: keep `jwt.secret` and `SessionConfig.Secret` long, random, and environment-specific; never commit placeholder secrets such as `change-me-in-production`.
+- **Force HTTPS end-to-end**: enable `Secure` cookies for sessions/CSRF, terminate TLS at the edge, and forward the original scheme so HSTS can be emitted correctly behind proxies.
+- **Prefer strict browser protections**: start with `middleware.SecureHeadersStrict()` or explicitly set CSP, Referrer-Policy, `X-Frame-Options`, and HSTS for public deployments.
+- **Keep cookies scoped tightly**: use `HTTPOnly`, an appropriate `SameSite` mode, and the narrowest practical `Domain`/`Path` to reduce cross-site exposure.
+- **Protect all state-changing routes**: pair cookie-based auth with `middleware.CSRF(...)`, and make sure browser clients echo the CSRF token on every POST/PUT/PATCH/DELETE request.
+- **Minimize upload attack surface**: set `UploadLimit` with both a size cap and an explicit MIME allowlist instead of accepting arbitrary request bodies.
+- **Harden API docs exposure**: if `/docs` or `/openapi.json` should not be public in production, gate them behind auth, network policy, or disable those routes in your deployment wrapper.
+- **Rotate and expire credentials**: keep JWT lifetimes short, rotate signing secrets during incident response, and issue new session IDs after login or privilege changes.
+
 ---
 
 ## Business Errors
