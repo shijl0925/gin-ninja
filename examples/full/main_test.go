@@ -418,8 +418,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected /admin-prototype 200, got %d", prototypeResp.StatusCode)
 	}
 	html := string(body)
-	if !strings.Contains(html, "Gin Ninja Admin Prototype") || !strings.Contains(html, "const apiBase = '/api/v1/admin'") || !strings.Contains(html, "buildInput(field)") {
-		t.Fatalf("unexpected admin prototype html: %q", html)
+	if !strings.Contains(html, "Gin Ninja Admin Prototype") {
+		t.Fatalf("expected prototype title in html: %q", html)
+	}
+	if !strings.Contains(html, "const apiBase = '/api/v1/admin'") {
+		t.Fatalf("expected admin api base in html: %q", html)
+	}
+	if !strings.Contains(html, "buildInput(field)") {
+		t.Fatalf("expected dynamic form builder in html: %q", html)
 	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
