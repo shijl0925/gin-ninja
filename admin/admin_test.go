@@ -361,6 +361,105 @@ func TestAdminSiteQueryScopeAppliesToItemAccessAndBulkDelete(t *testing.T) {
 	}
 }
 
+func TestAdminSiteFiltersResourcesAndMetadataActionsByPermission(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		CreateFields: []string{"name", "email", "password"},
+		UpdateFields: []string{"name"},
+		FieldOptions: map[string]FieldOptions{
+			"password": {Create: boolPtr(true), Update: boolPtr(true), Component: "password"},
+		},
+		Permissions: func(ctx *ninja.Context, action Action, resource *Resource) error {
+			switch action {
+			case ActionCreate, ActionDelete, ActionBulkDelete:
+				if ctx.GetHeader("X-Admin") != "true" {
+					return ninja.ForbiddenError()
+				}
+			}
+			return nil
+		},
+	})
+	site.MustRegister(&Resource{
+		Name:         "audits",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+		Permissions: func(ctx *ninja.Context, action Action, resource *Resource) error {
+			if action == ActionList || action == ActionDetail {
+				return ninja.ForbiddenError()
+			}
+			return nil
+		},
+	})
+
+	api := newAdminAPI(t, site, adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"})
+
+	unauthorizedIndex := performJSON(t, api, http.MethodGet, "/admin/resources", nil, nil)
+	if unauthorizedIndex.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized resources index, got %d body=%s", unauthorizedIndex.Code, unauthorizedIndex.Body.String())
+	}
+
+	headers := map[string]string{"X-User-ID": "1"}
+	indexResp := performJSON(t, api, http.MethodGet, "/admin/resources", nil, headers)
+	if indexResp.Code != http.StatusOK {
+		t.Fatalf("resources index status = %d body=%s", indexResp.Code, indexResp.Body.String())
+	}
+	var index ResourceIndex
+	if err := json.NewDecoder(indexResp.Body).Decode(&index); err != nil {
+		t.Fatalf("decode index: %v", err)
+	}
+	if len(index.Resources) != 1 || index.Resources[0].Name != "users" {
+		t.Fatalf("unexpected visible resources: %+v", index.Resources)
+	}
+
+	hiddenMeta := performJSON(t, api, http.MethodGet, "/admin/resources/audits/meta", nil, headers)
+	if hiddenMeta.Code != http.StatusForbidden {
+		t.Fatalf("expected hidden resource metadata 403, got %d body=%s", hiddenMeta.Code, hiddenMeta.Body.String())
+	}
+
+	metaResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/meta", nil, headers)
+	if metaResp.Code != http.StatusOK {
+		t.Fatalf("metadata status = %d body=%s", metaResp.Code, metaResp.Body.String())
+	}
+	var meta ResourceMetadata
+	if err := json.NewDecoder(metaResp.Body).Decode(&meta); err != nil {
+		t.Fatalf("decode metadata: %v", err)
+	}
+	for _, action := range []Action{ActionList, ActionDetail, ActionUpdate} {
+		if !containsAction(meta.Actions, action) {
+			t.Fatalf("expected %q in metadata actions, got %+v", action, meta.Actions)
+		}
+	}
+	for _, action := range []Action{ActionCreate, ActionDelete, ActionBulkDelete} {
+		if containsAction(meta.Actions, action) {
+			t.Fatalf("expected %q to be hidden from metadata actions, got %+v", action, meta.Actions)
+		}
+	}
+
+	adminMetaResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/meta", nil, map[string]string{"X-User-ID": "1", "X-Admin": "true"})
+	if adminMetaResp.Code != http.StatusOK {
+		t.Fatalf("admin metadata status = %d body=%s", adminMetaResp.Code, adminMetaResp.Body.String())
+	}
+	var adminMeta ResourceMetadata
+	if err := json.NewDecoder(adminMetaResp.Body).Decode(&adminMeta); err != nil {
+		t.Fatalf("decode admin metadata: %v", err)
+	}
+	for _, action := range []Action{ActionCreate, ActionDelete, ActionBulkDelete} {
+		if !containsAction(adminMeta.Actions, action) {
+			t.Fatalf("expected %q in admin metadata actions, got %+v", action, adminMeta.Actions)
+		}
+	}
+}
+
 func TestHumanizeHandlesEmptyAndUnicodeParts(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -380,4 +479,13 @@ func TestHumanizeHandlesEmptyAndUnicodeParts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func containsAction(set []Action, action Action) bool {
+	for _, current := range set {
+		if current == action {
+			return true
+		}
+	}
+	return false
 }

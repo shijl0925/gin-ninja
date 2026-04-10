@@ -243,6 +243,15 @@ func (s *Site) Mount(router *ninja.Router) {
 func (s *Site) listResources(ctx *ninja.Context, _ *struct{}) (*ResourceIndex, error) {
 	items := make([]ResourceSummary, 0, len(s.resources))
 	for _, resource := range s.resources {
+		if err := s.authorize(ctx, ActionList, resource); err != nil {
+			if isVisibilityDenied(err) {
+				if errors.Is(err, ninja.UnauthorizedError()) {
+					return nil, err
+				}
+				continue
+			}
+			return nil, err
+		}
 		items = append(items, ResourceSummary{
 			Name:  resource.metadata.Name,
 			Label: resource.metadata.Label,
@@ -266,6 +275,10 @@ func (s *Site) authorize(ctx *ninja.Context, action Action, resource *Resource) 
 	return nil
 }
 
+func isVisibilityDenied(err error) bool {
+	return errors.Is(err, ninja.UnauthorizedError()) || errors.Is(err, ninja.ForbiddenError())
+}
+
 func (r *Resource) handleMetadata(site *Site) func(*ninja.Context, *struct{}) (*ResourceMetadata, error) {
 	return func(ctx *ninja.Context, _ *struct{}) (*ResourceMetadata, error) {
 		if err := site.authorize(ctx, ActionDetail, r); err != nil {
@@ -280,7 +293,16 @@ func (r *Resource) handleMetadata(site *Site) func(*ninja.Context, *struct{}) (*
 		meta.FilterFields = append([]string(nil), meta.FilterFields...)
 		meta.SortFields = append([]string(nil), meta.SortFields...)
 		meta.SearchFields = append([]string(nil), meta.SearchFields...)
-		meta.Actions = append([]Action(nil), meta.Actions...)
+		meta.Actions = make([]Action, 0, len(r.metadata.Actions))
+		for _, action := range r.metadata.Actions {
+			if err := site.authorize(ctx, action, r); err != nil {
+				if isVisibilityDenied(err) {
+					continue
+				}
+				return nil, err
+			}
+			meta.Actions = append(meta.Actions, action)
+		}
 		return &meta, nil
 	}
 }
