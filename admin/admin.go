@@ -10,12 +10,10 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"slices"
 	"strings"
 	"time"
 
 	ninja "github.com/shijl0925/gin-ninja"
-	"github.com/shijl0925/gin-ninja/order"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"gorm.io/gorm"
@@ -566,81 +564,6 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 	}
 }
 
-func (r *Resource) decodeWritePayload(ctx *ninja.Context, mode fieldMode) (map[string]any, error) {
-	body, err := io.ReadAll(ctx.Request.Body)
-	if err != nil {
-		return nil, err
-	}
-	ctx.Request.Body = io.NopCloser(bytes.NewReader(body))
-
-	if len(bytes.TrimSpace(body)) == 0 {
-		return map[string]any{}, nil
-	}
-
-	var payload map[string]json.RawMessage
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "INVALID_JSON", err.Error())
-	}
-
-	values := make(map[string]any, len(payload))
-	for name, raw := range payload {
-		field, ok := r.fieldByName[name]
-		if !ok {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("unknown field %q", name))
-		}
-		if !field.allowed(mode) {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is not writable", name))
-		}
-		decoded, err := field.decodeJSON(raw)
-		if err != nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q: %s", name, err.Error()))
-		}
-		values[name] = decoded
-	}
-	return values, nil
-}
-
-func (r *Resource) validateRequired(values map[string]any, mode fieldMode) error {
-	if mode != fieldModeCreate {
-		return nil
-	}
-	for _, field := range r.fields {
-		if !field.Meta.Required || !field.allowed(mode) {
-			continue
-		}
-		if _, ok := values[field.Meta.Name]; ok {
-			continue
-		}
-		return ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is required", field.Meta.Name))
-	}
-	return nil
-}
-
-func (r *Resource) applyValues(target reflect.Value, values map[string]any) error {
-	for name, value := range values {
-		field := r.fieldByName[name]
-		if field == nil {
-			continue
-		}
-		if err := field.setValue(target, value); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *Resource) updateColumns(values map[string]any) (map[string]any, error) {
-	updates := make(map[string]any, len(values))
-	for name, value := range values {
-		field := r.fieldByName[name]
-		if field == nil {
-			continue
-		}
-		updates[field.Meta.Column] = value
-	}
-	return updates, nil
-}
-
 func (r *Resource) findByID(db *gorm.DB, raw string) (any, error) {
 	value, err := r.primaryKey.parseString(raw)
 	if err != nil {
@@ -664,61 +587,6 @@ func (r *Resource) parsePrimaryKeyJSON(raw json.RawMessage) (any, error) {
 	return value, nil
 }
 
-func (r *Resource) applyListQuery(db *gorm.DB, query url.Values, in *listInput) (*gorm.DB, error) {
-	if term := strings.TrimSpace(in.Search); term != "" {
-		if len(r.metadata.SearchFields) == 0 {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_SEARCH", "search is not enabled for this resource")
-		}
-		parts := make([]string, 0, len(r.metadata.SearchFields))
-		args := make([]any, 0, len(r.metadata.SearchFields))
-		for _, name := range r.metadata.SearchFields {
-			field := r.fieldByName[name]
-			if field == nil {
-				continue
-			}
-			parts = append(parts, field.Meta.Column+" LIKE ?")
-			args = append(args, "%"+term+"%")
-		}
-		if len(parts) > 0 {
-			db = db.Where(strings.Join(parts, " OR "), args...)
-		}
-	}
-
-	for _, name := range r.metadata.FilterFields {
-		field := r.fieldByName[name]
-		if field == nil {
-			continue
-		}
-		next, err := applyFilter(db, query, field)
-		if err != nil {
-			return nil, err
-		}
-		db = next
-	}
-
-	if strings.TrimSpace(in.Sort) != "" {
-		allowed := make(map[string]*fieldMeta, len(r.metadata.SortFields))
-		for _, name := range r.metadata.SortFields {
-			if field := r.fieldByName[name]; field != nil {
-				allowed[name] = field
-			}
-		}
-		for _, sortField := range order.ParseSort(in.Sort) {
-			field := allowed[sortField.Name]
-			if field == nil {
-				return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_SORT", fmt.Sprintf("unsupported sort field %q", sortField.Name))
-			}
-			direction := "ASC"
-			if sortField.Desc {
-				direction = "DESC"
-			}
-			db = db.Order(field.Meta.Column + " " + direction)
-		}
-	}
-
-	return db, nil
-}
-
 func (r *Resource) newModel() any {
 	return reflect.New(r.modelType).Interface()
 }
@@ -735,21 +603,6 @@ func (r *Resource) primaryKeyValue(v reflect.Value) any {
 		}
 	}
 	return current.Interface()
-}
-
-func (r *Resource) serialize(v reflect.Value, mode fieldMode) map[string]any {
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	out := map[string]any{}
-	for _, field := range r.fields {
-		if !field.allowed(mode) {
-			continue
-		}
-		value := field.value(v)
-		out[field.Meta.Name] = value
-	}
-	return out
 }
 
 func boolPtr(v bool) *bool { return &v }
@@ -910,10 +763,4 @@ func parseFlexibleTime(raw string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("invalid time %q", raw)
-}
-
-func sortStrings(in []string) []string {
-	out := append([]string(nil), in...)
-	slices.Sort(out)
-	return out
 }
