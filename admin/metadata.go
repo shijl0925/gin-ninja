@@ -541,7 +541,15 @@ func humanize(name string) string {
 	}
 	parts := strings.Fields(strings.TrimSpace(string(out)))
 	for i, part := range parts {
-		parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		runes := []rune(part)
+		if len(runes) == 0 {
+			continue
+		}
+		runes[0] = unicode.ToUpper(runes[0])
+		for j := 1; j < len(runes); j++ {
+			runes[j] = unicode.ToLower(runes[j])
+		}
+		parts[i] = string(runes)
 	}
 	return strings.Join(parts, " ")
 }

@@ -360,3 +360,24 @@ func TestAdminSiteQueryScopeAppliesToItemAccessAndBulkDelete(t *testing.T) {
 		t.Fatalf("unexpected scoped list after delete: %s", listAfterDelete.Body.String())
 	}
 }
+
+func TestHumanizeHandlesEmptyAndUnicodeParts(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty", input: "", want: ""},
+		{name: "separators only", input: "__--__", want: ""},
+		{name: "unicode", input: "éXample_name", want: "Éxample Name"},
+		{name: "camel case", input: "userID", want: "User Id"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := humanize(tt.input); got != tt.want {
+				t.Fatalf("humanize(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
