@@ -639,10 +639,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	var paged struct {
 		Items []map[string]any `json:"items"`
-		Total int             `json:"total"`
-		Page  int             `json:"page"`
-		Size  int             `json:"size"`
-		Pages int             `json:"pages"`
+		Total int              `json:"total"`
+		Page  int              `json:"page"`
+		Size  int              `json:"size"`
+		Pages int              `json:"pages"`
 	}
 	if err := json.NewDecoder(pagedProjects.Body).Decode(&paged); err != nil {
 		t.Fatalf("decode paged projects: %v", err)
