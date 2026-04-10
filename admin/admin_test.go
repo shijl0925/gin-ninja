@@ -280,3 +280,83 @@ func TestAdminSiteBulkDeleteAndAuth(t *testing.T) {
 		t.Fatalf("unexpected remaining users: %s", listResp.Body.String())
 	}
 }
+
+func TestAdminSiteQueryScopeAppliesToItemAccessAndBulkDelete(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email", "is_admin"},
+		DetailFields: []string{"id", "name", "email", "is_admin"},
+		UpdateFields: []string{"name"},
+		QueryScope: func(ctx *ninja.Context, db *gorm.DB) *gorm.DB {
+			return db.Where("is_admin = ?", false)
+		},
+	})
+
+	api := newAdminAPI(t, site,
+		adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1", IsAdmin: true},
+		adminUser{Name: "Bob", Email: "bob@example.com", Password: "p2", IsAdmin: false},
+		adminUser{Name: "Cara", Email: "cara@example.com", Password: "p3", IsAdmin: false},
+	)
+
+	headers := map[string]string{"X-User-ID": "1"}
+
+	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/users", nil, headers)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
+	}
+	if strings.Contains(listResp.Body.String(), "Alice") || !strings.Contains(listResp.Body.String(), "Bob") || !strings.Contains(listResp.Body.String(), "Cara") {
+		t.Fatalf("unexpected scoped list: %s", listResp.Body.String())
+	}
+
+	detailResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/1", nil, headers)
+	if detailResp.Code != http.StatusNotFound {
+		t.Fatalf("expected scoped detail to hide Alice, got %d body=%s", detailResp.Code, detailResp.Body.String())
+	}
+
+	updateResp := performJSON(t, api, http.MethodPut, "/admin/resources/users/1", map[string]any{"name": "Blocked"}, headers)
+	if updateResp.Code != http.StatusNotFound {
+		t.Fatalf("expected scoped update to hide Alice, got %d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+
+	updateResp = performJSON(t, api, http.MethodPut, "/admin/resources/users/2", map[string]any{"name": "Bobby"}, headers)
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("scoped update status = %d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+	if !strings.Contains(updateResp.Body.String(), "Bobby") {
+		t.Fatalf("expected updated name in response, got %s", updateResp.Body.String())
+	}
+
+	deleteResp := performJSON(t, api, http.MethodDelete, "/admin/resources/users/1", nil, headers)
+	if deleteResp.Code != http.StatusNotFound {
+		t.Fatalf("expected scoped delete to hide Alice, got %d body=%s", deleteResp.Code, deleteResp.Body.String())
+	}
+
+	bulkDeleteResp := performJSON(t, api, http.MethodPost, "/admin/resources/users/bulk-delete", map[string]any{
+		"ids": []uint{1, 3},
+	}, headers)
+	if bulkDeleteResp.Code != http.StatusCreated {
+		t.Fatalf("bulk delete status = %d body=%s", bulkDeleteResp.Code, bulkDeleteResp.Body.String())
+	}
+	var deleted BulkDeleteOutput
+	if err := json.NewDecoder(bulkDeleteResp.Body).Decode(&deleted); err != nil {
+		t.Fatalf("decode bulk delete: %v", err)
+	}
+	if deleted.Deleted != 1 {
+		t.Fatalf("expected scoped bulk delete to remove only one record, got %+v", deleted)
+	}
+
+	listAfterDelete := performJSON(t, api, http.MethodGet, "/admin/resources/users", nil, headers)
+	if listAfterDelete.Code != http.StatusOK {
+		t.Fatalf("post-delete list status = %d body=%s", listAfterDelete.Code, listAfterDelete.Body.String())
+	}
+	if strings.Contains(listAfterDelete.Body.String(), "Cara") || strings.Contains(listAfterDelete.Body.String(), "Alice") || !strings.Contains(listAfterDelete.Body.String(), "Bobby") {
+		t.Fatalf("unexpected scoped list after delete: %s", listAfterDelete.Body.String())
+	}
+}

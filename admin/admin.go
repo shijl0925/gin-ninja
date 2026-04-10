@@ -290,10 +290,7 @@ func (r *Resource) handleList(site *Site) func(*ninja.Context, *listInput) (*Res
 			return nil, err
 		}
 
-		db := orm.WithContext(ctx.Context)
-		if r.QueryScope != nil {
-			db = r.QueryScope(ctx, db)
-		}
+		db := r.scopedDB(ctx, orm.WithContext(ctx.Context))
 		query, err := r.applyListQuery(db.Model(r.newModel()), ctx.Request.URL.Query(), in)
 		if err != nil {
 			return nil, err
@@ -331,7 +328,7 @@ func (r *Resource) handleDetail(site *Site) func(*ninja.Context, *pathIDInput) (
 		if err := site.authorize(ctx, ActionDetail, r); err != nil {
 			return nil, err
 		}
-		model, err := r.findByID(orm.WithContext(ctx.Context), in.ID)
+		model, err := r.findByID(r.scopedDB(ctx, orm.WithContext(ctx.Context)), in.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -380,7 +377,7 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			return nil, err
 		}
 
-		db := orm.WithContext(ctx.Context)
+		db := r.scopedDB(ctx, orm.WithContext(ctx.Context))
 		model, err := r.findByID(db, in.ID)
 		if err != nil {
 			return nil, err
@@ -423,7 +420,7 @@ func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) e
 			return err
 		}
 
-		db := orm.WithContext(ctx.Context)
+		db := r.scopedDB(ctx, orm.WithContext(ctx.Context))
 		model, err := r.findByID(db, in.ID)
 		if err != nil {
 			return err
@@ -476,7 +473,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			ids = append(ids, value)
 		}
 
-		result := orm.WithContext(ctx.Context).Delete(r.newModel(), ids)
+		result := r.scopedDB(ctx, orm.WithContext(ctx.Context)).Delete(r.newModel(), ids)
 		if result.Error != nil {
 			return nil, result.Error
 		}
@@ -636,6 +633,13 @@ func (r *Resource) applyListQuery(db *gorm.DB, query url.Values, in *listInput) 
 
 func (r *Resource) newModel() any {
 	return reflect.New(r.modelType).Interface()
+}
+
+func (r *Resource) scopedDB(ctx *ninja.Context, db *gorm.DB) *gorm.DB {
+	if r.QueryScope != nil {
+		return r.QueryScope(ctx, db)
+	}
+	return db
 }
 
 func (r *Resource) primaryKeyValue(v reflect.Value) any {
