@@ -2,7 +2,7 @@ package app
 
 import "github.com/gin-gonic/gin"
 
-// ServeAdminPrototype returns a minimal browser-based prototype for the admin APIs.
+// ServeAdminPrototype returns the standalone admin demo shell used by /admin, /admin/login, and /admin-prototype.
 func ServeAdminPrototype(c *gin.Context) {
 	c.Data(200, "text/html; charset=utf-8", []byte(adminPrototypeHTML))
 }
@@ -12,7 +12,7 @@ const adminPrototypeHTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gin Ninja Admin Prototype</title>
+  <title>Gin Ninja Admin</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7fb; color: #1f2937; }
     header, main { max-width: 1280px; margin: 0 auto; padding: 16px; }
@@ -61,8 +61,8 @@ const adminPrototypeHTML = `<!doctype html>
 </head>
 <body>
   <header>
-    <h1>Gin Ninja Admin Prototype</h1>
-    <p class="muted">A minimal metadata-driven admin UI for the example admin APIs.</p>
+    <h1 id="pageTitle">Gin Ninja Admin</h1>
+    <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
   </header>
   <main class="stack">
     <section class="panel stack">
@@ -88,10 +88,12 @@ const adminPrototypeHTML = `<!doctype html>
         <button id="loadResources" type="button">Load resources</button>
         <button id="clearToken" type="button" class="secondary">Logout</button>
       </div>
-      <label>JWT token
-        <input id="token" placeholder="Paste a Bearer token from /api/v1/auth/login" autocomplete="off">
-      </label>
-      <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
+      <div id="manualTokenTools" class="stack">
+        <label>JWT token
+          <input id="token" placeholder="Paste a Bearer token from /api/v1/auth/login" autocomplete="off">
+        </label>
+        <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
+      </div>
       <pre id="status">Ready.</pre>
     </section>
     <section id="adminShell" class="grid" hidden>
@@ -192,7 +194,11 @@ const adminPrototypeHTML = `<!doctype html>
   <script>
     const apiBase = '/api/v1/admin';
     const tokenStorageKey = 'gin-ninja-admin-token';
-     const state = {
+    const flashStorageKey = 'gin-ninja-admin-flash';
+    const adminPagePath = '/admin';
+    const adminLoginPath = '/admin/login';
+    const prototypePagePath = '/admin-prototype';
+    const state = {
       auth: { name: '', userID: null },
       current: null,
       meta: null,
@@ -210,11 +216,14 @@ const adminPrototypeHTML = `<!doctype html>
       loginEmail: document.getElementById('loginEmail'),
       loginPassword: document.getElementById('loginPassword'),
       token: document.getElementById('token'),
+      manualTokenTools: document.getElementById('manualTokenTools'),
       clearToken: document.getElementById('clearToken'),
       authBadge: document.getElementById('authBadge'),
       authDescription: document.getElementById('authDescription'),
       sessionActions: document.getElementById('sessionActions'),
       status: document.getElementById('status'),
+      pageTitle: document.getElementById('pageTitle'),
+      pageIntro: document.getElementById('pageIntro'),
       adminShell: document.getElementById('adminShell'),
       resources: document.getElementById('resources'),
       resourceTitle: document.getElementById('resourceTitle'),
@@ -251,6 +260,75 @@ const adminPrototypeHTML = `<!doctype html>
       els.status.textContent = value;
     }
 
+    function currentPagePath() {
+      return window.location.pathname || '';
+    }
+
+    function isStandaloneLoginPage() {
+      return currentPagePath() === adminLoginPath;
+    }
+
+    function isStandaloneAdminPage() {
+      return currentPagePath() === adminPagePath;
+    }
+
+    function isLegacyPrototypePage() {
+      return currentPagePath() === prototypePagePath;
+    }
+
+    function rememberFlashMessage(value) {
+      if (!value) return;
+      sessionStorage.setItem(flashStorageKey, value);
+    }
+
+    function consumeFlashMessage() {
+      const value = sessionStorage.getItem(flashStorageKey);
+      if (value) {
+        sessionStorage.removeItem(flashStorageKey);
+      }
+      return value;
+    }
+
+    function updatePageChrome() {
+      if (isStandaloneLoginPage()) {
+        document.title = 'Gin Ninja Admin Login';
+        els.pageTitle.textContent = 'Gin Ninja Admin Login';
+        els.pageIntro.textContent = 'Sign in to enter the example admin console.';
+        return;
+      }
+      if (isStandaloneAdminPage()) {
+        document.title = 'Gin Ninja Admin';
+        els.pageTitle.textContent = 'Gin Ninja Admin';
+        els.pageIntro.textContent = 'A standalone admin console backed by the example admin APIs.';
+        return;
+      }
+      document.title = 'Gin Ninja Admin Prototype';
+      els.pageTitle.textContent = 'Gin Ninja Admin Prototype';
+      els.pageIntro.textContent = 'A minimal metadata-driven admin UI for the example admin APIs.';
+    }
+
+    function redirectToLogin(message) {
+      if (isLegacyPrototypePage()) {
+        if (message) setStatus(message);
+        return;
+      }
+      rememberFlashMessage(message);
+      if (!isStandaloneLoginPage()) {
+        window.location.replace(adminLoginPath);
+      }
+    }
+
+    function redirectToAdmin(message) {
+      if (isLegacyPrototypePage()) {
+        if (message) setStatus(message);
+        return;
+      }
+      rememberFlashMessage(message);
+      if (!isStandaloneAdminPage()) {
+        window.location.replace(adminPagePath);
+      }
+    }
+
     function hasToken() {
       return !!els.token.value.trim();
     }
@@ -274,17 +352,24 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function renderSignedOutState() {
-      els.loginForm.hidden = false;
+      const standaloneAdminPage = isStandaloneAdminPage();
+      const standaloneLoginPage = isStandaloneLoginPage();
+      els.loginForm.hidden = standaloneAdminPage;
       els.sessionActions.hidden = true;
+      els.manualTokenTools.hidden = standaloneLoginPage;
       els.adminShell.hidden = true;
       els.authBadge.textContent = 'Logged out';
-      els.authDescription.textContent = 'Sign in to access the example admin APIs.';
+      els.authDescription.textContent = standaloneAdminPage
+        ? 'Redirecting to /admin/login…'
+        : 'Sign in to access the example admin APIs.';
     }
 
     function renderSignedInState() {
+      const standaloneLoginPage = isStandaloneLoginPage();
       els.loginForm.hidden = true;
-      els.sessionActions.hidden = false;
-      els.adminShell.hidden = false;
+      els.sessionActions.hidden = standaloneLoginPage;
+      els.manualTokenTools.hidden = standaloneLoginPage;
+      els.adminShell.hidden = standaloneLoginPage;
       els.authBadge.textContent = state.auth.name ? ('Signed in as ' + state.auth.name) : 'Authenticated';
       els.authDescription.textContent = state.auth.name
         ? ('JWT session ready for ' + state.auth.name + '.')
@@ -294,8 +379,14 @@ const adminPrototypeHTML = `<!doctype html>
     function renderAuthState() {
       if (hasToken()) {
         renderSignedInState();
+        if (isStandaloneLoginPage()) {
+          redirectToAdmin('Restored saved token. Redirecting to /admin.');
+        }
       } else {
         renderSignedOutState();
+        if (isStandaloneAdminPage()) {
+          redirectToLogin('Sign in to continue.');
+        }
       }
     }
 
@@ -337,6 +428,10 @@ const adminPrototypeHTML = `<!doctype html>
       resetAdminState();
       renderAuthState();
       els.loginPassword.value = '';
+      if (isStandaloneAdminPage()) {
+        redirectToLogin(message || 'Signed out of the admin console.');
+        return;
+      }
       if (message) {
         setStatus(message);
       }
@@ -985,14 +1080,19 @@ const adminPrototypeHTML = `<!doctype html>
         persistToken();
         els.loginPassword.value = '';
         renderAuthState();
-        setStatus(state.auth.name ? ('Signed in as ' + state.auth.name + '.') : 'Signed in successfully.');
+        const successMessage = state.auth.name ? ('Signed in as ' + state.auth.name + '.') : 'Signed in successfully.';
+        if (isStandaloneLoginPage()) {
+          redirectToAdmin(successMessage);
+          return;
+        }
+        setStatus(successMessage);
         await loadResources();
       } catch (error) {
         setStatus(String(error.message || error));
       }
     };
     els.clearToken.onclick = () => {
-      logout('Signed out of the admin prototype.');
+      logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
     };
     els.loadResources.onclick = loadResources;
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
@@ -1129,13 +1229,24 @@ const adminPrototypeHTML = `<!doctype html>
     };
 
     resetAdminState();
+    updatePageChrome();
+    const restoredToken = restoreToken();
+    const flashMessage = consumeFlashMessage();
     renderAuthState();
-    if (restoreToken()) {
-      renderAuthState();
-      setStatus('Restored saved token.');
-      loadResources().catch((error) => setStatus(String(error.message || error)));
+    if (flashMessage) {
+      setStatus(flashMessage);
+    }
+    if (restoredToken) {
+      if (!isStandaloneLoginPage()) {
+        if (!flashMessage) {
+          setStatus('Restored saved token.');
+        }
+        loadResources().catch((error) => setStatus(String(error.message || error)));
+      }
     } else {
-      setStatus('Ready. Sign in to continue.');
+      if (!flashMessage) {
+        setStatus('Ready. Sign in to continue.');
+      }
     }
   </script>
 </body>

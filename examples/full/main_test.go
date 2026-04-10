@@ -405,6 +405,46 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
 
+	loginPageResp, err := http.Get(server.URL + "/admin/login")
+	if err != nil {
+		t.Fatalf("GET /admin/login: %v", err)
+	}
+	loginPageBody, err := io.ReadAll(loginPageResp.Body)
+	loginPageResp.Body.Close()
+	if err != nil {
+		t.Fatalf("read /admin/login body: %v", err)
+	}
+	if loginPageResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected /admin/login 200, got %d", loginPageResp.StatusCode)
+	}
+	loginHTML := string(loginPageBody)
+	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
+		t.Fatalf("expected standalone login path in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "window.location.replace(adminPagePath)") {
+		t.Fatalf("expected standalone login redirect to /admin in html: %q", loginHTML)
+	}
+
+	adminPageResp, err := http.Get(server.URL + "/admin")
+	if err != nil {
+		t.Fatalf("GET /admin: %v", err)
+	}
+	adminPageBody, err := io.ReadAll(adminPageResp.Body)
+	adminPageResp.Body.Close()
+	if err != nil {
+		t.Fatalf("read /admin body: %v", err)
+	}
+	if adminPageResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected /admin 200, got %d", adminPageResp.StatusCode)
+	}
+	adminHTML := string(adminPageBody)
+	if !strings.Contains(adminHTML, "const adminPagePath = '/admin'") {
+		t.Fatalf("expected standalone admin path in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "window.location.replace(adminLoginPath)") {
+		t.Fatalf("expected standalone admin redirect to /admin/login in html: %q", adminHTML)
+	}
+
 	prototypeResp, err := http.Get(server.URL + "/admin-prototype")
 	if err != nil {
 		t.Fatalf("GET /admin-prototype: %v", err)
@@ -418,11 +458,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected /admin-prototype 200, got %d", prototypeResp.StatusCode)
 	}
 	html := string(body)
-	if !strings.Contains(html, "Gin Ninja Admin Prototype") {
+	if !strings.Contains(html, "Gin Ninja Admin") {
 		t.Fatalf("expected prototype title in html: %q", html)
 	}
 	if !strings.Contains(html, "const apiBase = '/api/v1/admin'") {
 		t.Fatalf("expected admin api base in html: %q", html)
+	}
+	if !strings.Contains(html, "const prototypePagePath = '/admin-prototype'") {
+		t.Fatalf("expected prototype page path in html: %q", html)
 	}
 	if !strings.Contains(html, "selectRecord(row)") {
 		t.Fatalf("expected record selection flow in html: %q", html)
@@ -444,6 +487,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "skipAuthRedirect: true") {
 		t.Fatalf("expected login request auth redirect bypass in html: %q", html)
+	}
+	if !strings.Contains(html, "window.location.replace(adminLoginPath)") {
+		t.Fatalf("expected standalone redirect helper in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {
 		t.Fatalf("expected expired session redirect flow in html: %q", html)
