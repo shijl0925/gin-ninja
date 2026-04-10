@@ -444,6 +444,9 @@ func TestMemoryCacheStoreConcurrentLockingAndBoundaryInputs(t *testing.T) {
 	if _, ok := store.AcquireLock("   ", 0); ok {
 		t.Fatal("expected blank cache key lock acquisition to fail")
 	}
+	if _, ok := store.AcquireLock("", 0); ok {
+		t.Fatal("expected empty cache key lock acquisition to fail")
+	}
 
 	const contenders = 32
 	start := make(chan struct{})
