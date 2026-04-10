@@ -4,6 +4,7 @@ package admin
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -563,6 +564,9 @@ func (r *Resource) findByID(db *gorm.DB, raw string) (any, error) {
 	}
 	model := r.newModel()
 	if err := db.First(model, value).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
 		return nil, err
 	}
 	return model, nil
