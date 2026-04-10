@@ -125,6 +125,12 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 	}
 	list.Body.Close()
 
+	adminMeta := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users/meta", nil, auth.Token)
+	if adminMeta.StatusCode != http.StatusOK {
+		t.Fatalf("expected admin metadata 200, got %d", adminMeta.StatusCode)
+	}
+	adminMeta.Body.Close()
+
 	update := doFullJSON(t, server, http.MethodPut, "/api/v1/users/1", map[string]any{
 		"name": "Alicia",
 		"age":  19,
@@ -153,6 +159,12 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 		t.Fatalf("expected unauthorized users list to return 401, got %d", unauthorized.StatusCode)
 	}
 	unauthorized.Body.Close()
+
+	unauthorizedAdmin := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources", nil, "")
+	if unauthorizedAdmin.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized admin resources to return 401, got %d", unauthorizedAdmin.StatusCode)
+	}
+	unauthorizedAdmin.Body.Close()
 
 	healthResp, err := http.Get(server.URL + "/health")
 	if err != nil {
@@ -245,6 +257,12 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 	}
 	detail.Body.Close()
 
+	adminList := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users?search=alice", nil, auth.Token)
+	if adminList.StatusCode != http.StatusOK {
+		t.Fatalf("expected admin users list 200, got %d", adminList.StatusCode)
+	}
+	adminList.Body.Close()
+
 	v1, err := http.Get(server.URL + "/api/v1/examples/versioned/info")
 	if err != nil {
 		t.Fatalf("GET versioned v1: %v", err)
@@ -323,6 +341,8 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/auth/login",
 		"/api/v1/users/",
+		"/api/v1/admin/resources",
+		"/api/v1/admin/resources/users",
 		"/api/v1/examples/request-meta",
 		"/api/v0/examples/versioned/info",
 	} {

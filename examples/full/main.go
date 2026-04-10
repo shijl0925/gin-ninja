@@ -36,6 +36,8 @@
 //   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
 //   - GET  http://localhost:8080/api/v2/users         – cached users CRUD demo (requires JWT)
 //   - GET  http://localhost:8080/api/v1/users         – list users (requires JWT)
+//   - GET  http://localhost:8080/api/v1/admin/resources          – list admin resources (requires JWT)
+//   - GET  http://localhost:8080/api/v1/admin/resources/users    – admin users CRUD (requires JWT)
 //   - GET  http://localhost:8080/api/v1/examples/request-meta   – binding/defaults demo
 //   - GET  http://localhost:8080/api/v1/examples/cache          – cache / ETag demo
 //   - GET  http://localhost:8080/api/v1/examples/events?name=bot – SSE demo
@@ -244,6 +246,17 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 		ninja.WithTransaction(),
 	)
 	api.AddRouter(usersV2Router)
+
+	adminRouter := ninja.NewRouter(
+		"/admin",
+		ninja.WithTags("Admin"),
+		ninja.WithTagDescription("Admin", "JWT-protected metadata-driven admin resource APIs"),
+		ninja.WithBearerAuth(),
+		ninja.WithVersion("v1"),
+	)
+	adminRouter.UseGin(middleware.JWTAuth())
+	app.NewAdminSite().Mount(adminRouter)
+	api.AddRouter(adminRouter)
 
 	// ── 8. Feature demos (public, for manual testing) ────────────────────────
 	exampleRouter := ninja.NewRouter(
