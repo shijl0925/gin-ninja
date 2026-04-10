@@ -473,18 +473,23 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			ids = append(ids, value)
 		}
 
-		allowedIDs := reflect.New(reflect.SliceOf(r.primaryKey.fieldType))
-		if err := r.scopedDB(ctx, orm.WithContext(ctx.Context)).
-			Model(r.newModel()).
-			Where(r.primaryKey.Meta.Column+" IN ?", ids).
-			Pluck(r.primaryKey.Meta.Column, allowedIDs.Interface()).Error; err != nil {
-			return nil, err
+		allowedIDs := make([]any, 0, len(ids))
+		scopedDB := r.scopedDB(ctx, orm.WithContext(ctx.Context))
+		for _, id := range ids {
+			model := r.newModel()
+			if err := scopedDB.First(model, id).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return nil, err
+			}
+			allowedIDs = append(allowedIDs, id)
 		}
-		if allowedIDs.Elem().Len() == 0 {
+		if len(allowedIDs) == 0 {
 			return &BulkDeleteOutput{Deleted: 0}, nil
 		}
 
-		result := orm.WithContext(ctx.Context).Delete(r.newModel(), allowedIDs.Elem().Interface())
+		result := orm.WithContext(ctx.Context).Delete(r.newModel(), allowedIDs)
 		if result.Error != nil {
 			return nil, result.Error
 		}
