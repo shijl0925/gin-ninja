@@ -2,7 +2,36 @@
 
 [![DeepSource](https://app.deepsource.com/gh/shijl0925/gin-ninja.svg/?label=active+issues&show_trend=true&token=Z7EU9QDXvlUfgC30hbZQc3dz)](https://app.deepsource.com/gh/shijl0925/gin-ninja/)
 
+[English](./README.md) | [中文](./README-zh.md)
+
 A **django-ninja** inspired web framework built on top of [Gin](https://github.com/gin-gonic/gin) with automatic OpenAPI 3.0 documentation, type-safe request/response handling, production-ready middleware, and first-class [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) ORM integration.
+
+## Overview
+
+gin-ninja is designed for Go teams that want Gin's routing performance with a more structured API layer:
+
+- define handlers with plain Go structs instead of manual binding boilerplate
+- generate OpenAPI and Swagger UI automatically from the same route definitions
+- keep cross-cutting concerns in reusable middleware and operation options
+- scale from small CRUD services to versioned, documented, production-facing APIs
+
+Typical use cases:
+
+- REST APIs with strict request/response contracts
+- internal platforms that need fast iteration plus always-up-to-date docs
+- services that want built-in auth, security headers, request logging, and config loading
+- applications that need versioned APIs, cacheable read endpoints, or realtime SSE / WebSocket routes
+
+## Architecture at a Glance
+
+At runtime, gin-ninja adds a typed API layer on top of Gin:
+
+1. Gin accepts the incoming HTTP request.
+2. Engine-level and router-level middleware run first.
+3. gin-ninja binds path/query/header/cookie/body/file inputs into typed structs.
+4. The typed handler executes with `*ninja.Context`.
+5. The framework writes JSON, download, SSE, or WebSocket responses.
+6. Route metadata is reused to generate OpenAPI documents and Swagger UI.
 
 ## Features
 
@@ -45,8 +74,12 @@ gin-ninja/
 ├── binding.go        ← parameter binding (path/query/header/body)
 ├── context.go        ← Context (extends *gin.Context)
 ├── errors.go         ← typed error types
+├── cache.go          ← route cache, ETag, cache invalidation helpers
 ├── openapi.go        ← OpenAPI 3.0 spec generation + Swagger UI
 ├── schema.go         ← JSON Schema generation
+├── stream.go         ← SSE and WebSocket support
+├── transfer.go       ← upload/download abstractions
+├── versioning.go     ← version-aware docs and deprecation headers
 │
 ├── middleware/       ← production-ready HTTP middleware
 │   ├── cors.go       ← CORS (gin-contrib/cors)
@@ -69,21 +102,30 @@ gin-ninja/
 ├── settings/         ← Viper-based configuration
 │   └── settings.go   ← Config, Load, MustLoad, LoadWithOverrides, LoadForEnv
 │
-├── pkg/
-│   ├── logger/       ← Zap logger setup
-│   │   └── logger.go
-│   └── response/     ← standard response envelope
-│       └── response.go
-│
 ├── bootstrap/        ← application bootstrap helpers
 │   └── bootstrap.go  ← InitLogger, InitDB, MustInitDB
 │
+├── filter/           ← declarative query filter builders
+├── order/            ← safe sorting helpers
 ├── orm/              ← gormx integration
 │   └── orm.go        ← Init, Middleware, GetDB, WithContext
 │
-└── pagination/       ← pagination types
-    └── pagination.go ← PageInput, Page[T]
+├── pagination/       ← pagination types
+│   └── pagination.go ← PageInput, Page[T]
+│
+└── examples/         ← runnable basic and full applications
 ```
+
+Core module responsibilities:
+
+| Module | Responsibility |
+| --- | --- |
+| `NinjaAPI` | Owns the Gin engine, global middleware, lifecycle hooks, and OpenAPI/Swagger endpoints |
+| `Router` | Groups endpoints by prefix, tags, version, and router-scoped middleware |
+| `operation.go` | Wraps typed handlers, binds input, enforces options, and writes typed responses |
+| `binding.go` | Maps request data from path/query/header/cookie/json/multipart inputs into structs |
+| `middleware/` | Provides production-ready auth, logging, i18n, security, session, and upload middleware |
+| `cache.go` / `versioning.go` / `stream.go` | Adds caching, API versioning/deprecation, SSE, and WebSocket capabilities |
 
 ---
 
