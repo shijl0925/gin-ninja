@@ -378,8 +378,8 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			return nil, err
 		}
 
-		db := r.scopedDB(ctx, orm.WithContext(ctx.Context))
-		model, err := r.findByID(db, in.ID)
+		scopedDB := r.scopedDB(ctx, orm.WithContext(ctx.Context))
+		model, err := r.findByID(scopedDB, in.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -399,11 +399,11 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			return nil, err
 		}
 		if len(updates) > 0 {
-			if err := db.Model(model).Updates(updates).Error; err != nil {
+			if err := orm.WithContext(ctx.Context).Model(model).Updates(updates).Error; err != nil {
 				return nil, err
 			}
 		}
-		if err := db.First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
+		if err := orm.WithContext(ctx.Context).First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
 			return nil, err
 		}
 		if r.AfterUpdate != nil {
@@ -421,8 +421,7 @@ func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) e
 			return err
 		}
 
-		db := r.scopedDB(ctx, orm.WithContext(ctx.Context))
-		model, err := r.findByID(db, in.ID)
+		model, err := r.findByID(r.scopedDB(ctx, orm.WithContext(ctx.Context)), in.ID)
 		if err != nil {
 			return err
 		}
@@ -431,7 +430,7 @@ func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) e
 				return err
 			}
 		}
-		if err := db.Delete(model).Error; err != nil {
+		if err := orm.WithContext(ctx.Context).Delete(model).Error; err != nil {
 			return err
 		}
 		if r.AfterDelete != nil {
@@ -474,7 +473,18 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			ids = append(ids, value)
 		}
 
-		result := r.scopedDB(ctx, orm.WithContext(ctx.Context)).Delete(r.newModel(), ids)
+		allowedIDs := reflect.New(reflect.SliceOf(r.primaryKey.fieldType))
+		if err := r.scopedDB(ctx, orm.WithContext(ctx.Context)).
+			Model(r.newModel()).
+			Where(r.primaryKey.Meta.Column+" IN ?", ids).
+			Pluck(r.primaryKey.Meta.Column, allowedIDs.Interface()).Error; err != nil {
+			return nil, err
+		}
+		if allowedIDs.Elem().Len() == 0 {
+			return &BulkDeleteOutput{Deleted: 0}, nil
+		}
+
+		result := orm.WithContext(ctx.Context).Delete(r.newModel(), allowedIDs.Elem().Interface())
 		if result.Error != nil {
 			return nil, result.Error
 		}
