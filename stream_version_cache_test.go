@@ -329,34 +329,6 @@ func TestMemoryCacheStoreRemovesExpiredEntriesAndClonesValues(t *testing.T) {
 	}
 }
 
-func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
-	t.Parallel()
-
-	store := NewMemoryCacheStoreWithLimit(0)
-	if store.maxEntries != defaultMemoryCacheMaxEntries {
-		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaultMemoryCacheMaxEntries)
-	}
-
-	store.Set("ignored", nil)
-	if len(store.items) != 0 || len(store.order) != 0 {
-		t.Fatalf("expected nil cache writes to be ignored, got items=%d order=%d", len(store.items), len(store.order))
-	}
-
-	store.Set("shared", &CachedResponse{Status: http.StatusAccepted, Body: []byte("first")})
-	store.Set("shared", &CachedResponse{Status: http.StatusCreated, Body: []byte("second")})
-	if len(store.order) != 1 {
-		t.Fatalf("expected existing key updates not to duplicate order, got %v", store.order)
-	}
-
-	value, ok := store.Get("shared")
-	if !ok {
-		t.Fatal("expected updated cache entry")
-	}
-	if value.Status != http.StatusCreated || string(value.Body) != "second" {
-		t.Fatalf("unexpected updated cache value: %+v", value)
-	}
-}
-
 func TestOpenAPICacheConcurrentAccess(t *testing.T) {
 	t.Parallel()
 
@@ -480,6 +452,63 @@ func TestMemoryCacheStoreConcurrentLockingAndBoundaryInputs(t *testing.T) {
 	unlock()
 	if unlock, ok := store.AcquireLock("shared", 0); !ok || unlock == nil {
 		t.Fatal("expected lock acquisition to succeed after releasing default-ttl lock")
+	}
+}
+
+func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStoreWithLimit(0)
+	if store.maxEntries != defaultMemoryCacheMaxEntries {
+		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaultMemoryCacheMaxEntries)
+	}
+
+	store.Set("ignored", nil)
+	if len(store.items) != 0 || len(store.order) != 0 {
+		t.Fatalf("expected nil cache writes to be ignored, got items=%d order=%d", len(store.items), len(store.order))
+	}
+
+	store.Set("shared", &CachedResponse{Status: http.StatusAccepted, Body: []byte("first")})
+	store.Set("shared", &CachedResponse{Status: http.StatusCreated, Body: []byte("second")})
+	if len(store.order) != 1 {
+		t.Fatalf("expected existing key updates not to duplicate order, got %v", store.order)
+	}
+
+	value, ok := store.Get("shared")
+	if !ok {
+		t.Fatal("expected updated cache entry")
+	}
+	if value.Status != http.StatusCreated || string(value.Body) != "second" {
+		t.Fatalf("unexpected updated cache value: %+v", value)
+	}
+}
+
+func TestMemoryCacheStoreDeleteExpiredIfMatchLockedPreservesReplacedValue(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStore()
+	store.Set("shared", &CachedResponse{Status: http.StatusAccepted, Expires: time.Now().Add(-time.Second), Body: []byte("stale")})
+
+	store.mu.RLock()
+	stale := store.items["shared"]
+	store.mu.RUnlock()
+	if stale == nil {
+		t.Fatal("expected stale cache entry")
+	}
+
+	freshExpiry := time.Now().Add(time.Minute)
+	store.Set("shared", &CachedResponse{Status: http.StatusCreated, Expires: freshExpiry, Body: []byte("fresh")})
+
+	store.mu.Lock()
+	store.deleteExpiredIfMatchLocked("shared", stale, time.Now())
+	store.mu.Unlock()
+
+	value, ok := store.Get("shared")
+	if !ok {
+		t.Fatal("expected replaced cache entry to remain available")
+	}
+	if value.Status != http.StatusCreated || string(value.Body) != "fresh" {
+		t.Fatalf("unexpected cache value after guarded delete: %+v", value)
 	}
 }
 
