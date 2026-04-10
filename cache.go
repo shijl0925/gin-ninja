@@ -207,13 +207,25 @@ func (s *MemoryCacheStore) Get(key string) (*CachedResponse, bool) {
 	if !ok {
 		return nil, false
 	}
-	if !value.Expires.IsZero() && time.Now().After(value.Expires) {
+	now := time.Now()
+	if !value.Expires.IsZero() && now.After(value.Expires) {
 		s.mu.Lock()
-		s.deleteKeyLocked(key)
+		s.deleteExpiredIfMatchLocked(key, value, now)
 		s.mu.Unlock()
 		return nil, false
 	}
 	return cloneCachedResponse(value), true
+}
+
+func (s *MemoryCacheStore) deleteExpiredIfMatchLocked(key string, expected *CachedResponse, now time.Time) {
+	current, ok := s.items[key]
+	if !ok || current != expected {
+		return
+	}
+	if current.Expires.IsZero() || !now.After(current.Expires) {
+		return
+	}
+	s.deleteKeyLocked(key)
 }
 
 func (s *MemoryCacheStore) Set(key string, value *CachedResponse) {
