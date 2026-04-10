@@ -203,6 +203,18 @@ func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
 	if len(opts.Enum) > 0 {
 		meta.Meta.Enum = cloneSlice(opts.Enum)
 	}
+	if opts.Relation != nil {
+		valueField := strings.TrimSpace(firstNonEmpty(opts.Relation.ValueField, meta.Meta.Name))
+		meta.Meta.Relation = &RelationMeta{
+			Resource:     strings.TrimSpace(opts.Relation.Resource),
+			ValueField:   valueField,
+			LabelField:   strings.TrimSpace(firstNonEmpty(opts.Relation.LabelField, valueField)),
+			SearchFields: cloneSlice(opts.Relation.SearchFields),
+		}
+		if opts.Component == "" {
+			meta.Meta.Component = "select"
+		}
+	}
 	applyBoolOverride(&meta.Meta.ReadOnly, opts.ReadOnly)
 	applyBoolOverride(&meta.Meta.List, opts.List)
 	applyBoolOverride(&meta.Meta.Detail, opts.Detail)

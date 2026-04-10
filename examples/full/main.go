@@ -32,6 +32,7 @@
 //   - http://localhost:8080/openapi/v2.json – raw OpenAPI spec for v2
 //   - http://localhost:8080/openapi/v1.json – raw OpenAPI spec for v1
 //   - http://localhost:8080/openapi/v0.json – raw OpenAPI spec for v0
+//   - http://localhost:8080/admin-prototype – minimal admin frontend prototype
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
 //   - GET  http://localhost:8080/api/v2/users         – cached users CRUD demo (requires JWT)
@@ -74,7 +75,7 @@ func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init db: %w", err)
 	}
-	if err := db.AutoMigrate(&app.User{}); err != nil {
+	if err := db.AutoMigrate(&app.User{}, &app.Project{}); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}
 	orm.Init(db)
@@ -348,6 +349,7 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 	api.AddRouter(versionedV0Router)
 
 	// ── 9. Health-check (no auth) ─────────────────────────────────────────────
+	api.Engine().GET("/admin-prototype", app.ServeAdminPrototype)
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
 		c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 	})

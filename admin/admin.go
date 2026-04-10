@@ -34,6 +34,7 @@ const (
 
 type PermissionChecker func(*ninja.Context, Action, *Resource) error
 type QueryScope func(*ninja.Context, *gorm.DB) *gorm.DB
+type FieldPermissionChecker func(*ninja.Context, *Resource, *FieldMeta)
 type BeforeCreateHook func(*ninja.Context, map[string]any) error
 type AfterCreateHook func(*ninja.Context, any) error
 type BeforeUpdateHook func(*ninja.Context, any, map[string]any) error
@@ -41,10 +42,35 @@ type AfterUpdateHook func(*ninja.Context, any) error
 type BeforeDeleteHook func(*ninja.Context, any) error
 type AfterDeleteHook func(*ninja.Context, any) error
 
+type RowPermissionChecker interface {
+	Scope(*ninja.Context, Action, *Resource, *gorm.DB) *gorm.DB
+}
+
+type RowPermissionFunc func(*ninja.Context, Action, *Resource, *gorm.DB) *gorm.DB
+
+func (f RowPermissionFunc) Scope(ctx *ninja.Context, action Action, resource *Resource, db *gorm.DB) *gorm.DB {
+	return f(ctx, action, resource, db)
+}
+
+type RelationOptions struct {
+	Resource     string
+	ValueField   string
+	LabelField   string
+	SearchFields []string
+}
+
+type RelationMeta struct {
+	Resource     string   `json:"resource"`
+	ValueField   string   `json:"value_field"`
+	LabelField   string   `json:"label_field"`
+	SearchFields []string `json:"search_fields,omitempty"`
+}
+
 type FieldOptions struct {
 	Label      string
 	Component  string
 	Enum       []any
+	Relation   *RelationOptions
 	Hidden     *bool
 	ReadOnly   *bool
 	List       *bool
@@ -57,26 +83,28 @@ type FieldOptions struct {
 }
 
 type Resource struct {
-	Name         string
-	Label        string
-	Path         string
-	Model        any
-	ListFields   []string
-	DetailFields []string
-	CreateFields []string
-	UpdateFields []string
-	FilterFields []string
-	SortFields   []string
-	SearchFields []string
-	FieldOptions map[string]FieldOptions
-	Permissions  PermissionChecker
-	QueryScope   QueryScope
-	BeforeCreate BeforeCreateHook
-	AfterCreate  AfterCreateHook
-	BeforeUpdate BeforeUpdateHook
-	AfterUpdate  AfterUpdateHook
-	BeforeDelete BeforeDeleteHook
-	AfterDelete  AfterDeleteHook
+	Name             string
+	Label            string
+	Path             string
+	Model            any
+	ListFields       []string
+	DetailFields     []string
+	CreateFields     []string
+	UpdateFields     []string
+	FilterFields     []string
+	SortFields       []string
+	SearchFields     []string
+	FieldOptions     map[string]FieldOptions
+	Permissions      PermissionChecker
+	QueryScope       QueryScope
+	RowPermissions   RowPermissionChecker
+	FieldPermissions FieldPermissionChecker
+	BeforeCreate     BeforeCreateHook
+	AfterCreate      AfterCreateHook
+	BeforeUpdate     BeforeUpdateHook
+	AfterUpdate      AfterUpdateHook
+	BeforeDelete     BeforeDeleteHook
+	AfterDelete      AfterDeleteHook
 
 	modelType    reflect.Type
 	metadata     ResourceMetadata
@@ -111,24 +139,25 @@ type ResourceIndex struct {
 }
 
 type FieldMeta struct {
-	Name        string `json:"name"`
-	Label       string `json:"label"`
-	Type        string `json:"type"`
-	Component   string `json:"component"`
-	Column      string `json:"column"`
-	Description string `json:"description,omitempty"`
-	Required    bool   `json:"required"`
-	Unique      bool   `json:"unique"`
-	ReadOnly    bool   `json:"read_only"`
-	List        bool   `json:"list"`
-	Detail      bool   `json:"detail"`
-	Create      bool   `json:"create"`
-	Update      bool   `json:"update"`
-	Filterable  bool   `json:"filterable"`
-	Sortable    bool   `json:"sortable"`
-	Searchable  bool   `json:"searchable"`
-	Default     any    `json:"default,omitempty"`
-	Enum        []any  `json:"enum,omitempty"`
+	Name        string        `json:"name"`
+	Label       string        `json:"label"`
+	Type        string        `json:"type"`
+	Component   string        `json:"component"`
+	Column      string        `json:"column"`
+	Description string        `json:"description,omitempty"`
+	Required    bool          `json:"required"`
+	Unique      bool          `json:"unique"`
+	ReadOnly    bool          `json:"read_only"`
+	List        bool          `json:"list"`
+	Detail      bool          `json:"detail"`
+	Create      bool          `json:"create"`
+	Update      bool          `json:"update"`
+	Filterable  bool          `json:"filterable"`
+	Sortable    bool          `json:"sortable"`
+	Searchable  bool          `json:"searchable"`
+	Default     any           `json:"default,omitempty"`
+	Enum        []any         `json:"enum,omitempty"`
+	Relation    *RelationMeta `json:"relation,omitempty"`
 }
 
 type ResourceMetadata struct {
@@ -162,10 +191,30 @@ type BulkDeleteOutput struct {
 	Deleted int64 `json:"deleted"`
 }
 
+type RelationOption struct {
+	Value any            `json:"value"`
+	Label string         `json:"label"`
+	Item  map[string]any `json:"item,omitempty"`
+}
+
+type RelationOptionsOutput struct {
+	Items []RelationOption `json:"items"`
+	Total int64            `json:"total"`
+	Page  int              `json:"page"`
+	Size  int              `json:"size"`
+	Pages int              `json:"pages"`
+}
+
 type listInput struct {
 	pagination.PageInput
 	Search string `form:"search"`
 	Sort   string `form:"sort"`
+}
+
+type relationOptionsInput struct {
+	pagination.PageInput
+	Search string `form:"search"`
+	Field  string `path:"field" binding:"required"`
 }
 
 type pathIDInput struct {
@@ -218,6 +267,9 @@ func (s *Site) Mount(router *ninja.Router) {
 		ninja.Get(router, base, resource.handleList(s),
 			ninja.Summary("List admin resource records"),
 			ninja.Description("Returns paginated admin records with safe search, filter, and sort support."))
+		ninja.Get(router, base+"/fields/:field/options", resource.handleRelationOptions(s),
+			ninja.Summary("List admin relation selector options"),
+			ninja.Description("Returns paginated selector options for relation-backed admin fields."))
 		ninja.Get(router, base+"/:id", resource.handleDetail(s),
 			ninja.Summary("Get admin resource record"),
 			ninja.Description("Returns one admin record by primary key."))
@@ -284,15 +336,8 @@ func (r *Resource) handleMetadata(site *Site) func(*ninja.Context, *struct{}) (*
 		if err := site.authorize(ctx, ActionDetail, r); err != nil {
 			return nil, err
 		}
-		meta := r.metadata
-		meta.Fields = append([]FieldMeta(nil), meta.Fields...)
-		meta.ListFields = append([]string(nil), meta.ListFields...)
-		meta.DetailFields = append([]string(nil), meta.DetailFields...)
-		meta.CreateFields = append([]string(nil), meta.CreateFields...)
-		meta.UpdateFields = append([]string(nil), meta.UpdateFields...)
-		meta.FilterFields = append([]string(nil), meta.FilterFields...)
-		meta.SortFields = append([]string(nil), meta.SortFields...)
-		meta.SearchFields = append([]string(nil), meta.SearchFields...)
+		view := r.resolved(ctx)
+		meta := view.metadata
 		meta.Actions = make([]Action, 0, len(r.metadata.Actions))
 		for _, action := range r.metadata.Actions {
 			if err := site.authorize(ctx, action, r); err != nil {
@@ -312,9 +357,9 @@ func (r *Resource) handleList(site *Site) func(*ninja.Context, *listInput) (*Res
 		if err := site.authorize(ctx, ActionList, r); err != nil {
 			return nil, err
 		}
-
-		db := r.scopedDB(ctx, orm.WithContext(ctx.Context))
-		query, err := r.applyListQuery(db.Model(r.newModel()), ctx.Request.URL.Query(), in)
+		view := r.resolved(ctx)
+		db := r.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context))
+		query, err := r.applyListQueryFor(view, db.Model(r.newModel()), ctx.Request.URL.Query(), in)
 		if err != nil {
 			return nil, err
 		}
@@ -332,7 +377,7 @@ func (r *Resource) handleList(site *Site) func(*ninja.Context, *listInput) (*Res
 
 		items := make([]map[string]any, 0, itemsPtr.Elem().Len())
 		for i := 0; i < itemsPtr.Elem().Len(); i++ {
-			items = append(items, r.serialize(itemsPtr.Elem().Index(i), fieldModeList))
+			items = append(items, r.serializeFor(view, itemsPtr.Elem().Index(i), fieldModeList))
 		}
 		page.Items = items
 
@@ -351,11 +396,12 @@ func (r *Resource) handleDetail(site *Site) func(*ninja.Context, *pathIDInput) (
 		if err := site.authorize(ctx, ActionDetail, r); err != nil {
 			return nil, err
 		}
-		model, err := r.findByID(r.scopedDB(ctx, orm.WithContext(ctx.Context)), in.ID)
+		view := r.resolved(ctx)
+		model, err := r.findByID(r.scopedDB(ctx, ActionDetail, orm.WithContext(ctx.Context)), in.ID)
 		if err != nil {
 			return nil, err
 		}
-		return &ResourceRecordOutput{Item: r.serialize(reflect.ValueOf(model).Elem(), fieldModeDetail)}, nil
+		return &ResourceRecordOutput{Item: r.serializeFor(view, reflect.ValueOf(model).Elem(), fieldModeDetail)}, nil
 	}
 }
 
@@ -364,8 +410,9 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 		if err := site.authorize(ctx, ActionCreate, r); err != nil {
 			return nil, err
 		}
+		view := r.resolved(ctx)
 
-		values, err := r.decodeWritePayload(ctx, fieldModeCreate)
+		values, err := r.decodeWritePayloadFor(view, ctx, fieldModeCreate)
 		if err != nil {
 			return nil, err
 		}
@@ -374,12 +421,12 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 				return nil, err
 			}
 		}
-		if err := r.validateRequired(values, fieldModeCreate); err != nil {
+		if err := r.validateRequiredFor(view, values, fieldModeCreate); err != nil {
 			return nil, err
 		}
 
 		model := r.newModel()
-		if err := r.applyValues(reflect.ValueOf(model).Elem(), values); err != nil {
+		if err := r.applyValuesFor(view, reflect.ValueOf(model).Elem(), values); err != nil {
 			return nil, err
 		}
 		if err := orm.WithContext(ctx.Context).Create(model).Error; err != nil {
@@ -390,7 +437,7 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 				return nil, err
 			}
 		}
-		return &ResourceRecordOutput{Item: r.serialize(reflect.ValueOf(model).Elem(), fieldModeDetail)}, nil
+		return &ResourceRecordOutput{Item: r.serializeFor(view, reflect.ValueOf(model).Elem(), fieldModeDetail)}, nil
 	}
 }
 
@@ -399,14 +446,15 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 		if err := site.authorize(ctx, ActionUpdate, r); err != nil {
 			return nil, err
 		}
+		view := r.resolved(ctx)
 
-		scopedDB := r.scopedDB(ctx, orm.WithContext(ctx.Context))
+		scopedDB := r.scopedDB(ctx, ActionUpdate, orm.WithContext(ctx.Context))
 		model, err := r.findByID(scopedDB, in.ID)
 		if err != nil {
 			return nil, err
 		}
 
-		values, err := r.decodeWritePayload(ctx, fieldModeUpdate)
+		values, err := r.decodeWritePayloadFor(view, ctx, fieldModeUpdate)
 		if err != nil {
 			return nil, err
 		}
@@ -416,7 +464,7 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			}
 		}
 
-		updates, err := r.updateColumns(values)
+		updates, err := r.updateColumnsFor(view, values)
 		if err != nil {
 			return nil, err
 		}
@@ -433,7 +481,7 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 				return nil, err
 			}
 		}
-		return &ResourceRecordOutput{Item: r.serialize(reflect.ValueOf(model).Elem(), fieldModeDetail)}, nil
+		return &ResourceRecordOutput{Item: r.serializeFor(view, reflect.ValueOf(model).Elem(), fieldModeDetail)}, nil
 	}
 }
 
@@ -443,7 +491,7 @@ func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) e
 			return err
 		}
 
-		model, err := r.findByID(r.scopedDB(ctx, orm.WithContext(ctx.Context)), in.ID)
+		model, err := r.findByID(r.scopedDB(ctx, ActionDelete, orm.WithContext(ctx.Context)), in.ID)
 		if err != nil {
 			return err
 		}
@@ -498,7 +546,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 		allowedIDs := make([]any, 0, len(ids))
 		for _, id := range ids {
 			model := r.newModel()
-			if err := r.scopedDB(ctx, orm.WithContext(ctx.Context)).First(model, id).Error; err != nil {
+			if err := r.scopedDB(ctx, ActionBulkDelete, orm.WithContext(ctx.Context)).First(model, id).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					continue
 				}
@@ -673,13 +721,6 @@ func (r *Resource) applyListQuery(db *gorm.DB, query url.Values, in *listInput) 
 
 func (r *Resource) newModel() any {
 	return reflect.New(r.modelType).Interface()
-}
-
-func (r *Resource) scopedDB(ctx *ninja.Context, db *gorm.DB) *gorm.DB {
-	if r.QueryScope != nil {
-		return r.QueryScope(ctx, db)
-	}
-	return db
 }
 
 func (r *Resource) primaryKeyValue(v reflect.Value) any {

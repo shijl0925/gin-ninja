@@ -11,3 +11,12 @@ type User struct {
 	Age      int    `gorm:"column:age"                         json:"age"`
 	IsAdmin  bool   `gorm:"column:is_admin;default:false"      json:"is_admin"`
 }
+
+// Project is a related admin demo model owned by a user.
+type Project struct {
+	gorm.Model
+	Title   string `gorm:"column:title;not null"               json:"title"`
+	Summary string `gorm:"column:summary;type:text"            json:"summary"`
+	OwnerID uint   `gorm:"column:owner_id;not null;index"      json:"owner_id"`
+	Owner   User   `gorm:"foreignKey:OwnerID"                  json:"-"`
+}

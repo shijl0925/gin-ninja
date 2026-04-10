@@ -401,6 +401,120 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 	}
 }
 
+func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	prototypeResp, err := http.Get(server.URL + "/admin-prototype")
+	if err != nil {
+		t.Fatalf("GET /admin-prototype: %v", err)
+	}
+	body, err := io.ReadAll(prototypeResp.Body)
+	prototypeResp.Body.Close()
+	if err != nil {
+		t.Fatalf("read /admin-prototype body: %v", err)
+	}
+	if prototypeResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected /admin-prototype 200, got %d", prototypeResp.StatusCode)
+	}
+	html := string(body)
+	if !strings.Contains(html, "Gin Ninja Admin Prototype") || !strings.Contains(html, "const apiBase = '/api/v1/admin'") || !strings.Contains(html, "buildInput(field)") {
+		t.Fatalf("unexpected admin prototype html: %q", html)
+	}
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+		"email":    "alice@example.com",
+		"password": "password123",
+	}, "")
+	if login.StatusCode != http.StatusCreated {
+		t.Fatalf("expected login 201, got %d", login.StatusCode)
+	}
+	var auth struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	login.Body.Close()
+
+	projectMeta := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/meta", nil, auth.Token)
+	if projectMeta.StatusCode != http.StatusOK {
+		t.Fatalf("expected project metadata 200, got %d", projectMeta.StatusCode)
+	}
+	var meta struct {
+		Fields []struct {
+			Name      string `json:"name"`
+			Component string `json:"component"`
+			Relation  *struct {
+				Resource   string `json:"resource"`
+				LabelField string `json:"label_field"`
+			} `json:"relation"`
+		} `json:"fields"`
+	}
+	if err := json.NewDecoder(projectMeta.Body).Decode(&meta); err != nil {
+		t.Fatalf("decode project metadata: %v", err)
+	}
+	projectMeta.Body.Close()
+	var ownerFieldFound bool
+	for _, field := range meta.Fields {
+		if field.Name == "owner_id" && field.Component == "select" && field.Relation != nil && field.Relation.Resource == "users" && field.Relation.LabelField == "name" {
+			ownerFieldFound = true
+		}
+	}
+	if !ownerFieldFound {
+		t.Fatalf("expected owner_id relation metadata, got %+v", meta.Fields)
+	}
+
+	options := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/fields/owner_id/options?search=ali", nil, auth.Token)
+	if options.StatusCode != http.StatusOK {
+		t.Fatalf("expected relation selector 200, got %d", options.StatusCode)
+	}
+	var optionsPayload struct {
+		Items []struct {
+			Value float64 `json:"value"`
+			Label string  `json:"label"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(options.Body).Decode(&optionsPayload); err != nil {
+		t.Fatalf("decode options: %v", err)
+	}
+	options.Body.Close()
+	if len(optionsPayload.Items) != 1 || optionsPayload.Items[0].Value != 1 || optionsPayload.Items[0].Label != "Alice" {
+		t.Fatalf("unexpected relation selector payload: %+v", optionsPayload.Items)
+	}
+
+	createProject := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects", map[string]any{
+		"title":    "First Project",
+		"summary":  "admin ui demo",
+		"owner_id": 1,
+	}, auth.Token)
+	if createProject.StatusCode != http.StatusCreated {
+		t.Fatalf("expected create project 201, got %d body=%s", createProject.StatusCode, readBody(t, createProject.Body))
+	}
+	createProject.Body.Close()
+
+	projectList := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects", nil, auth.Token)
+	if projectList.StatusCode != http.StatusOK {
+		t.Fatalf("expected project list 200, got %d", projectList.StatusCode)
+	}
+	projectListBody := readBody(t, projectList.Body)
+	projectList.Body.Close()
+	if !strings.Contains(projectListBody, "First Project") {
+		t.Fatalf("expected created project in list, got %s", projectListBody)
+	}
+}
+
 func TestFullExampleRunReturnsListenError(t *testing.T) {
 	cfg := settings.Config{
 		App: settings.AppConfig{Name: "Full Example", Version: "1.0.0"},
@@ -425,6 +539,15 @@ func TestFullExampleRunReturnsListenError(t *testing.T) {
 	if err := run(cfg, log); err == nil {
 		t.Fatal("expected run to fail for invalid address")
 	}
+}
+
+func readBody(t *testing.T, body io.ReadCloser) string {
+	t.Helper()
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(data)
 }
 
 func TestFullExampleInitDBAndMainHelpers(t *testing.T) {

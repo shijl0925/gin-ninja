@@ -5,6 +5,7 @@ import (
 
 	ninja "github.com/shijl0925/gin-ninja"
 	admin "github.com/shijl0925/gin-ninja/admin"
+	"gorm.io/gorm"
 )
 
 // NewAdminSite returns the example admin site mounted by the full demo app.
@@ -32,6 +33,31 @@ func NewAdminSite() *admin.Site {
 		BeforeUpdate: func(ctx *ninja.Context, current any, values map[string]any) error {
 			return normalizeAdminUserValues(values, false)
 		},
+	})
+	site.MustRegister(&admin.Resource{
+		Name:         "projects",
+		Label:        "Projects",
+		Path:         "/projects",
+		Model:        Project{},
+		ListFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
+		DetailFields: []string{"id", "title", "summary", "owner_id", "createdAt", "updatedAt"},
+		CreateFields: []string{"title", "summary", "owner_id"},
+		UpdateFields: []string{"title", "summary", "owner_id"},
+		SearchFields: []string{"title", "summary"},
+		SortFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
+		FieldOptions: map[string]admin.FieldOptions{
+			"owner_id": {
+				Relation: &admin.RelationOptions{
+					Resource:     "users",
+					ValueField:   "id",
+					LabelField:   "name",
+					SearchFields: []string{"name", "email"},
+				},
+			},
+		},
+		RowPermissions: admin.RowPermissionFunc(func(ctx *ninja.Context, action admin.Action, resource *admin.Resource, db *gorm.DB) *gorm.DB {
+			return db.Where("owner_id = ?", ctx.GetUserID())
+		}),
 	})
 	return site
 }

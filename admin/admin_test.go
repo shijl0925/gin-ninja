@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -33,14 +34,30 @@ type adminUser struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
 
+type adminProject struct {
+	ID        uint           `gorm:"primaryKey"`
+	Title     string         `gorm:"not null" json:"title"`
+	OwnerID   uint           `gorm:"column:owner_id;not null;index" json:"owner_id"`
+	Owner     adminUser      `gorm:"foreignKey:OwnerID" json:"-"`
+	Secret    string         `json:"secret"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+}
+
 func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
+	api, _ := newAdminAPIWithDB(t, site, seed...)
+	return api
+}
+
+func newAdminAPIWithDB(t *testing.T, site *Site, seed ...adminUser) (*ninja.NinjaAPI, *gorm.DB) {
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&adminUser{}); err != nil {
+	if err := db.AutoMigrate(&adminUser{}, &adminProject{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	for _, item := range seed {
@@ -61,7 +78,7 @@ func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
 	})
 	site.Mount(router)
 	api.AddRouter(router)
-	return api
+	return api, db
 }
 
 func performJSON(t *testing.T, api *ninja.NinjaAPI, method, path string, body any, headers map[string]string) *httptest.ResponseRecorder {
@@ -457,6 +474,203 @@ func TestAdminSiteFiltersResourcesAndMetadataActionsByPermission(t *testing.T) {
 		if !containsAction(adminMeta.Actions, action) {
 			t.Fatalf("expected %q in admin metadata actions, got %+v", action, adminMeta.Actions)
 		}
+	}
+}
+
+func TestAdminSiteFieldLevelPermissionsAffectMetadataSerializationAndWrites(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email", "is_admin"},
+		DetailFields: []string{"id", "name", "email", "is_admin"},
+		CreateFields: []string{"name", "email", "password", "is_admin"},
+		UpdateFields: []string{"name", "email", "is_admin"},
+		FieldOptions: map[string]FieldOptions{
+			"password": {Create: boolPtr(true), Update: boolPtr(true), Component: "password"},
+		},
+		FieldPermissions: func(ctx *ninja.Context, resource *Resource, meta *FieldMeta) {
+			if ctx.GetHeader("X-Admin") == "true" {
+				return
+			}
+			switch meta.Name {
+			case "email":
+				meta.List = false
+				meta.Detail = false
+				meta.Filterable = false
+				meta.Sortable = false
+				meta.Searchable = false
+			case "is_admin":
+				meta.List = false
+				meta.Detail = false
+				meta.Create = false
+				meta.Update = false
+				meta.Filterable = false
+				meta.Sortable = false
+				meta.Searchable = false
+			}
+		},
+	})
+
+	api := newAdminAPI(t, site, adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1", IsAdmin: true})
+	headers := map[string]string{"X-User-ID": "1"}
+
+	metaResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/meta", nil, headers)
+	if metaResp.Code != http.StatusOK {
+		t.Fatalf("metadata status = %d body=%s", metaResp.Code, metaResp.Body.String())
+	}
+	var meta ResourceMetadata
+	if err := json.NewDecoder(metaResp.Body).Decode(&meta); err != nil {
+		t.Fatalf("decode metadata: %v", err)
+	}
+	if containsName(meta.ListFields, "email") || containsName(meta.ListFields, "is_admin") {
+		t.Fatalf("expected restricted fields to be hidden from list metadata, got %+v", meta.ListFields)
+	}
+	if containsName(meta.CreateFields, "is_admin") || containsName(meta.UpdateFields, "is_admin") {
+		t.Fatalf("expected is_admin to be hidden from write metadata, got create=%+v update=%+v", meta.CreateFields, meta.UpdateFields)
+	}
+
+	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/users", nil, headers)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
+	}
+	var page ResourceListOutput
+	if err := json.NewDecoder(listResp.Body).Decode(&page); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("unexpected list payload: %+v", page)
+	}
+	if _, ok := page.Items[0]["email"]; ok {
+		t.Fatalf("expected email to be hidden from list payload: %+v", page.Items[0])
+	}
+	if _, ok := page.Items[0]["is_admin"]; ok {
+		t.Fatalf("expected is_admin to be hidden from list payload: %+v", page.Items[0])
+	}
+
+	createResp := performJSON(t, api, http.MethodPost, "/admin/resources/users", map[string]any{
+		"name":     "Bob",
+		"email":    "bob@example.com",
+		"password": "secret123",
+		"is_admin": true,
+	}, headers)
+	if createResp.Code != http.StatusBadRequest {
+		t.Fatalf("expected restricted write field to be rejected, got %d body=%s", createResp.Code, createResp.Body.String())
+	}
+
+	adminMetaResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/meta", nil, map[string]string{"X-User-ID": "1", "X-Admin": "true"})
+	if adminMetaResp.Code != http.StatusOK {
+		t.Fatalf("admin metadata status = %d body=%s", adminMetaResp.Code, adminMetaResp.Body.String())
+	}
+	var adminMeta ResourceMetadata
+	if err := json.NewDecoder(adminMetaResp.Body).Decode(&adminMeta); err != nil {
+		t.Fatalf("decode admin metadata: %v", err)
+	}
+	if !containsName(adminMeta.ListFields, "email") || !containsName(adminMeta.CreateFields, "is_admin") || !containsName(adminMeta.UpdateFields, "is_admin") {
+		t.Fatalf("expected admin metadata to include restricted fields, got %+v", adminMeta)
+	}
+}
+
+func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		SearchFields: []string{"name", "email"},
+	})
+	site.MustRegister(&Resource{
+		Name:         "projects",
+		Model:        adminProject{},
+		ListFields:   []string{"id", "title", "owner_id"},
+		DetailFields: []string{"id", "title", "owner_id", "secret"},
+		CreateFields: []string{"title", "owner_id", "secret"},
+		UpdateFields: []string{"title", "owner_id", "secret"},
+		FieldOptions: map[string]FieldOptions{
+			"owner_id": {
+				Relation: &RelationOptions{
+					Resource:     "users",
+					ValueField:   "id",
+					LabelField:   "name",
+					SearchFields: []string{"name", "email"},
+				},
+			},
+		},
+		RowPermissions: RowPermissionFunc(func(ctx *ninja.Context, action Action, resource *Resource, db *gorm.DB) *gorm.DB {
+			return db.Where("owner_id = ?", ctx.GetUserID())
+		}),
+	})
+
+	api, db := newAdminAPIWithDB(t, site,
+		adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"},
+		adminUser{Name: "Bob", Email: "bob@example.com", Password: "p2"},
+	)
+	if err := db.Create(&adminProject{Title: "Alice Project", OwnerID: 1, Secret: "alpha"}).Error; err != nil {
+		t.Fatalf("seed project 1: %v", err)
+	}
+	if err := db.Create(&adminProject{Title: "Bob Project", OwnerID: 2, Secret: "beta"}).Error; err != nil {
+		t.Fatalf("seed project 2: %v", err)
+	}
+
+	headers := map[string]string{"X-User-ID": "1"}
+
+	metaResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/meta", nil, headers)
+	if metaResp.Code != http.StatusOK {
+		t.Fatalf("metadata status = %d body=%s", metaResp.Code, metaResp.Body.String())
+	}
+	var meta ResourceMetadata
+	if err := json.NewDecoder(metaResp.Body).Decode(&meta); err != nil {
+		t.Fatalf("decode metadata: %v", err)
+	}
+	var ownerField *FieldMeta
+	for i := range meta.Fields {
+		if meta.Fields[i].Name == "owner_id" {
+			ownerField = &meta.Fields[i]
+			break
+		}
+	}
+	if ownerField == nil || ownerField.Component != "select" || ownerField.Relation == nil || ownerField.Relation.Resource != "users" {
+		t.Fatalf("expected relation-backed owner field metadata, got %+v", ownerField)
+	}
+
+	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects", nil, headers)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
+	}
+	var page ResourceListOutput
+	if err := json.NewDecoder(listResp.Body).Decode(&page); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0]["title"] != "Alice Project" {
+		t.Fatalf("unexpected row-scoped list payload: %+v", page)
+	}
+
+	detailResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/2", nil, headers)
+	if detailResp.Code != http.StatusNotFound {
+		t.Fatalf("expected row-scoped detail to hide Bob's project, got %d body=%s", detailResp.Code, detailResp.Body.String())
+	}
+
+	optionsResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/fields/owner_id/options?search=ali", nil, headers)
+	if optionsResp.Code != http.StatusOK {
+		t.Fatalf("options status = %d body=%s", optionsResp.Code, optionsResp.Body.String())
+	}
+	var options RelationOptionsOutput
+	if err := json.NewDecoder(optionsResp.Body).Decode(&options); err != nil {
+		t.Fatalf("decode relation options: %v", err)
+	}
+	if options.Total != 1 || len(options.Items) != 1 || options.Items[0].Label != "Alice" || fmt.Sprint(options.Items[0].Value) != "1" {
+		t.Fatalf("unexpected relation options payload: %+v", options)
 	}
 }
 
