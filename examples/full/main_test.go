@@ -554,7 +554,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	sortedProjectsBody := readBody(t, sortedProjects.Body)
 	sortedProjects.Body.Close()
-	if strings.Index(sortedProjectsBody, "First Project") == -1 || strings.Index(sortedProjectsBody, "A Project") == -1 || strings.Index(sortedProjectsBody, "First Project") > strings.Index(sortedProjectsBody, "A Project") {
+	firstProjectIndex := strings.Index(sortedProjectsBody, "First Project")
+	secondProjectIndex := strings.Index(sortedProjectsBody, "A Project")
+	if firstProjectIndex == -1 || secondProjectIndex == -1 || firstProjectIndex > secondProjectIndex {
 		t.Fatalf("expected sorted projects in descending title order, got %s", sortedProjectsBody)
 	}
 
