@@ -66,17 +66,35 @@ const adminPrototypeHTML = `<!doctype html>
   </header>
   <main class="stack">
     <section class="panel stack">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0;">Admin session</h2>
+          <p id="authDescription" class="muted">Sign in to access the example admin APIs.</p>
+        </div>
+        <span id="authBadge" class="badge">Logged out</span>
+      </div>
+      <form id="loginForm" class="two-col">
+        <label>Email
+          <input id="loginEmail" type="email" placeholder="alice@example.com" autocomplete="username email">
+        </label>
+        <label>Password
+          <input id="loginPassword" type="password" placeholder="password123" autocomplete="current-password">
+        </label>
+        <div class="row-actions">
+          <button id="loginButton" type="submit">Sign in</button>
+        </div>
+      </form>
+      <div id="sessionActions" class="row-actions" hidden>
+        <button id="loadResources" type="button">Load resources</button>
+        <button id="clearToken" type="button" class="secondary">Logout</button>
+      </div>
       <label>JWT token
         <input id="token" placeholder="Paste a Bearer token from /api/v1/auth/login" autocomplete="off">
       </label>
-      <p class="muted">Token is stored in localStorage and attached to every admin request automatically.</p>
-      <div class="row-actions">
-        <button id="loadResources" type="button">Load resources</button>
-        <button id="clearToken" type="button" class="secondary">Clear token</button>
-      </div>
+      <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
       <pre id="status">Ready.</pre>
     </section>
-    <section class="grid">
+    <section id="adminShell" class="grid" hidden>
       <aside class="panel">
         <h2>Resources</h2>
         <ul id="resources"></ul>
@@ -174,7 +192,8 @@ const adminPrototypeHTML = `<!doctype html>
   <script>
     const apiBase = '/api/v1/admin';
     const tokenStorageKey = 'gin-ninja-admin-token';
-    const state = {
+     const state = {
+      auth: { name: '', userID: null },
       current: null,
       meta: null,
       resources: [],
@@ -186,10 +205,17 @@ const adminPrototypeHTML = `<!doctype html>
       pagination: { page: 1, size: 10, pages: 1, total: 0 }
     };
 
-    const els = {
+     const els = {
+      loginForm: document.getElementById('loginForm'),
+      loginEmail: document.getElementById('loginEmail'),
+      loginPassword: document.getElementById('loginPassword'),
       token: document.getElementById('token'),
       clearToken: document.getElementById('clearToken'),
+      authBadge: document.getElementById('authBadge'),
+      authDescription: document.getElementById('authDescription'),
+      sessionActions: document.getElementById('sessionActions'),
       status: document.getElementById('status'),
+      adminShell: document.getElementById('adminShell'),
       resources: document.getElementById('resources'),
       resourceTitle: document.getElementById('resourceTitle'),
       resourcePath: document.getElementById('resourcePath'),
@@ -225,6 +251,10 @@ const adminPrototypeHTML = `<!doctype html>
       els.status.textContent = value;
     }
 
+    function hasToken() {
+      return !!els.token.value.trim();
+    }
+
     function persistToken() {
       const token = els.token.value.trim();
       if (token) {
@@ -238,7 +268,77 @@ const adminPrototypeHTML = `<!doctype html>
       const saved = localStorage.getItem(tokenStorageKey);
       if (saved) {
         els.token.value = saved;
-        setStatus('Restored saved token.');
+        return true;
+      }
+      return false;
+    }
+
+    function renderSignedOutState() {
+      els.loginForm.hidden = false;
+      els.sessionActions.hidden = true;
+      els.adminShell.hidden = true;
+      els.authBadge.textContent = 'Logged out';
+      els.authDescription.textContent = 'Sign in to access the example admin APIs.';
+    }
+
+    function renderSignedInState() {
+      els.loginForm.hidden = true;
+      els.sessionActions.hidden = false;
+      els.adminShell.hidden = false;
+      els.authBadge.textContent = state.auth.name ? ('Signed in as ' + state.auth.name) : 'Authenticated';
+      els.authDescription.textContent = state.auth.name
+        ? ('JWT session ready for ' + state.auth.name + '.')
+        : 'JWT session ready for the example admin APIs.';
+    }
+
+    function renderAuthState() {
+      if (hasToken()) {
+        renderSignedInState();
+      } else {
+        renderSignedOutState();
+      }
+    }
+
+    function resetAdminState() {
+      state.auth = { name: '', userID: null };
+      state.current = null;
+      state.meta = null;
+      state.resources = [];
+      state.records = [];
+      state.selected = null;
+      state.bulkSelected = {};
+      state.relationSearch = {};
+      state.relationTimers = {};
+      state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
+      els.resources.innerHTML = '';
+      els.resourceTitle.textContent = 'Select a resource';
+      els.resourcePath.textContent = '';
+      els.actions.textContent = 'Sign in to load admin resources.';
+      els.detailTitle.textContent = 'No record selected';
+      els.detailObjectBadge.textContent = 'Draft view';
+      els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
+      els.detail.textContent = 'No record selected.';
+      els.createForm.innerHTML = '<p class="muted">Sign in to create records.</p>';
+      els.updateForm.innerHTML = '<p class="muted">Sign in to edit records.</p>';
+      els.bulkEditForm.innerHTML = '<p class="muted">Sign in to apply bulk edits.</p>';
+      els.filtersForm.innerHTML = '';
+      els.sort.innerHTML = '';
+      els.list.innerHTML = '<p class="muted">Sign in to browse records.</p>';
+      els.selectionHint.textContent = 'Sign in to inspect and edit records.';
+      els.editHint.textContent = 'Sign in to open the change form.';
+      els.bulkEditHint.textContent = 'Sign in to apply shared updates.';
+      renderPagination();
+      syncBulkActionState();
+    }
+
+    function logout(message) {
+      els.token.value = '';
+      persistToken();
+      resetAdminState();
+      renderAuthState();
+      els.loginPassword.value = '';
+      if (message) {
+        setStatus(message);
       }
     }
 
@@ -253,12 +353,17 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     async function request(path, options = {}) {
+      const { skipAuthRedirect, ...requestOptions } = options;
       persistToken();
-      const response = await fetch(path, { ...options, headers: requestHeaders(options) });
+      const response = await fetch(path, { ...requestOptions, headers: requestHeaders(requestOptions) });
       const text = await response.text();
       let data = null;
       try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
       if (!response.ok) {
+        if (response.status === 401 && !skipAuthRedirect) {
+          logout('Session expired. Please sign in again.');
+          throw new Error('Session expired. Please sign in again.');
+        }
         throw new Error(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
       }
       return data;
@@ -813,6 +918,11 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     async function loadResources() {
+      if (!hasToken()) {
+        renderAuthState();
+        setStatus('Sign in before loading admin resources.');
+        return;
+      }
       try {
         const payload = await request(apiBase + '/resources');
         state.resources = payload.resources || [];
@@ -846,11 +956,43 @@ const adminPrototypeHTML = `<!doctype html>
       }
     }
 
-    els.token.addEventListener('input', persistToken);
-    els.clearToken.onclick = () => {
-      els.token.value = '';
+    els.token.addEventListener('input', () => {
       persistToken();
-      setStatus('Cleared saved token.');
+      if (!hasToken()) {
+        resetAdminState();
+      }
+      renderAuthState();
+    });
+    els.loginForm.onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        const payload = await request('/api/v1/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: els.loginEmail.value.trim(),
+            password: els.loginPassword.value
+          }),
+          skipAuthRedirect: true
+        });
+        if (!payload || !payload.token) {
+          throw new Error('Login response did not include a token.');
+        }
+        state.auth = {
+          name: payload.name || '',
+          userID: payload.user_id || payload.userID || null
+        };
+        els.token.value = payload.token;
+        persistToken();
+        els.loginPassword.value = '';
+        renderAuthState();
+        setStatus(state.auth.name ? ('Signed in as ' + state.auth.name + '.') : 'Signed in successfully.');
+        await loadResources();
+      } catch (error) {
+        setStatus(String(error.message || error));
+      }
+    };
+    els.clearToken.onclick = () => {
+      logout('Signed out of the admin prototype.');
     };
     els.loadResources.onclick = loadResources;
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
@@ -986,9 +1128,15 @@ const adminPrototypeHTML = `<!doctype html>
       }
     };
 
-    restoreToken();
-    renderPagination();
-    syncBulkActionState();
+    resetAdminState();
+    renderAuthState();
+    if (restoreToken()) {
+      renderAuthState();
+      setStatus('Restored saved token.');
+      loadResources().catch((error) => setStatus(String(error.message || error)));
+    } else {
+      setStatus('Ready. Sign in to continue.');
+    }
   </script>
 </body>
 </html>`

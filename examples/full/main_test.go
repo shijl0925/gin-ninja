@@ -436,6 +436,21 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "localStorage.setItem(tokenStorageKey, token)") {
 		t.Fatalf("expected token persistence in html: %q", html)
 	}
+	if !strings.Contains(html, "id=\"loginForm\"") {
+		t.Fatalf("expected login form in html: %q", html)
+	}
+	if !strings.Contains(html, "els.loginForm.onsubmit") {
+		t.Fatalf("expected login submit flow in html: %q", html)
+	}
+	if !strings.Contains(html, "skipAuthRedirect: true") {
+		t.Fatalf("expected login request auth redirect bypass in html: %q", html)
+	}
+	if !strings.Contains(html, "Session expired. Please sign in again.") {
+		t.Fatalf("expected expired session redirect flow in html: %q", html)
+	}
+	if !strings.Contains(html, "Signed out of the admin prototype.") {
+		t.Fatalf("expected logout flow in html: %q", html)
+	}
 	if !strings.Contains(html, "/bulk-delete") {
 		t.Fatalf("expected bulk delete endpoint usage in html: %q", html)
 	}
