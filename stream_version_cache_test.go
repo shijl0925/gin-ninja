@@ -355,6 +355,35 @@ func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
 	}
 }
 
+func TestMemoryCacheStoreDeleteExpiredIfMatchLockedPreservesReplacedValue(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStore()
+	store.Set("shared", &CachedResponse{Status: http.StatusAccepted, Expires: time.Now().Add(-time.Second), Body: []byte("stale")})
+
+	store.mu.RLock()
+	stale := store.items["shared"]
+	store.mu.RUnlock()
+	if stale == nil {
+		t.Fatal("expected stale cache entry")
+	}
+
+	freshExpiry := time.Now().Add(time.Minute)
+	store.Set("shared", &CachedResponse{Status: http.StatusCreated, Expires: freshExpiry, Body: []byte("fresh")})
+
+	store.mu.Lock()
+	store.deleteExpiredIfMatchLocked("shared", stale, time.Now())
+	store.mu.Unlock()
+
+	value, ok := store.Get("shared")
+	if !ok {
+		t.Fatal("expected replaced cache entry to remain available")
+	}
+	if value.Status != http.StatusCreated || string(value.Body) != "fresh" {
+		t.Fatalf("unexpected cache value after guarded delete: %+v", value)
+	}
+}
+
 type hijackableResponseRecorder struct {
 	*httptest.ResponseRecorder
 }
