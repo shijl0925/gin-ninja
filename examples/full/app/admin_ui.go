@@ -367,6 +367,7 @@ const adminPrototypeHTML = `<!doctype html>
     const adminPagePath = '/admin';
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
+    const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
     const state = {
       auth: { name: '', userID: null },
       current: null,
@@ -1074,7 +1075,7 @@ const adminPrototypeHTML = `<!doctype html>
             payload[key] = null;
             continue;
           }
-          payload[key] = /^-?\d+(?:\.\d+)?$/.test(value) ? Number(value) : value;
+          payload[key] = numericFieldPattern.test(value) ? Number(value) : value;
           continue;
         }
         payload[key] = value;

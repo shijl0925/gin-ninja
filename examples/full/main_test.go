@@ -539,7 +539,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "preview.hidden = true;") {
 		t.Fatalf("expected relation preview to stay hidden until searching in html: %q", html)
 	}
-	if !strings.Contains(html, "payload[key] = /^-?\\d+(?:\\.\\d+)?$/.test(value) ? Number(value) : value;") {
+	if !strings.Contains(html, "const numericFieldPattern = /^-?\\d+(?:\\.\\d+)?$/;") {
+		t.Fatalf("expected relation numeric parsing helper in html: %q", html)
+	}
+	if !strings.Contains(html, "payload[key] = numericFieldPattern.test(value) ? Number(value) : value;") {
 		t.Fatalf("expected relation values to be serialized with numeric JSON types in html: %q", html)
 	}
 	if !strings.Contains(html, "localStorage.setItem(tokenStorageKey, token)") {
