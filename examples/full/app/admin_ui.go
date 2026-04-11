@@ -149,6 +149,83 @@ const adminPrototypeHTML = `<!doctype html>
       line-height:1;
     }
     .topbar-action:hover { background:#f4f6f9; color:#212529; }
+    .topbar-user-dropdown { position:relative; display:inline-flex; align-items:center; }
+    .topbar-user-btn {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      width:auto;
+      padding:0 10px;
+      background:transparent;
+      border:none;
+      box-shadow:none;
+      color:#495057;
+      font-size:14px;
+      font-weight:500;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .topbar-user-btn:hover { background:#f4f6f9; color:#212529; border-radius:0.35rem; }
+    .topbar-user-avatar {
+      display:inline-grid;
+      place-items:center;
+      width:32px;
+      height:32px;
+      border-radius:999px;
+      background:#d2d6de;
+      color:#495057;
+      font-size:13px;
+      font-weight:700;
+      flex-shrink:0;
+    }
+    .topbar-user-name { max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+    .topbar-caret { flex-shrink:0; color:#6c757d; }
+    .topbar-user-menu {
+      position:absolute;
+      top:calc(100% + 4px);
+      right:0;
+      min-width:160px;
+      background:#fff;
+      border:1px solid var(--admin-border);
+      border-radius:0.35rem;
+      box-shadow:0 4px 16px rgba(0,0,0,0.12);
+      list-style:none;
+      margin:0;
+      padding:4px 0;
+      z-index:200;
+    }
+    .topbar-user-menu-item {
+      display:block;
+      width:100%;
+      text-align:left;
+      padding:9px 16px;
+      background:none;
+      border:none;
+      box-shadow:none;
+      color:var(--admin-text);
+      font-size:14px;
+      cursor:pointer;
+      border-radius:0;
+    }
+    .topbar-user-menu-item:hover { background:#f4f6f9; }
+    .topbar-search-wrap { position:relative; display:inline-flex; align-items:center; }
+    .topbar-search-expand {
+      display:none;
+      position:absolute;
+      top:calc(100% + 4px);
+      right:0;
+      width:240px;
+      z-index:200;
+    }
+    .topbar-search-expand.open { display:block; }
+    .topbar-search-expand input {
+      width:100%;
+      border-radius:0.35rem;
+      border:1px solid var(--admin-border);
+      padding:8px 14px;
+      font-size:14px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.10);
+    }
     .topbar-action-badge {
       position:absolute;
       top:4px;
@@ -381,7 +458,7 @@ const adminPrototypeHTML = `<!doctype html>
       box-shadow:none;
     }
     .resource-strip-header, .resource-strip-copy { display:grid; gap:6px; }
-    .resource-strip-header { align-items:start; padding:18px 16px 4px; }
+    .resource-strip-header { display:none; }
     .resource-strip-copy strong, .resource-strip-copy p { margin:0; }
     .sidebar-heading h2 { color:#fff; font-size:1.15rem; }
     .sidebar-heading p, .sidebar-heading .eyebrow { color:var(--admin-sidebar-text); }
@@ -406,14 +483,13 @@ const adminPrototypeHTML = `<!doctype html>
       text-align:left;
       background:transparent;
       color:var(--admin-sidebar-text);
-      border:1px solid transparent;
+      border:none;
       border-radius:0.35rem;
-      padding:11px 12px;
-      display:grid;
-      grid-template-columns:auto minmax(0, 1fr) auto;
+      padding:10px 14px;
+      display:flex;
       align-items:center;
       gap:10px;
-      font-weight:500;
+      font-weight:400;
       box-shadow:none;
     }
     .nav-link:hover {
@@ -422,42 +498,32 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .nav-link.active {
       background:#007bff;
-      border-color:#007bff;
       color:#fff;
-      box-shadow: 0 1px 4px rgba(0,123,255,0.42);
+      border-radius:0.35rem;
     }
     .nav-link-icon {
-      width:18px;
-      height:18px;
-      display:grid;
-      place-items:center;
+      width:8px;
+      height:8px;
       border-radius:999px;
-      border:2px solid currentColor;
-      font-size:9px;
-      line-height:1;
-      opacity:0.95;
+      border:1.5px solid rgba(255,255,255,0.55);
+      flex-shrink:0;
     }
-    .nav-link-body { display:grid; gap:2px; min-width:0; }
-    .nav-link-label, .nav-link-meta {
+    .nav-link.active .nav-link-icon { border-color:#fff; background:#fff; }
+    .nav-link-label {
+      flex:1 1 auto;
+      min-width:0;
       overflow:hidden;
       text-overflow:ellipsis;
       white-space:nowrap;
+      font-size:14px;
     }
-    .nav-link-label { font-size:15px; }
-    .nav-link-meta {
-      font-size:11px;
-      color:rgba(255,255,255,0.62);
-      text-transform:uppercase;
-      letter-spacing:0.05em;
-    }
-    .nav-link.active .nav-link-meta,
-    .nav-link:hover .nav-link-meta { color:rgba(255,255,255,0.82); }
     .nav-link-caret {
-      font-size:18px;
+      flex-shrink:0;
+      font-size:16px;
       line-height:1;
-      color:inherit;
-      opacity:0.85;
+      color:rgba(255,255,255,0.55);
     }
+    .nav-link.active .nav-link-caret { color:rgba(255,255,255,0.9); }
     .workspace { min-width:0; }
     .workspace-header {
       display:flex;
@@ -655,15 +721,26 @@ const adminPrototypeHTML = `<!doctype html>
         <strong>AdminLTE-style navigation chrome</strong>
       </div>
       <div class="topbar-actions" aria-label="Admin quick actions">
-        <button class="topbar-action" type="button" aria-label="Search">⌕</button>
-        <button class="topbar-action" type="button" aria-label="Messages">💬<span class="topbar-action-badge">3</span></button>
-        <button class="topbar-action" type="button" aria-label="Notifications">🔔<span class="topbar-action-badge warning">15</span></button>
-        <button class="topbar-action" type="button" aria-label="Fullscreen">⛶</button>
-        <button class="topbar-action" type="button" aria-label="Grid menu">▦</button>
+        <div class="topbar-search-wrap">
+          <button class="topbar-action topbar-search-toggle" type="button" aria-label="Toggle search" id="topbarSearchToggle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
+          </button>
+          <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
+            <input type="search" placeholder="Search…" aria-label="Site-wide search">
+          </div>
+        </div>
+        <div class="topbar-user-dropdown" id="topbarUserDropdown" hidden>
+          <button class="topbar-user-btn" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
+            <span class="topbar-user-avatar" id="topbarUserAvatar">?</span>
+            <span class="topbar-user-name" id="topbarUserName">Guest</span>
+            <svg class="topbar-caret" xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>
+          </button>
+          <ul class="topbar-user-menu" id="topbarUserMenu" hidden role="menu">
+            <li role="none"><button id="clearToken" class="topbar-user-menu-item" type="button" role="menuitem">Sign out</button></li>
+          </ul>
+        </div>
       </div>
-      <div id="sessionActions" class="row-actions" hidden>
-        <button id="clearToken" type="button">Sign out</button>
-      </div>
+      <div id="sessionActions" hidden></div>
     </div>
   </header>
   <main class="app-main">
@@ -748,7 +825,7 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
         <div class="sidebar-nav-shell">
-          <div class="sidebar-section-label">Main navigation</div>
+          <div class="sidebar-section-label">Resources</div>
           <ul id="resources" class="nav-list"></ul>
         </div>
       </aside>
@@ -1066,6 +1143,8 @@ const adminPrototypeHTML = `<!doctype html>
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
+      const topbarUserDropdown = document.getElementById('topbarUserDropdown');
+      if (topbarUserDropdown) topbarUserDropdown.hidden = true;
     }
 
     function renderSignedInState() {
@@ -1075,6 +1154,19 @@ const adminPrototypeHTML = `<!doctype html>
       els.sessionShell.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = standaloneLoginPage;
+      // Update user info in sidebar and topbar
+      const name = state.auth.name || 'Admin';
+      const initials = name.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
+      const sidebarAvatar = document.querySelector('.sidebar-user-avatar');
+      const sidebarName = document.querySelector('.sidebar-user-copy strong');
+      if (sidebarAvatar) sidebarAvatar.textContent = initials;
+      if (sidebarName) sidebarName.textContent = name;
+      const topbarAvatar = document.getElementById('topbarUserAvatar');
+      const topbarName = document.getElementById('topbarUserName');
+      if (topbarAvatar) topbarAvatar.textContent = initials;
+      if (topbarName) topbarName.textContent = name;
+      const topbarUserDropdown = document.getElementById('topbarUserDropdown');
+      if (topbarUserDropdown) topbarUserDropdown.hidden = standaloneLoginPage;
     }
 
     function renderAuthState() {
@@ -1272,25 +1364,19 @@ const adminPrototypeHTML = `<!doctype html>
         const li = document.createElement('li');
         const button = document.createElement('button');
         const icon = document.createElement('span');
-        const body = document.createElement('span');
         const label = document.createElement('span');
-        const meta = document.createElement('span');
         const caret = document.createElement('span');
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
         icon.className = 'nav-link-icon';
-        icon.textContent = '•';
-        body.className = 'nav-link-body';
+        icon.setAttribute('aria-hidden', 'true');
         label.className = 'nav-link-label';
         label.textContent = resource.label;
-        meta.className = 'nav-link-meta';
-        meta.textContent = resource.name;
         caret.className = 'nav-link-caret';
+        caret.setAttribute('aria-hidden', 'true');
         caret.textContent = '›';
-        body.appendChild(label);
-        body.appendChild(meta);
         button.appendChild(icon);
-        button.appendChild(body);
+        button.appendChild(label);
         button.appendChild(caret);
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
@@ -1942,6 +2028,38 @@ const adminPrototypeHTML = `<!doctype html>
     els.clearToken.onclick = () => {
       logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
     };
+
+    // User dropdown toggle
+    const topbarUserBtn = document.getElementById('topbarUserBtn');
+    const topbarUserMenu = document.getElementById('topbarUserMenu');
+    if (topbarUserBtn && topbarUserMenu) {
+      topbarUserBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const open = topbarUserMenu.hidden === false;
+        topbarUserMenu.hidden = open;
+        topbarUserBtn.setAttribute('aria-expanded', String(!open));
+      });
+      document.addEventListener('click', () => {
+        if (topbarUserMenu) topbarUserMenu.hidden = true;
+        if (topbarUserBtn) topbarUserBtn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    // Topbar search toggle
+    const topbarSearchToggle = document.getElementById('topbarSearchToggle');
+    const topbarSearchExpand = document.getElementById('topbarSearchExpand');
+    if (topbarSearchToggle && topbarSearchExpand) {
+      topbarSearchToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        topbarSearchExpand.classList.toggle('open');
+        if (!topbarSearchExpand.classList.contains('open')) return;
+        const inp = topbarSearchExpand.querySelector('input');
+        if (inp) inp.focus();
+      });
+      document.addEventListener('click', () => {
+        if (topbarSearchExpand) topbarSearchExpand.classList.remove('open');
+      });
+    }
      els.openCreateModal.onclick = () => {
        if (els.openCreateModal.disabled) return;
        openModal(els.createModal);
