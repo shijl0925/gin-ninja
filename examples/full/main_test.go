@@ -474,8 +474,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "@media (max-width: 1380px)") {
 		t.Fatalf("expected earlier admin-shell responsive collapse in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, ".content-grid > aside { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); align-content:start; }") {
-		t.Fatalf("expected responsive right-rail grid in html: %q", adminHTML)
+	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
+		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"openBulkEditModal\"") {
+		t.Fatalf("expected bulk edit modal trigger in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"modal-overlay\" hidden") {
+		t.Fatalf("expected hidden modal overlay shell in html: %q", adminHTML)
 	}
 
 	prototypeResp, err := http.Get(server.URL + "/admin-prototype")
@@ -524,8 +530,17 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "els.sessionShell.hidden = true;") {
 		t.Fatalf("expected signed-in pages to hide the login shell in html: %q", html)
 	}
-	if !strings.Contains(html, "@media (min-width: 1500px)") {
-		t.Fatalf("expected extra-wide two-column workspace breakpoint in html: %q", html)
+	if !strings.Contains(html, "body.modal-open { overflow:hidden; }") {
+		t.Fatalf("expected modal body lock styling in html: %q", html)
+	}
+	if !strings.Contains(html, "closeModal(els.createModal);") {
+		t.Fatalf("expected create modal close flow in html: %q", html)
+	}
+	if !strings.Contains(html, "closeModal(els.bulkEditModal);") {
+		t.Fatalf("expected bulk edit modal close flow in html: %q", html)
+	}
+	if !strings.Contains(html, "document.addEventListener('keydown'") {
+		t.Fatalf("expected modal escape-key handling in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {
 		t.Fatalf("expected expired session redirect flow in html: %q", html)

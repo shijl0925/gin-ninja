@@ -60,7 +60,6 @@ const adminPrototypeHTML = `<!doctype html>
     .action-pills { display:flex; gap:8px; flex-wrap:wrap; }
     .action-pill { display:inline-flex; align-items:center; border-radius:999px; padding:7px 12px; background:#f8fafc; border:1px solid #dbe2ea; color:#475569; font-size:12px; font-weight:600; text-transform:capitalize; }
     .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1fr); align-items:start; }
-    .content-grid > aside { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); align-content:start; }
     .section-shell { display:grid; gap:16px; }
     .section-heading { display:grid; gap:6px; }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
@@ -87,6 +86,14 @@ const adminPrototypeHTML = `<!doctype html>
     .pagination-info { font-size:14px; color:#64748b; }
     .table-shell { overflow:auto; border:1px solid #e2e8f0; border-radius:16px; background:#fff; }
     .empty-state { border:1px dashed #cbd5e1; border-radius:16px; padding:28px 20px; background:#fff; color:#64748b; text-align:center; }
+    .workspace-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .modal-overlay { position:fixed; inset:0; background:rgba(15, 23, 42, 0.56); display:grid; place-items:center; padding:24px; z-index:50; }
+    .modal-dialog { width:min(720px, 100%); max-height:min(85vh, 920px); overflow:auto; border-radius:24px; border:1px solid #dbe2ea; background:#fff; box-shadow:0 30px 90px rgba(15, 23, 42, 0.28); }
+    .modal-dialog.large { width:min(860px, 100%); }
+    .modal-header { display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; padding:24px 24px 0; }
+    .modal-body { padding:0 24px 24px; }
+    .modal-close { min-width:44px; min-height:44px; padding:0 14px; }
+    body.modal-open { overflow:hidden; }
     label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#334155; }
     input, select, textarea, button { font: inherit; padding: 11px 13px; border-radius: 12px; border: 1px solid #cbd5e1; background:#fff; color:#0f172a; transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease; }
     input:focus, select:focus, textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59, 130, 246, 0.18); }
@@ -122,10 +129,6 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page #status { background:#0f172a; border-color:#0f172a; color:#e2e8f0; }
     @media (min-width: 1180px) {
       .detail-layout { grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr); }
-    }
-    @media (min-width: 1500px) {
-      .content-grid { grid-template-columns:minmax(0, 1.5fr) minmax(320px, 0.9fr); }
-      .content-grid > aside { grid-template-columns:1fr; }
     }
     @media (max-width: 1380px) {
       .admin-shell { grid-template-columns:1fr; }
@@ -237,7 +240,11 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
           <div class="workspace-meta">
             <div id="actions" class="action-pills muted">No actions available yet.</div>
-            <span id="selectedCountBadge" class="badge">0 selected</span>
+            <div class="workspace-actions">
+              <button id="openCreateModal" type="button">Create record</button>
+              <button id="openBulkEditModal" type="button" class="secondary">Bulk edit</button>
+              <span id="selectedCountBadge" class="badge">0 selected</span>
+            </div>
           </div>
         </section>
         <section class="content-grid">
@@ -311,25 +318,37 @@ const adminPrototypeHTML = `<!doctype html>
               <div id="list"></div>
             </section>
           </section>
-          <aside class="stack">
-            <section class="panel section-shell">
+        </section>
+        <section id="createModal" class="modal-overlay" hidden>
+          <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
+            <div class="modal-header">
               <div class="section-heading">
-                <h3 class="section-title">Create record</h3>
+                <h3 id="createModalTitle" class="section-title">Create record</h3>
                 <p class="section-copy muted">Use the same admin layout to add a new record to the active resource.</p>
               </div>
+              <button id="closeCreateModal" type="button" class="secondary modal-close" aria-label="Close create record dialog">Close</button>
+            </div>
+            <div class="modal-body">
               <form id="createForm" class="stack"></form>
-            </section>
-            <section class="panel section-shell">
-              <div class="toolbar">
-                <div class="section-heading">
-                  <h3 class="section-title">Bulk edit</h3>
-                  <p id="bulkEditHint" class="section-copy muted">Select rows to apply shared updates.</p>
-                </div>
-                <button id="applyBulkEdit" type="submit" form="bulkEditForm">Apply to selected</button>
+            </div>
+          </div>
+        </section>
+        <section id="bulkEditModal" class="modal-overlay" hidden>
+          <div class="modal-dialog large" role="dialog" aria-modal="true" aria-labelledby="bulkEditModalTitle">
+            <div class="modal-header">
+              <div class="section-heading">
+                <h3 id="bulkEditModalTitle" class="section-title">Bulk edit</h3>
+                <p id="bulkEditHint" class="section-copy muted">Select rows to apply shared updates.</p>
               </div>
+              <div class="row-actions">
+                <button id="applyBulkEdit" type="submit" form="bulkEditForm">Apply to selected</button>
+                <button id="closeBulkEditModal" type="button" class="secondary">Close</button>
+              </div>
+            </div>
+            <div class="modal-body">
               <form id="bulkEditForm" class="bulk-edit-fields"></form>
-            </section>
-          </aside>
+            </div>
+          </div>
         </section>
       </section>
     </section>
@@ -378,8 +397,14 @@ const adminPrototypeHTML = `<!doctype html>
       detailObjectBadge: document.getElementById('detailObjectBadge'),
       detailFields: document.getElementById('detailFields'),
       createForm: document.getElementById('createForm'),
+      createModal: document.getElementById('createModal'),
+      openCreateModal: document.getElementById('openCreateModal'),
+      closeCreateModal: document.getElementById('closeCreateModal'),
       updateForm: document.getElementById('updateForm'),
       bulkEditForm: document.getElementById('bulkEditForm'),
+      bulkEditModal: document.getElementById('bulkEditModal'),
+      openBulkEditModal: document.getElementById('openBulkEditModal'),
+      closeBulkEditModal: document.getElementById('closeBulkEditModal'),
       applyBulkEdit: document.getElementById('applyBulkEdit'),
       bulkEditHint: document.getElementById('bulkEditHint'),
       editHint: document.getElementById('editHint'),
@@ -516,6 +541,8 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function renderSignedOutState() {
+      closeModal(els.createModal);
+      closeModal(els.bulkEditModal);
       const standaloneAdminPage = isStandaloneAdminPage();
       const standaloneLoginPage = isStandaloneLoginPage();
       els.loginForm.hidden = false;
@@ -583,6 +610,7 @@ const adminPrototypeHTML = `<!doctype html>
       els.bulkEditHint.textContent = 'Sign in to apply shared updates.';
       renderPagination();
       syncBulkActionState();
+      syncWorkspaceActionState();
     }
 
     function logout(message) {
@@ -742,6 +770,31 @@ const adminPrototypeHTML = `<!doctype html>
         return;
       }
       els.actions.innerHTML = actions.map((action) => '<span class="action-pill">' + escapeHTML(formatActionLabel(action)) + '</span>').join('');
+    }
+
+    function openModal(modal) {
+      if (!modal || modal.hidden) {
+        if (modal) {
+          modal.hidden = false;
+        }
+      }
+      document.body.classList.add('modal-open');
+    }
+
+    function closeModal(modal) {
+      if (modal) {
+        modal.hidden = true;
+      }
+      if (els.createModal.hidden && els.bulkEditModal.hidden) {
+        document.body.classList.remove('modal-open');
+      }
+    }
+
+    function syncWorkspaceActionState() {
+      const createEnabled = Boolean(state.current && hasAction('create'));
+      const bulkEditEnabled = Boolean(state.current && selectedIDs().length && hasAction('update'));
+      els.openCreateModal.disabled = !createEnabled;
+      els.openBulkEditModal.disabled = !bulkEditEnabled;
     }
 
     function renderResourceSummary() {
@@ -1051,6 +1104,7 @@ const adminPrototypeHTML = `<!doctype html>
       els.bulkEditHint.textContent = count
         ? ('Applying changes to ' + count + ' selected record(s).')
         : 'Select rows to apply shared updates.';
+      syncWorkspaceActionState();
     }
 
     function formPayload(form) {
@@ -1254,6 +1308,7 @@ const adminPrototypeHTML = `<!doctype html>
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderBulkEditForm(), renderList()]);
         renderSelectedRecord();
         syncBulkActionState();
+        syncWorkspaceActionState();
         setStatus('Loaded resource ' + resource.name + '.');
       } catch (error) {
         setStatus(String(error.message || error));
@@ -1304,6 +1359,28 @@ const adminPrototypeHTML = `<!doctype html>
       logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
     };
     els.loadResources.onclick = loadResources;
+    els.openCreateModal.onclick = () => {
+      if (els.openCreateModal.disabled) return;
+      openModal(els.createModal);
+    };
+    els.openBulkEditModal.onclick = () => {
+      if (els.openBulkEditModal.disabled) return;
+      openModal(els.bulkEditModal);
+    };
+    els.closeCreateModal.onclick = () => closeModal(els.createModal);
+    els.closeBulkEditModal.onclick = () => closeModal(els.bulkEditModal);
+    [els.createModal, els.bulkEditModal].forEach((modal) => {
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+          closeModal(modal);
+        }
+      });
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeModal(els.createModal);
+      closeModal(els.bulkEditModal);
+    });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
     els.clearFilters.onclick = () => {
       if (!state.current) return;
@@ -1358,6 +1435,7 @@ const adminPrototypeHTML = `<!doctype html>
           body: JSON.stringify(formPayload(els.createForm))
         });
         await renderCreateForm();
+        closeModal(els.createModal);
         await reloadListWithStatus('Created a new ' + state.current.name + ' record.', true);
       } catch (error) {
         setStatus(String(error.message || error));
@@ -1398,6 +1476,7 @@ const adminPrototypeHTML = `<!doctype html>
           await selectRecord({ id: recordPrimaryKey(state.selected.item) });
         }
         await renderBulkEditForm();
+        closeModal(els.bulkEditModal);
         await reloadListWithStatus('Bulk updated ' + selectedIDs().length + ' record(s).', false);
       } catch (error) {
         setStatus(String(error.message || error));
