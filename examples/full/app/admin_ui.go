@@ -33,7 +33,7 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-warning: #f39c12;
       --admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.2);
       --admin-radius: 0.5rem;
-      --admin-topbar-height: 64px;
+      --admin-topbar-height: 88px;
     }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
