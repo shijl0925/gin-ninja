@@ -354,6 +354,9 @@ const adminPrototypeHTML = `<!doctype html>
     .sidebar-shell {
       position:sticky;
       top:calc(var(--admin-topbar-height) + var(--admin-content-gap));
+      display:flex;
+      flex-direction:column;
+      min-height:calc(100vh - var(--admin-topbar-height) - (var(--admin-content-gap) * 2));
       background:var(--admin-sidebar);
       color:var(--admin-sidebar-text);
       border:none;
@@ -466,7 +469,10 @@ const adminPrototypeHTML = `<!doctype html>
     .sidebar-nav-shell {
       display:grid;
       gap:12px;
+      flex:1 1 auto;
+      align-content:start;
       padding:6px 10px 18px;
+      overflow:auto;
     }
     .sidebar-section-label {
       font-size:11px;
@@ -675,6 +681,32 @@ const adminPrototypeHTML = `<!doctype html>
     body.legacy-prototype-page .topbar {
       background:#fff;
     }
+    @media (min-width: 1121px) {
+      body.standalone-admin-page .topbar,
+      body.legacy-prototype-page .topbar {
+        width:calc(100% - var(--admin-sidebar-width));
+        margin-left:var(--admin-sidebar-width);
+      }
+      body.standalone-admin-page .app-main,
+      body.legacy-prototype-page .app-main {
+        margin-left:var(--admin-sidebar-width);
+      }
+      body.standalone-admin-page .admin-shell,
+      body.legacy-prototype-page .admin-shell {
+        grid-template-columns:minmax(0, 1fr);
+      }
+      body.standalone-admin-page .sidebar-shell,
+      body.legacy-prototype-page .sidebar-shell {
+        position:fixed;
+        top:0;
+        left:0;
+        bottom:0;
+        width:var(--admin-sidebar-width);
+        min-height:100vh;
+        border-radius:0;
+        z-index:35;
+      }
+    }
     body.standalone-admin-page .topbar-brand,
     body.legacy-prototype-page .topbar-brand {
       display:none;
@@ -684,7 +716,10 @@ const adminPrototypeHTML = `<!doctype html>
     }
     @media (max-width: 1120px) {
       .admin-shell { grid-template-columns:1fr; }
-      .sidebar-shell { position:static; }
+      .sidebar-shell {
+        position:static;
+        min-height:0;
+      }
     }
     @media (max-width: 960px) {
       body.standalone-login-page .login-shell { grid-template-columns:1fr; }
