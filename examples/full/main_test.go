@@ -450,6 +450,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "const adminPagePath = '/admin'") {
 		t.Fatalf("expected standalone admin path in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "Admin Workspace") {
+		t.Fatalf("expected polished admin workspace header in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "Refresh workspace") {
+		t.Fatalf("expected admin workspace toolbar action in html: %q", adminHTML)
+	}
 	if !strings.Contains(adminHTML, "window.location.replace(adminLoginPath)") {
 		t.Fatalf("expected standalone admin redirect to /admin/login in html: %q", adminHTML)
 	}
@@ -517,6 +523,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "paginationInfo") {
 		t.Fatalf("expected pagination controls in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"status\" class=\"status-banner\"") {
+		t.Fatalf("expected status banner styling in html: %q", html)
+	}
+	if !strings.Contains(html, "button.className = 'nav-link'") {
+		t.Fatalf("expected active resource navigation styling in html: %q", html)
+	}
+	if !strings.Contains(html, "renderActionSummary()") {
+		t.Fatalf("expected action pill rendering in html: %q", html)
 	}
 	if !strings.Contains(html, "detail-layout") {
 		t.Fatalf("expected detail layout styles in html: %q", html)

@@ -14,95 +14,142 @@ const adminPrototypeHTML = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gin Ninja Admin</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f6f7fb; color: #1f2937; }
-    header, main { max-width: 1280px; margin: 0 auto; padding: 16px; }
-    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-    .grid { display: grid; gap: 16px; grid-template-columns: 260px 1fr; }
-    .login-shell { display:grid; gap:16px; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #eef2f7; color: #0f172a; }
+    .topbar, .app-main { max-width: 1480px; margin: 0 auto; padding: 20px 24px; }
+    .topbar { display:flex; gap:20px; align-items:flex-start; justify-content:space-between; }
+    .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:8px; }
+    .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
+    .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
+    .topbar-meta { justify-items:end; min-width:280px; }
+    .app-main { display:grid; gap:20px; padding-top:0; }
+    .panel { background:#fff; border:1px solid #dbe2ea; border-radius:18px; padding:20px; box-shadow:0 12px 30px rgba(15, 23, 42, 0.06); }
+    .stack { display:grid; gap:16px; }
+    .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .row-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .eyebrow { display:inline-flex; width:max-content; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#dbeafe; color:#1d4ed8; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; }
+    .eyebrow.subtle { background:#e2e8f0; color:#334155; }
+    .badge { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; background:#eef2ff; color:#3730a3; border-radius:999px; padding:7px 12px; }
+    .status-banner { border-radius:16px; border:1px solid #dbe2ea; background:#fff; color:#334155; padding:14px 16px; font-size:14px; line-height:1.5; box-shadow:0 10px 24px rgba(15, 23, 42, 0.05); }
+    .status-banner[data-tone="info"] { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+    .status-banner[data-tone="success"] { background:#ecfdf5; border-color:#a7f3d0; color:#047857; }
+    .status-banner[data-tone="danger"] { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+    .login-shell { display:grid; gap:20px; }
     .session-panel { position:relative; overflow:hidden; }
-    .session-toolbar-copy { display:grid; gap:4px; }
     .login-marketing, .login-lead, .login-credentials { display:none; }
-    .eyebrow { display:inline-flex; width:max-content; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#e0e7ff; color:#3730a3; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; }
     .login-marketing { align-content:start; }
     .login-marketing h2, .login-lead h2 { margin:0; line-height:1.1; }
-    .login-marketing p, .login-lead p { margin:0; }
     .login-feature-list { display:grid; gap:12px; }
     .login-feature { display:grid; gap:4px; padding:16px 18px; background:rgba(255,255,255,0.08); border:1px solid rgba(191,219,254,0.18); border-radius:16px; }
     .login-feature strong { font-size:15px; }
-    .login-credentials { gap:8px; padding:12px 14px; border-radius:12px; background:#f8fafc; border:1px solid #dbeafe; }
+    .login-credentials { gap:8px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid #dbeafe; }
     .login-credentials code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; background:#fff; border:1px solid #dbeafe; border-radius:8px; padding:2px 6px; }
-    .two-col { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-    .stack { display: grid; gap: 12px; }
-    .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-    .row-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .admin-shell { display:grid; gap:20px; grid-template-columns: 300px minmax(0, 1fr); align-items:start; }
+    .sidebar-panel { position:sticky; top:20px; }
+    .nav-list { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+    .nav-list li { margin:0; }
+    .nav-link { width:100%; text-align:left; background:#f8fafc; color:#0f172a; border:1px solid #dbe2ea; padding:14px 16px; border-radius:14px; display:grid; gap:4px; font-weight:600; }
+    .nav-link:hover { background:#eff6ff; border-color:#bfdbfe; }
+    .nav-link.active { background:linear-gradient(135deg, #1d4ed8 0%, #3730a3 100%); border-color:#1d4ed8; color:#fff; box-shadow:0 14px 28px rgba(37, 99, 235, 0.22); }
+    .workspace { min-width:0; }
+    .workspace-header { display:grid; gap:16px; }
+    .workspace-meta { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .action-pills { display:flex; gap:8px; flex-wrap:wrap; }
+    .action-pill { display:inline-flex; align-items:center; border-radius:999px; padding:7px 12px; background:#f8fafc; border:1px solid #dbe2ea; color:#475569; font-size:12px; font-weight:600; text-transform:capitalize; }
+    .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1.5fr) minmax(320px, 0.9fr); }
+    .section-shell { display:grid; gap:16px; }
+    .section-heading { display:grid; gap:6px; }
+    .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
     .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-    .inline-field { display:grid; gap:6px; font-size: 14px; }
-    .field-help { font-size: 12px; color: #6b7280; }
-    .relation-control { display:grid; gap:8px; }
+    .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#334155; }
+    .field-help, .muted { font-size:13px; color:#64748b; }
+    .relation-control { display:grid; gap:10px; }
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
-    .relation-preview li { font-size:12px; color:#374151; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:6px 8px; }
+    .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; }
     .relation-preview mark { background:#fef3c7; padding:0; }
-    .detail-layout { display:grid; gap:16px; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); }
-    .detail-card { border:1px solid #e5e7eb; border-radius:10px; padding:16px; background:#fff; }
+    .detail-layout { display:grid; gap:16px; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); }
+    .detail-card { border:1px solid #e2e8f0; border-radius:16px; padding:18px; background:#fff; }
     .detail-grid { display:grid; gap:10px; }
-    .detail-row { display:grid; grid-template-columns: 180px 1fr; gap:12px; border-bottom:1px solid #f3f4f6; padding-bottom:10px; }
+    .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf2f7; padding-bottom:10px; }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
-    .detail-label { font-size:12px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.04em; }
-    .detail-value { font-size:14px; word-break:break-word; }
-    .badge { display:inline-flex; align-items:center; gap:6px; font-size:12px; background:#eef2ff; color:#3730a3; border-radius:999px; padding:6px 10px; }
+    .detail-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em; }
+    .detail-value { font-size:14px; word-break:break-word; color:#0f172a; }
     .bulk-edit-fields { display:grid; gap:12px; }
-    .bulk-edit-field { border:1px solid #e5e7eb; border-radius:10px; padding:12px; background:#f9fafb; }
-    .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-    .pagination-info { font-size:14px; color:#6b7280; }
-    label { display:grid; gap:6px; font-size:14px; }
-    input, select, textarea, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #d1d5db; }
-    textarea { min-height: 96px; }
-    button { cursor: pointer; background: #111827; color: #fff; }
-    button.secondary { background: #fff; color: #111827; }
-    button.danger { background: #b91c1c; }
-    button:disabled, input:disabled, select:disabled, textarea:disabled { opacity: 0.6; cursor: not-allowed; }
-    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-    li button { width: 100%; text-align: left; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #e5e7eb; padding: 8px; text-align: left; font-size: 14px; vertical-align: top; }
-    pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #111827; color: #f9fafb; padding: 12px; border-radius: 8px; }
-    .muted { color: #6b7280; font-size: 14px; }
+    .bulk-edit-field { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; }
+    .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .pagination-info { font-size:14px; color:#64748b; }
+    .table-shell { overflow:auto; border:1px solid #e2e8f0; border-radius:16px; background:#fff; }
+    .empty-state { border:1px dashed #cbd5e1; border-radius:16px; padding:28px 20px; background:#fff; color:#64748b; text-align:center; }
+    label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#334155; }
+    input, select, textarea, button { font: inherit; padding: 11px 13px; border-radius: 12px; border: 1px solid #cbd5e1; background:#fff; color:#0f172a; transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease; }
+    input:focus, select:focus, textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59, 130, 246, 0.18); }
+    textarea { min-height: 112px; }
+    button { cursor:pointer; background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); color:#fff; border-color:transparent; font-weight:600; }
+    button.secondary { background:#fff; color:#0f172a; border-color:#cbd5e1; }
+    button.danger { background:linear-gradient(135deg, #991b1b 0%, #dc2626 100%); }
+    button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
+    table { width:100%; border-collapse:separate; border-spacing:0; min-width:720px; }
+    th, td { border-bottom:1px solid #e2e8f0; padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
+    th { background:#f8fafc; color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }
+    tbody tr:hover { background:#f8fbff; }
+    tbody tr.row-selected { background:#eff6ff; }
+    pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:14px; }
     body.standalone-login-page { background:
       radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 36%),
       radial-gradient(circle at bottom right, rgba(99,102,241,0.22), transparent 34%),
       linear-gradient(180deg, #eef4ff 0%, #f8fafc 45%, #eef2ff 100%);
     }
-    body.standalone-login-page header,
-    body.standalone-login-page main { max-width: 1120px; padding: 24px; }
-    body.standalone-login-page header { padding-top: 48px; }
+    body.standalone-login-page .topbar,
+    body.standalone-login-page .app-main { max-width:1120px; padding:24px; }
+    body.standalone-login-page .topbar { padding-top:48px; }
     body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.1fr) minmax(360px, 420px); align-items:stretch; }
     body.standalone-login-page .login-marketing { display:grid; gap:18px; color:#e5eefb; background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); border-radius:24px; padding:32px; box-shadow:0 24px 60px rgba(15, 23, 42, 0.22); }
     body.standalone-login-page .login-lead,
     body.standalone-login-page .login-credentials { display:grid; }
     body.standalone-login-page .session-panel { margin:0; padding:28px; border-color:#dbeafe; border-radius:24px; box-shadow:0 24px 60px rgba(15, 23, 42, 0.12); }
-    body.standalone-login-page #sessionToolbar { display:none; }
     body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
     body.standalone-login-page #loginForm label { font-size:13px; font-weight:600; color:#475569; }
     body.standalone-login-page input { min-height:48px; border-color:#cbd5e1; background:#fff; }
     body.standalone-login-page button { min-height:48px; }
     body.standalone-login-page #loginButton { width:100%; background:linear-gradient(135deg, #111827 0%, #1d4ed8 100%); box-shadow:0 12px 24px rgba(29, 78, 216, 0.2); }
-    body.standalone-login-page #status { background:#0f172a; border:1px solid #0f172a; }
-    body.standalone-login-page #authBadge { background:#eff6ff; color:#1d4ed8; }
+    body.standalone-login-page #status { background:#0f172a; border-color:#0f172a; color:#e2e8f0; }
+    @media (max-width: 1180px) {
+      .admin-shell, .content-grid, .detail-layout { grid-template-columns:1fr; }
+      .sidebar-panel { position:static; }
+    }
     @media (max-width: 960px) {
-      .grid, .detail-layout, body.standalone-login-page .login-shell { grid-template-columns: 1fr; }
-      body.standalone-login-page header,
-      body.standalone-login-page main { padding: 16px; }
-      body.standalone-login-page header { padding-top: 24px; }
+      body.standalone-login-page .login-shell { grid-template-columns:1fr; }
+      .topbar, .app-main, body.standalone-login-page .topbar, body.standalone-login-page .app-main { padding:16px; }
+      body.standalone-login-page .topbar { padding-top:24px; }
+      .topbar { flex-direction:column; }
+      .topbar-meta { justify-items:start; width:100%; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1 id="pageTitle">Gin Ninja Admin</h1>
-    <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span id="shellEyebrow" class="eyebrow">Admin Console</span>
+      <div class="topbar-copy">
+        <h1 id="pageTitle">Gin Ninja Admin</h1>
+        <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+      </div>
+    </div>
+    <div class="topbar-meta">
+      <div class="panel stack">
+        <span id="authBadge" class="badge">Logged out</span>
+        <p id="authDescription" class="muted">Sign in to access the example admin APIs.</p>
+      </div>
+      <div id="sessionActions" class="row-actions" hidden>
+        <button id="loadResources" type="button" class="secondary">Refresh workspace</button>
+        <button id="clearToken" type="button">Sign out</button>
+      </div>
+    </div>
   </header>
-  <main class="stack">
-    <section class="login-shell">
+  <main class="app-main">
+    <div id="status" class="status-banner" data-tone="neutral">Ready.</div>
+    <section id="sessionShell" class="login-shell">
       <section class="login-marketing">
         <span class="eyebrow">Admin Console</span>
         <div class="stack">
@@ -125,142 +172,153 @@ const adminPrototypeHTML = `<!doctype html>
         </div>
       </section>
       <section class="panel stack session-panel">
-      <div id="sessionToolbar" class="toolbar">
-        <div>
-          <h2 style="margin:0;">Admin session</h2>
-          <p id="authDescription" class="muted">Sign in to access the example admin APIs.</p>
+        <div class="login-lead">
+          <span class="eyebrow">Secure Sign In</span>
+          <h2>Welcome back</h2>
+          <p class="muted">Authenticate with the seeded demo admin account to enter the standalone console.</p>
         </div>
-        <span id="authBadge" class="badge">Logged out</span>
-      </div>
-      <div class="login-lead">
-        <span class="eyebrow">Secure Sign In</span>
-        <h2>Welcome back</h2>
-        <p class="muted">Authenticate with the seeded demo admin account to enter the standalone console.</p>
-      </div>
-      <div class="login-credentials">
-        <strong>Demo credentials</strong>
-        <div class="muted">Email: <code>alice@example.com</code></div>
-        <div class="muted">Password: <code>password123</code></div>
-      </div>
-      <form id="loginForm" class="two-col">
-        <label>Email
-          <input id="loginEmail" type="email" placeholder="alice@example.com" autocomplete="username email">
-        </label>
-        <label>Password
-          <input id="loginPassword" type="password" placeholder="password123" autocomplete="current-password">
-        </label>
-        <div class="row-actions">
-          <button id="loginButton" type="submit">Sign in</button>
+        <div class="login-credentials">
+          <strong>Demo credentials</strong>
+          <div class="muted">Email: <code>alice@example.com</code></div>
+          <div class="muted">Password: <code>password123</code></div>
         </div>
-      </form>
-      <div id="sessionActions" class="row-actions" hidden>
-        <button id="loadResources" type="button">Load resources</button>
-        <button id="clearToken" type="button" class="secondary">Logout</button>
-      </div>
-      <div id="manualTokenTools" class="stack">
-        <label>JWT token
-          <input id="token" placeholder="Paste a Bearer token from /api/v1/auth/login" autocomplete="off">
-        </label>
-        <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
-      </div>
-      <pre id="status">Ready.</pre>
+        <form id="loginForm" class="two-col">
+          <label>Email
+            <input id="loginEmail" type="email" placeholder="alice@example.com" autocomplete="username email">
+          </label>
+          <label>Password
+            <input id="loginPassword" type="password" placeholder="password123" autocomplete="current-password">
+          </label>
+          <div class="row-actions">
+            <button id="loginButton" type="submit">Sign in</button>
+          </div>
+        </form>
+        <div id="manualTokenTools" class="stack">
+          <label>JWT token
+            <input id="token" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
+          </label>
+          <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
+        </div>
       </section>
     </section>
-    <section id="adminShell" class="grid" hidden>
-      <aside class="panel">
-        <h2>Resources</h2>
-        <ul id="resources"></ul>
-      </aside>
-      <section class="stack">
-        <section class="panel">
-          <div class="toolbar">
-            <div>
-              <h2 id="resourceTitle">Select a resource</h2>
-              <p id="resourcePath" class="muted"></p>
+    <section id="adminShell" class="admin-shell" hidden>
+      <aside>
+        <section class="panel sidebar-panel stack">
+          <div class="sidebar-heading">
+            <span class="eyebrow subtle">Navigation</span>
+            <div class="stack" style="gap:4px;">
+              <h2>Resources</h2>
+              <p class="muted">Choose a resource to manage records, filters, and bulk actions.</p>
             </div>
+          </div>
+          <ul id="resources" class="nav-list"></ul>
+        </section>
+      </aside>
+      <section class="workspace stack">
+        <section class="panel workspace-header">
+          <div class="stack" style="gap:6px;">
+            <span class="eyebrow subtle">Admin Workspace</span>
+            <h2 id="resourceTitle">Select a resource</h2>
+            <p id="resourcePath" class="muted">Sign in to open a resource workspace.</p>
+          </div>
+          <div class="workspace-meta">
+            <div id="actions" class="action-pills muted">No actions available yet.</div>
             <span id="selectedCountBadge" class="badge">0 selected</span>
           </div>
-          <div id="actions" class="muted"></div>
         </section>
-        <section class="panel stack">
-          <div class="toolbar">
-            <div>
-              <h3 style="margin:0;">Change form</h3>
-              <p id="selectionHint" class="muted">Select a row to inspect and edit it.</p>
-            </div>
-            <button id="deleteRecord" class="danger" type="button">Delete</button>
-          </div>
-          <div class="detail-layout">
-            <section class="stack">
-              <div class="detail-card stack">
-                <div class="toolbar">
-                  <strong id="detailTitle">No record selected</strong>
-                  <span id="detailObjectBadge" class="badge">Draft view</span>
+        <section class="content-grid">
+          <section class="stack">
+            <section class="panel section-shell">
+              <div class="toolbar">
+                <div class="section-heading">
+                  <h3 class="section-title">Record workspace</h3>
+                  <p id="selectionHint" class="section-copy muted">Select a row to inspect and edit it.</p>
                 </div>
-                <div id="detailFields" class="detail-grid">
-                  <p class="muted">No record selected.</p>
-                </div>
+                <button id="deleteRecord" class="danger" type="button">Delete record</button>
               </div>
-              <div class="detail-card stack">
-                <strong>Raw payload</strong>
-                <pre id="detail">No record selected.</pre>
+              <div class="detail-layout">
+                <section class="stack">
+                  <div class="detail-card stack">
+                    <div class="toolbar">
+                      <strong id="detailTitle">No record selected</strong>
+                      <span id="detailObjectBadge" class="badge">Draft view</span>
+                    </div>
+                    <div id="detailFields" class="detail-grid">
+                      <p class="muted">No record selected.</p>
+                    </div>
+                  </div>
+                  <div class="detail-card stack">
+                    <strong>Reference payload</strong>
+                    <pre id="detail">No record selected.</pre>
+                  </div>
+                </section>
+                <section class="detail-card stack">
+                  <div class="section-heading">
+                    <h4 class="section-title">Edit record</h4>
+                    <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
+                  </div>
+                  <form id="updateForm" class="stack"></form>
+                </section>
               </div>
             </section>
-            <section class="detail-card stack">
-              <div>
-                <h4 style="margin:0 0 4px 0;">Edit record</h4>
-                <p class="muted" id="editHint">Select a row to open the change form.</p>
+            <section class="panel section-shell">
+              <div class="toolbar">
+                <div class="section-heading">
+                  <h3 class="section-title">Records</h3>
+                  <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
+                </div>
+                <div class="row-actions">
+                  <button id="reloadList" class="secondary" type="button">Refresh list</button>
+                  <button id="clearFilters" class="secondary" type="button">Clear filters</button>
+                  <button id="bulkDelete" class="danger" type="button">Bulk delete</button>
+                </div>
               </div>
-              <form id="updateForm" class="stack"></form>
+              <div class="table-toolbar">
+                <div class="row-actions">
+                  <input id="search" placeholder="Search current resource">
+                  <select id="sort"></select>
+                  <select id="pageSize">
+                    <option value="5">5 / page</option>
+                    <option value="10" selected>10 / page</option>
+                    <option value="20">20 / page</option>
+                    <option value="50">50 / page</option>
+                  </select>
+                </div>
+                <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+              </div>
+              <form id="filtersForm" class="filters"></form>
+              <div class="pagination-bar">
+                <div class="muted">Use filters to refine the current workspace.</div>
+                <div class="row-actions">
+                  <button id="prevPage" class="secondary" type="button">Previous</button>
+                  <button id="nextPage" class="secondary" type="button">Next</button>
+                </div>
+              </div>
+              <div id="list"></div>
             </section>
-          </div>
-        </section>
-        <section class="two-col">
-          <section class="panel">
-            <h3>Create record</h3>
-            <form id="createForm" class="stack"></form>
           </section>
-          <section class="panel stack">
-            <div class="toolbar">
-              <div>
-                <h3 style="margin:0;">Bulk edit</h3>
-                <p id="bulkEditHint" class="muted">Select rows to apply shared updates.</p>
+          <aside class="stack">
+            <section class="panel section-shell">
+              <div class="section-heading">
+                <h3 class="section-title">Create record</h3>
+                <p class="section-copy muted">Use the same admin layout to add a new record to the active resource.</p>
               </div>
-              <button id="applyBulkEdit" type="submit" form="bulkEditForm">Apply to selected</button>
-            </div>
-            <form id="bulkEditForm" class="bulk-edit-fields"></form>
-          </section>
-        </section>
-        <section class="panel stack">
-          <div class="toolbar">
-            <h3 style="margin:0;">List records</h3>
-            <div class="row-actions">
-              <input id="search" placeholder="Search current resource">
-              <select id="sort"></select>
-              <select id="pageSize">
-                <option value="5">5 / page</option>
-                <option value="10" selected>10 / page</option>
-                <option value="20">20 / page</option>
-                <option value="50">50 / page</option>
-              </select>
-              <button id="reloadList" class="secondary" type="button">Reload list</button>
-              <button id="clearFilters" class="secondary" type="button">Clear filters</button>
-              <button id="bulkDelete" class="danger" type="button">Bulk delete</button>
-            </div>
-          </div>
-          <form id="filtersForm" class="filters"></form>
-          <div class="pagination-bar">
-            <div id="paginationInfo" class="pagination-info">Page 1 of 1</div>
-            <div class="row-actions">
-              <button id="prevPage" class="secondary" type="button">Previous</button>
-              <button id="nextPage" class="secondary" type="button">Next</button>
-            </div>
-          </div>
-          <div id="list"></div>
+              <form id="createForm" class="stack"></form>
+            </section>
+            <section class="panel section-shell">
+              <div class="toolbar">
+                <div class="section-heading">
+                  <h3 class="section-title">Bulk edit</h3>
+                  <p id="bulkEditHint" class="section-copy muted">Select rows to apply shared updates.</p>
+                </div>
+                <button id="applyBulkEdit" type="submit" form="bulkEditForm">Apply to selected</button>
+              </div>
+              <form id="bulkEditForm" class="bulk-edit-fields"></form>
+            </section>
+          </aside>
         </section>
       </section>
     </section>
-  </main>
   <script>
     const apiBase = '/api/v1/admin';
     const tokenStorageKey = 'gin-ninja-admin-token';
@@ -291,9 +349,11 @@ const adminPrototypeHTML = `<!doctype html>
       authBadge: document.getElementById('authBadge'),
       authDescription: document.getElementById('authDescription'),
       sessionActions: document.getElementById('sessionActions'),
+      sessionShell: document.getElementById('sessionShell'),
       status: document.getElementById('status'),
       pageTitle: document.getElementById('pageTitle'),
       pageIntro: document.getElementById('pageIntro'),
+      shellEyebrow: document.getElementById('shellEyebrow'),
       adminShell: document.getElementById('adminShell'),
       resources: document.getElementById('resources'),
       resourceTitle: document.getElementById('resourceTitle'),
@@ -326,8 +386,24 @@ const adminPrototypeHTML = `<!doctype html>
       search: document.getElementById('search')
     };
 
-    function setStatus(value) {
+    function inferStatusTone(value) {
+      const message = String(value || '').toLowerCase();
+      if (!message) return 'neutral';
+      if (message.includes('expired') || message.includes('error') || message.includes('failed') || message.includes('did not') || message.includes('no primary key')) {
+        return 'danger';
+      }
+      if (message.includes('signed in') || message.includes('created') || message.includes('updated') || message.includes('deleted') || message.includes('cleared') || message.includes('signed out')) {
+        return 'success';
+      }
+      if (message.includes('loaded') || message.includes('redirect') || message.includes('ready') || message.includes('restored')) {
+        return 'info';
+      }
+      return 'neutral';
+    }
+
+    function setStatus(value, tone) {
       els.status.textContent = value;
+      els.status.dataset.tone = tone || inferStatusTone(value);
     }
 
     function currentPagePath() {
@@ -363,19 +439,22 @@ const adminPrototypeHTML = `<!doctype html>
       document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage());
       if (isStandaloneLoginPage()) {
         document.title = 'Gin Ninja Admin Login';
+        els.shellEyebrow.textContent = 'Admin Login';
         els.pageTitle.textContent = 'Gin Ninja Admin Login';
         els.pageIntro.textContent = 'Sign in to enter the example admin console.';
         return;
       }
       if (isStandaloneAdminPage()) {
         document.title = 'Gin Ninja Admin';
+        els.shellEyebrow.textContent = 'Admin Console';
         els.pageTitle.textContent = 'Gin Ninja Admin';
-        els.pageIntro.textContent = 'A standalone admin console backed by the example admin APIs.';
+        els.pageIntro.textContent = 'An operations workspace for the example back-office experience.';
         return;
       }
       document.title = 'Gin Ninja Admin Prototype';
+      els.shellEyebrow.textContent = 'Prototype Demo';
       els.pageTitle.textContent = 'Gin Ninja Admin Prototype';
-      els.pageIntro.textContent = 'A minimal metadata-driven admin UI for the example admin APIs.';
+      els.pageIntro.textContent = 'A sandboxed version of the metadata-driven admin workspace.';
     }
 
     function redirectToLogin(message) {
@@ -426,6 +505,7 @@ const adminPrototypeHTML = `<!doctype html>
       const standaloneAdminPage = isStandaloneAdminPage();
       const standaloneLoginPage = isStandaloneLoginPage();
       els.loginForm.hidden = standaloneAdminPage;
+      els.sessionShell.hidden = false;
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = standaloneLoginPage;
       els.adminShell.hidden = true;
@@ -437,14 +517,16 @@ const adminPrototypeHTML = `<!doctype html>
 
     function renderSignedInState() {
       const standaloneLoginPage = isStandaloneLoginPage();
+      const standaloneAdminPage = isStandaloneAdminPage();
       els.loginForm.hidden = true;
       els.sessionActions.hidden = standaloneLoginPage;
-      els.manualTokenTools.hidden = standaloneLoginPage;
+      els.sessionShell.hidden = standaloneAdminPage;
+      els.manualTokenTools.hidden = standaloneLoginPage || standaloneAdminPage;
       els.adminShell.hidden = standaloneLoginPage;
       els.authBadge.textContent = state.auth.name ? ('Signed in as ' + state.auth.name) : 'Authenticated';
       els.authDescription.textContent = state.auth.name
-        ? ('JWT session ready for ' + state.auth.name + '.')
-        : 'JWT session ready for the example admin APIs.';
+        ? ('Workspace ready for ' + state.auth.name + '.')
+        : 'Workspace ready for the example admin APIs.';
     }
 
     function renderAuthState() {
@@ -472,10 +554,10 @@ const adminPrototypeHTML = `<!doctype html>
       state.relationSearch = {};
       state.relationTimers = {};
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
-      els.resources.innerHTML = '';
+      renderResources();
       els.resourceTitle.textContent = 'Select a resource';
-      els.resourcePath.textContent = '';
-      els.actions.textContent = 'Sign in to load admin resources.';
+      els.resourcePath.textContent = 'Sign in to open a resource workspace.';
+      els.actions.innerHTML = '<span class="muted">Sign in to load admin resources.</span>';
       els.detailTitle.textContent = 'No record selected';
       els.detailObjectBadge.textContent = 'Draft view';
       els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
@@ -485,7 +567,7 @@ const adminPrototypeHTML = `<!doctype html>
       els.bulkEditForm.innerHTML = '<p class="muted">Sign in to apply bulk edits.</p>';
       els.filtersForm.innerHTML = '';
       els.sort.innerHTML = '';
-      els.list.innerHTML = '<p class="muted">Sign in to browse records.</p>';
+      els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
       els.selectionHint.textContent = 'Sign in to inspect and edit records.';
       els.editHint.textContent = 'Sign in to open the change form.';
       els.bulkEditHint.textContent = 'Sign in to apply shared updates.';
@@ -631,11 +713,37 @@ const adminPrototypeHTML = `<!doctype html>
         const li = document.createElement('li');
         const button = document.createElement('button');
         button.type = 'button';
+        button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
         button.textContent = resource.label + ' (' + resource.name + ')';
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
         els.resources.appendChild(li);
       });
+    }
+
+    function formatActionLabel(action) {
+      return String(action || '').replaceAll('_', ' ');
+    }
+
+    function renderActionSummary() {
+      const actions = state.meta?.actions || [];
+      if (!actions.length) {
+        els.actions.innerHTML = '<span class="muted">No actions available for this resource.</span>';
+        return;
+      }
+      els.actions.innerHTML = actions.map((action) => '<span class="action-pill">' + escapeHTML(formatActionLabel(action)) + '</span>').join('');
+    }
+
+    function renderResourceSummary() {
+      if (!state.current || !state.meta) {
+        els.resourcePath.textContent = 'Sign in to open a resource workspace.';
+        return;
+      }
+      if (isLegacyPrototypePage()) {
+        els.resourcePath.textContent = currentBasePath();
+        return;
+      }
+      els.resourcePath.textContent = 'Manage ' + state.meta.label.toLowerCase() + ' records, review detail panels, and run bulk actions.';
     }
 
     function renderSortOptions() {
@@ -776,7 +884,7 @@ const adminPrototypeHTML = `<!doctype html>
         preview.className = 'relation-preview';
         const help = document.createElement('div');
         help.className = 'field-help';
-        help.textContent = 'Debounced search updates /fields/' + field.name + '/options and highlights matches below.';
+        help.textContent = 'Search related records and choose the best matching option for this field.';
         wrapper.appendChild(searchInput);
         wrapper.appendChild(select);
         wrapper.appendChild(preview);
@@ -822,6 +930,7 @@ const adminPrototypeHTML = `<!doctype html>
         const field = fieldMeta(name);
         if (!field) continue;
         const wrapper = document.createElement('label');
+        wrapper.className = 'form-field';
         wrapper.textContent = field.label;
         const control = await buildFieldControl(field, values[name], scopeKey);
         wrapper.appendChild(control);
@@ -899,13 +1008,14 @@ const adminPrototypeHTML = `<!doctype html>
         els.detailObjectBadge.textContent = 'Draft view';
         els.detail.textContent = 'No record selected.';
         els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
+        highlightSelectedRow();
         return;
       }
       const record = state.selected.item || {};
       const recordID = recordPrimaryKey(record);
-      els.selectionHint.textContent = 'Reviewing record #' + recordID + ' in a Django-style change form layout.';
+      els.selectionHint.textContent = 'Reviewing record #' + recordID + ' in the admin workspace.';
       els.detailTitle.textContent = state.meta.label + ' #' + recordID;
-      els.detailObjectBadge.textContent = 'Object detail';
+      els.detailObjectBadge.textContent = 'Record overview';
       els.detail.textContent = JSON.stringify(record, null, 2);
       const detailFields = state.meta?.detail_fields || Object.keys(record);
       detailFields.forEach((name) => {
@@ -981,9 +1091,16 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function renderPagination() {
-      els.paginationInfo.textContent = 'Page ' + state.pagination.page + ' of ' + state.pagination.pages + ' · ' + state.pagination.total + ' total row(s)';
+      els.paginationInfo.textContent = 'Page ' + state.pagination.page + ' of ' + state.pagination.pages + ' · ' + state.pagination.total + ' record(s)';
       els.prevPage.disabled = state.pagination.page <= 1;
       els.nextPage.disabled = state.pagination.page >= state.pagination.pages;
+    }
+
+    function highlightSelectedRow() {
+      const selectedID = state.selected ? String(recordPrimaryKey(state.selected.item)) : '';
+      els.list.querySelectorAll('tbody tr[data-record-id]').forEach((row) => {
+        row.classList.toggle('row-selected', row.dataset.recordId === selectedID);
+      });
     }
 
     async function renderList() {
@@ -1000,9 +1117,15 @@ const adminPrototypeHTML = `<!doctype html>
       };
       renderPagination();
       if (!fields.length) {
-        els.list.innerHTML = '<p class="muted">No list fields available.</p>';
+        els.list.innerHTML = '<div class="empty-state">No list fields are available for this resource.</div>';
         return;
       }
+      if (!rows.length) {
+        els.list.innerHTML = '<div class="empty-state">No records matched the current filters.</div>';
+        return;
+      }
+      const tableShell = document.createElement('div');
+      tableShell.className = 'table-shell';
       const table = document.createElement('table');
       const thead = document.createElement('thead');
       const headRow = document.createElement('tr');
@@ -1031,6 +1154,7 @@ const adminPrototypeHTML = `<!doctype html>
       rows.forEach((row) => {
         const tr = document.createElement('tr');
         const id = recordPrimaryKey(row);
+        tr.dataset.recordId = String(id);
         const checkCell = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -1045,7 +1169,7 @@ const adminPrototypeHTML = `<!doctype html>
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'secondary';
-        button.textContent = 'View';
+        button.textContent = 'Open';
         button.onclick = () => selectRecord(row);
         actionCell.appendChild(button);
         tr.appendChild(actionCell);
@@ -1057,8 +1181,10 @@ const adminPrototypeHTML = `<!doctype html>
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
+      tableShell.appendChild(table);
       els.list.innerHTML = '';
-      els.list.appendChild(table);
+      els.list.appendChild(tableShell);
+      highlightSelectedRow();
     }
 
     async function selectRecord(row) {
@@ -1070,6 +1196,7 @@ const adminPrototypeHTML = `<!doctype html>
         state.selected = await request(currentBasePath() + '/' + encodeURIComponent(String(id)));
         renderSelectedRecord();
         await renderUpdateForm();
+        highlightSelectedRow();
         setStatus('Loaded record #' + id + '.');
       } catch (error) {
         setStatus(String(error.message || error));
@@ -1108,9 +1235,10 @@ const adminPrototypeHTML = `<!doctype html>
       resetQueryState();
       try {
         state.meta = await request(currentBasePath() + '/meta');
+        renderResources();
         els.resourceTitle.textContent = state.meta.label;
-        els.resourcePath.textContent = currentBasePath();
-        els.actions.textContent = 'Actions: ' + (state.meta.actions || []).join(', ');
+        renderResourceSummary();
+        renderActionSummary();
         renderSortOptions();
         renderFilterControls();
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderBulkEditForm(), renderList()]);
