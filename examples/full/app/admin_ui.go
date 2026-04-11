@@ -728,6 +728,56 @@ const adminPrototypeHTML = `<!doctype html>
     .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 12px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
     .action-btn-view:hover { background:#f8f9fa; border-color:#adb5bd; }
     pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#1f2d3d; color:#e9ecef; padding:14px; border-radius:0.65rem; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .list-loading {
+      display:none;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      padding:36px 20px;
+      color:var(--admin-muted);
+      font-size:14px;
+    }
+    .list-loading.active { display:flex; }
+    .list-spinner {
+      width:22px;
+      height:22px;
+      border:3px solid #dee2e6;
+      border-top-color:var(--admin-primary);
+      border-radius:50%;
+      animation:spin 0.65s linear infinite;
+      flex-shrink:0;
+    }
+    .confirm-dialog { width:min(460px, 100%); }
+    .confirm-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+    .dashboard-tiles {
+      display:grid;
+      gap:16px;
+      grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+    }
+    .dashboard-tile {
+      display:grid;
+      gap:8px;
+      padding:20px 20px 18px;
+      border:1px solid var(--admin-border);
+      border-top:3px solid #d2d6de;
+      border-radius:var(--admin-radius);
+      background:#fff;
+      box-shadow:var(--admin-shadow);
+      cursor:pointer;
+      text-align:left;
+      color:var(--admin-text);
+      transition:border-top-color 120ms ease, box-shadow 120ms ease;
+    }
+    .dashboard-tile:hover { border-top-color:var(--admin-primary); box-shadow:0 4px 12px rgba(0,0,0,0.12); }
+    .dashboard-tile-count {
+      font-size:2rem;
+      font-weight:700;
+      color:var(--admin-primary);
+      line-height:1;
+    }
+    .dashboard-tile-label { font-size:15px; font-weight:600; }
+    .dashboard-tile-hint { font-size:12px; color:var(--admin-muted); }
     .sidebar-footer {
       padding:10px 16px;
       border-top:1px solid rgba(255,255,255,.1);
@@ -1002,6 +1052,13 @@ const adminPrototypeHTML = `<!doctype html>
             </div>
           </div>
         </section>
+        <section id="dashboardShell" class="panel stack" hidden>
+          <div class="section-heading">
+            <h3 class="section-title">Resources</h3>
+            <p class="section-copy muted">Select a resource below to open its workspace.</p>
+          </div>
+          <div id="dashboardTiles" class="dashboard-tiles"></div>
+        </section>
         <section class="content-grid">
           <section class="stack">
             <section class="panel section-shell">
@@ -1039,6 +1096,10 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
               </div>
               <div id="list"></div>
+              <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
+                <span class="list-spinner" aria-hidden="true"></span>
+                <span>Loading records…</span>
+              </div>
             </section>
           </section>
         </section>
@@ -1102,6 +1163,23 @@ const adminPrototypeHTML = `<!doctype html>
             </div>
           </div>
         </section>
+        <section id="confirmModal" class="modal-overlay" hidden>
+          <div class="modal-dialog confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+            <div class="modal-header">
+              <div class="section-heading">
+                <h3 id="confirmModalTitle" class="section-title">Confirm action</h3>
+              </div>
+              <button id="closeConfirmModal" type="button" class="secondary modal-close" aria-label="Close confirm dialog">Close</button>
+            </div>
+            <div class="modal-body">
+              <p id="confirmModalMessage" class="muted"></p>
+              <div class="confirm-actions">
+                <button id="confirmModalCancel" type="button" class="secondary">Cancel</button>
+                <button id="confirmModalConfirm" type="button" class="danger">Delete</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
   <script>
@@ -1112,6 +1190,7 @@ const adminPrototypeHTML = `<!doctype html>
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
     const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
+    let pendingConfirmAction = null;
     const state = {
       auth: { name: '', userID: null },
       current: null,
@@ -1168,7 +1247,16 @@ const adminPrototypeHTML = `<!doctype html>
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
       bulkDelete: document.getElementById('bulkDelete'),
-      search: document.getElementById('search')
+      search: document.getElementById('search'),
+      listLoading: document.getElementById('listLoading'),
+      dashboardShell: document.getElementById('dashboardShell'),
+      dashboardTiles: document.getElementById('dashboardTiles'),
+      confirmModal: document.getElementById('confirmModal'),
+      closeConfirmModal: document.getElementById('closeConfirmModal'),
+      confirmModalCancel: document.getElementById('confirmModalCancel'),
+      confirmModalConfirm: document.getElementById('confirmModalConfirm'),
+      confirmModalTitle: document.getElementById('confirmModalTitle'),
+      confirmModalMessage: document.getElementById('confirmModalMessage')
     };
 
     function inferStatusTone(value) {
@@ -1549,7 +1637,7 @@ const adminPrototypeHTML = `<!doctype html>
      }
 
      function anyModalOpen() {
-       return [els.createModal, els.recordModal, els.editModal].some((modal) => modal && !modal.hidden);
+       return [els.createModal, els.recordModal, els.editModal, els.confirmModal].some((modal) => modal && !modal.hidden);
      }
 
      function closeModal(modal) {
@@ -1562,8 +1650,16 @@ const adminPrototypeHTML = `<!doctype html>
      }
 
      function closeAllModals() {
-       [els.createModal, els.recordModal, els.editModal].forEach((modal) => closeModal(modal));
+       [els.createModal, els.recordModal, els.editModal, els.confirmModal].forEach((modal) => closeModal(modal));
      }
+
+    function openConfirmDialog(title, message, onConfirm, confirmLabel) {
+      pendingConfirmAction = onConfirm;
+      els.confirmModalTitle.textContent = title;
+      els.confirmModalMessage.textContent = message;
+      els.confirmModalConfirm.textContent = confirmLabel || 'Confirm';
+      openModal(els.confirmModal);
+    }
 
      function syncWorkspaceActionState() {
        const createEnabled = Boolean(state.current && hasAction('create'));
@@ -1597,6 +1693,40 @@ const adminPrototypeHTML = `<!doctype html>
         desc.value = '-' + name;
         desc.textContent = 'Sort by ' + name + ' ↓';
         els.sort.appendChild(desc);
+      });
+    }
+
+    function setListLoading(active) {
+      if (els.listLoading) els.listLoading.classList.toggle('active', active);
+      if (active) els.list.innerHTML = '';
+    }
+
+    function renderDashboard() {
+      if (!els.dashboardShell || !els.dashboardTiles) return;
+      if (state.current || !state.resources.length) {
+        els.dashboardShell.hidden = true;
+        return;
+      }
+      els.dashboardShell.hidden = false;
+      els.dashboardTiles.innerHTML = '';
+      state.resources.forEach((resource) => {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'dashboard-tile';
+        tile.innerHTML =
+          '<span class="dashboard-tile-count">—</span>' +
+          '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
+          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>';
+        tile.onclick = () => selectResource(resource);
+        els.dashboardTiles.appendChild(tile);
+        // Load record count in background for each tile
+        const basePath = apiBase + '/resources' + resource.path;
+        request(basePath + '?page=1&size=1')
+          .then((data) => {
+            const countEl = tile.querySelector('.dashboard-tile-count');
+            if (countEl) countEl.textContent = String(data.total ?? '—');
+          })
+          .catch(() => {});
       });
     }
 
@@ -1929,7 +2059,13 @@ const adminPrototypeHTML = `<!doctype html>
 
     async function renderList() {
       if (!state.current) return;
-      const data = await request(currentBasePath() + buildListQuery());
+      setListLoading(true);
+      let data;
+      try {
+        data = await request(currentBasePath() + buildListQuery());
+      } finally {
+        setListLoading(false);
+      }
       const fields = state.meta?.list_fields || [];
       const rows = data.items || [];
       state.records = rows;
@@ -2077,20 +2213,28 @@ const adminPrototypeHTML = `<!doctype html>
 
       async function deleteRecordByID(id) {
         if (!state.current || id == null) return;
-        try {
-         await request(currentBasePath() + '/' + encodeURIComponent(String(id)), { method: 'DELETE' });
-         if (state.selected && String(recordPrimaryKey(state.selected.item)) === String(id)) {
-           state.selected = null;
-           renderSelectedRecord();
-           await renderUpdateForm();
-         }
-         setSelectedForBulk(id, false);
-         closeModal(els.recordModal);
-         closeModal(els.editModal);
-         await reloadListWithStatus('Deleted record #' + id + '.', false);
-        } catch (error) {
-          setStatus(String(error.message || error));
-        }
+        openConfirmDialog(
+          'Delete record',
+          'Are you sure you want to permanently delete record #' + id + '? This action cannot be undone.',
+          async () => {
+            closeModal(els.confirmModal);
+            try {
+              await request(currentBasePath() + '/' + encodeURIComponent(String(id)), { method: 'DELETE' });
+              if (state.selected && String(recordPrimaryKey(state.selected.item)) === String(id)) {
+                state.selected = null;
+                renderSelectedRecord();
+                await renderUpdateForm();
+              }
+              setSelectedForBulk(id, false);
+              closeModal(els.recordModal);
+              closeModal(els.editModal);
+              await reloadListWithStatus('Deleted record #' + id + '.', false);
+            } catch (error) {
+              setStatus(String(error.message || error));
+            }
+          },
+          'Delete'
+        );
       }
 
      async function reloadListWithStatus(message, resetPage) {
@@ -2110,6 +2254,7 @@ const adminPrototypeHTML = `<!doctype html>
         const payload = await request(apiBase + '/resources');
         state.resources = payload.resources || [];
         renderResources();
+        renderDashboard();
         setStatus('Loaded ' + state.resources.length + ' resources.');
         if (state.resources.length) {
           await selectResource(state.resources[0]);
@@ -2123,6 +2268,7 @@ const adminPrototypeHTML = `<!doctype html>
       state.current = resource;
       state.selected = null;
       resetQueryState();
+      renderDashboard();
       try {
         state.meta = await request(currentBasePath() + '/meta');
         renderResources();
@@ -2345,25 +2491,43 @@ const adminPrototypeHTML = `<!doctype html>
         setStatus(String(error.message || error));
       }
     };
-    els.bulkDelete.onclick = async () => {
+    els.bulkDelete.onclick = () => {
       if (!state.current || !selectedIDs().length) return;
-      try {
-        const ids = selectedIDs();
-        const result = await request(currentBasePath() + '/bulk-delete', {
-          method: 'POST',
-          body: JSON.stringify({ ids: ids })
-        });
-        if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
-          state.selected = null;
-          renderSelectedRecord();
-          await renderUpdateForm();
-        }
-        state.bulkSelected = {};
-        await reloadListWithStatus('Bulk deleted ' + String(result.deleted || 0) + ' record(s).', false);
-      } catch (error) {
-        setStatus(String(error.message || error));
-      }
+      const count = selectedIDs().length;
+      openConfirmDialog(
+        'Bulk delete',
+        'Are you sure you want to permanently delete ' + count + ' selected record(s)? This action cannot be undone.',
+        async () => {
+          closeModal(els.confirmModal);
+          try {
+            const ids = selectedIDs();
+            const result = await request(currentBasePath() + '/bulk-delete', {
+              method: 'POST',
+              body: JSON.stringify({ ids: ids })
+            });
+            if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
+              state.selected = null;
+              renderSelectedRecord();
+              await renderUpdateForm();
+            }
+            state.bulkSelected = {};
+            await reloadListWithStatus('Bulk deleted ' + String(result.deleted || 0) + ' record(s).', false);
+          } catch (error) {
+            setStatus(String(error.message || error));
+          }
+        },
+        'Delete ' + count
+      );
     };
+    els.closeConfirmModal.onclick = () => { pendingConfirmAction = null; closeModal(els.confirmModal); };
+    els.confirmModalCancel.onclick = () => { pendingConfirmAction = null; closeModal(els.confirmModal); };
+    els.confirmModalConfirm.onclick = () => { if (pendingConfirmAction) pendingConfirmAction(); };
+    els.confirmModal.addEventListener('click', (event) => {
+      if (event.target === els.confirmModal) {
+        pendingConfirmAction = null;
+        closeModal(els.confirmModal);
+      }
+    });
 
     resetAdminState();
     updatePageChrome();

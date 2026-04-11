@@ -1411,6 +1411,11 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	waitForBrowserEnabled(t, ctx, "#bulkDelete")
 	clickBrowser(t, ctx, "#bulkDelete")
 
+	// Confirm the bulk delete in the confirm dialog
+	waitForBrowserVisible(t, ctx, "#confirmModal")
+	waitForBrowserExists(t, ctx, "#confirmModalConfirm")
+	clickBrowser(t, ctx, "#confirmModalConfirm")
+
 	waitForBrowserText(t, ctx, "#status", "Bulk deleted 1 record(s).")
 	waitForBrowserText(t, ctx, "#list", "No records matched the current filters.")
 }
