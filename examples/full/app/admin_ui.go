@@ -250,33 +250,17 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="toolbar">
                 <div class="section-heading">
                   <h3 class="section-title">Record workspace</h3>
-                  <p id="selectionHint" class="section-copy muted">Select a row to inspect and edit it.</p>
+                  <p id="selectionHint" class="section-copy muted">Select a row, then open the record or edit it in a dialog.</p>
                 </div>
-                <button id="deleteRecord" class="danger" type="button">Delete record</button>
+                <div class="row-actions">
+                  <button id="openRecordModal" class="secondary" type="button">Open record</button>
+                  <button id="openEditModal" class="secondary" type="button">Edit record</button>
+                  <button id="deleteRecord" class="danger" type="button">Delete record</button>
+                </div>
               </div>
-              <div class="detail-layout">
-                <section class="stack">
-                  <div class="detail-card stack">
-                    <div class="toolbar">
-                      <strong id="detailTitle">No record selected</strong>
-                      <span id="detailObjectBadge" class="badge">Draft view</span>
-                    </div>
-                    <div id="detailFields" class="detail-grid">
-                      <p class="muted">No record selected.</p>
-                    </div>
-                  </div>
-                  <div class="detail-card stack">
-                    <strong>Reference payload</strong>
-                    <pre id="detail">No record selected.</pre>
-                  </div>
-                </section>
-                <section class="detail-card stack">
-                  <div class="section-heading">
-                    <h4 class="section-title">Edit record</h4>
-                    <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
-                  </div>
-                  <form id="updateForm" class="stack"></form>
-                </section>
+              <div class="detail-card stack">
+                <strong id="detailSummaryTitle">No record selected</strong>
+                <p class="muted">Use the table actions below to load a record, then open the record detail or change form in a modal dialog.</p>
               </div>
             </section>
             <section class="panel section-shell">
@@ -331,6 +315,52 @@ const adminPrototypeHTML = `<!doctype html>
             </div>
           </div>
         </section>
+        <section id="recordModal" class="modal-overlay" hidden>
+          <div class="modal-dialog large" role="dialog" aria-modal="true" aria-labelledby="recordModalTitle">
+            <div class="modal-header">
+              <div class="section-heading">
+                <div class="row-actions">
+                  <h3 id="recordModalTitle" class="section-title">Open record</h3>
+                  <span id="detailObjectBadge" class="badge">Draft view</span>
+                </div>
+                <p class="section-copy muted">Inspect the selected record and review the reference payload in a focused dialog.</p>
+              </div>
+              <button id="closeRecordModal" type="button" class="secondary modal-close" aria-label="Close record dialog">Close</button>
+            </div>
+            <div class="modal-body">
+              <div class="detail-layout">
+                <section class="stack">
+                  <div class="detail-card stack">
+                    <div class="toolbar">
+                      <strong id="detailTitle">No record selected</strong>
+                    </div>
+                    <div id="detailFields" class="detail-grid">
+                      <p class="muted">No record selected.</p>
+                    </div>
+                  </div>
+                  <div class="detail-card stack">
+                    <strong>Reference payload</strong>
+                    <pre id="detail">No record selected.</pre>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section id="editModal" class="modal-overlay" hidden>
+          <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+            <div class="modal-header">
+              <div class="section-heading">
+                <h3 id="editModalTitle" class="section-title">Edit record</h3>
+                <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
+              </div>
+              <button id="closeEditModal" type="button" class="secondary modal-close" aria-label="Close edit record dialog">Close</button>
+            </div>
+            <div class="modal-body">
+              <form id="updateForm" class="stack"></form>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
   <script>
@@ -374,13 +404,20 @@ const adminPrototypeHTML = `<!doctype html>
       detailTitle: document.getElementById('detailTitle'),
       detailObjectBadge: document.getElementById('detailObjectBadge'),
       detailFields: document.getElementById('detailFields'),
-      createForm: document.getElementById('createForm'),
-      createModal: document.getElementById('createModal'),
-      openCreateModal: document.getElementById('openCreateModal'),
-      closeCreateModal: document.getElementById('closeCreateModal'),
-      updateForm: document.getElementById('updateForm'),
-      editHint: document.getElementById('editHint'),
-      filtersForm: document.getElementById('filtersForm'),
+       createForm: document.getElementById('createForm'),
+       createModal: document.getElementById('createModal'),
+       openCreateModal: document.getElementById('openCreateModal'),
+       closeCreateModal: document.getElementById('closeCreateModal'),
+       recordModal: document.getElementById('recordModal'),
+       openRecordModal: document.getElementById('openRecordModal'),
+       closeRecordModal: document.getElementById('closeRecordModal'),
+       editModal: document.getElementById('editModal'),
+       openEditModal: document.getElementById('openEditModal'),
+       closeEditModal: document.getElementById('closeEditModal'),
+       updateForm: document.getElementById('updateForm'),
+       editHint: document.getElementById('editHint'),
+       detailSummaryTitle: document.getElementById('detailSummaryTitle'),
+       filtersForm: document.getElementById('filtersForm'),
       sort: document.getElementById('sort'),
       pageSize: document.getElementById('pageSize'),
       paginationInfo: document.getElementById('paginationInfo'),
@@ -512,9 +549,9 @@ const adminPrototypeHTML = `<!doctype html>
       return false;
     }
 
-    function renderSignedOutState() {
-      closeModal(els.createModal);
-      const standaloneAdminPage = isStandaloneAdminPage();
+     function renderSignedOutState() {
+       closeAllModals();
+       const standaloneAdminPage = isStandaloneAdminPage();
       els.loginForm.hidden = false;
       els.sessionShell.hidden = false;
       els.sessionActions.hidden = true;
@@ -553,22 +590,23 @@ const adminPrototypeHTML = `<!doctype html>
       state.relationSearch = {};
       state.relationTimers = {};
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
-      renderResources();
-      els.resourceTitle.textContent = 'Select a resource';
-      els.resourcePath.textContent = 'Sign in to open a resource workspace.';
-      els.detailTitle.textContent = 'No record selected';
-      els.detailObjectBadge.textContent = 'Draft view';
-      els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
+       renderResources();
+       els.resourceTitle.textContent = 'Select a resource';
+       els.resourcePath.textContent = 'Sign in to open a resource workspace.';
+       els.detailSummaryTitle.textContent = 'No record selected';
+       els.detailTitle.textContent = 'No record selected';
+       els.detailObjectBadge.textContent = 'Draft view';
+       els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
       els.detail.textContent = 'No record selected.';
       els.createForm.innerHTML = '<p class="muted">Sign in to create records.</p>';
       els.updateForm.innerHTML = '<p class="muted">Sign in to edit records.</p>';
       els.filtersForm.innerHTML = '';
       els.sort.innerHTML = '';
       els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
-      els.selectionHint.textContent = 'Sign in to inspect and edit records.';
-      els.editHint.textContent = 'Sign in to open the change form.';
-      renderPagination();
-      syncBulkActionState();
+       els.selectionHint.textContent = 'Sign in to inspect records and edit them in dialogs.';
+       els.editHint.textContent = 'Sign in to open the change form.';
+       renderPagination();
+       syncBulkActionState();
       syncWorkspaceActionState();
     }
 
@@ -718,28 +756,51 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
-    function openModal(modal) {
-      if (!modal || modal.hidden) {
-        if (modal) {
-          modal.hidden = false;
+     function openModal(modal) {
+       if (!modal || modal.hidden) {
+         if (modal) {
+           modal.hidden = false;
         }
       }
-      document.body.classList.add('modal-open');
-    }
+       document.body.classList.add('modal-open');
+     }
 
-    function closeModal(modal) {
-      if (modal) {
-        modal.hidden = true;
-      }
-      if (els.createModal.hidden) {
-        document.body.classList.remove('modal-open');
-      }
-    }
+     function anyModalOpen() {
+       return [els.createModal, els.recordModal, els.editModal].some((modal) => modal && !modal.hidden);
+     }
 
-    function syncWorkspaceActionState() {
-      const createEnabled = Boolean(state.current && hasAction('create'));
-      els.openCreateModal.disabled = !createEnabled;
-    }
+     function closeModal(modal) {
+       if (modal) {
+         modal.hidden = true;
+       }
+       if (!anyModalOpen()) {
+         document.body.classList.remove('modal-open');
+       }
+     }
+
+     function closeAllModals() {
+       [els.createModal, els.recordModal, els.editModal].forEach((modal) => closeModal(modal));
+     }
+
+     function syncWorkspaceActionState() {
+       const createEnabled = Boolean(state.current && hasAction('create'));
+       const recordSelected = Boolean(state.selected);
+       const updateEnabled = Boolean(recordSelected && hasAction('update'));
+       els.openCreateModal.disabled = !createEnabled;
+       els.openRecordModal.disabled = !recordSelected;
+       els.openEditModal.disabled = !updateEnabled;
+     }
+
+     function openSelectedRecordModal() {
+       if (els.openRecordModal.disabled) return;
+       openModal(els.recordModal);
+     }
+
+     function openSelectedEditModal() {
+       if (els.openEditModal.disabled) return;
+       closeModal(els.recordModal);
+       openModal(els.editModal);
+     }
 
     function renderResourceSummary() {
       if (!state.current || !state.meta) {
@@ -963,24 +1024,26 @@ const adminPrototypeHTML = `<!doctype html>
       await renderForm(els.updateForm, state.meta?.update_fields || [], 'update', state.selected.item || {}, 'update');
     }
 
-    function renderSelectedRecord() {
-      els.deleteRecord.disabled = !state.selected || !hasAction('delete');
-      els.detailFields.innerHTML = '';
-      if (!state.selected) {
-        els.selectionHint.textContent = 'Select a row to inspect and edit it.';
-        els.detailTitle.textContent = 'No record selected';
-        els.detailObjectBadge.textContent = 'Draft view';
-        els.detail.textContent = 'No record selected.';
+     function renderSelectedRecord() {
+       els.deleteRecord.disabled = !state.selected || !hasAction('delete');
+       els.detailFields.innerHTML = '';
+       if (!state.selected) {
+         els.selectionHint.textContent = 'Select a row, then open the record or edit it in a dialog.';
+         els.detailSummaryTitle.textContent = 'No record selected';
+         els.detailTitle.textContent = 'No record selected';
+         els.detailObjectBadge.textContent = 'Draft view';
+         els.detail.textContent = 'No record selected.';
         els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
         highlightSelectedRow();
         return;
-      }
-      const record = state.selected.item || {};
-      const recordID = recordPrimaryKey(record);
-      els.selectionHint.textContent = 'Reviewing record #' + recordID + ' in the admin workspace.';
-      els.detailTitle.textContent = state.meta.label + ' #' + recordID;
-      els.detailObjectBadge.textContent = 'Record overview';
-      els.detail.textContent = JSON.stringify(record, null, 2);
+       }
+       const record = state.selected.item || {};
+       const recordID = recordPrimaryKey(record);
+       els.selectionHint.textContent = 'Record #' + recordID + ' is ready. Open the detail dialog or edit it in a modal form.';
+       els.detailSummaryTitle.textContent = state.meta.label + ' #' + recordID + ' selected';
+       els.detailTitle.textContent = state.meta.label + ' #' + recordID;
+       els.detailObjectBadge.textContent = 'Record overview';
+       els.detail.textContent = JSON.stringify(record, null, 2);
       const detailFields = state.meta?.detail_fields || Object.keys(record);
       detailFields.forEach((name) => {
         const row = document.createElement('div');
@@ -1131,7 +1194,7 @@ const adminPrototypeHTML = `<!doctype html>
         button.type = 'button';
         button.className = 'secondary';
         button.textContent = 'Open';
-        button.onclick = () => selectRecord(row);
+        button.onclick = () => selectRecord(row, { openModal: 'record' });
         actionCell.appendChild(button);
         tr.appendChild(actionCell);
         fields.forEach((field) => {
@@ -1148,19 +1211,26 @@ const adminPrototypeHTML = `<!doctype html>
       highlightSelectedRow();
     }
 
-    async function selectRecord(row) {
-      try {
-        const id = recordPrimaryKey(row);
-        if (!id) {
+     async function selectRecord(row, options = {}) {
+       try {
+         const id = recordPrimaryKey(row);
+         if (!id) {
           throw new Error('Selected row has no primary key.');
         }
-        state.selected = await request(currentBasePath() + '/' + encodeURIComponent(String(id)));
-        renderSelectedRecord();
-        await renderUpdateForm();
-        highlightSelectedRow();
-        setStatus('Loaded record #' + id + '.');
-      } catch (error) {
-        setStatus(String(error.message || error));
+         state.selected = await request(currentBasePath() + '/' + encodeURIComponent(String(id)));
+         renderSelectedRecord();
+         await renderUpdateForm();
+         highlightSelectedRow();
+         syncWorkspaceActionState();
+         if (options.openModal === 'record') {
+           openSelectedRecordModal();
+         }
+         if (options.openModal === 'edit') {
+           openSelectedEditModal();
+         }
+         setStatus('Loaded record #' + id + '.');
+       } catch (error) {
+         setStatus(String(error.message || error));
       }
     }
 
@@ -1254,23 +1324,27 @@ const adminPrototypeHTML = `<!doctype html>
     els.clearToken.onclick = () => {
       logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
     };
-    els.loadResources.onclick = loadResources;
-    els.openCreateModal.onclick = () => {
-      if (els.openCreateModal.disabled) return;
-      openModal(els.createModal);
-    };
-    els.closeCreateModal.onclick = () => closeModal(els.createModal);
-    [els.createModal].forEach((modal) => {
-      modal.addEventListener('click', (event) => {
-        if (event.target === modal) {
-          closeModal(modal);
+     els.loadResources.onclick = loadResources;
+     els.openCreateModal.onclick = () => {
+       if (els.openCreateModal.disabled) return;
+       openModal(els.createModal);
+     };
+     els.openRecordModal.onclick = () => openSelectedRecordModal();
+     els.openEditModal.onclick = () => openSelectedEditModal();
+     els.closeCreateModal.onclick = () => closeModal(els.createModal);
+     els.closeRecordModal.onclick = () => closeModal(els.recordModal);
+     els.closeEditModal.onclick = () => closeModal(els.editModal);
+     [els.createModal, els.recordModal, els.editModal].forEach((modal) => {
+       modal.addEventListener('click', (event) => {
+         if (event.target === modal) {
+           closeModal(modal);
         }
       });
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      closeModal(els.createModal);
-    });
+     });
+     document.addEventListener('keydown', (event) => {
+       if (event.key !== 'Escape') return;
+       closeAllModals();
+     });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
     els.clearFilters.onclick = () => {
       if (!state.current) return;
@@ -1340,6 +1414,7 @@ const adminPrototypeHTML = `<!doctype html>
           method: 'PUT',
           body: JSON.stringify(formPayload(els.updateForm))
         });
+        closeModal(els.editModal);
         await renderList();
         await selectRecord({ id: id });
         setStatus('Updated record #' + id + '.');

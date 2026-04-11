@@ -483,11 +483,20 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "id=\"openRecordModal\"") {
+		t.Fatalf("expected record modal trigger in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"openEditModal\"") {
+		t.Fatalf("expected edit modal trigger in html: %q", adminHTML)
+	}
 	if strings.Contains(adminHTML, "id=\"openBulkEditModal\"") {
 		t.Fatalf("expected bulk edit trigger to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "class=\"modal-overlay\" hidden") {
 		t.Fatalf("expected hidden modal overlay shell in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"recordModal\"") || !strings.Contains(adminHTML, "id=\"editModal\"") {
+		t.Fatalf("expected record and edit modal shells in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "id=\"authBadge\"") {
 		t.Fatalf("expected top-right auth status card to be removed from html: %q", adminHTML)
@@ -515,7 +524,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "const prototypePagePath = '/admin-prototype'") {
 		t.Fatalf("expected prototype page path in html: %q", html)
 	}
-	if !strings.Contains(html, "selectRecord(row)") {
+	if !strings.Contains(html, "selectRecord(row, { openModal: 'record' })") {
 		t.Fatalf("expected record selection flow in html: %q", html)
 	}
 	if !strings.Contains(html, "renderFilterControls()") {
@@ -545,11 +554,20 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "closeModal(els.createModal);") {
 		t.Fatalf("expected create modal close flow in html: %q", html)
 	}
+	if !strings.Contains(html, "closeAllModals();") {
+		t.Fatalf("expected shared modal close flow in html: %q", html)
+	}
 	if strings.Contains(html, "closeModal(els.bulkEditModal);") {
 		t.Fatalf("expected bulk edit modal close flow to be removed from html: %q", html)
 	}
 	if !strings.Contains(html, "document.addEventListener('keydown'") {
 		t.Fatalf("expected modal escape-key handling in html: %q", html)
+	}
+	if !strings.Contains(html, "button.onclick = () => selectRecord(row, { openModal: 'record' });") {
+		t.Fatalf("expected row open action to launch the record modal in html: %q", html)
+	}
+	if !strings.Contains(html, "openSelectedEditModal()") {
+		t.Fatalf("expected edit modal helper in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {
 		t.Fatalf("expected expired session redirect flow in html: %q", html)
