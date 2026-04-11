@@ -875,6 +875,18 @@ const adminPrototypeHTML = `<!doctype html>
       return options.items || [];
     }
 
+    function resolveRelationSelection(items, selectedValue, term) {
+      if (selectedValue != null && selectedValue !== '') {
+        return selectedValue;
+      }
+      const normalizedTerm = term.trim();
+      if (!normalizedTerm) {
+        return selectedValue;
+      }
+      const exactValueMatch = items.find((item) => String(item.value) === normalizedTerm);
+      return exactValueMatch ? exactValueMatch.value : selectedValue;
+    }
+
     function populateRelationSelect(select, items, selectedValue, placeholderLabel) {
       select.innerHTML = '';
       const hasSelection = selectedValue != null && selectedValue !== '';
@@ -919,7 +931,8 @@ const adminPrototypeHTML = `<!doctype html>
         try {
           const term = searchInput.value.trim();
           const items = await loadRelationOptions(field, term, 1, 8);
-          populateRelationSelect(select, items, select.value, field.label);
+          const nextValue = resolveRelationSelection(items, select.value, term);
+          populateRelationSelect(select, items, nextValue, field.label);
           updateRelationPreview(preview, items, term);
           setStatus('Loaded ' + items.length + ' relation option(s) for ' + field.name + '.');
         } catch (error) {
@@ -949,7 +962,8 @@ const adminPrototypeHTML = `<!doctype html>
         wrapper.appendChild(preview);
         wrapper.appendChild(help);
         const items = await loadRelationOptions(field, searchInput.value.trim(), 1, 8);
-        populateRelationSelect(select, items, value, field.label);
+        const nextValue = resolveRelationSelection(items, value, searchInput.value);
+        populateRelationSelect(select, items, nextValue, field.label);
         updateRelationPreview(preview, items, searchInput.value.trim());
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;

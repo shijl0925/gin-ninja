@@ -533,6 +533,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
 	}
+	if !strings.Contains(html, "resolveRelationSelection(items, select.value, term)") {
+		t.Fatalf("expected relation exact-id auto-selection flow in html: %q", html)
+	}
 	if !strings.Contains(html, "option.textContent = 'Choose ' + placeholderLabel;") {
 		t.Fatalf("expected relation selects to include an explicit empty choice in html: %q", html)
 	}
@@ -694,6 +697,42 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	options.Body.Close()
 	if len(optionsPayload.Items) != 1 || optionsPayload.Items[0].Value != 1 || optionsPayload.Items[0].Label != "Alice" {
 		t.Fatalf("unexpected relation selector payload: %+v", optionsPayload.Items)
+	}
+
+	optionsByID := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/fields/owner_id/options?search=1", nil, auth.Token)
+	if optionsByID.StatusCode != http.StatusOK {
+		t.Fatalf("expected relation selector by id 200, got %d", optionsByID.StatusCode)
+	}
+	var optionsByIDPayload struct {
+		Items []struct {
+			Value float64 `json:"value"`
+			Label string  `json:"label"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(optionsByID.Body).Decode(&optionsByIDPayload); err != nil {
+		t.Fatalf("decode options by id: %v", err)
+	}
+	optionsByID.Body.Close()
+	if len(optionsByIDPayload.Items) != 1 || optionsByIDPayload.Items[0].Value != 1 || optionsByIDPayload.Items[0].Label != "Alice" {
+		t.Fatalf("unexpected relation selector by id payload: %+v", optionsByIDPayload.Items)
+	}
+
+	missingOptionsByID := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/fields/owner_id/options?search=999", nil, auth.Token)
+	if missingOptionsByID.StatusCode != http.StatusOK {
+		t.Fatalf("expected missing relation selector by id 200, got %d", missingOptionsByID.StatusCode)
+	}
+	var missingOptionsByIDPayload struct {
+		Items []struct {
+			Value float64 `json:"value"`
+			Label string  `json:"label"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(missingOptionsByID.Body).Decode(&missingOptionsByIDPayload); err != nil {
+		t.Fatalf("decode missing options by id: %v", err)
+	}
+	missingOptionsByID.Body.Close()
+	if len(missingOptionsByIDPayload.Items) != 0 {
+		t.Fatalf("expected empty relation selector by missing id payload: %+v", missingOptionsByIDPayload.Items)
 	}
 
 	createProject := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects", map[string]any{

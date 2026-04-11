@@ -152,6 +152,16 @@ func readAndRestoreRequestBody(ctx *ninja.Context) ([]byte, error) {
 	return body, nil
 }
 
+func queryColumn(field *fieldMeta) string {
+	if field == nil {
+		return ""
+	}
+	if field.Meta.Name == "id" {
+		return field.Meta.Name
+	}
+	return field.Meta.Column
+}
+
 func (r *Resource) validateRequiredFor(view *resolvedResource, values map[string]any, mode fieldMode) error {
 	if mode != fieldModeCreate {
 		return nil
@@ -295,8 +305,12 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 			if len(names) == 0 {
 				names = []string{field.Meta.Relation.LabelField}
 			}
-			parts := make([]string, 0, len(names))
-			args := make([]any, 0, len(names))
+			parts := make([]string, 0, len(names)+1)
+			args := make([]any, 0, len(names)+1)
+			if value, err := valueField.parseString(term); err == nil {
+				parts = append(parts, queryColumn(valueField)+" = ?")
+				args = append(args, value)
+			}
 			for _, name := range names {
 				searchField := targetView.fieldByName[name]
 				if searchField == nil {

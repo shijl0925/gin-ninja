@@ -672,6 +672,30 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 	if options.Total != 1 || len(options.Items) != 1 || options.Items[0].Label != "Alice" || fmt.Sprint(options.Items[0].Value) != "1" {
 		t.Fatalf("unexpected relation options payload: %+v", options)
 	}
+
+	idOptionsResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/fields/owner_id/options?search=1", nil, headers)
+	if idOptionsResp.Code != http.StatusOK {
+		t.Fatalf("id options status = %d body=%s", idOptionsResp.Code, idOptionsResp.Body.String())
+	}
+	var idOptions RelationOptionsOutput
+	if err := json.NewDecoder(idOptionsResp.Body).Decode(&idOptions); err != nil {
+		t.Fatalf("decode id relation options: %v", err)
+	}
+	if idOptions.Total != 1 || len(idOptions.Items) != 1 || idOptions.Items[0].Label != "Alice" || fmt.Sprint(idOptions.Items[0].Value) != "1" {
+		t.Fatalf("unexpected id relation options payload: %+v", idOptions)
+	}
+
+	missingIDOptionsResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/fields/owner_id/options?search=999", nil, headers)
+	if missingIDOptionsResp.Code != http.StatusOK {
+		t.Fatalf("missing id options status = %d body=%s", missingIDOptionsResp.Code, missingIDOptionsResp.Body.String())
+	}
+	var missingIDOptions RelationOptionsOutput
+	if err := json.NewDecoder(missingIDOptionsResp.Body).Decode(&missingIDOptions); err != nil {
+		t.Fatalf("decode missing id relation options: %v", err)
+	}
+	if missingIDOptions.Total != 0 || len(missingIDOptions.Items) != 0 {
+		t.Fatalf("expected empty missing-id relation options payload: %+v", missingIDOptions)
+	}
 }
 
 func TestHumanizeHandlesEmptyAndUnicodeParts(t *testing.T) {
