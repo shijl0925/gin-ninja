@@ -60,7 +60,7 @@ const adminPrototypeHTML = `<!doctype html>
       padding:0 16px;
       background: var(--admin-topbar);
       border-bottom:1px solid var(--admin-border);
-      box-shadow:none;
+      box-shadow:0 1px 3px rgba(0,0,0,.1);
     }
     .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading, .topbar-context { display:grid; gap:6px; }
     .topbar-left {
@@ -668,7 +668,7 @@ const adminPrototypeHTML = `<!doctype html>
       width:min(720px, 100%);
       max-height:min(85vh, 920px);
       overflow:auto;
-      border-radius:0.75rem;
+      border-radius:0.3rem;
       border:1px solid var(--admin-border);
       border-top:3px solid var(--admin-primary);
       background:#fff;
@@ -706,6 +706,7 @@ const adminPrototypeHTML = `<!doctype html>
     button.secondary:hover { background:#e9ecef; border-color:#adb5bd; }
     button.danger { background:var(--admin-danger); border-color:#c0392b; }
     button.danger:hover { background:#c0392b; border-color:#a93226; }
+    button:hover:not(:disabled) { filter:brightness(0.9); }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
     table { width:100%; border-collapse:collapse; min-width:720px; }
     th, td { border-bottom:1px solid #dee2e6; padding:0.75rem; text-align:left; font-size:14px; vertical-align:top; }
@@ -714,9 +715,9 @@ const adminPrototypeHTML = `<!doctype html>
     tbody tr.row-selected { background:#eaf3f8; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
     .action-menu { position:relative; display:inline-block; }
-    .action-menu-trigger { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 10px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer; line-height:1; }
+    .action-menu-trigger { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 10px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
     .action-menu-trigger:hover { background:#f8f9fa; border-color:#adb5bd; }
-    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid var(--admin-border); border-radius:10px; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
+    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid var(--admin-border); border-radius:0.25rem; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
     .action-menu-list.open { display:block; }
     .action-menu-item { display:block; width:100%; text-align:left; background:none; color:var(--admin-text); border:none; border-radius:0; padding:10px 14px; font-size:14px; font-weight:500; cursor:pointer; transition:background 80ms; }
     .action-menu-item:hover { background:#f1f3f5; }
@@ -724,9 +725,48 @@ const adminPrototypeHTML = `<!doctype html>
     .action-menu-divider { border:none; border-top:1px solid var(--admin-border); margin:4px 0; }
     .action-menu-item.danger { color:var(--admin-danger); }
     .action-menu-item.danger:hover { background:#fdf1ef; }
-    .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 12px; font-size:13px; font-weight:600; border-radius:8px; cursor:pointer; line-height:1; }
+    .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 12px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
     .action-btn-view:hover { background:#f8f9fa; border-color:#adb5bd; }
     pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#1f2d3d; color:#e9ecef; padding:14px; border-radius:0.65rem; }
+    .sidebar-footer {
+      padding:10px 16px;
+      border-top:1px solid rgba(255,255,255,.1);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      flex-shrink:0;
+    }
+    .sidebar-footer-text {
+      font-size:11px;
+      color:rgba(255,255,255,.4);
+      white-space:nowrap;
+    }
+    .sidebar-footer-link {
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      font-size:12px;
+      color:rgba(255,255,255,.55);
+      background:transparent;
+      border:1px solid transparent;
+      padding:4px 8px;
+      cursor:pointer;
+      border-radius:0.25rem;
+    }
+    .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
+    body.sidebar-collapsed .sidebar-shell { display:none !important; }
+    @media (min-width: 1121px) {
+      body.standalone-admin-page.sidebar-collapsed .topbar,
+      body.legacy-prototype-page.sidebar-collapsed .topbar {
+        width:100%;
+        margin-left:0;
+      }
+      body.standalone-admin-page.sidebar-collapsed .app-main,
+      body.legacy-prototype-page.sidebar-collapsed .app-main {
+        margin-left:0;
+      }
+    }
     body.standalone-login-page {
       background:
         radial-gradient(circle at top left, rgba(60, 141, 188, 0.12), transparent 36%),
@@ -935,6 +975,10 @@ const adminPrototypeHTML = `<!doctype html>
             </button>
             <ul id="resources" class="nav-list sidebar-treeview-menu"></ul>
           </div>
+        </div>
+        <div class="sidebar-footer">
+          <span class="sidebar-footer-text">v0.1 · Gin Ninja</span>
+          <button id="sidebarSignOut" class="sidebar-footer-link" type="button" aria-label="Sign out">⏻ Sign out</button>
         </div>
       </aside>
       <section class="workspace stack">
@@ -2168,6 +2212,20 @@ const adminPrototypeHTML = `<!doctype html>
       });
       document.addEventListener('click', () => {
         if (topbarSearchExpand) topbarSearchExpand.classList.remove('open');
+      });
+    }
+    // Topbar ☰ toggle: collapse / expand sidebar
+    const topbarToggle = document.querySelector('.topbar-toggle');
+    if (topbarToggle) {
+      topbarToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        document.body.classList.toggle('sidebar-collapsed');
+      });
+    }
+    const sidebarSignOut = document.getElementById('sidebarSignOut');
+    if (sidebarSignOut) {
+      sidebarSignOut.addEventListener('click', () => {
+        els.clearToken.click();
       });
     }
     const resourceTreeview = document.getElementById('resourceTreeview');
