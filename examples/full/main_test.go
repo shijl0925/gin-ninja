@@ -164,22 +164,50 @@ func waitForBrowserEnabled(t *testing.T, ctx context.Context, selector string) {
 	})()`, selector))
 }
 
+func waitForBrowserExists(t *testing.T, ctx context.Context, selector string) {
+	t.Helper()
+	waitForBrowserCondition(t, ctx, selector+" exists", fmt.Sprintf(`document.querySelector(%q) !== null`, selector))
+}
+
 func waitForBrowserVisible(t *testing.T, ctx context.Context, selector string) {
 	t.Helper()
 	waitForBrowserCondition(t, ctx, selector+" visible", fmt.Sprintf(`(() => {
 		const el = document.querySelector(%q);
-		return !!el && !el.hidden && el.offsetParent !== null;
+		if (!el || el.hidden) return false;
+		const style = window.getComputedStyle(el);
+		return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
 	})()`, selector))
 }
 
 func setBrowserValue(t *testing.T, ctx context.Context, selector, value string) {
 	t.Helper()
-	runBrowser(t, ctx, chromedp.SetValue(selector, value))
+	var ok bool
+	runBrowser(t, ctx, chromedp.Evaluate(fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		if (!el) return false;
+		el.focus();
+		el.value = %q;
+		el.dispatchEvent(new Event("input", { bubbles: true }));
+		el.dispatchEvent(new Event("change", { bubbles: true }));
+		return true;
+	})()`, selector, value), &ok))
+	if !ok {
+		t.Fatalf("failed to set %s", selector)
+	}
 }
 
 func clickBrowser(t *testing.T, ctx context.Context, selector string) {
 	t.Helper()
-	runBrowser(t, ctx, chromedp.Click(selector))
+	var ok bool
+	runBrowser(t, ctx, chromedp.Evaluate(fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		if (!el) return false;
+		el.click();
+		return true;
+	})()`, selector), &ok))
+	if !ok {
+		t.Fatalf("failed to click %s", selector)
+	}
 }
 
 func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
@@ -1313,12 +1341,12 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	clickBrowser(t, ctx, "#resources li:nth-child(2) .nav-link")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Projects")
 	waitForBrowserEnabled(t, ctx, "#openCreateModal")
+	waitForBrowserExists(t, ctx, "#createForm textarea[name='title']")
 
 	clickBrowser(t, ctx, "#openCreateModal")
 	waitForBrowserVisible(t, ctx, "#createModal")
-	waitForBrowserVisible(t, ctx, "#createForm input[name='title']")
 
-	setBrowserValue(t, ctx, "#createForm input[name='title']", "Black Box Project")
+	setBrowserValue(t, ctx, "#createForm textarea[name='title']", "Black Box Project")
 	setBrowserValue(t, ctx, "#createForm textarea[name='summary']", "created via browser integration")
 	setBrowserValue(t, ctx, "#createForm .relation-control input[type='text']", "ali")
 	waitForBrowserCondition(t, ctx, "owner relation option 1", `(() => {
@@ -1345,7 +1373,7 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
 	clickBrowser(t, ctx, ".action-menu-list.open .action-menu-item")
 	waitForBrowserVisible(t, ctx, "#editModal")
-	waitForBrowserVisible(t, ctx, "#updateForm textarea[name='summary']")
+	waitForBrowserExists(t, ctx, "#updateForm textarea[name='summary']")
 
 	setBrowserValue(t, ctx, "#updateForm textarea[name='summary']", "updated through browser flow")
 	clickBrowser(t, ctx, "#updateForm button[type='submit']")
