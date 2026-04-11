@@ -750,7 +750,7 @@ const adminPrototypeHTML = `<!doctype html>
         els.resourcePath.textContent = currentBasePath();
         return;
       }
-      els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label.toLowerCase() + '.';
+      els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';
     }
 
     function renderSortOptions() {
