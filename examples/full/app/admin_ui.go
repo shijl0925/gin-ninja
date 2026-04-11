@@ -754,6 +754,7 @@ const adminPrototypeHTML = `<!doctype html>
       cursor:pointer;
       border-radius:0.25rem;
     }
+    /* filter:none cancels the universal button:hover brightness filter for this link-style button */
     .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
