@@ -16,7 +16,7 @@ const adminPrototypeHTML = `<!doctype html>
   <style>
     :root {
       color-scheme: light;
-      --admin-body: #f4f6f9;
+      --admin-body-bg: #f4f6f9;
       --admin-surface: #ffffff;
       --admin-sidebar: #1f2d3d;
       --admin-sidebar-alt: #243447;
@@ -33,14 +33,15 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-warning: #f39c12;
       --admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.2);
       --admin-radius: 0.5rem;
+      --admin-topbar-height: 64px;
     }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body {
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: Inter, system-ui, "Segoe UI", sans-serif;
       margin: 0;
       min-height: 100vh;
-      background: var(--admin-body);
+      background: var(--admin-body-bg);
       color: var(--admin-text);
     }
     a { color: inherit; }
@@ -197,7 +198,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .sidebar-shell {
       position:sticky;
-      top:82px;
+      top:calc(var(--admin-topbar-height) + 18px);
       background:var(--admin-sidebar);
       color:var(--admin-sidebar-text);
       border-color:#1a2733;
