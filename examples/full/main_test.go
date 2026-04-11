@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/chromedp/chromedp"
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	"github.com/shijl0925/gin-ninja/settings"
 	"go.uber.org/zap"
@@ -79,6 +82,104 @@ func doFullJSON(t *testing.T, server *httptest.Server, method, path string, body
 // compactWhitespace normalizes HTML and script snippets so assertions ignore formatting-only changes.
 func compactWhitespace(value string) string {
 	return strings.Join(strings.Fields(value), " ")
+}
+
+func chromiumExecPath(t *testing.T) string {
+	t.Helper()
+
+	for _, candidate := range []string{
+		"/usr/bin/chromium-browser",
+		"/usr/bin/chromium",
+		"/usr/bin/google-chrome",
+		"/usr/bin/google-chrome-stable",
+	} {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	t.Skip("chromium browser not available")
+	return ""
+}
+
+func newFullBrowserContext(t *testing.T) (context.Context, context.CancelFunc) {
+	t.Helper()
+
+	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(context.Background(),
+		append(chromedp.DefaultExecAllocatorOptions[:],
+			chromedp.ExecPath(chromiumExecPath(t)),
+			chromedp.Flag("headless", true),
+			chromedp.Flag("disable-gpu", true),
+			chromedp.Flag("no-sandbox", true),
+			chromedp.Flag("disable-dev-shm-usage", true),
+		)...,
+	)
+	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
+	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, 90*time.Second)
+	return timeoutCtx, func() {
+		cancelTimeout()
+		cancelBrowser()
+		cancelAllocator()
+	}
+}
+
+func runBrowser(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
+	t.Helper()
+	if err := chromedp.Run(ctx, actions...); err != nil {
+		t.Fatalf("chromedp run: %v", err)
+	}
+}
+
+func waitForBrowserCondition(t *testing.T, ctx context.Context, description, expression string) {
+	t.Helper()
+
+	deadline := time.Now().Add(15 * time.Second)
+	var last bool
+	for time.Now().Before(deadline) {
+		if err := chromedp.Run(ctx, chromedp.Evaluate(expression, &last)); err == nil && last {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", description)
+}
+
+func waitForBrowserText(t *testing.T, ctx context.Context, selector, want string) {
+	t.Helper()
+	waitForBrowserCondition(t, ctx, fmt.Sprintf("%s to contain %q", selector, want), fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		return !!el && String(el.textContent || "").includes(%q);
+	})()`, selector, want))
+}
+
+func waitForBrowserPath(t *testing.T, ctx context.Context, want string) {
+	t.Helper()
+	waitForBrowserCondition(t, ctx, "browser path "+want, fmt.Sprintf(`window.location.pathname === %q`, want))
+}
+
+func waitForBrowserEnabled(t *testing.T, ctx context.Context, selector string) {
+	t.Helper()
+	waitForBrowserCondition(t, ctx, selector+" enabled", fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		return !!el && !el.disabled;
+	})()`, selector))
+}
+
+func waitForBrowserVisible(t *testing.T, ctx context.Context, selector string) {
+	t.Helper()
+	waitForBrowserCondition(t, ctx, selector+" visible", fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		return !!el && !el.hidden && el.offsetParent !== null;
+	})()`, selector))
+}
+
+func setBrowserValue(t *testing.T, ctx context.Context, selector, value string) {
+	t.Helper()
+	runBrowser(t, ctx, chromedp.SetValue(selector, value))
+}
+
+func clickBrowser(t *testing.T, ctx context.Context, selector string) {
+	t.Helper()
+	runBrowser(t, ctx, chromedp.Click(selector))
 }
 
 func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
@@ -1178,6 +1279,135 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	if !strings.Contains(aliceProjectStillThereBody, "Alice Private Project") {
 		t.Fatalf("expected alice project detail after bob bulk delete, got %s", aliceProjectStillThereBody)
 	}
+}
+
+func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserText(t, ctx, "#resources", "Users (users)")
+	waitForBrowserText(t, ctx, "#resources", "Projects (projects)")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+
+	clickBrowser(t, ctx, "#resources li:nth-child(2) .nav-link")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Projects")
+	waitForBrowserEnabled(t, ctx, "#openCreateModal")
+
+	clickBrowser(t, ctx, "#openCreateModal")
+	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserVisible(t, ctx, "#createForm input[name='title']")
+
+	setBrowserValue(t, ctx, "#createForm input[name='title']", "Black Box Project")
+	setBrowserValue(t, ctx, "#createForm textarea[name='summary']", "created via browser integration")
+	setBrowserValue(t, ctx, "#createForm .relation-control input[type='text']", "ali")
+	waitForBrowserCondition(t, ctx, "owner relation option 1", `(() => {
+		const select = document.querySelector("#createForm select[name='owner_id']");
+		return !!select && Array.from(select.options).some((option) => option.value === "1");
+	})()`)
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const select = document.querySelector("#createForm select[name='owner_id']");
+		select.value = "1";
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+		return select.value;
+	})()`, nil))
+	clickBrowser(t, ctx, "#createForm button[type='submit']")
+
+	waitForBrowserText(t, ctx, "#status", "Created a new projects record.")
+	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
+	waitForBrowserVisible(t, ctx, "#recordModal")
+	waitForBrowserText(t, ctx, "#detailTitle", "Projects #1")
+	waitForBrowserText(t, ctx, "#detailFields", "created via browser integration")
+
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
+	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
+	clickBrowser(t, ctx, ".action-menu-list.open .action-menu-item")
+	waitForBrowserVisible(t, ctx, "#editModal")
+	waitForBrowserVisible(t, ctx, "#updateForm textarea[name='summary']")
+
+	setBrowserValue(t, ctx, "#updateForm textarea[name='summary']", "updated through browser flow")
+	clickBrowser(t, ctx, "#updateForm button[type='submit']")
+
+	waitForBrowserText(t, ctx, "#status", "Updated record #1.")
+	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
+	waitForBrowserText(t, ctx, "#detailFields", "updated through browser flow")
+	clickBrowser(t, ctx, "#closeRecordModal")
+
+	clickBrowser(t, ctx, "#list tbody tr:first-child td:first-child input[type='checkbox']")
+	waitForBrowserText(t, ctx, "#selectedCountBadge", "1 selected")
+	waitForBrowserEnabled(t, ctx, "#bulkDelete")
+	clickBrowser(t, ctx, "#bulkDelete")
+
+	waitForBrowserText(t, ctx, "#status", "Bulk deleted 1 record(s).")
+	waitForBrowserText(t, ctx, "#list", "No records matched the current filters.")
+}
+
+func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	waitForBrowserText(t, ctx, "body", "Demo credentials")
+
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserText(t, ctx, "#resources", "Projects (projects)")
+	waitForBrowserCondition(t, ctx, "#adminShell visible", `(() => {
+		const el = document.querySelector("#adminShell");
+		return !!el && !el.hidden;
+	})()`)
+	waitForBrowserCondition(t, ctx, "#loginForm hidden", `(() => {
+		const el = document.querySelector("#loginForm");
+		return !!el && el.hidden;
+	})()`)
+
+	clickBrowser(t, ctx, "#clearToken")
+	waitForBrowserPath(t, ctx, "/admin/login")
+	waitForBrowserText(t, ctx, "#status", "Signed out of the admin console.")
+	waitForBrowserVisible(t, ctx, "#loginForm")
 }
 
 func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {
