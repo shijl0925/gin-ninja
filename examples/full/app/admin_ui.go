@@ -47,11 +47,14 @@ const adminPrototypeHTML = `<!doctype html>
     .login-feature strong { font-size:15px; }
     .login-credentials { gap:8px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid #dbeafe; }
     .login-credentials code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; background:#fff; border:1px solid #dbeafe; border-radius:8px; padding:2px 6px; }
-    .admin-shell { display:grid; gap:20px; grid-template-columns: 300px minmax(0, 1fr); align-items:start; }
-    .sidebar-panel { position:sticky; top:20px; }
-    .nav-list { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
-    .nav-list li { margin:0; }
-    .nav-link { width:100%; text-align:left; background:#f8fafc; color:#0f172a; border:1px solid #dbe2ea; padding:14px 16px; border-radius:14px; display:grid; gap:4px; font-weight:600; }
+    .admin-shell { display:grid; gap:20px; }
+    .resource-strip { padding:18px; }
+    .resource-strip-header, .resource-strip-copy { display:grid; gap:6px; }
+    .resource-strip-header { align-items:start; }
+    .resource-strip-copy strong, .resource-strip-copy p { margin:0; }
+    .nav-list { list-style:none; margin:0; padding:0; display:flex; gap:10px; flex-wrap:wrap; }
+    .nav-list li { margin:0; flex:0 0 auto; }
+    .nav-link { min-width:min(100%, 220px); text-align:left; background:#f8fafc; color:#0f172a; border:1px solid #dbe2ea; padding:14px 16px; border-radius:14px; display:grid; gap:4px; font-weight:600; }
     .nav-link:hover { background:#eff6ff; border-color:#bfdbfe; }
     .nav-link.active { background:linear-gradient(135deg, #1d4ed8 0%, #3730a3 100%); border-color:#1d4ed8; color:#fff; box-shadow:0 14px 28px rgba(37, 99, 235, 0.22); }
     .workspace { min-width:0; }
@@ -148,10 +151,6 @@ const adminPrototypeHTML = `<!doctype html>
     @media (min-width: 1180px) {
       .detail-layout { grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr); }
     }
-    @media (max-width: 1380px) {
-      .admin-shell { grid-template-columns:1fr; }
-      .sidebar-panel { position:static; }
-    }
     @media (max-width: 960px) {
       body.standalone-login-page .login-shell { grid-template-columns:1fr; }
       .topbar, .app-main, body.standalone-login-page .topbar, body.standalone-login-page .app-main { padding:16px; }
@@ -159,6 +158,7 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar { flex-direction:column; }
       .topbar-meta { justify-content:flex-start; width:100%; }
       .table-toolbar .row-actions { flex-basis:100%; }
+      .nav-list li, .nav-link { width:100%; min-width:0; }
     }
   </style>
 </head>
@@ -173,7 +173,6 @@ const adminPrototypeHTML = `<!doctype html>
     </div>
     <div class="topbar-meta">
       <div id="sessionActions" class="row-actions" hidden>
-        <button id="loadResources" type="button" class="secondary">Refresh workspace</button>
         <button id="clearToken" type="button">Sign out</button>
       </div>
     </div>
@@ -233,18 +232,16 @@ const adminPrototypeHTML = `<!doctype html>
       </section>
     </section>
     <section id="adminShell" class="admin-shell" hidden>
-      <aside>
-        <section class="panel sidebar-panel stack">
-          <div class="sidebar-heading">
-            <span class="eyebrow subtle">Navigation</span>
-            <div class="stack" style="gap:4px;">
-              <h2>Resources</h2>
-              <p class="muted">Choose a resource to manage records, filters, and bulk actions.</p>
-            </div>
+      <section class="panel resource-strip stack">
+        <div class="resource-strip-header">
+          <div class="resource-strip-copy">
+            <span class="eyebrow subtle">Resource navigation</span>
+            <strong>Switch workspaces</strong>
+            <p class="muted">Jump between resources from a compact strip so the main workspace can stay wider.</p>
           </div>
-          <ul id="resources" class="nav-list"></ul>
-        </section>
-      </aside>
+        </div>
+        <ul id="resources" class="nav-list"></ul>
+      </section>
       <section class="workspace stack">
         <section class="panel workspace-header">
           <div class="workspace-header-copy">
@@ -421,7 +418,6 @@ const adminPrototypeHTML = `<!doctype html>
       nextPage: document.getElementById('nextPage'),
       list: document.getElementById('list'),
       detail: document.getElementById('detail'),
-      loadResources: document.getElementById('loadResources'),
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
       bulkDelete: document.getElementById('bulkDelete'),
@@ -1409,7 +1405,6 @@ const adminPrototypeHTML = `<!doctype html>
     els.clearToken.onclick = () => {
       logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
     };
-     els.loadResources.onclick = loadResources;
      els.openCreateModal.onclick = () => {
        if (els.openCreateModal.disabled) return;
        openModal(els.createModal);

@@ -603,8 +603,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';") {
 		t.Fatalf("expected shorter admin workspace summary copy in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "Refresh workspace") {
-		t.Fatalf("expected admin workspace toolbar action in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "Refresh workspace") {
+		t.Fatalf("expected admin workspace refresh action to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "els.loginForm.hidden = false;") {
 		t.Fatalf("expected signed-out admin page to keep login form visible in html: %q", adminHTML)
@@ -612,8 +612,20 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "els.adminShell.hidden = true;") {
 		t.Fatalf("expected signed-out admin page to keep admin shell hidden in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "@media (max-width: 1380px)") {
-		t.Fatalf("expected earlier admin-shell responsive collapse in html: %q", adminHTML)
+	if !strings.Contains(adminHTML, "Resource navigation") || !strings.Contains(adminHTML, "Switch workspaces") {
+		t.Fatalf("expected compact resource strip copy in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "Jump between resources from a compact strip so the main workspace can stay wider.") {
+		t.Fatalf("expected wider-workspace resource strip copy in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, ">Navigation<") {
+		t.Fatalf("expected old sidebar navigation label to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "Choose a resource to manage records, filters, and bulk actions.") {
+		t.Fatalf("expected old sidebar helper copy to be removed from html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"panel resource-strip stack\"") {
+		t.Fatalf("expected horizontal resource strip shell in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
