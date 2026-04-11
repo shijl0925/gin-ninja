@@ -804,7 +804,7 @@ const adminPrototypeHTML = `<!doctype html>
       cursor:pointer;
       border-radius:0.25rem;
     }
-    /* filter:none cancels the universal button:hover brightness filter for this link-style button */
+    /* Setting filter:none overrides the universal button:hover brightness filter for this link-style button */
     .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
@@ -1190,7 +1190,8 @@ const adminPrototypeHTML = `<!doctype html>
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
     const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
-    let pendingConfirmAction = null;
+    const DASHBOARD_COUNT_PLACEHOLDER = '—';
+    let pendingConfirmCallback = null;
     const state = {
       auth: { name: '', userID: null },
       current: null,
@@ -1654,7 +1655,7 @@ const adminPrototypeHTML = `<!doctype html>
      }
 
     function openConfirmDialog(title, message, onConfirm, confirmLabel) {
-      pendingConfirmAction = onConfirm;
+      pendingConfirmCallback = onConfirm;
       els.confirmModalTitle.textContent = title;
       els.confirmModalMessage.textContent = message;
       els.confirmModalConfirm.textContent = confirmLabel || 'Confirm';
@@ -1714,7 +1715,7 @@ const adminPrototypeHTML = `<!doctype html>
         tile.type = 'button';
         tile.className = 'dashboard-tile';
         tile.innerHTML =
-          '<span class="dashboard-tile-count">—</span>' +
+          '<span class="dashboard-tile-count">' + DASHBOARD_COUNT_PLACEHOLDER + '</span>' +
           '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
           '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>';
         tile.onclick = () => selectResource(resource);
@@ -1724,9 +1725,12 @@ const adminPrototypeHTML = `<!doctype html>
         request(basePath + '?page=1&size=1')
           .then((data) => {
             const countEl = tile.querySelector('.dashboard-tile-count');
-            if (countEl) countEl.textContent = String(data.total ?? '—');
+            if (countEl) countEl.textContent = String(data.total ?? DASHBOARD_COUNT_PLACEHOLDER);
           })
-          .catch(() => {});
+          .catch((err) => {
+            // Count is decorative; log but don't surface to user
+            console.error('dashboard tile count load failed for ' + resource.name + ':', err);
+          });
       });
     }
 
@@ -2519,12 +2523,12 @@ const adminPrototypeHTML = `<!doctype html>
         'Delete ' + count
       );
     };
-    els.closeConfirmModal.onclick = () => { pendingConfirmAction = null; closeModal(els.confirmModal); };
-    els.confirmModalCancel.onclick = () => { pendingConfirmAction = null; closeModal(els.confirmModal); };
-    els.confirmModalConfirm.onclick = () => { if (pendingConfirmAction) pendingConfirmAction(); };
+    els.closeConfirmModal.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
+    els.confirmModalCancel.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
+    els.confirmModalConfirm.onclick = () => { if (pendingConfirmCallback) pendingConfirmCallback(); };
     els.confirmModal.addEventListener('click', (event) => {
       if (event.target === els.confirmModal) {
-        pendingConfirmAction = null;
+        pendingConfirmCallback = null;
         closeModal(els.confirmModal);
       }
     });
