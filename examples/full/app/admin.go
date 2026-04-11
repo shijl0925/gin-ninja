@@ -43,6 +43,7 @@ func NewAdminSite() *admin.Site {
 		DetailFields: []string{"id", "title", "summary", "owner_id", "createdAt", "updatedAt"},
 		CreateFields: []string{"title", "summary", "owner_id"},
 		UpdateFields: []string{"title", "summary", "owner_id"},
+		FilterFields: []string{"id"},
 		SearchFields: []string{"title", "summary"},
 		SortFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
 		FieldOptions: map[string]admin.FieldOptions{

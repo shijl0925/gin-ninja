@@ -117,7 +117,7 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		DetailFields: []string{"id", "name", "email", "age", "is_admin", "created_at", "updated_at"},
 		CreateFields: []string{"name", "email", "password", "age", "is_admin"},
 		UpdateFields: []string{"name", "email", "password", "age", "is_admin"},
-		FilterFields: []string{"is_admin", "created_at"},
+		FilterFields: []string{"id", "is_admin", "created_at"},
 		SortFields:   []string{"id", "name", "email", "created_at"},
 		SearchFields: []string{"name", "email"},
 		FieldOptions: map[string]FieldOptions{
@@ -229,6 +229,18 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	}
 	if len(sortedByID.Items) < 2 || fmt.Sprint(sortedByID.Items[0]["id"]) != "2" || fmt.Sprint(sortedByID.Items[1]["id"]) != "1" {
 		t.Fatalf("unexpected sort by id payload: %+v", sortedByID)
+	}
+
+	filteredByIDResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?id=2", nil, map[string]string{"X-User-ID": "1"})
+	if filteredByIDResp.Code != http.StatusOK {
+		t.Fatalf("filter by id status = %d body=%s", filteredByIDResp.Code, filteredByIDResp.Body.String())
+	}
+	var filteredByID ResourceListOutput
+	if err := json.NewDecoder(filteredByIDResp.Body).Decode(&filteredByID); err != nil {
+		t.Fatalf("decode filtered by id list: %v", err)
+	}
+	if filteredByID.Total != 1 || len(filteredByID.Items) != 1 || fmt.Sprint(filteredByID.Items[0]["id"]) != "2" {
+		t.Fatalf("unexpected filter by id payload: %+v", filteredByID)
 	}
 
 	updateResp := performJSON(t, api, http.MethodPut, "/admin/resources/users/2", map[string]any{

@@ -710,6 +710,7 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta) (*gorm.DB, err
 		if raw == "" {
 			continue
 		}
+		column := queryColumn(field)
 		var (
 			value any
 			err   error
@@ -736,21 +737,21 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta) (*gorm.DB, err
 		}
 		switch candidate.Op {
 		case "eq":
-			db = db.Where(field.Meta.Column+" = ?", value)
+			db = db.Where(column+" = ?", value)
 		case "ne":
-			db = db.Where(field.Meta.Column+" <> ?", value)
+			db = db.Where(column+" <> ?", value)
 		case "gt":
-			db = db.Where(field.Meta.Column+" > ?", value)
+			db = db.Where(column+" > ?", value)
 		case "gte":
-			db = db.Where(field.Meta.Column+" >= ?", value)
+			db = db.Where(column+" >= ?", value)
 		case "lt":
-			db = db.Where(field.Meta.Column+" < ?", value)
+			db = db.Where(column+" < ?", value)
 		case "lte":
-			db = db.Where(field.Meta.Column+" <= ?", value)
+			db = db.Where(column+" <= ?", value)
 		case "like":
-			db = db.Where(field.Meta.Column+" LIKE ?", value)
+			db = db.Where(column+" LIKE ?", value)
 		case "in":
-			db = db.Where(field.Meta.Column+" IN ?", value)
+			db = db.Where(column+" IN ?", value)
 		}
 	}
 	return db, nil
