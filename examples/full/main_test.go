@@ -530,6 +530,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "renderFilterControls()") {
 		t.Fatalf("expected filter controls in html: %q", html)
 	}
+	if !strings.Contains(html, "function scheduleSearchReload()") {
+		t.Fatalf("expected debounced resource search helper in html: %q", html)
+	}
+	if !strings.Contains(html, "els.search.addEventListener('input'") {
+		t.Fatalf("expected search input to trigger live reloads in html: %q", html)
+	}
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
 	}

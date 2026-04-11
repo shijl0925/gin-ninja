@@ -378,6 +378,7 @@ const adminPrototypeHTML = `<!doctype html>
       bulkSelected: {},
       relationSearch: {},
       relationTimers: {},
+      searchTimer: null,
       pagination: { page: 1, size: 10, pages: 1, total: 0 }
     };
 
@@ -731,6 +732,23 @@ const adminPrototypeHTML = `<!doctype html>
 
     function resetToFirstPage() {
       state.pagination.page = 1;
+    }
+
+    function cancelScheduledSearchReload() {
+      if (state.searchTimer) {
+        clearTimeout(state.searchTimer);
+        state.searchTimer = null;
+      }
+    }
+
+    function scheduleSearchReload() {
+      cancelScheduledSearchReload();
+      state.searchTimer = setTimeout(() => {
+        state.searchTimer = null;
+        if (!state.current) return;
+        resetToFirstPage();
+        els.reloadList.click();
+      }, 300);
     }
 
     function renderResources() {
@@ -1415,40 +1433,49 @@ const adminPrototypeHTML = `<!doctype html>
        document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
-    els.clearFilters.onclick = () => {
-      if (!state.current) return;
-      els.search.value = '';
-      els.sort.value = '';
-      Array.from(els.filtersForm.elements).forEach((element) => {
-        if ('value' in element) element.value = '';
+     els.clearFilters.onclick = () => {
+       if (!state.current) return;
+       cancelScheduledSearchReload();
+       els.search.value = '';
+       els.sort.value = '';
+       Array.from(els.filtersForm.elements).forEach((element) => {
+         if ('value' in element) element.value = '';
       });
       reloadListWithStatus('Cleared filters.', true).catch((error) => setStatus(String(error.message || error)));
     };
-    els.filtersForm.onsubmit = (event) => {
-      event.preventDefault();
-      els.reloadList.click();
-    };
-    els.search.onkeydown = (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        resetToFirstPage();
-        els.reloadList.click();
-      }
-    };
-    els.sort.onchange = () => {
-      if (!state.current) return;
-      resetToFirstPage();
-      els.reloadList.click();
-    };
+     els.filtersForm.onsubmit = (event) => {
+       event.preventDefault();
+       cancelScheduledSearchReload();
+       els.reloadList.click();
+     };
+     els.search.addEventListener('input', () => {
+       if (!state.current) return;
+       scheduleSearchReload();
+     });
+     els.search.onkeydown = (event) => {
+       if (event.key === 'Enter') {
+         event.preventDefault();
+         cancelScheduledSearchReload();
+         resetToFirstPage();
+         els.reloadList.click();
+       }
+     };
+     els.sort.onchange = () => {
+       if (!state.current) return;
+       cancelScheduledSearchReload();
+       resetToFirstPage();
+       els.reloadList.click();
+     };
     els.pageSize.onchange = () => {
       state.pagination.size = Number(els.pageSize.value || 10);
       reloadListWithStatus('Updated page size.', true).catch((error) => setStatus(String(error.message || error)));
     };
-    els.filtersForm.onchange = () => {
-      if (!state.current) return;
-      resetToFirstPage();
-      els.reloadList.click();
-    };
+     els.filtersForm.onchange = () => {
+       if (!state.current) return;
+       cancelScheduledSearchReload();
+       resetToFirstPage();
+       els.reloadList.click();
+     };
     els.prevPage.onclick = () => {
       if (state.pagination.page <= 1) return;
       state.pagination.page -= 1;
