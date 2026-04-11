@@ -430,6 +430,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
 		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
 	}
+	if !strings.Contains(loginHTML, "[hidden] { display:none !important; }") {
+		t.Fatalf("expected hidden css rule in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "els.manualTokenTools.hidden = true;") {
+		t.Fatalf("expected signed-out manual token tools to stay hidden in html: %q", loginHTML)
+	}
 	if !strings.Contains(loginHTML, "window.location.replace(adminPagePath)") {
 		t.Fatalf("expected standalone login redirect to /admin in html: %q", loginHTML)
 	}
@@ -456,8 +462,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "Refresh workspace") {
 		t.Fatalf("expected admin workspace toolbar action in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "window.location.replace(adminLoginPath)") {
-		t.Fatalf("expected standalone admin redirect to /admin/login in html: %q", adminHTML)
+	if !strings.Contains(adminHTML, "els.loginForm.hidden = false;") {
+		t.Fatalf("expected signed-out admin page to keep login form visible in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "els.adminShell.hidden = true;") {
+		t.Fatalf("expected signed-out admin page to keep admin shell hidden in html: %q", adminHTML)
 	}
 
 	prototypeResp, err := http.Get(server.URL + "/admin-prototype")
@@ -503,8 +512,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "skipAuthRedirect: true") {
 		t.Fatalf("expected login request auth redirect bypass in html: %q", html)
 	}
-	if !strings.Contains(html, "window.location.replace(adminLoginPath)") {
-		t.Fatalf("expected standalone redirect helper in html: %q", html)
+	if !strings.Contains(html, "els.sessionShell.hidden = true;") {
+		t.Fatalf("expected signed-in pages to hide the login shell in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {
 		t.Fatalf("expected expired session redirect flow in html: %q", html)

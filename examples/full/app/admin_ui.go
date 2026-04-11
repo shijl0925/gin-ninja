@@ -15,6 +15,7 @@ const adminPrototypeHTML = `<!doctype html>
   <title>Gin Ninja Admin</title>
   <style>
     :root { color-scheme: light; }
+    [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #eef2f7; color: #0f172a; }
     .topbar, .app-main { max-width: 1480px; margin: 0 auto; padding: 20px 24px; }
@@ -57,7 +58,7 @@ const adminPrototypeHTML = `<!doctype html>
     .workspace-meta { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
     .action-pills { display:flex; gap:8px; flex-wrap:wrap; }
     .action-pill { display:inline-flex; align-items:center; border-radius:999px; padding:7px 12px; background:#f8fafc; border:1px solid #dbe2ea; color:#475569; font-size:12px; font-weight:600; text-transform:capitalize; }
-    .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1.5fr) minmax(320px, 0.9fr); }
+    .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1.5fr) minmax(320px, 0.9fr); align-items:start; }
     .section-shell { display:grid; gap:16px; }
     .section-heading { display:grid; gap:6px; }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
@@ -68,7 +69,8 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
     .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; }
     .relation-preview mark { background:#fef3c7; padding:0; }
-    .detail-layout { display:grid; gap:16px; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); }
+    .detail-layout { display:grid; gap:16px; grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr); align-items:start; }
+    .content-grid > *, .detail-layout > * { min-width:0; }
     .detail-card { border:1px solid #e2e8f0; border-radius:16px; padding:18px; background:#fff; }
     .detail-grid { display:grid; gap:10px; }
     .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf2f7; padding-bottom:10px; }
@@ -504,24 +506,23 @@ const adminPrototypeHTML = `<!doctype html>
     function renderSignedOutState() {
       const standaloneAdminPage = isStandaloneAdminPage();
       const standaloneLoginPage = isStandaloneLoginPage();
-      els.loginForm.hidden = standaloneAdminPage;
+      els.loginForm.hidden = false;
       els.sessionShell.hidden = false;
       els.sessionActions.hidden = true;
-      els.manualTokenTools.hidden = standaloneLoginPage;
+      els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
       els.authBadge.textContent = 'Logged out';
       els.authDescription.textContent = standaloneAdminPage
-        ? 'Redirecting to /admin/login…'
+        ? 'Sign in to access the admin console.'
         : 'Sign in to access the example admin APIs.';
     }
 
     function renderSignedInState() {
       const standaloneLoginPage = isStandaloneLoginPage();
-      const standaloneAdminPage = isStandaloneAdminPage();
       els.loginForm.hidden = true;
       els.sessionActions.hidden = standaloneLoginPage;
-      els.sessionShell.hidden = standaloneAdminPage;
-      els.manualTokenTools.hidden = standaloneLoginPage || standaloneAdminPage;
+      els.sessionShell.hidden = true;
+      els.manualTokenTools.hidden = true;
       els.adminShell.hidden = standaloneLoginPage;
       els.authBadge.textContent = state.auth.name ? ('Signed in as ' + state.auth.name) : 'Authenticated';
       els.authDescription.textContent = state.auth.name
@@ -537,9 +538,6 @@ const adminPrototypeHTML = `<!doctype html>
         }
       } else {
         renderSignedOutState();
-        if (isStandaloneAdminPage()) {
-          redirectToLogin('Sign in to continue.');
-        }
       }
     }
 
