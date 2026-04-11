@@ -36,6 +36,7 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-topbar-min-height: 64px;
       --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
       --admin-content-gap: 18px;
+      --admin-sidebar-width: 280px;
     }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
@@ -61,24 +62,61 @@ const adminPrototypeHTML = `<!doctype html>
       border-bottom:1px solid var(--admin-border);
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading, .topbar-context { display:grid; gap:6px; }
+    .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading, .topbar-context { display:grid; gap:6px; }
+    .topbar-left {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+      flex:1 1 auto;
+    }
     .topbar-brand {
       grid-template-columns:auto 1fr;
       align-items:center;
       gap:14px;
       min-width:0;
     }
+    .topbar-toggle {
+      min-width:40px;
+      min-height:40px;
+      padding:0;
+      border:none;
+      background:transparent;
+      color:#6c757d;
+      box-shadow:none;
+      font-size:22px;
+      line-height:1;
+    }
+    .topbar-nav {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:0;
+    }
+    .topbar-link {
+      display:inline-flex;
+      align-items:center;
+      min-height:40px;
+      padding:0 14px;
+      border-radius:0.35rem;
+      color:#495057;
+      text-decoration:none;
+      font-size:15px;
+      font-weight:500;
+    }
+    .topbar-link:hover { background:#f4f6f9; color:#212529; }
     .brand-mark {
       width:38px;
       height:38px;
-      border-radius:10px;
+      border-radius:999px;
       display:grid;
       place-items:center;
-      background:linear-gradient(135deg, var(--admin-primary-dark) 0%, var(--admin-primary) 100%);
-      color:#fff;
+      background:#f4f6f9;
+      color:#495057;
+      border:1px solid rgba(0,0,0,0.12);
       font-weight:800;
       letter-spacing:0.08em;
-      box-shadow: 0 8px 18px rgba(60, 141, 188, 0.25);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     }
     .topbar-copy h1, .sidebar-heading h2, .section-title, .topbar-context p { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
@@ -89,6 +127,44 @@ const adminPrototypeHTML = `<!doctype html>
       gap:12px;
       min-width:0;
     }
+    .topbar-actions {
+      display:flex;
+      align-items:center;
+      gap:4px;
+    }
+    .topbar-action {
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:40px;
+      height:40px;
+      padding:0;
+      border:none;
+      border-radius:0.35rem;
+      background:transparent;
+      color:#6c757d;
+      box-shadow:none;
+      font-size:20px;
+      line-height:1;
+    }
+    .topbar-action:hover { background:#f4f6f9; color:#212529; }
+    .topbar-action-badge {
+      position:absolute;
+      top:4px;
+      right:2px;
+      min-width:18px;
+      height:18px;
+      padding:0 5px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      font-size:10px;
+      font-weight:700;
+      color:#fff;
+      background:#dc3545;
+    }
+    .topbar-action-badge.warning { background:#ffc107; color:#212529; }
     .topbar-context {
       padding-right:12px;
       border-right:1px solid var(--admin-border);
@@ -194,8 +270,8 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .admin-shell {
       display:grid;
-      gap:18px;
-      grid-template-columns:280px minmax(0, 1fr);
+      gap:20px;
+      grid-template-columns:var(--admin-sidebar-width) minmax(0, 1fr);
       align-items:start;
     }
     .sidebar-shell {
@@ -203,13 +279,109 @@ const adminPrototypeHTML = `<!doctype html>
       top:calc(var(--admin-topbar-height) + var(--admin-content-gap));
       background:var(--admin-sidebar);
       color:var(--admin-sidebar-text);
-      border-color:#1a2733;
-      border-top-color:var(--admin-primary);
+      border:none;
+      border-radius:0.35rem;
+      box-shadow:none;
       padding:0;
       overflow:hidden;
     }
+    .sidebar-brand {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:12px;
+      padding:16px 18px;
+      background:#343a40;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-brand-mark {
+      width:44px;
+      height:44px;
+      display:grid;
+      place-items:center;
+      border-radius:999px;
+      background:#f4f6f9;
+      color:#495057;
+      font-size:24px;
+      font-weight:800;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .sidebar-brand-copy {
+      display:grid;
+      gap:4px;
+      min-width:0;
+    }
+    .sidebar-brand-copy strong {
+      color:#f8f9fa;
+      font-size:1.05rem;
+      font-weight:500;
+    }
+    .sidebar-brand-copy span {
+      color:#adb5bd;
+      font-size:12px;
+    }
+    .sidebar-user-panel {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:12px;
+      padding:16px 18px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-user-avatar {
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:999px;
+      background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
+      color:#495057;
+      font-size:13px;
+      font-weight:700;
+    }
+    .sidebar-user-copy {
+      display:grid;
+      gap:2px;
+      min-width:0;
+    }
+    .sidebar-user-copy strong {
+      color:#f8f9fa;
+      font-size:15px;
+      font-weight:500;
+    }
+    .sidebar-user-copy span {
+      color:#adb5bd;
+      font-size:12px;
+    }
+    .sidebar-search {
+      position:relative;
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-search input {
+      width:100%;
+      height:42px;
+      padding-right:44px;
+      border-color:rgba(255,255,255,0.08);
+      background:#3f474e;
+      color:#f8f9fa;
+    }
+    .sidebar-search input::placeholder { color:#adb5bd; }
+    .sidebar-search button {
+      position:absolute;
+      top:50%;
+      right:22px;
+      transform:translateY(-50%);
+      width:34px;
+      height:34px;
+      padding:0;
+      background:#495057;
+      border:1px solid rgba(255,255,255,0.08);
+      color:#f8f9fa;
+      box-shadow:none;
+    }
     .resource-strip-header, .resource-strip-copy { display:grid; gap:6px; }
-    .resource-strip-header { align-items:start; padding:20px 20px 0; }
+    .resource-strip-header { align-items:start; padding:18px 16px 4px; }
     .resource-strip-copy strong, .resource-strip-copy p { margin:0; }
     .sidebar-heading h2 { color:#fff; font-size:1.15rem; }
     .sidebar-heading p, .sidebar-heading .eyebrow { color:var(--admin-sidebar-text); }
@@ -217,17 +389,17 @@ const adminPrototypeHTML = `<!doctype html>
     .sidebar-nav-shell {
       display:grid;
       gap:12px;
-      padding:18px 14px 18px;
+      padding:6px 10px 18px;
     }
     .sidebar-section-label {
       font-size:11px;
       font-weight:700;
       letter-spacing:0.08em;
       text-transform:uppercase;
-      color:#8aa4b8;
+      color:#c2c7d0;
       padding:0 8px;
     }
-    .nav-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+    .nav-list { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
     .nav-list li { margin:0; min-width:0; }
     .nav-link {
       width:100%;
@@ -235,23 +407,56 @@ const adminPrototypeHTML = `<!doctype html>
       background:transparent;
       color:var(--admin-sidebar-text);
       border:1px solid transparent;
-      border-radius:8px;
-      padding:12px 14px;
+      border-radius:0.35rem;
+      padding:11px 12px;
       display:grid;
-      gap:4px;
-      font-weight:600;
+      grid-template-columns:auto minmax(0, 1fr) auto;
+      align-items:center;
+      gap:10px;
+      font-weight:500;
       box-shadow:none;
     }
     .nav-link:hover {
       background:rgba(255,255,255,0.06);
-      border-color:rgba(255,255,255,0.08);
       color:#fff;
     }
     .nav-link.active {
-      background:rgba(60, 141, 188, 0.18);
-      border-color:rgba(60, 141, 188, 0.45);
+      background:#007bff;
+      border-color:#007bff;
       color:#fff;
-      box-shadow: inset 3px 0 0 var(--admin-primary);
+      box-shadow: 0 1px 4px rgba(0,123,255,0.42);
+    }
+    .nav-link-icon {
+      width:18px;
+      height:18px;
+      display:grid;
+      place-items:center;
+      border-radius:999px;
+      border:2px solid currentColor;
+      font-size:9px;
+      line-height:1;
+      opacity:0.95;
+    }
+    .nav-link-body { display:grid; gap:2px; min-width:0; }
+    .nav-link-label, .nav-link-meta {
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .nav-link-label { font-size:15px; }
+    .nav-link-meta {
+      font-size:11px;
+      color:rgba(255,255,255,0.62);
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+    .nav-link.active .nav-link-meta,
+    .nav-link:hover .nav-link-meta { color:rgba(255,255,255,0.82); }
+    .nav-link-caret {
+      font-size:18px;
+      line-height:1;
+      color:inherit;
+      opacity:0.85;
     }
     .workspace { min-width:0; }
     .workspace-header {
@@ -387,6 +592,10 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .topbar,
     body.standalone-login-page .app-main { max-width:1200px; margin:0 auto; width:100%; }
     body.standalone-login-page .topbar { padding-top:24px; border-bottom:none; box-shadow:none; background:transparent; position:static; }
+    body.standalone-login-page .topbar-nav,
+    body.standalone-login-page .topbar-actions,
+    body.standalone-login-page .topbar-toggle,
+    body.standalone-login-page .topbar-context { display:none; }
     body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px); align-items:stretch; }
     body.standalone-login-page .login-marketing,
     body.standalone-login-page .login-lead,
@@ -400,6 +609,10 @@ const adminPrototypeHTML = `<!doctype html>
     body.legacy-prototype-page .topbar {
       background:#fff;
     }
+    body.standalone-admin-page .topbar-brand,
+    body.legacy-prototype-page .topbar-brand {
+      display:none;
+    }
     @media (min-width: 1180px) {
       .detail-layout { grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr); }
     }
@@ -411,6 +624,8 @@ const adminPrototypeHTML = `<!doctype html>
       body.standalone-login-page .login-shell { grid-template-columns:1fr; }
       .topbar, .app-main, body.standalone-login-page .topbar, body.standalone-login-page .app-main { padding-left:16px; padding-right:16px; }
       .topbar { flex-direction:column; align-items:flex-start; }
+      .topbar-left, .topbar-meta { width:100%; }
+      .topbar-nav { flex-wrap:wrap; }
       .topbar-meta, .topbar-context { justify-content:flex-start; text-align:left; border-right:none; padding-right:0; }
       .table-toolbar .row-actions { flex-basis:100%; }
     }
@@ -418,18 +633,33 @@ const adminPrototypeHTML = `<!doctype html>
 </head>
 <body>
   <header class="topbar">
-    <div class="topbar-brand">
-      <span class="brand-mark">GN</span>
-      <div class="topbar-copy">
-        <span id="shellEyebrow" class="eyebrow">Admin Console</span>
-        <h1 id="pageTitle">Gin Ninja Admin</h1>
-        <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+    <div class="topbar-left">
+      <button class="topbar-toggle" type="button" aria-label="Toggle navigation">☰</button>
+      <nav class="topbar-nav" aria-label="Admin navigation shortcuts">
+        <a class="topbar-link" href="/admin">Home</a>
+        <a class="topbar-link" href="/admin-prototype">Widgets</a>
+        <a class="topbar-link" href="/admin/login">Contact</a>
+      </nav>
+      <div class="topbar-brand">
+        <span class="brand-mark">A</span>
+        <div class="topbar-copy">
+          <span id="shellEyebrow" class="eyebrow">Admin Console</span>
+          <h1 id="pageTitle">Gin Ninja Admin</h1>
+          <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+        </div>
       </div>
     </div>
     <div class="topbar-meta">
       <div class="topbar-context">
         <p class="muted">Example back office</p>
-        <strong>AdminLTE-inspired dashboard shell</strong>
+        <strong>AdminLTE-style navigation chrome</strong>
+      </div>
+      <div class="topbar-actions" aria-label="Admin quick actions">
+        <button class="topbar-action" type="button" aria-label="Search">⌕</button>
+        <button class="topbar-action" type="button" aria-label="Messages">💬<span class="topbar-action-badge">3</span></button>
+        <button class="topbar-action" type="button" aria-label="Notifications">🔔<span class="topbar-action-badge warning">15</span></button>
+        <button class="topbar-action" type="button" aria-label="Fullscreen">⛶</button>
+        <button class="topbar-action" type="button" aria-label="Grid menu">▦</button>
       </div>
       <div id="sessionActions" class="row-actions" hidden>
         <button id="clearToken" type="button">Sign out</button>
@@ -492,6 +722,24 @@ const adminPrototypeHTML = `<!doctype html>
     </section>
     <section id="adminShell" class="admin-shell" hidden>
       <aside class="panel resource-strip stack sidebar-shell">
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-mark">A</span>
+          <div class="sidebar-brand-copy">
+            <strong>AdminLTE 3</strong>
+            <span>Gin Ninja admin shell</span>
+          </div>
+        </div>
+        <div class="sidebar-user-panel">
+          <span class="sidebar-user-avatar">AP</span>
+          <div class="sidebar-user-copy">
+            <strong>Alexander Pierce</strong>
+            <span>Demo operator</span>
+          </div>
+        </div>
+        <div class="sidebar-search">
+          <input type="search" placeholder="Search" aria-label="Search sidebar navigation">
+          <button type="button" aria-label="Search sidebar">⌕</button>
+        </div>
         <div class="resource-strip-header">
           <div class="resource-strip-copy sidebar-heading">
             <span class="eyebrow subtle">Resource navigation</span>
@@ -1023,9 +1271,27 @@ const adminPrototypeHTML = `<!doctype html>
       state.resources.forEach((resource) => {
         const li = document.createElement('li');
         const button = document.createElement('button');
+        const icon = document.createElement('span');
+        const body = document.createElement('span');
+        const label = document.createElement('span');
+        const meta = document.createElement('span');
+        const caret = document.createElement('span');
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
-        button.textContent = resource.label + ' (' + resource.name + ')';
+        icon.className = 'nav-link-icon';
+        icon.textContent = '•';
+        body.className = 'nav-link-body';
+        label.className = 'nav-link-label';
+        label.textContent = resource.label;
+        meta.className = 'nav-link-meta';
+        meta.textContent = resource.name;
+        caret.className = 'nav-link-caret';
+        caret.textContent = '›';
+        body.appendChild(label);
+        body.appendChild(meta);
+        button.appendChild(icon);
+        button.appendChild(body);
+        button.appendChild(caret);
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
         els.resources.appendChild(li);

@@ -618,6 +618,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "Move between admin resources from a left-hand menu while keeping the workspace focused.") {
 		t.Fatalf("expected left-hand resource navigation copy in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "AdminLTE 3") || !strings.Contains(adminHTML, "Alexander Pierce") {
+		t.Fatalf("expected AdminLTE-style sidebar brand and user panel in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
+		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "aria-label=\"Search sidebar navigation\"") {
+		t.Fatalf("expected AdminLTE-style sidebar search box in html: %q", adminHTML)
+	}
 	if strings.Contains(adminHTML, ">Navigation<") {
 		t.Fatalf("expected old sidebar navigation label to be removed from html: %q", adminHTML)
 	}
@@ -1346,8 +1355,8 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
 
-	waitForBrowserText(t, ctx, "#resources", "Users (users)")
-	waitForBrowserText(t, ctx, "#resources", "Projects (projects)")
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 
 	clickBrowser(t, ctx, "#resources li:nth-child(2) .nav-link")
@@ -1434,7 +1443,7 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 
 	waitForBrowserPath(t, ctx, "/admin")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
-	waitForBrowserText(t, ctx, "#resources", "Projects (projects)")
+	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserCondition(t, ctx, "#adminShell visible", `(() => {
 		const el = document.querySelector("#adminShell");
 		return !!el && !el.hidden;
