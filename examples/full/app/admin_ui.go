@@ -55,8 +55,11 @@ const adminPrototypeHTML = `<!doctype html>
     .nav-link:hover { background:#eff6ff; border-color:#bfdbfe; }
     .nav-link.active { background:linear-gradient(135deg, #1d4ed8 0%, #3730a3 100%); border-color:#1d4ed8; color:#fff; box-shadow:0 14px 28px rgba(37, 99, 235, 0.22); }
     .workspace { min-width:0; }
-    .workspace-header { display:grid; gap:16px; }
-    .workspace-meta { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .workspace-header { display:flex; gap:16px 20px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding-block:18px; }
+    .workspace-header-copy { display:grid; gap:8px; flex:1 1 420px; min-width:0; }
+    .workspace-header-copy h2,
+    .workspace-header-copy p { margin:0; }
+    .workspace-meta { display:flex; gap:12px; align-items:center; justify-content:flex-end; flex:0 0 auto; margin-left:auto; }
     .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:16px; }
     .section-heading { display:grid; gap:6px; }
@@ -227,7 +230,7 @@ const adminPrototypeHTML = `<!doctype html>
       </aside>
       <section class="workspace stack">
         <section class="panel workspace-header">
-          <div class="stack" style="gap:6px;">
+          <div class="workspace-header-copy">
             <span class="eyebrow subtle">Admin Workspace</span>
             <h2 id="resourceTitle">Select a resource</h2>
             <p id="resourcePath" class="muted">Sign in to open a resource workspace.</p>
