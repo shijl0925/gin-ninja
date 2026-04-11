@@ -533,6 +533,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
 	}
+	if !strings.Contains(html, "option.textContent = 'Choose ' + placeholderLabel;") {
+		t.Fatalf("expected relation selects to include an explicit empty choice in html: %q", html)
+	}
+	if !strings.Contains(html, "preview.hidden = true;") {
+		t.Fatalf("expected relation preview to stay hidden until searching in html: %q", html)
+	}
+	if !strings.Contains(html, "payload[key] = /^-?\\d+(?:\\.\\d+)?$/.test(value) ? Number(value) : value;") {
+		t.Fatalf("expected relation values to be serialized with numeric JSON types in html: %q", html)
+	}
 	if !strings.Contains(html, "localStorage.setItem(tokenStorageKey, token)") {
 		t.Fatalf("expected token persistence in html: %q", html)
 	}

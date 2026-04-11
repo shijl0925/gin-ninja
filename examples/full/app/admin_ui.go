@@ -850,11 +850,18 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function updateRelationPreview(preview, items, term) {
+      const normalizedTerm = term.trim();
+      if (!normalizedTerm) {
+        preview.hidden = true;
+        preview.innerHTML = '';
+        return;
+      }
+      preview.hidden = false;
       if (!items.length) {
         preview.innerHTML = '<li>No matching options.</li>';
         return;
       }
-      preview.innerHTML = items.slice(0, 5).map((item) => '<li>' + highlightMatch(item.label, term) + '</li>').join('');
+      preview.innerHTML = items.slice(0, 5).map((item) => '<li>' + highlightMatch(item.label, normalizedTerm) + '</li>').join('');
     }
 
     async function loadRelationOptions(field, search, page, size) {
@@ -867,18 +874,26 @@ const adminPrototypeHTML = `<!doctype html>
       return options.items || [];
     }
 
-    function populateRelationSelect(select, items, selectedValue) {
+    function populateRelationSelect(select, items, selectedValue, placeholderLabel) {
       select.innerHTML = '';
+      const hasSelection = selectedValue != null && selectedValue !== '';
+      if (!hasSelection) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Choose ' + placeholderLabel;
+        option.selected = true;
+        select.appendChild(option);
+      }
       items.forEach((item) => {
         const option = document.createElement('option');
         option.value = String(item.value);
         option.textContent = item.label;
-        if (String(selectedValue ?? '') === String(item.value)) {
+        if (hasSelection && String(selectedValue) === String(item.value)) {
           option.selected = true;
         }
         select.appendChild(option);
       });
-      if (selectedValue != null && selectedValue !== '' && !Array.from(select.options).some((option) => option.value === String(selectedValue))) {
+      if (hasSelection && !Array.from(select.options).some((option) => option.value === String(selectedValue))) {
         const option = document.createElement('option');
         option.value = String(selectedValue);
         option.textContent = 'Selected: ' + String(selectedValue);
@@ -896,14 +911,14 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
-    function scheduleRelationSearch(field, scopeKey, searchInput, select, preview, selectedValue) {
+    function scheduleRelationSearch(field, scopeKey, searchInput, select, preview) {
       const key = relationStateKey(scopeKey, field);
       clearTimeout(state.relationTimers[key]);
       state.relationTimers[key] = setTimeout(async () => {
         try {
           const term = searchInput.value.trim();
           const items = await loadRelationOptions(field, term, 1, 8);
-          populateRelationSelect(select, items, selectedValue);
+          populateRelationSelect(select, items, select.value, field.label);
           updateRelationPreview(preview, items, term);
           setStatus('Loaded ' + items.length + ' relation option(s) for ' + field.name + '.');
         } catch (error) {
@@ -933,11 +948,11 @@ const adminPrototypeHTML = `<!doctype html>
         wrapper.appendChild(preview);
         wrapper.appendChild(help);
         const items = await loadRelationOptions(field, searchInput.value.trim(), 1, 8);
-        populateRelationSelect(select, items, value);
+        populateRelationSelect(select, items, value, field.label);
         updateRelationPreview(preview, items, searchInput.value.trim());
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;
-          scheduleRelationSearch(field, scopeKey, searchInput, select, preview, value);
+          scheduleRelationSearch(field, scopeKey, searchInput, select, preview);
         });
         return wrapper;
       }
@@ -1052,6 +1067,14 @@ const adminPrototypeHTML = `<!doctype html>
         }
         if (field.component === 'array') {
           payload[key] = value ? JSON.parse(value) : [];
+          continue;
+        }
+        if (field.relation) {
+          if (value === '') {
+            payload[key] = null;
+            continue;
+          }
+          payload[key] = /^-?\d+(?:\.\d+)?$/.test(value) ? Number(value) : value;
           continue;
         }
         payload[key] = value;
