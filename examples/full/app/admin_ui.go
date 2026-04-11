@@ -57,8 +57,6 @@ const adminPrototypeHTML = `<!doctype html>
     .workspace { min-width:0; }
     .workspace-header { display:grid; gap:16px; }
     .workspace-meta { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-    .action-pills { display:flex; gap:8px; flex-wrap:wrap; }
-    .action-pill { display:inline-flex; align-items:center; border-radius:999px; padding:7px 12px; background:#f8fafc; border:1px solid #dbe2ea; color:#475569; font-size:12px; font-weight:600; text-transform:capitalize; }
     .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:16px; }
     .section-heading { display:grid; gap:6px; }
@@ -235,10 +233,8 @@ const adminPrototypeHTML = `<!doctype html>
             <p id="resourcePath" class="muted">Sign in to open a resource workspace.</p>
           </div>
           <div class="workspace-meta">
-            <div id="actions" class="action-pills muted">No actions available yet.</div>
             <div class="workspace-actions">
               <button id="openCreateModal" type="button">Create record</button>
-              <span id="selectedCountBadge" class="badge">0 selected</span>
             </div>
           </div>
         </section>
@@ -284,6 +280,7 @@ const adminPrototypeHTML = `<!doctype html>
                   <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
                 </div>
                 <div class="row-actions">
+                  <span id="selectedCountBadge" class="badge">0 selected</span>
                   <button id="reloadList" class="secondary" type="button">Refresh list</button>
                   <button id="clearFilters" class="secondary" type="button">Clear filters</button>
                   <button id="bulkDelete" class="danger" type="button">Bulk delete</button>
@@ -367,7 +364,6 @@ const adminPrototypeHTML = `<!doctype html>
       resources: document.getElementById('resources'),
       resourceTitle: document.getElementById('resourceTitle'),
       resourcePath: document.getElementById('resourcePath'),
-      actions: document.getElementById('actions'),
       selectedCountBadge: document.getElementById('selectedCountBadge'),
       detailTitle: document.getElementById('detailTitle'),
       detailObjectBadge: document.getElementById('detailObjectBadge'),
@@ -554,7 +550,6 @@ const adminPrototypeHTML = `<!doctype html>
       renderResources();
       els.resourceTitle.textContent = 'Select a resource';
       els.resourcePath.textContent = 'Sign in to open a resource workspace.';
-      els.actions.innerHTML = '<span class="muted">Sign in to load admin resources.</span>';
       els.detailTitle.textContent = 'No record selected';
       els.detailObjectBadge.textContent = 'Draft view';
       els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
@@ -715,19 +710,6 @@ const adminPrototypeHTML = `<!doctype html>
         li.appendChild(button);
         els.resources.appendChild(li);
       });
-    }
-
-    function formatActionLabel(action) {
-      return String(action || '').replaceAll('_', ' ');
-    }
-
-    function renderActionSummary() {
-      const actions = state.meta?.actions || [];
-      if (!actions.length) {
-        els.actions.innerHTML = '<span class="muted">No actions available for this resource.</span>';
-        return;
-      }
-      els.actions.innerHTML = actions.map((action) => '<span class="action-pill">' + escapeHTML(formatActionLabel(action)) + '</span>').join('');
     }
 
     function openModal(modal) {
@@ -1211,7 +1193,6 @@ const adminPrototypeHTML = `<!doctype html>
         renderResources();
         els.resourceTitle.textContent = state.meta.label;
         renderResourceSummary();
-        renderActionSummary();
         renderSortOptions();
         renderFilterControls();
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);

@@ -569,8 +569,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "button.className = 'nav-link'") {
 		t.Fatalf("expected active resource navigation styling in html: %q", html)
 	}
-	if !strings.Contains(html, "renderActionSummary()") {
-		t.Fatalf("expected action pill rendering in html: %q", html)
+	if strings.Contains(html, "renderActionSummary()") {
+		t.Fatalf("expected action pill rendering to be removed from html: %q", html)
+	}
+	if strings.Contains(html, "id=\"actions\"") {
+		t.Fatalf("expected action summary container to be removed from html: %q", html)
 	}
 	if !strings.Contains(html, "detail-layout") {
 		t.Fatalf("expected detail layout styles in html: %q", html)
