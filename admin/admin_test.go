@@ -219,6 +219,18 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		t.Fatalf("unexpected list payload: %+v", page)
 	}
 
+	sortedByIDResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?sort=-id", nil, map[string]string{"X-User-ID": "1"})
+	if sortedByIDResp.Code != http.StatusOK {
+		t.Fatalf("sort by id status = %d body=%s", sortedByIDResp.Code, sortedByIDResp.Body.String())
+	}
+	var sortedByID ResourceListOutput
+	if err := json.NewDecoder(sortedByIDResp.Body).Decode(&sortedByID); err != nil {
+		t.Fatalf("decode sorted by id list: %v", err)
+	}
+	if len(sortedByID.Items) < 2 || fmt.Sprint(sortedByID.Items[0]["id"]) != "2" || fmt.Sprint(sortedByID.Items[1]["id"]) != "1" {
+		t.Fatalf("unexpected sort by id payload: %+v", sortedByID)
+	}
+
 	updateResp := performJSON(t, api, http.MethodPut, "/admin/resources/users/2", map[string]any{
 		"name":     "Bobby",
 		"password": "updated123",

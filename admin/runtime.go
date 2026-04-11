@@ -152,6 +152,9 @@ func readAndRestoreRequestBody(ctx *ninja.Context) ([]byte, error) {
 	return body, nil
 }
 
+// queryColumn keeps primary-key lookups on the canonical `id` column name
+// because the default field-name to snake-case conversion would turn `ID`
+// into the invalid SQLite column `i_d`.
 func queryColumn(field *fieldMeta) string {
 	if field == nil {
 		return ""
@@ -251,7 +254,7 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 			if sortField.Desc {
 				direction = "DESC"
 			}
-			db = db.Order(field.Meta.Column + " " + direction)
+			db = db.Order(queryColumn(field) + " " + direction)
 		}
 	}
 

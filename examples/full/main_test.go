@@ -799,6 +799,21 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected second page to contain First Project, got %+v", paged.Items)
 	}
 
+	sortedProjectsByID := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects?sort=-id", nil, auth.Token)
+	if sortedProjectsByID.StatusCode != http.StatusOK {
+		t.Fatalf("expected id-sorted project list 200, got %d", sortedProjectsByID.StatusCode)
+	}
+	var sortedByID struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.NewDecoder(sortedProjectsByID.Body).Decode(&sortedByID); err != nil {
+		t.Fatalf("decode id-sorted projects: %v", err)
+	}
+	sortedProjectsByID.Body.Close()
+	if len(sortedByID.Items) < 2 || sortedByID.Items[0]["id"] != float64(2) || sortedByID.Items[1]["id"] != float64(1) {
+		t.Fatalf("unexpected id-sorted projects payload: %+v", sortedByID.Items)
+	}
+
 	updateProject := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/projects/1", map[string]any{
 		"title":    "Renamed Project",
 		"summary":  "updated via admin api",
