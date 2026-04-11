@@ -32,10 +32,15 @@
 //   - http://localhost:8080/openapi/v2.json – raw OpenAPI spec for v2
 //   - http://localhost:8080/openapi/v1.json – raw OpenAPI spec for v1
 //   - http://localhost:8080/openapi/v0.json – raw OpenAPI spec for v0
+//   - http://localhost:8080/admin/login    – standalone admin login page
+//   - http://localhost:8080/admin          – standalone admin console shell
+//   - http://localhost:8080/admin-prototype – legacy minimal admin frontend prototype alias
 //   - POST http://localhost:8080/api/v1/auth/register – register a new user
 //   - POST http://localhost:8080/api/v1/auth/login    – get a JWT token
 //   - GET  http://localhost:8080/api/v2/users         – cached users CRUD demo (requires JWT)
 //   - GET  http://localhost:8080/api/v1/users         – list users (requires JWT)
+//   - GET  http://localhost:8080/api/v1/admin/resources          – list admin resources (requires JWT)
+//   - GET  http://localhost:8080/api/v1/admin/resources/users    – admin users CRUD (requires JWT)
 //   - GET  http://localhost:8080/api/v1/examples/request-meta   – binding/defaults demo
 //   - GET  http://localhost:8080/api/v1/examples/cache          – cache / ETag demo
 //   - GET  http://localhost:8080/api/v1/examples/events?name=bot – SSE demo
@@ -72,7 +77,7 @@ func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init db: %w", err)
 	}
-	if err := db.AutoMigrate(&app.User{}); err != nil {
+	if err := db.AutoMigrate(&app.User{}, &app.Project{}); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}
 	orm.Init(db)
@@ -245,6 +250,17 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 	)
 	api.AddRouter(usersV2Router)
 
+	adminRouter := ninja.NewRouter(
+		"/admin",
+		ninja.WithTags("Admin"),
+		ninja.WithTagDescription("Admin", "JWT-protected metadata-driven admin resource APIs"),
+		ninja.WithBearerAuth(),
+		ninja.WithVersion("v1"),
+	)
+	adminRouter.UseGin(middleware.JWTAuth())
+	app.NewAdminSite().Mount(adminRouter)
+	api.AddRouter(adminRouter)
+
 	// ── 8. Feature demos (public, for manual testing) ────────────────────────
 	exampleRouter := ninja.NewRouter(
 		"/examples",
@@ -334,7 +350,10 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 	)
 	api.AddRouter(versionedV0Router)
 
-	// ── 9. Health-check (no auth) ─────────────────────────────────────────────
+	// ── 9. Admin pages + health-check (no auth) ───────────────────────────────
+	api.Engine().GET("/admin/login", app.ServeAdminPrototype)
+	api.Engine().GET("/admin", app.ServeAdminPrototype)
+	api.Engine().GET("/admin-prototype", app.ServeAdminPrototype)
 	api.Engine().GET("/health", func(c *ginpkg.Context) {
 		c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 	})

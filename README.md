@@ -1190,6 +1190,46 @@ See [examples/full](./examples/full/) for a complete application with:
 - Multipart single-file and multi-file upload demos
 - Binary download and reader-backed download demos
 
+### Admin console prototype in `examples/full`
+
+The full example also includes a metadata-driven admin experience built on top of the JWT-protected admin resource APIs.
+
+It includes:
+
+- a standalone login page at `/admin/login`
+- a standalone admin workspace at `/admin`
+- the legacy sandbox entry at `/admin-prototype`
+- resource navigation backed by `/api/v1/admin/resources`
+- record listing with search, metadata-driven filters, sort, page size, and pagination
+- detail, create, update, delete, and bulk delete flows
+- relation-backed field selectors with option search previews
+- a more compact “Admin Workspace” header for a denser back-office layout
+
+Suggested manual flow:
+
+1. Start the full example:
+   ```bash
+   cd examples/full
+   go run .
+   ```
+2. Open `http://localhost:8080/admin/login`
+3. Sign in with the demo credentials shown on the page
+4. After redirecting to `/admin`, pick a resource from the left sidebar
+5. Use the workspace to:
+   - search and filter the current resource
+   - change sort order and page size
+   - page through result sets
+   - inspect record details
+   - create, edit, delete, or bulk delete records
+   - preview relation options while filling relation-backed fields
+
+Useful routes:
+
+- `/admin/login` — standalone login shell
+- `/admin` — standalone admin workspace
+- `/admin-prototype` — legacy prototype entry
+- `/api/v1/admin/resources` — admin metadata and CRUD API root
+
 ```bash
 cd examples/full
 go run .

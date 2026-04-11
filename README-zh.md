@@ -659,6 +659,46 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 - 单文件、多文件上传
 - 二进制下载与流式下载
 
+### `examples/full` 中的 Admin 控制台原型
+
+完整示例也包含一个基于元数据驱动的 admin 后台体验，它构建在 JWT 保护的 admin 资源 API 之上。
+
+它包括：
+
+- 独立登录页：`/admin/login`
+- 独立后台工作台：`/admin`
+- 保留旧版沙盒入口：`/admin-prototype`
+- 由 `/api/v1/admin/resources` 驱动的资源导航
+- 支持搜索、元数据过滤、排序、分页大小和翻页的记录列表
+- 详情、创建、更新、删除与批量删除流程
+- 带关系字段选项搜索预览的 selector 交互
+- 更紧凑的 “Admin Workspace” 头部布局，后台观感更集中
+
+推荐手动体验流程：
+
+1. 启动完整示例：
+   ```bash
+   cd examples/full
+   go run .
+   ```
+2. 打开 `http://localhost:8080/admin/login`
+3. 使用页面展示的演示账号登录
+4. 跳转到 `/admin` 后，从左侧选择资源
+5. 在工作台中体验：
+   - 搜索和过滤当前资源
+   - 切换排序与分页大小
+   - 浏览分页结果
+   - 查看记录详情
+   - 创建、编辑、删除或批量删除记录
+   - 在关系字段输入时预览候选项
+
+相关路由：
+
+- `/admin/login` — 独立登录页
+- `/admin` — 独立后台工作台
+- `/admin-prototype` — 旧版原型入口
+- `/api/v1/admin/resources` — admin 元数据与 CRUD API 根路径
+
 运行：
 
 ```bash
