@@ -483,11 +483,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "id=\"openRecordModal\"") {
-		t.Fatalf("expected record modal trigger in html: %q", adminHTML)
-	}
-	if !strings.Contains(adminHTML, "id=\"openEditModal\"") {
-		t.Fatalf("expected edit modal trigger in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "Record workspace") {
+		t.Fatalf("expected record workspace card to be removed from html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "id=\"openBulkEditModal\"") {
 		t.Fatalf("expected bulk edit trigger to be removed from html: %q", adminHTML)
@@ -497,6 +494,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "id=\"recordModal\"") || !strings.Contains(adminHTML, "id=\"editModal\"") {
 		t.Fatalf("expected record and edit modal shells in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "actionHead.textContent = 'Actions';") {
+		t.Fatalf("expected row action column in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "id=\"authBadge\"") {
 		t.Fatalf("expected top-right auth status card to be removed from html: %q", adminHTML)
@@ -563,11 +563,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "document.addEventListener('keydown'") {
 		t.Fatalf("expected modal escape-key handling in html: %q", html)
 	}
-	if !strings.Contains(html, "button.onclick = () => selectRecord(row, { openModal: 'record' });") {
+	if !strings.Contains(html, "openButton.onclick = () => selectRecord(row, { openModal: 'record' });") {
 		t.Fatalf("expected row open action to launch the record modal in html: %q", html)
 	}
-	if !strings.Contains(html, "openSelectedEditModal()") {
-		t.Fatalf("expected edit modal helper in html: %q", html)
+	if !strings.Contains(html, "editButton.onclick = () => selectRecord(row, { openModal: 'edit' });") {
+		t.Fatalf("expected row edit action to launch the edit modal in html: %q", html)
+	}
+	if !strings.Contains(html, "deleteButton.onclick = () => deleteRecordByID(id);") {
+		t.Fatalf("expected row delete action in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {
 		t.Fatalf("expected expired session redirect flow in html: %q", html)

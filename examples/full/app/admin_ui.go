@@ -249,23 +249,6 @@ const adminPrototypeHTML = `<!doctype html>
             <section class="panel section-shell">
               <div class="toolbar">
                 <div class="section-heading">
-                  <h3 class="section-title">Record workspace</h3>
-                  <p id="selectionHint" class="section-copy muted">Select a row, then open the record or edit it in a dialog.</p>
-                </div>
-                <div class="row-actions">
-                  <button id="openRecordModal" class="secondary" type="button">Open record</button>
-                  <button id="openEditModal" class="secondary" type="button">Edit record</button>
-                  <button id="deleteRecord" class="danger" type="button">Delete record</button>
-                </div>
-              </div>
-              <div class="detail-card stack">
-                <strong id="detailSummaryTitle">No record selected</strong>
-                <p class="muted">Use the table actions below to load a record, then open the record detail or change form in a modal dialog.</p>
-              </div>
-            </section>
-            <section class="panel section-shell">
-              <div class="toolbar">
-                <div class="section-heading">
                   <h3 class="section-title">Records</h3>
                   <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
                 </div>
@@ -404,20 +387,17 @@ const adminPrototypeHTML = `<!doctype html>
       detailTitle: document.getElementById('detailTitle'),
       detailObjectBadge: document.getElementById('detailObjectBadge'),
       detailFields: document.getElementById('detailFields'),
-       createForm: document.getElementById('createForm'),
-       createModal: document.getElementById('createModal'),
-       openCreateModal: document.getElementById('openCreateModal'),
-       closeCreateModal: document.getElementById('closeCreateModal'),
-       recordModal: document.getElementById('recordModal'),
-       openRecordModal: document.getElementById('openRecordModal'),
-       closeRecordModal: document.getElementById('closeRecordModal'),
-       editModal: document.getElementById('editModal'),
-       openEditModal: document.getElementById('openEditModal'),
-       closeEditModal: document.getElementById('closeEditModal'),
-       updateForm: document.getElementById('updateForm'),
-       editHint: document.getElementById('editHint'),
-       detailSummaryTitle: document.getElementById('detailSummaryTitle'),
-       filtersForm: document.getElementById('filtersForm'),
+      createForm: document.getElementById('createForm'),
+      createModal: document.getElementById('createModal'),
+      openCreateModal: document.getElementById('openCreateModal'),
+      closeCreateModal: document.getElementById('closeCreateModal'),
+      recordModal: document.getElementById('recordModal'),
+      closeRecordModal: document.getElementById('closeRecordModal'),
+      editModal: document.getElementById('editModal'),
+      closeEditModal: document.getElementById('closeEditModal'),
+      updateForm: document.getElementById('updateForm'),
+      editHint: document.getElementById('editHint'),
+      filtersForm: document.getElementById('filtersForm'),
       sort: document.getElementById('sort'),
       pageSize: document.getElementById('pageSize'),
       paginationInfo: document.getElementById('paginationInfo'),
@@ -425,11 +405,9 @@ const adminPrototypeHTML = `<!doctype html>
       nextPage: document.getElementById('nextPage'),
       list: document.getElementById('list'),
       detail: document.getElementById('detail'),
-      selectionHint: document.getElementById('selectionHint'),
       loadResources: document.getElementById('loadResources'),
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
-      deleteRecord: document.getElementById('deleteRecord'),
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search')
     };
@@ -593,7 +571,6 @@ const adminPrototypeHTML = `<!doctype html>
        renderResources();
        els.resourceTitle.textContent = 'Select a resource';
        els.resourcePath.textContent = 'Sign in to open a resource workspace.';
-       els.detailSummaryTitle.textContent = 'No record selected';
        els.detailTitle.textContent = 'No record selected';
        els.detailObjectBadge.textContent = 'Draft view';
        els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
@@ -603,7 +580,6 @@ const adminPrototypeHTML = `<!doctype html>
       els.filtersForm.innerHTML = '';
       els.sort.innerHTML = '';
       els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
-       els.selectionHint.textContent = 'Sign in to inspect records and edit them in dialogs.';
        els.editHint.textContent = 'Sign in to open the change form.';
        renderPagination();
        syncBulkActionState();
@@ -784,22 +760,7 @@ const adminPrototypeHTML = `<!doctype html>
 
      function syncWorkspaceActionState() {
        const createEnabled = Boolean(state.current && hasAction('create'));
-       const recordSelected = Boolean(state.selected);
-       const updateEnabled = Boolean(recordSelected && hasAction('update'));
        els.openCreateModal.disabled = !createEnabled;
-       els.openRecordModal.disabled = !recordSelected;
-       els.openEditModal.disabled = !updateEnabled;
-     }
-
-     function openSelectedRecordModal() {
-       if (els.openRecordModal.disabled) return;
-       openModal(els.recordModal);
-     }
-
-     function openSelectedEditModal() {
-       if (els.openEditModal.disabled) return;
-       closeModal(els.recordModal);
-       openModal(els.editModal);
      }
 
     function renderResourceSummary() {
@@ -1025,11 +986,8 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
      function renderSelectedRecord() {
-       els.deleteRecord.disabled = !state.selected || !hasAction('delete');
        els.detailFields.innerHTML = '';
        if (!state.selected) {
-         els.selectionHint.textContent = 'Select a row, then open the record or edit it in a dialog.';
-         els.detailSummaryTitle.textContent = 'No record selected';
          els.detailTitle.textContent = 'No record selected';
          els.detailObjectBadge.textContent = 'Draft view';
          els.detail.textContent = 'No record selected.';
@@ -1039,8 +997,6 @@ const adminPrototypeHTML = `<!doctype html>
        }
        const record = state.selected.item || {};
        const recordID = recordPrimaryKey(record);
-       els.selectionHint.textContent = 'Record #' + recordID + ' is ready. Open the detail dialog or edit it in a modal form.';
-       els.detailSummaryTitle.textContent = state.meta.label + ' #' + recordID + ' selected';
        els.detailTitle.textContent = state.meta.label + ' #' + recordID;
        els.detailObjectBadge.textContent = 'Record overview';
        els.detail.textContent = JSON.stringify(record, null, 2);
@@ -1164,14 +1120,14 @@ const adminPrototypeHTML = `<!doctype html>
       };
       bulkCell.appendChild(selectAll);
       headRow.appendChild(bulkCell);
-      const actionHead = document.createElement('th');
-      actionHead.textContent = 'Actions';
-      headRow.appendChild(actionHead);
       fields.forEach((field) => {
         const th = document.createElement('th');
         th.textContent = field;
         headRow.appendChild(th);
       });
+      const actionHead = document.createElement('th');
+      actionHead.textContent = 'Actions';
+      headRow.appendChild(actionHead);
       thead.appendChild(headRow);
       table.appendChild(thead);
       const tbody = document.createElement('tbody');
@@ -1189,19 +1145,36 @@ const adminPrototypeHTML = `<!doctype html>
         };
         checkCell.appendChild(checkbox);
         tr.appendChild(checkCell);
-        const actionCell = document.createElement('td');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'secondary';
-        button.textContent = 'Open';
-        button.onclick = () => selectRecord(row, { openModal: 'record' });
-        actionCell.appendChild(button);
-        tr.appendChild(actionCell);
         fields.forEach((field) => {
           const td = document.createElement('td');
           td.textContent = formatValue(row[field]);
           tr.appendChild(td);
         });
+        const actionCell = document.createElement('td');
+        const actionWrap = document.createElement('div');
+        actionWrap.className = 'row-actions';
+        const openButton = document.createElement('button');
+        openButton.type = 'button';
+        openButton.className = 'secondary';
+        openButton.textContent = 'Open record';
+        openButton.onclick = () => selectRecord(row, { openModal: 'record' });
+        actionWrap.appendChild(openButton);
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'secondary';
+        editButton.textContent = 'Edit record';
+        editButton.disabled = !hasAction('update');
+        editButton.onclick = () => selectRecord(row, { openModal: 'edit' });
+        actionWrap.appendChild(editButton);
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'danger';
+        deleteButton.textContent = 'Delete record';
+        deleteButton.disabled = !hasAction('delete');
+        deleteButton.onclick = () => deleteRecordByID(id);
+        actionWrap.appendChild(deleteButton);
+        actionCell.appendChild(actionWrap);
+        tr.appendChild(actionCell);
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -1223,18 +1196,37 @@ const adminPrototypeHTML = `<!doctype html>
          highlightSelectedRow();
          syncWorkspaceActionState();
          if (options.openModal === 'record') {
-           openSelectedRecordModal();
+           openModal(els.recordModal);
          }
          if (options.openModal === 'edit') {
-           openSelectedEditModal();
+           closeModal(els.recordModal);
+           openModal(els.editModal);
          }
          setStatus('Loaded record #' + id + '.');
-       } catch (error) {
-         setStatus(String(error.message || error));
+        } catch (error) {
+          setStatus(String(error.message || error));
+        }
       }
-    }
 
-    async function reloadListWithStatus(message, resetPage) {
+      async function deleteRecordByID(id) {
+        if (!state.current || id == null) return;
+        try {
+         await request(currentBasePath() + '/' + encodeURIComponent(String(id)), { method: 'DELETE' });
+         if (state.selected && String(recordPrimaryKey(state.selected.item)) === String(id)) {
+           state.selected = null;
+           renderSelectedRecord();
+           await renderUpdateForm();
+         }
+         setSelectedForBulk(id, false);
+         closeModal(els.recordModal);
+         closeModal(els.editModal);
+         await reloadListWithStatus('Deleted record #' + id + '.', false);
+        } catch (error) {
+          setStatus(String(error.message || error));
+        }
+      }
+
+     async function reloadListWithStatus(message, resetPage) {
       if (resetPage) resetToFirstPage();
       await renderList();
       syncBulkActionState();
@@ -1329,8 +1321,6 @@ const adminPrototypeHTML = `<!doctype html>
        if (els.openCreateModal.disabled) return;
        openModal(els.createModal);
      };
-     els.openRecordModal.onclick = () => openSelectedRecordModal();
-     els.openEditModal.onclick = () => openSelectedEditModal();
      els.closeCreateModal.onclick = () => closeModal(els.createModal);
      els.closeRecordModal.onclick = () => closeModal(els.recordModal);
      els.closeEditModal.onclick = () => closeModal(els.editModal);
@@ -1418,20 +1408,6 @@ const adminPrototypeHTML = `<!doctype html>
         await renderList();
         await selectRecord({ id: id });
         setStatus('Updated record #' + id + '.');
-      } catch (error) {
-        setStatus(String(error.message || error));
-      }
-    };
-    els.deleteRecord.onclick = async () => {
-      if (!state.current || !state.selected) return;
-      try {
-        const id = recordPrimaryKey(state.selected.item);
-        await request(currentBasePath() + '/' + encodeURIComponent(String(id)), { method: 'DELETE' });
-        state.selected = null;
-        setSelectedForBulk(id, false);
-        renderSelectedRecord();
-        await renderUpdateForm();
-        await reloadListWithStatus('Deleted record #' + id + '.', false);
       } catch (error) {
         setStatus(String(error.message || error));
       }
