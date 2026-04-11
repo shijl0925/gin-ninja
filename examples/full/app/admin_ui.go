@@ -33,7 +33,9 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-warning: #f39c12;
       --admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.2);
       --admin-radius: 0.5rem;
-      --admin-topbar-height: 88px;
+      --admin-topbar-min-height: 64px;
+      --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
+      --admin-content-gap: 18px;
     }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
@@ -53,7 +55,7 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       justify-content:space-between;
       gap:16px;
-      min-height:64px;
+      min-height:var(--admin-topbar-min-height);
       padding:12px 24px;
       background: var(--admin-topbar);
       border-bottom:1px solid var(--admin-border);
@@ -98,7 +100,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .app-main {
       display:grid;
-      gap:18px;
+      gap:var(--admin-content-gap);
       padding:18px 24px 24px;
       align-items:start;
     }
@@ -198,7 +200,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .sidebar-shell {
       position:sticky;
-      top:calc(var(--admin-topbar-height) + 18px);
+      top:calc(var(--admin-topbar-height) + var(--admin-content-gap));
       background:var(--admin-sidebar);
       color:var(--admin-sidebar-text);
       border-color:#1a2733;
