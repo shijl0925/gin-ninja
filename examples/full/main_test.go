@@ -433,6 +433,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "[hidden] { display:none !important; }") {
 		t.Fatalf("expected hidden css rule in html: %q", loginHTML)
 	}
+	if !strings.Contains(loginHTML, ".two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }") {
+		t.Fatalf("expected narrower two-column login layout in html: %q", loginHTML)
+	}
 	if !strings.Contains(loginHTML, "els.manualTokenTools.hidden = true;") {
 		t.Fatalf("expected signed-out manual token tools to stay hidden in html: %q", loginHTML)
 	}
@@ -467,6 +470,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "els.adminShell.hidden = true;") {
 		t.Fatalf("expected signed-out admin page to keep admin shell hidden in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "@media (max-width: 1380px)") {
+		t.Fatalf("expected earlier admin-shell responsive collapse in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, ".content-grid > aside { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); align-content:start; }") {
+		t.Fatalf("expected responsive right-rail grid in html: %q", adminHTML)
 	}
 
 	prototypeResp, err := http.Get(server.URL + "/admin-prototype")
@@ -514,6 +523,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "els.sessionShell.hidden = true;") {
 		t.Fatalf("expected signed-in pages to hide the login shell in html: %q", html)
+	}
+	if !strings.Contains(html, "@media (min-width: 1500px)") {
+		t.Fatalf("expected extra-wide two-column workspace breakpoint in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {
 		t.Fatalf("expected expired session redirect flow in html: %q", html)
