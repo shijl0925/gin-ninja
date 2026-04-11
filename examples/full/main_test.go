@@ -477,11 +477,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "id=\"openBulkEditModal\"") {
-		t.Fatalf("expected bulk edit modal trigger in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "id=\"openBulkEditModal\"") {
+		t.Fatalf("expected bulk edit trigger to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "class=\"modal-overlay\" hidden") {
 		t.Fatalf("expected hidden modal overlay shell in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "id=\"authBadge\"") {
+		t.Fatalf("expected top-right auth status card to be removed from html: %q", adminHTML)
 	}
 
 	prototypeResp, err := http.Get(server.URL + "/admin-prototype")
@@ -536,8 +539,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "closeModal(els.createModal);") {
 		t.Fatalf("expected create modal close flow in html: %q", html)
 	}
-	if !strings.Contains(html, "closeModal(els.bulkEditModal);") {
-		t.Fatalf("expected bulk edit modal close flow in html: %q", html)
+	if strings.Contains(html, "closeModal(els.bulkEditModal);") {
+		t.Fatalf("expected bulk edit modal close flow to be removed from html: %q", html)
 	}
 	if !strings.Contains(html, "document.addEventListener('keydown'") {
 		t.Fatalf("expected modal escape-key handling in html: %q", html)
@@ -554,8 +557,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "highlightMatch(") {
 		t.Fatalf("expected relation highlight flow in html: %q", html)
 	}
-	if !strings.Contains(html, "bulkEditForm") {
-		t.Fatalf("expected bulk edit form in html: %q", html)
+	if strings.Contains(html, "bulkEditForm") {
+		t.Fatalf("expected bulk edit form to be removed from html: %q", html)
 	}
 	if !strings.Contains(html, "paginationInfo") {
 		t.Fatalf("expected pagination controls in html: %q", html)

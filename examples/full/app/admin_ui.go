@@ -23,7 +23,7 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:8px; }
     .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
-    .topbar-meta { justify-items:end; min-width:280px; }
+    .topbar-meta { display:flex; justify-content:flex-end; align-items:center; min-width:0; }
     .app-main { display:grid; gap:20px; padding-top:0; }
     .panel { min-width:0; background:#fff; border:1px solid #dbe2ea; border-radius:18px; padding:20px; box-shadow:0 12px 30px rgba(15, 23, 42, 0.06); }
     .stack { display:grid; gap:16px; }
@@ -139,7 +139,7 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar, .app-main, body.standalone-login-page .topbar, body.standalone-login-page .app-main { padding:16px; }
       body.standalone-login-page .topbar { padding-top:24px; }
       .topbar { flex-direction:column; }
-      .topbar-meta { justify-items:start; width:100%; }
+      .topbar-meta { justify-content:flex-start; width:100%; }
       .table-toolbar .row-actions { flex-basis:100%; }
     }
   </style>
@@ -154,10 +154,6 @@ const adminPrototypeHTML = `<!doctype html>
       </div>
     </div>
     <div class="topbar-meta">
-      <div class="panel stack">
-        <span id="authBadge" class="badge">Logged out</span>
-        <p id="authDescription" class="muted">Sign in to access the example admin APIs.</p>
-      </div>
       <div id="sessionActions" class="row-actions" hidden>
         <button id="loadResources" type="button" class="secondary">Refresh workspace</button>
         <button id="clearToken" type="button">Sign out</button>
@@ -242,7 +238,6 @@ const adminPrototypeHTML = `<!doctype html>
             <div id="actions" class="action-pills muted">No actions available yet.</div>
             <div class="workspace-actions">
               <button id="openCreateModal" type="button">Create record</button>
-              <button id="openBulkEditModal" type="button" class="secondary">Bulk edit</button>
               <span id="selectedCountBadge" class="badge">0 selected</span>
             </div>
           </div>
@@ -333,23 +328,6 @@ const adminPrototypeHTML = `<!doctype html>
             </div>
           </div>
         </section>
-        <section id="bulkEditModal" class="modal-overlay" hidden>
-          <div class="modal-dialog large" role="dialog" aria-modal="true" aria-labelledby="bulkEditModalTitle">
-            <div class="modal-header">
-              <div class="section-heading">
-                <h3 id="bulkEditModalTitle" class="section-title">Bulk edit</h3>
-                <p id="bulkEditHint" class="section-copy muted">Select rows to apply shared updates.</p>
-              </div>
-              <div class="row-actions">
-                <button id="applyBulkEdit" type="submit" form="bulkEditForm">Apply to selected</button>
-                <button id="closeBulkEditModal" type="button" class="secondary">Close</button>
-              </div>
-            </div>
-            <div class="modal-body">
-              <form id="bulkEditForm" class="bulk-edit-fields"></form>
-            </div>
-          </div>
-        </section>
       </section>
     </section>
   <script>
@@ -379,8 +357,6 @@ const adminPrototypeHTML = `<!doctype html>
       token: document.getElementById('token'),
       manualTokenTools: document.getElementById('manualTokenTools'),
       clearToken: document.getElementById('clearToken'),
-      authBadge: document.getElementById('authBadge'),
-      authDescription: document.getElementById('authDescription'),
       sessionActions: document.getElementById('sessionActions'),
       sessionShell: document.getElementById('sessionShell'),
       status: document.getElementById('status'),
@@ -401,12 +377,6 @@ const adminPrototypeHTML = `<!doctype html>
       openCreateModal: document.getElementById('openCreateModal'),
       closeCreateModal: document.getElementById('closeCreateModal'),
       updateForm: document.getElementById('updateForm'),
-      bulkEditForm: document.getElementById('bulkEditForm'),
-      bulkEditModal: document.getElementById('bulkEditModal'),
-      openBulkEditModal: document.getElementById('openBulkEditModal'),
-      closeBulkEditModal: document.getElementById('closeBulkEditModal'),
-      applyBulkEdit: document.getElementById('applyBulkEdit'),
-      bulkEditHint: document.getElementById('bulkEditHint'),
       editHint: document.getElementById('editHint'),
       filtersForm: document.getElementById('filtersForm'),
       sort: document.getElementById('sort'),
@@ -542,18 +512,12 @@ const adminPrototypeHTML = `<!doctype html>
 
     function renderSignedOutState() {
       closeModal(els.createModal);
-      closeModal(els.bulkEditModal);
       const standaloneAdminPage = isStandaloneAdminPage();
-      const standaloneLoginPage = isStandaloneLoginPage();
       els.loginForm.hidden = false;
       els.sessionShell.hidden = false;
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
-      els.authBadge.textContent = 'Logged out';
-      els.authDescription.textContent = standaloneAdminPage
-        ? 'Sign in to access the admin console.'
-        : 'Sign in to access the example admin APIs.';
     }
 
     function renderSignedInState() {
@@ -563,10 +527,6 @@ const adminPrototypeHTML = `<!doctype html>
       els.sessionShell.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = standaloneLoginPage;
-      els.authBadge.textContent = state.auth.name ? ('Signed in as ' + state.auth.name) : 'Authenticated';
-      els.authDescription.textContent = state.auth.name
-        ? ('Workspace ready for ' + state.auth.name + '.')
-        : 'Workspace ready for the example admin APIs.';
     }
 
     function renderAuthState() {
@@ -601,13 +561,11 @@ const adminPrototypeHTML = `<!doctype html>
       els.detail.textContent = 'No record selected.';
       els.createForm.innerHTML = '<p class="muted">Sign in to create records.</p>';
       els.updateForm.innerHTML = '<p class="muted">Sign in to edit records.</p>';
-      els.bulkEditForm.innerHTML = '<p class="muted">Sign in to apply bulk edits.</p>';
       els.filtersForm.innerHTML = '';
       els.sort.innerHTML = '';
       els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
       els.selectionHint.textContent = 'Sign in to inspect and edit records.';
       els.editHint.textContent = 'Sign in to open the change form.';
-      els.bulkEditHint.textContent = 'Sign in to apply shared updates.';
       renderPagination();
       syncBulkActionState();
       syncWorkspaceActionState();
@@ -785,16 +743,14 @@ const adminPrototypeHTML = `<!doctype html>
       if (modal) {
         modal.hidden = true;
       }
-      if (els.createModal.hidden && els.bulkEditModal.hidden) {
+      if (els.createModal.hidden) {
         document.body.classList.remove('modal-open');
       }
     }
 
     function syncWorkspaceActionState() {
       const createEnabled = Boolean(state.current && hasAction('create'));
-      const bulkEditEnabled = Boolean(state.current && selectedIDs().length && hasAction('update'));
       els.openCreateModal.disabled = !createEnabled;
-      els.openBulkEditModal.disabled = !bulkEditEnabled;
     }
 
     function renderResourceSummary() {
@@ -1019,49 +975,6 @@ const adminPrototypeHTML = `<!doctype html>
       await renderForm(els.updateForm, state.meta?.update_fields || [], 'update', state.selected.item || {}, 'update');
     }
 
-    async function renderBulkEditForm() {
-      els.bulkEditForm.innerHTML = '';
-      const fields = state.meta?.update_fields || [];
-      if (!fields.length) {
-        els.bulkEditForm.innerHTML = '<p class="muted">Bulk edit is not available for this resource.</p>';
-        return;
-      }
-      for (const name of fields) {
-        const field = fieldMeta(name);
-        if (!field) continue;
-        const row = document.createElement('div');
-        row.className = 'bulk-edit-field stack';
-        const rowHeader = document.createElement('div');
-        rowHeader.className = 'toolbar';
-        const toggleLabel = document.createElement('label');
-        toggleLabel.style.display = 'flex';
-        toggleLabel.style.gap = '8px';
-        toggleLabel.style.alignItems = 'center';
-        const toggle = document.createElement('input');
-        toggle.type = 'checkbox';
-        toggle.name = '__apply__' + field.name;
-        toggle.style.width = '16px';
-        toggle.style.height = '16px';
-        const text = document.createElement('span');
-        text.textContent = 'Apply ' + field.label;
-        toggleLabel.appendChild(toggle);
-        toggleLabel.appendChild(text);
-        const hint = document.createElement('span');
-        hint.className = 'field-help';
-        hint.textContent = 'Checked fields are sent to every selected row.';
-        rowHeader.appendChild(toggleLabel);
-        rowHeader.appendChild(hint);
-        const control = await buildFieldControl(field, '', 'bulk');
-        setControlDisabled(control, true);
-        toggle.onchange = () => {
-          setControlDisabled(control, !toggle.checked);
-        };
-        row.appendChild(rowHeader);
-        row.appendChild(control);
-        els.bulkEditForm.appendChild(row);
-      }
-    }
-
     function renderSelectedRecord() {
       els.deleteRecord.disabled = !state.selected || !hasAction('delete');
       els.detailFields.innerHTML = '';
@@ -1100,10 +1013,6 @@ const adminPrototypeHTML = `<!doctype html>
       const count = selectedIDs().length;
       els.selectedCountBadge.textContent = count + ' selected';
       els.bulkDelete.disabled = count === 0 || !hasAction('bulk_delete');
-      els.applyBulkEdit.disabled = count === 0 || !hasAction('update');
-      els.bulkEditHint.textContent = count
-        ? ('Applying changes to ' + count + ' selected record(s).')
-        : 'Select rows to apply shared updates.';
       syncWorkspaceActionState();
     }
 
@@ -1305,7 +1214,7 @@ const adminPrototypeHTML = `<!doctype html>
         renderActionSummary();
         renderSortOptions();
         renderFilterControls();
-        await Promise.all([renderCreateForm(), renderUpdateForm(), renderBulkEditForm(), renderList()]);
+        await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);
         renderSelectedRecord();
         syncBulkActionState();
         syncWorkspaceActionState();
@@ -1363,13 +1272,8 @@ const adminPrototypeHTML = `<!doctype html>
       if (els.openCreateModal.disabled) return;
       openModal(els.createModal);
     };
-    els.openBulkEditModal.onclick = () => {
-      if (els.openBulkEditModal.disabled) return;
-      openModal(els.bulkEditModal);
-    };
     els.closeCreateModal.onclick = () => closeModal(els.createModal);
-    els.closeBulkEditModal.onclick = () => closeModal(els.bulkEditModal);
-    [els.createModal, els.bulkEditModal].forEach((modal) => {
+    [els.createModal].forEach((modal) => {
       modal.addEventListener('click', (event) => {
         if (event.target === modal) {
           closeModal(modal);
@@ -1379,7 +1283,6 @@ const adminPrototypeHTML = `<!doctype html>
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       closeModal(els.createModal);
-      closeModal(els.bulkEditModal);
     });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
     els.clearFilters.onclick = () => {
@@ -1453,31 +1356,6 @@ const adminPrototypeHTML = `<!doctype html>
         await renderList();
         await selectRecord({ id: id });
         setStatus('Updated record #' + id + '.');
-      } catch (error) {
-        setStatus(String(error.message || error));
-      }
-    };
-    els.bulkEditForm.onsubmit = async (event) => {
-      event.preventDefault();
-      if (!state.current || !selectedIDs().length) return;
-      const payload = formPayload(els.bulkEditForm);
-      if (!Object.keys(payload).length) {
-        setStatus('Choose at least one field before bulk editing.');
-        return;
-      }
-      try {
-        for (const id of selectedIDs()) {
-          await request(currentBasePath() + '/' + encodeURIComponent(String(id)), {
-            method: 'PUT',
-            body: JSON.stringify(payload)
-          });
-        }
-        if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
-          await selectRecord({ id: recordPrimaryKey(state.selected.item) });
-        }
-        await renderBulkEditForm();
-        closeModal(els.bulkEditModal);
-        await reloadListWithStatus('Bulk updated ' + selectedIDs().length + ' record(s).', false);
       } catch (error) {
         setStatus(String(error.message || error));
       }
