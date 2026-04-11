@@ -661,7 +661,7 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 
 ### `examples/full` 中的 Admin 控制台原型
 
-当前 pull request 也扩展了完整示例，加入了一个基于元数据驱动的 admin 后台体验，它构建在 JWT 保护的 admin 资源 API 之上。
+完整示例也包含一个基于元数据驱动的 admin 后台体验，它构建在 JWT 保护的 admin 资源 API 之上。
 
 它包括：
 

@@ -1192,7 +1192,7 @@ See [examples/full](./examples/full/) for a complete application with:
 
 ### Admin console prototype in `examples/full`
 
-The current pull request also expands the full example with a metadata-driven admin experience built on top of the JWT-protected admin resource APIs.
+The full example also includes a metadata-driven admin experience built on top of the JWT-protected admin resource APIs.
 
 It includes:
 
