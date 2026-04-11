@@ -462,6 +462,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "Admin Workspace") {
 		t.Fatalf("expected polished admin workspace header in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, ".workspace-path { display:inline-flex; width:max-content; max-width:100%; align-items:center; padding:0; font-size:12px; line-height:1.45; color:#64748b; }") {
+		t.Fatalf("expected compact workspace summary styling in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label.toLowerCase() + '.';") {
+		t.Fatalf("expected shorter admin workspace summary copy in html: %q", adminHTML)
+	}
 	if !strings.Contains(adminHTML, "Refresh workspace") {
 		t.Fatalf("expected admin workspace toolbar action in html: %q", adminHTML)
 	}

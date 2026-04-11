@@ -55,13 +55,15 @@ const adminPrototypeHTML = `<!doctype html>
     .nav-link:hover { background:#eff6ff; border-color:#bfdbfe; }
     .nav-link.active { background:linear-gradient(135deg, #1d4ed8 0%, #3730a3 100%); border-color:#1d4ed8; color:#fff; box-shadow:0 14px 28px rgba(37, 99, 235, 0.22); }
     .workspace { min-width:0; }
-    .workspace-header { display:flex; gap:16px 20px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding-block:18px; }
-    .workspace-header-copy { display:grid; gap:8px; flex:1 1 420px; min-width:0; }
+    .workspace-header { display:flex; gap:12px 16px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:16px 18px; }
+    .workspace-header-copy { display:grid; gap:6px; flex:1 1 380px; min-width:0; }
     .workspace-header-copy h2,
     .workspace-header-copy p { margin:0; }
-    .workspace-meta { display:flex; gap:12px; align-items:center; justify-content:flex-end; flex:0 0 auto; margin-left:auto; }
-    .content-grid { display:grid; gap:20px; grid-template-columns:minmax(0, 1fr); align-items:start; }
-    .section-shell { display:grid; gap:16px; }
+    .workspace-header-copy h2 { font-size:clamp(1.55rem, 2vw, 1.9rem); line-height:1.1; }
+    .workspace-path { display:inline-flex; width:max-content; max-width:100%; align-items:center; padding:0; font-size:12px; line-height:1.45; color:#64748b; }
+    .workspace-meta { display:flex; gap:10px; align-items:center; justify-content:flex-end; flex:0 0 auto; margin-left:auto; }
+    .content-grid { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
+    .section-shell { display:grid; gap:14px; }
     .section-heading { display:grid; gap:6px; }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
     .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
@@ -87,7 +89,8 @@ const adminPrototypeHTML = `<!doctype html>
     .pagination-info { font-size:14px; color:#64748b; }
     .table-shell { overflow:auto; border:1px solid #e2e8f0; border-radius:16px; background:#fff; }
     .empty-state { border:1px dashed #cbd5e1; border-radius:16px; padding:28px 20px; background:#fff; color:#64748b; text-align:center; }
-    .workspace-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+    .workspace-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .workspace-actions button { padding-inline:14px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(15, 23, 42, 0.56); display:grid; place-items:center; padding:24px; z-index:50; }
     .modal-dialog { width:min(720px, 100%); max-height:min(85vh, 920px); overflow:auto; border-radius:24px; border:1px solid #dbe2ea; background:#fff; box-shadow:0 30px 90px rgba(15, 23, 42, 0.28); }
     .modal-dialog.large { width:min(860px, 100%); }
@@ -233,7 +236,7 @@ const adminPrototypeHTML = `<!doctype html>
           <div class="workspace-header-copy">
             <span class="eyebrow subtle">Admin Workspace</span>
             <h2 id="resourceTitle">Select a resource</h2>
-            <p id="resourcePath" class="muted">Sign in to open a resource workspace.</p>
+            <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
           </div>
           <div class="workspace-meta">
             <div class="workspace-actions">
@@ -747,7 +750,7 @@ const adminPrototypeHTML = `<!doctype html>
         els.resourcePath.textContent = currentBasePath();
         return;
       }
-      els.resourcePath.textContent = 'Manage ' + state.meta.label.toLowerCase() + ' records, review detail panels, and run bulk actions.';
+      els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label.toLowerCase() + '.';
     }
 
     function renderSortOptions() {
