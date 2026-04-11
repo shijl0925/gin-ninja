@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -920,6 +921,262 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	projectListAfterBulkDelete.Body.Close()
 	if strings.Contains(projectListAfterBulkDeleteBody, "A Project") {
 		t.Fatalf("expected bulk deleted project to be absent, got %s", projectListAfterBulkDeleteBody)
+	}
+}
+
+func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	for _, user := range []map[string]any{
+		{
+			"name":     "Alice",
+			"email":    "alice@example.com",
+			"password": "password123",
+			"age":      18,
+		},
+		{
+			"name":     "Bob",
+			"email":    "bob@example.com",
+			"password": "password123",
+			"age":      22,
+		},
+	} {
+		register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", user, "")
+		if register.StatusCode != http.StatusCreated {
+			t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+		}
+		register.Body.Close()
+	}
+
+	login := func(email string) string {
+		t.Helper()
+		resp := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+			"email":    email,
+			"password": "password123",
+		}, "")
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected login 201 for %s, got %d body=%s", email, resp.StatusCode, readBody(t, resp.Body))
+		}
+		var auth struct {
+			Token string `json:"token"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&auth); err != nil {
+			t.Fatalf("decode login for %s: %v", email, err)
+		}
+		resp.Body.Close()
+		if auth.Token == "" {
+			t.Fatalf("expected login token for %s", email)
+		}
+		return auth.Token
+	}
+
+	aliceToken := login("alice@example.com")
+	bobToken := login("bob@example.com")
+
+	resourceIndexResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources", nil, aliceToken)
+	if resourceIndexResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected admin resource index 200, got %d", resourceIndexResp.StatusCode)
+	}
+	var resourceIndex struct {
+		Resources []struct {
+			Name  string `json:"name"`
+			Label string `json:"label"`
+			Path  string `json:"path"`
+		} `json:"resources"`
+	}
+	if err := json.NewDecoder(resourceIndexResp.Body).Decode(&resourceIndex); err != nil {
+		t.Fatalf("decode resource index: %v", err)
+	}
+	resourceIndexResp.Body.Close()
+	if len(resourceIndex.Resources) != 2 {
+		t.Fatalf("expected 2 admin resources, got %+v", resourceIndex.Resources)
+	}
+	resourcePaths := map[string]string{}
+	for _, resource := range resourceIndex.Resources {
+		resourcePaths[resource.Name] = resource.Path
+	}
+	if resourcePaths["users"] != "/users" || resourcePaths["projects"] != "/projects" {
+		t.Fatalf("unexpected admin resources: %+v", resourceIndex.Resources)
+	}
+
+	usersMetaResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users/meta", nil, aliceToken)
+	if usersMetaResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected users metadata 200, got %d", usersMetaResp.StatusCode)
+	}
+	var usersMeta struct {
+		Actions      []string `json:"actions"`
+		CreateFields []string `json:"create_fields"`
+		UpdateFields []string `json:"update_fields"`
+	}
+	if err := json.NewDecoder(usersMetaResp.Body).Decode(&usersMeta); err != nil {
+		t.Fatalf("decode users metadata: %v", err)
+	}
+	usersMetaResp.Body.Close()
+	actionSet := map[string]bool{}
+	for _, action := range usersMeta.Actions {
+		actionSet[action] = true
+	}
+	for _, action := range []string{"list", "detail", "create", "update", "delete", "bulk_delete"} {
+		if !actionSet[action] {
+			t.Fatalf("expected action %q in users metadata, got %+v", action, usersMeta.Actions)
+		}
+	}
+	if !strings.Contains(strings.Join(usersMeta.CreateFields, ","), "password") || !strings.Contains(strings.Join(usersMeta.UpdateFields, ","), "password") {
+		t.Fatalf("expected password field in users metadata create/update fields, got %+v", usersMeta)
+	}
+
+	createUserResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/users", map[string]any{
+		"name":     "  Carol Admin  ",
+		"email":    "  CAROL@EXAMPLE.COM ",
+		"password": "password123",
+		"age":      27,
+		"is_admin": true,
+	}, aliceToken)
+	if createUserResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected admin user create 201, got %d body=%s", createUserResp.StatusCode, readBody(t, createUserResp.Body))
+	}
+	var createdUser struct {
+		Item map[string]any `json:"item"`
+	}
+	if err := json.NewDecoder(createUserResp.Body).Decode(&createdUser); err != nil {
+		t.Fatalf("decode created user: %v", err)
+	}
+	createUserResp.Body.Close()
+	if createdUser.Item["name"] != "Carol Admin" || createdUser.Item["email"] != "carol@example.com" {
+		t.Fatalf("expected normalized created user payload, got %+v", createdUser.Item)
+	}
+	if createdUser.Item["is_admin"] != true {
+		t.Fatalf("expected created user to preserve is_admin=true, got %+v", createdUser.Item)
+	}
+	if _, ok := createdUser.Item["password"]; ok {
+		t.Fatalf("expected password to stay hidden in admin response, got %+v", createdUser.Item)
+	}
+	if createdUser.Item["id"] != float64(3) {
+		t.Fatalf("expected created user id 3, got %+v", createdUser.Item)
+	}
+
+	_ = login("carol@example.com")
+
+	updateUserResp := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/users/3", map[string]any{
+		"name":  "  Carol Updated  ",
+		"email": "  CAROL.UPDATED@EXAMPLE.COM ",
+		"age":   28,
+	}, aliceToken)
+	if updateUserResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected admin user update 200, got %d body=%s", updateUserResp.StatusCode, readBody(t, updateUserResp.Body))
+	}
+	var updatedUser struct {
+		Item map[string]any `json:"item"`
+	}
+	if err := json.NewDecoder(updateUserResp.Body).Decode(&updatedUser); err != nil {
+		t.Fatalf("decode updated user: %v", err)
+	}
+	updateUserResp.Body.Close()
+	if updatedUser.Item["name"] != "Carol Updated" || updatedUser.Item["email"] != "carol.updated@example.com" {
+		t.Fatalf("expected normalized updated user payload, got %+v", updatedUser.Item)
+	}
+
+	_ = login("carol.updated@example.com")
+
+	invalidUserResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/users", map[string]any{
+		"name":  "No Password",
+		"email": "nopassword@example.com",
+		"age":   19,
+	}, aliceToken)
+	if invalidUserResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected admin user validation 400, got %d body=%s", invalidUserResp.StatusCode, readBody(t, invalidUserResp.Body))
+	}
+	invalidUserBody := readBody(t, invalidUserResp.Body)
+	invalidUserResp.Body.Close()
+	if !strings.Contains(invalidUserBody, "password") || !strings.Contains(invalidUserBody, "required") {
+		t.Fatalf("expected missing-password validation message, got %s", invalidUserBody)
+	}
+
+	createAliceProject := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects", map[string]any{
+		"title":    "Alice Private Project",
+		"summary":  "owned by alice",
+		"owner_id": 1,
+	}, aliceToken)
+	if createAliceProject.StatusCode != http.StatusCreated {
+		t.Fatalf("expected alice project create 201, got %d body=%s", createAliceProject.StatusCode, readBody(t, createAliceProject.Body))
+	}
+	var aliceProject struct {
+		Item map[string]any `json:"item"`
+	}
+	if err := json.NewDecoder(createAliceProject.Body).Decode(&aliceProject); err != nil {
+		t.Fatalf("decode alice project: %v", err)
+	}
+	createAliceProject.Body.Close()
+
+	createBobProject := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects", map[string]any{
+		"title":    "Bob Visible Project",
+		"summary":  "owned by bob",
+		"owner_id": 2,
+	}, bobToken)
+	if createBobProject.StatusCode != http.StatusCreated {
+		t.Fatalf("expected bob project create 201, got %d body=%s", createBobProject.StatusCode, readBody(t, createBobProject.Body))
+	}
+	var bobProject struct {
+		Item map[string]any `json:"item"`
+	}
+	if err := json.NewDecoder(createBobProject.Body).Decode(&bobProject); err != nil {
+		t.Fatalf("decode bob project: %v", err)
+	}
+	createBobProject.Body.Close()
+
+	bobListResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects", nil, bobToken)
+	if bobListResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected bob project list 200, got %d", bobListResp.StatusCode)
+	}
+	bobListBody := readBody(t, bobListResp.Body)
+	bobListResp.Body.Close()
+	if strings.Contains(bobListBody, "Alice Private Project") || !strings.Contains(bobListBody, "Bob Visible Project") {
+		t.Fatalf("expected bob project list to be row-scoped, got %s", bobListBody)
+	}
+
+	aliceProjectID := int(aliceProject.Item["id"].(float64))
+	bobProjectID := int(bobProject.Item["id"].(float64))
+
+	bobReadsAliceResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/"+strconv.Itoa(aliceProjectID), nil, bobToken)
+	if bobReadsAliceResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected bob to get 404 for alice project detail, got %d body=%s", bobReadsAliceResp.StatusCode, readBody(t, bobReadsAliceResp.Body))
+	}
+	bobReadsAliceResp.Body.Close()
+
+	bobUpdatesAliceResp := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/projects/"+strconv.Itoa(aliceProjectID), map[string]any{
+		"title": "blocked",
+	}, bobToken)
+	if bobUpdatesAliceResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected bob to get 404 for alice project update, got %d body=%s", bobUpdatesAliceResp.StatusCode, readBody(t, bobUpdatesAliceResp.Body))
+	}
+	bobUpdatesAliceResp.Body.Close()
+
+	bobBulkDeleteResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/projects/bulk-delete", map[string]any{
+		"ids": []int{aliceProjectID, bobProjectID},
+	}, bobToken)
+	if bobBulkDeleteResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected bob bulk delete 201, got %d body=%s", bobBulkDeleteResp.StatusCode, readBody(t, bobBulkDeleteResp.Body))
+	}
+	var bobBulkDelete struct {
+		Deleted int64 `json:"deleted"`
+	}
+	if err := json.NewDecoder(bobBulkDeleteResp.Body).Decode(&bobBulkDelete); err != nil {
+		t.Fatalf("decode bob bulk delete: %v", err)
+	}
+	bobBulkDeleteResp.Body.Close()
+	if bobBulkDelete.Deleted != 1 {
+		t.Fatalf("expected bob bulk delete to remove only his own project, got %+v", bobBulkDelete)
+	}
+
+	aliceProjectStillThereResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/projects/"+strconv.Itoa(aliceProjectID), nil, aliceToken)
+	if aliceProjectStillThereResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected alice project to remain after bob bulk delete, got %d body=%s", aliceProjectStillThereResp.StatusCode, readBody(t, aliceProjectStillThereResp.Body))
+	}
+	aliceProjectStillThereBody := readBody(t, aliceProjectStillThereResp.Body)
+	aliceProjectStillThereResp.Body.Close()
+	if !strings.Contains(aliceProjectStillThereBody, "Alice Private Project") {
+		t.Fatalf("expected alice project detail after bob bulk delete, got %s", aliceProjectStillThereBody)
 	}
 }
 
