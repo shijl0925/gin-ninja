@@ -566,10 +566,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "openButton.onclick = () => selectRecord(row, { openModal: 'record' });") {
 		t.Fatalf("expected row open action to launch the record modal in html: %q", html)
 	}
-	if !strings.Contains(html, "editButton.onclick = () => selectRecord(row, { openModal: 'edit' });") {
+	if !strings.Contains(html, "selectRecord(row, { openModal: 'edit' })") {
 		t.Fatalf("expected row edit action to launch the edit modal in html: %q", html)
 	}
-	if !strings.Contains(html, "deleteButton.onclick = () => deleteRecordByID(id);") {
+	if !strings.Contains(html, "deleteRecordByID(id)") {
 		t.Fatalf("expected row delete action in html: %q", html)
 	}
 	if !strings.Contains(html, "Session expired. Please sign in again.") {

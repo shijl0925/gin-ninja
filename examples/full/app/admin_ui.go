@@ -111,6 +111,20 @@ const adminPrototypeHTML = `<!doctype html>
     th { background:#f8fafc; color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }
     tbody tr:hover { background:#f8fbff; }
     tbody tr.row-selected { background:#eff6ff; }
+    .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
+    .action-menu { position:relative; display:inline-block; }
+    .action-menu-trigger { background:#fff; color:#0f172a; border:1px solid #cbd5e1; padding:6px 10px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; line-height:1; }
+    .action-menu-trigger:hover { background:#f1f5f9; border-color:#94a3b8; }
+    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid #dbe2ea; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
+    .action-menu-list.open { display:block; }
+    .action-menu-item { display:block; width:100%; text-align:left; background:none; color:#0f172a; border:none; border-radius:0; padding:10px 14px; font-size:14px; font-weight:500; cursor:pointer; transition:background 80ms; }
+    .action-menu-item:hover { background:#f1f5f9; }
+    .action-menu-item:disabled { opacity:0.45; cursor:not-allowed; }
+    .action-menu-divider { border:none; border-top:1px solid #e2e8f0; margin:4px 0; }
+    .action-menu-item.danger { color:#dc2626; }
+    .action-menu-item.danger:hover { background:#fef2f2; }
+    .action-btn-view { background:#fff; color:#0f172a; border:1px solid #cbd5e1; padding:6px 12px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; line-height:1; }
+    .action-btn-view:hover { background:#f1f5f9; border-color:#94a3b8; }
     pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:14px; }
     body.standalone-login-page { background:
       radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 36%),
@@ -1152,27 +1166,50 @@ const adminPrototypeHTML = `<!doctype html>
         });
         const actionCell = document.createElement('td');
         const actionWrap = document.createElement('div');
-        actionWrap.className = 'row-actions';
+        actionWrap.className = 'action-cell';
+        // View button
         const openButton = document.createElement('button');
         openButton.type = 'button';
-        openButton.className = 'secondary';
-        openButton.textContent = 'Open record';
+        openButton.className = 'action-btn-view';
+        openButton.textContent = 'View';
         openButton.onclick = () => selectRecord(row, { openModal: 'record' });
         actionWrap.appendChild(openButton);
-        const editButton = document.createElement('button');
-        editButton.type = 'button';
-        editButton.className = 'secondary';
-        editButton.textContent = 'Edit record';
-        editButton.disabled = !hasAction('update');
-        editButton.onclick = () => selectRecord(row, { openModal: 'edit' });
-        actionWrap.appendChild(editButton);
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'danger';
-        deleteButton.textContent = 'Delete record';
-        deleteButton.disabled = !hasAction('delete');
-        deleteButton.onclick = () => deleteRecordByID(id);
-        actionWrap.appendChild(deleteButton);
+        // More (···) dropdown menu
+        const menuWrap = document.createElement('div');
+        menuWrap.className = 'action-menu';
+        const trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'action-menu-trigger';
+        trigger.setAttribute('aria-label', 'More actions');
+        trigger.textContent = '···';
+        const menuList = document.createElement('div');
+        menuList.className = 'action-menu-list';
+        const editItem = document.createElement('button');
+        editItem.type = 'button';
+        editItem.className = 'action-menu-item';
+        editItem.textContent = 'Edit';
+        editItem.disabled = !hasAction('update');
+        editItem.onclick = () => { menuList.classList.remove('open'); selectRecord(row, { openModal: 'edit' }); };
+        menuList.appendChild(editItem);
+        const divider = document.createElement('hr');
+        divider.className = 'action-menu-divider';
+        menuList.appendChild(divider);
+        const deleteItem = document.createElement('button');
+        deleteItem.type = 'button';
+        deleteItem.className = 'action-menu-item danger';
+        deleteItem.textContent = 'Delete';
+        deleteItem.disabled = !hasAction('delete');
+        deleteItem.onclick = () => { menuList.classList.remove('open'); deleteRecordByID(id); };
+        menuList.appendChild(deleteItem);
+        trigger.onclick = (e) => {
+          e.stopPropagation();
+          const isOpen = menuList.classList.contains('open');
+          document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
+          if (!isOpen) menuList.classList.add('open');
+        };
+        menuWrap.appendChild(trigger);
+        menuWrap.appendChild(menuList);
+        actionWrap.appendChild(menuWrap);
         actionCell.appendChild(actionWrap);
         tr.appendChild(actionCell);
         tbody.appendChild(tr);
@@ -1333,7 +1370,11 @@ const adminPrototypeHTML = `<!doctype html>
      });
      document.addEventListener('keydown', (event) => {
        if (event.key !== 'Escape') return;
+       document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
        closeAllModals();
+     });
+     document.addEventListener('click', () => {
+       document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
     els.clearFilters.onclick = () => {
