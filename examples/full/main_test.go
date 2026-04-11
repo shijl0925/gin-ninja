@@ -75,6 +75,11 @@ func doFullJSON(t *testing.T, server *httptest.Server, method, path string, body
 	return resp
 }
 
+// compactWhitespace normalizes HTML and script snippets so assertions ignore formatting-only changes.
+func compactWhitespace(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
 func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
@@ -918,6 +923,52 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 }
 
+func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/admin-prototype")
+	if err != nil {
+		t.Fatalf("GET /admin-prototype: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read /admin-prototype body: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected /admin-prototype 200, got %d", resp.StatusCode)
+	}
+
+	html := string(body)
+	normalizedHTML := compactWhitespace(html)
+	for _, needle := range []string{
+		"searchTimer: null,",
+		"function cancelScheduledSearchReload()",
+		"clearTimeout(state.searchTimer);",
+		"state.searchTimer = null;",
+		"function scheduleSearchReload()",
+		"state.searchTimer = setTimeout(() => {",
+		"els.search.addEventListener('input', () => {",
+	} {
+		if !strings.Contains(normalizedHTML, compactWhitespace(needle)) {
+			t.Fatalf("expected live-search integration marker %q in html: %q", needle, html)
+		}
+	}
+
+	for _, needle := range []string{
+		"els.clearFilters.onclick = () => { if (!state.current) return; cancelScheduledSearchReload();",
+		"els.filtersForm.onsubmit = (event) => { event.preventDefault(); cancelScheduledSearchReload();",
+		"els.search.onkeydown = (event) => { if (event.key === 'Enter') { event.preventDefault(); cancelScheduledSearchReload();",
+		"els.sort.onchange = () => { if (!state.current) return; cancelScheduledSearchReload();",
+		"els.filtersForm.onchange = () => { if (!state.current) return; cancelScheduledSearchReload();",
+	} {
+		if !strings.Contains(normalizedHTML, compactWhitespace(needle)) {
+			t.Fatalf("expected live-search cancellation context %q in html: %q", needle, html)
+		}
+	}
+}
+
 func TestFullExampleRunReturnsListenError(t *testing.T) {
 	cfg := settings.Config{
 		App: settings.AppConfig{Name: "Full Example", Version: "1.0.0"},
@@ -944,6 +995,7 @@ func TestFullExampleRunReturnsListenError(t *testing.T) {
 	}
 }
 
+// readBody loads an HTTP response body into a string for test assertions.
 func readBody(t *testing.T, body io.ReadCloser) string {
 	t.Helper()
 	data, err := io.ReadAll(body)
