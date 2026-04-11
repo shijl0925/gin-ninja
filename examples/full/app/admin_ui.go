@@ -365,55 +365,63 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       grid-template-columns:auto 1fr;
       align-items:center;
-      gap:12px;
-      padding:16px 18px;
+      gap:10px;
+      padding:12px 16px;
       background:#343a40;
-      border-bottom:1px solid rgba(255,255,255,0.08);
+      border-bottom:0.5px solid rgba(255,255,255,.1);
     }
     .sidebar-brand-mark {
-      width:44px;
-      height:44px;
+      width:33px;
+      height:33px;
       display:grid;
       place-items:center;
-      border-radius:999px;
+      border-radius:50%;
       background:#f4f6f9;
       color:#495057;
-      font-size:24px;
+      font-size:16px;
       font-weight:800;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      opacity:0.8;
+      flex-shrink:0;
     }
     .sidebar-brand-copy {
       display:grid;
-      gap:4px;
+      gap:2px;
       min-width:0;
     }
     .sidebar-brand-copy strong {
-      color:#f8f9fa;
-      font-size:1.05rem;
-      font-weight:500;
+      color:#fff;
+      font-size:1.15rem;
+      font-weight:300;
+      letter-spacing:0.01em;
+      white-space:nowrap;
     }
     .sidebar-brand-copy span {
-      color:#adb5bd;
-      font-size:12px;
+      color:rgba(255,255,255,.4);
+      font-size:11px;
+      letter-spacing:0.02em;
     }
     .sidebar-user-panel {
       display:grid;
       grid-template-columns:auto 1fr;
       align-items:center;
-      gap:12px;
-      padding:16px 18px;
-      border-bottom:1px solid rgba(255,255,255,0.08);
+      gap:10px;
+      padding:10px 16px;
+      margin:8px 0 0;
+      border-bottom:1px solid rgba(255,255,255,.1);
     }
     .sidebar-user-avatar {
-      width:42px;
-      height:42px;
+      width:34px;
+      height:34px;
       display:grid;
       place-items:center;
-      border-radius:999px;
+      border-radius:50%;
       background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
       color:#495057;
-      font-size:13px;
+      font-size:12px;
       font-weight:700;
+      box-shadow:0 2px 4px rgba(0,0,0,0.2);
+      flex-shrink:0;
     }
     .sidebar-user-copy {
       display:grid;
@@ -422,12 +430,26 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .sidebar-user-copy strong {
       color:#f8f9fa;
-      font-size:15px;
-      font-weight:500;
+      font-size:14px;
+      font-weight:400;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
-    .sidebar-user-copy span {
+    .sidebar-user-status {
+      display:flex;
+      align-items:center;
+      gap:5px;
+      font-size:11px;
       color:#adb5bd;
-      font-size:12px;
+    }
+    .sidebar-user-online {
+      display:inline-block;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--admin-success);
+      flex-shrink:0;
     }
     .sidebar-search {
       position:relative;
@@ -661,7 +683,7 @@ const adminPrototypeHTML = `<!doctype html>
     input, select, textarea, button {
       font: inherit;
       padding: 10px 12px;
-      border-radius: 0.45rem;
+      border-radius: 0.25rem;
       border: 1px solid #ced4da;
       background:#fff;
       color:var(--admin-text);
@@ -675,19 +697,20 @@ const adminPrototypeHTML = `<!doctype html>
     textarea { min-height: 112px; }
     button {
       cursor:pointer;
-      background:linear-gradient(135deg, var(--admin-primary-dark) 0%, var(--admin-primary) 100%);
+      background:var(--admin-primary);
       color:#fff;
-      border-color:transparent;
-      font-weight:600;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+      border-color:var(--admin-primary-dark);
+      font-weight:400;
     }
     button.secondary { background:#fff; color:var(--admin-text); border-color:#ced4da; }
-    button.danger { background:linear-gradient(135deg, #c23321 0%, var(--admin-danger) 100%); }
+    button.secondary:hover { background:#e9ecef; border-color:#adb5bd; }
+    button.danger { background:var(--admin-danger); border-color:#c0392b; }
+    button.danger:hover { background:#c0392b; border-color:#a93226; }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
-    table { width:100%; border-collapse:separate; border-spacing:0; min-width:720px; }
-    th, td { border-bottom:1px solid #e9ecef; padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
-    th { background:#f8f9fa; color:#495057; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }
-    tbody tr:hover { background:#f6fbfe; }
+    table { width:100%; border-collapse:collapse; min-width:720px; }
+    th, td { border-bottom:1px solid #dee2e6; padding:0.75rem; text-align:left; font-size:14px; vertical-align:top; }
+    th { background:#f8f9fa; color:#495057; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; border-bottom-width:2px; }
+    tbody tr:hover { background:rgba(0,0,0,.04); }
     tbody tr.row-selected { background:#eaf3f8; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
     .action-menu { position:relative; display:inline-block; }
@@ -877,17 +900,20 @@ const adminPrototypeHTML = `<!doctype html>
     <section id="adminShell" class="admin-shell" hidden>
       <aside class="panel resource-strip stack sidebar-shell">
         <div class="sidebar-brand">
-          <span class="sidebar-brand-mark">A</span>
+          <span class="sidebar-brand-mark">G</span>
           <div class="sidebar-brand-copy">
-            <strong>AdminLTE 3</strong>
-            <span>Gin Ninja admin shell</span>
+            <strong>Gin Ninja</strong>
+            <span>Admin console</span>
           </div>
         </div>
         <div class="sidebar-user-panel">
           <span class="sidebar-user-avatar">AP</span>
           <div class="sidebar-user-copy">
             <strong>Alexander Pierce</strong>
-            <span>Demo operator</span>
+            <span class="sidebar-user-status">
+              <span class="sidebar-user-online" aria-hidden="true"></span>
+              Online
+            </span>
           </div>
         </div>
         <div class="sidebar-search">

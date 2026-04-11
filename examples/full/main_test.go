@@ -618,7 +618,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "Move between admin resources from a left-hand menu while keeping the workspace focused.") {
 		t.Fatalf("expected left-hand resource navigation copy in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "AdminLTE 3") || !strings.Contains(adminHTML, "Alexander Pierce") {
+	if !strings.Contains(adminHTML, "sidebar-brand-mark") || !strings.Contains(adminHTML, "Alexander Pierce") {
 		t.Fatalf("expected AdminLTE-style sidebar brand and user panel in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
