@@ -247,6 +247,55 @@ const adminPrototypeHTML = `<!doctype html>
       background:#dc3545;
     }
     .topbar-action-badge.warning { background:#ffc107; color:#212529; }
+    .toast-container {
+      position:fixed;
+      top:calc(var(--admin-topbar-min-height) + 12px);
+      right:18px;
+      z-index:500;
+      display:grid;
+      gap:8px;
+      pointer-events:none;
+    }
+    .toast {
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+      min-width:280px;
+      max-width:420px;
+      padding:12px 14px;
+      background:#fff;
+      border:1px solid var(--admin-border);
+      border-left:4px solid var(--admin-border);
+      border-radius:0.45rem;
+      box-shadow:0 4px 18px rgba(0,0,0,.13);
+      font-size:14px;
+      pointer-events:all;
+      animation:toast-in 200ms ease;
+    }
+    .toast[data-tone="success"] { border-left-color:var(--admin-success); }
+    .toast[data-tone="danger"] { border-left-color:var(--admin-danger); }
+    .toast[data-tone="info"] { border-left-color:var(--admin-primary); }
+    .toast-message { flex:1 1 auto; min-width:0; line-height:1.45; }
+    .toast-close {
+      flex-shrink:0;
+      background:none;
+      border:none;
+      box-shadow:none;
+      cursor:pointer;
+      color:#6c757d;
+      padding:0;
+      font-size:18px;
+      line-height:1;
+      width:20px;
+      height:20px;
+      display:grid;
+      place-items:center;
+    }
+    .toast-close:hover { color:#212529; }
+    @keyframes toast-in {
+      from { opacity:0; transform:translateY(-8px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
     .app-main {
       display:grid;
       gap:var(--admin-content-gap);
@@ -907,6 +956,7 @@ const adminPrototypeHTML = `<!doctype html>
   </style>
 </head>
 <body>
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
   <header class="topbar">
     <div class="topbar-left">
       <button class="topbar-toggle" type="button" aria-label="Toggle navigation">☰</button>
@@ -1236,6 +1286,7 @@ const adminPrototypeHTML = `<!doctype html>
       resources: document.getElementById('resources'),
       sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
       sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
+      toastContainer: document.getElementById('toastContainer'),
       resourceTitle: document.getElementById('resourceTitle'),
       resourcePath: document.getElementById('resourcePath'),
       selectedCountBadge: document.getElementById('selectedCountBadge'),
@@ -1293,6 +1344,30 @@ const adminPrototypeHTML = `<!doctype html>
     function setStatus(value, tone) {
       els.status.textContent = value;
       els.status.dataset.tone = tone || inferStatusTone(value);
+    }
+
+    function showToast(message, tone, durationMs) {
+      if (!els.toastContainer) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.setAttribute('role', 'status');
+      toast.dataset.tone = tone || inferStatusTone(message);
+      const msg = document.createElement('span');
+      msg.className = 'toast-message';
+      msg.textContent = message;
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'toast-close';
+      closeBtn.textContent = '×';
+      closeBtn.setAttribute('aria-label', 'Dismiss notification');
+      closeBtn.onclick = () => toast.remove();
+      toast.appendChild(msg);
+      toast.appendChild(closeBtn);
+      els.toastContainer.appendChild(toast);
+      const timeout = durationMs != null ? durationMs : 4000;
+      if (timeout > 0) {
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, timeout);
+      }
     }
 
     function currentPagePath() {
@@ -2257,6 +2332,7 @@ const adminPrototypeHTML = `<!doctype html>
          }
          setStatus('Loaded record #' + id + '.');
         } catch (error) {
+          showToast(String(error.message || error), 'danger');
           setStatus(String(error.message || error));
         }
       }
@@ -2278,8 +2354,10 @@ const adminPrototypeHTML = `<!doctype html>
               setSelectedForBulk(id, false);
               closeModal(els.recordModal);
               closeModal(els.editModal);
+              showToast('Deleted record #' + id + '.', 'success');
               await reloadListWithStatus('Deleted record #' + id + '.', false);
             } catch (error) {
+              showToast(String(error.message || error), 'danger');
               setStatus(String(error.message || error));
             }
           },
@@ -2475,9 +2553,23 @@ const adminPrototypeHTML = `<!doctype html>
       });
      });
      document.addEventListener('keydown', (event) => {
-       if (event.key !== 'Escape') return;
-       document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
-       closeAllModals();
+       if (event.key === 'Escape') {
+         document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
+         closeAllModals();
+         return;
+       }
+       // Ignore shortcuts when focus is in a text control or a modal is open
+       const tag = document.activeElement ? document.activeElement.tagName : '';
+       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+       if (anyModalOpen()) return;
+       if (event.ctrlKey || event.metaKey || event.altKey) return;
+       if (event.key === '/' && state.current) {
+         event.preventDefault();
+         if (els.search) els.search.focus();
+       } else if (event.key === 'n' && !event.shiftKey) {
+         event.preventDefault();
+         if (!els.openCreateModal.disabled) els.openCreateModal.click();
+       }
      });
      document.addEventListener('click', () => {
        document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
@@ -2546,8 +2638,10 @@ const adminPrototypeHTML = `<!doctype html>
         });
         await renderCreateForm();
         closeModal(els.createModal);
+        showToast('Created a new ' + state.current.name + ' record.', 'success');
         await reloadListWithStatus('Created a new ' + state.current.name + ' record.', true);
       } catch (error) {
+        showToast(String(error.message || error), 'danger');
         setStatus(String(error.message || error));
       }
     };
@@ -2563,8 +2657,10 @@ const adminPrototypeHTML = `<!doctype html>
         closeModal(els.editModal);
         await renderList();
         await selectRecord({ id: id });
+        showToast('Updated record #' + id + '.', 'success');
         setStatus('Updated record #' + id + '.');
       } catch (error) {
+        showToast(String(error.message || error), 'danger');
         setStatus(String(error.message || error));
       }
     };
@@ -2588,8 +2684,11 @@ const adminPrototypeHTML = `<!doctype html>
               await renderUpdateForm();
             }
             state.bulkSelected = {};
-            await reloadListWithStatus('Bulk deleted ' + String(result.deleted || 0) + ' record(s).', false);
+            const deleted = String(result.deleted || 0);
+            showToast('Bulk deleted ' + deleted + ' record(s).', 'success');
+            await reloadListWithStatus('Bulk deleted ' + deleted + ' record(s).', false);
           } catch (error) {
+            showToast(String(error.message || error), 'danger');
             setStatus(String(error.message || error));
           }
         },

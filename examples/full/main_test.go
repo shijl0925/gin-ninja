@@ -794,6 +794,21 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "Deleted record #") {
 		t.Fatalf("expected delete flow in html: %q", html)
 	}
+	if !strings.Contains(html, "id=\"toastContainer\"") || !strings.Contains(html, "class=\"toast-container\"") {
+		t.Fatalf("expected toast notification container in html: %q", html)
+	}
+	if !strings.Contains(html, "function showToast(message, tone, durationMs)") {
+		t.Fatalf("expected showToast function in html: %q", html)
+	}
+	if !strings.Contains(html, "toast.dataset.tone = tone || inferStatusTone(message)") {
+		t.Fatalf("expected toast tone assignment in html: %q", html)
+	}
+	if !strings.Contains(html, "event.key === '/' && state.current") {
+		t.Fatalf("expected '/' keyboard shortcut to focus search in html: %q", html)
+	}
+	if !strings.Contains(html, "event.key === 'n' && !event.shiftKey") {
+		t.Fatalf("expected 'n' keyboard shortcut to open create modal in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
@@ -1402,6 +1417,11 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Created a new projects record.")
 	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+	// Toast should appear for successful create
+	waitForBrowserCondition(t, ctx, "create toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("Created a new projects record.");
+	})()`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
 	waitForBrowserVisible(t, ctx, "#recordModal")
@@ -1419,10 +1439,22 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Updated record #1.")
 	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+	// Toast should appear for successful update
+	waitForBrowserCondition(t, ctx, "update toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("Updated record #1.");
+	})()`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
 	waitForBrowserText(t, ctx, "#detailFields", "updated through browser flow")
 	clickBrowser(t, ctx, "#closeRecordModal")
+
+	// Verify '/' keyboard shortcut focuses the search input
+	waitForBrowserCondition(t, ctx, "search input is visible before shortcut", `document.getElementById('search') !== null`)
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		document.body.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
+	})()`, nil))
+	waitForBrowserCondition(t, ctx, "/ shortcut focuses search", `document.activeElement === document.getElementById('search')`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child td:first-child input[type='checkbox']")
 	waitForBrowserText(t, ctx, "#selectedCountBadge", "1 selected")
@@ -1436,6 +1468,11 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Bulk deleted 1 record(s).")
 	waitForBrowserText(t, ctx, "#list", "No records matched the current filters.")
+	// Toast should appear for successful bulk delete
+	waitForBrowserCondition(t, ctx, "bulk delete toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("Bulk deleted 1 record(s).");
+	})()`)
 }
 
 func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
