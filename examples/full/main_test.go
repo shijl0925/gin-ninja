@@ -809,6 +809,24 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "event.key === 'n' && !event.shiftKey") {
 		t.Fatalf("expected 'n' keyboard shortcut to open create modal in html: %q", html)
 	}
+	if !strings.Contains(html, "[data-theme=\"dark\"]") {
+		t.Fatalf("expected dark mode CSS custom properties in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"darkModeToggle\"") {
+		t.Fatalf("expected dark mode toggle button in html: %q", html)
+	}
+	if !strings.Contains(html, "function applyTheme(dark)") {
+		t.Fatalf("expected applyTheme function in html: %q", html)
+	}
+	if !strings.Contains(html, "function toggleDarkMode()") {
+		t.Fatalf("expected toggleDarkMode function in html: %q", html)
+	}
+	if !strings.Contains(html, "function restoreTheme()") {
+		t.Fatalf("expected restoreTheme function in html: %q", html)
+	}
+	if !strings.Contains(html, "localStorage.setItem(themeStorageKey") {
+		t.Fatalf("expected dark mode localStorage persistence in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
@@ -1469,6 +1487,36 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 		const container = document.querySelector("#toastContainer");
 		return !!container && container.textContent.includes("Bulk deleted 1 record(s).");
 	})()`)
+}
+
+func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#darkModeToggle")
+
+	// By default the page should NOT be in dark mode
+	waitForBrowserCondition(t, ctx, "page starts in light mode", `document.documentElement.getAttribute('data-theme') !== 'dark'`)
+
+	// Click the toggle — should enter dark mode
+	clickBrowser(t, ctx, "#darkModeToggle")
+	waitForBrowserCondition(t, ctx, "dark mode activated after toggle", `document.documentElement.getAttribute('data-theme') === 'dark'`)
+
+	// Sun icon should be visible, moon icon should be hidden
+	waitForBrowserCondition(t, ctx, "sun icon visible in dark mode", `!document.getElementById('darkModeIconSun').hidden`)
+	waitForBrowserCondition(t, ctx, "moon icon hidden in dark mode", `document.getElementById('darkModeIconMoon').hidden`)
+
+	// Click again — should return to light mode
+	clickBrowser(t, ctx, "#darkModeToggle")
+	waitForBrowserCondition(t, ctx, "light mode restored after second toggle", `document.documentElement.getAttribute('data-theme') !== 'dark'`)
+
+	// Moon icon should be visible, sun icon hidden
+	waitForBrowserCondition(t, ctx, "moon icon visible in light mode", `!document.getElementById('darkModeIconMoon').hidden`)
+	waitForBrowserCondition(t, ctx, "sun icon hidden in light mode", `document.getElementById('darkModeIconSun').hidden`)
 }
 
 func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {

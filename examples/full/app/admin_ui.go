@@ -38,6 +38,64 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-content-gap: 18px;
       --admin-sidebar-width: 280px;
     }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --admin-body-bg: #0f1117;
+      --admin-surface: #1a1d27;
+      --admin-sidebar: #111827;
+      --admin-sidebar-alt: #1c2535;
+      --admin-sidebar-text: #9ca3af;
+      --admin-sidebar-active: #3c8dbc;
+      --admin-topbar: #1a1d27;
+      --admin-border: #2d3242;
+      --admin-text: #e2e8f0;
+      --admin-muted: #9ca3af;
+      --admin-primary: #4fa3d1;
+      --admin-primary-dark: #3c8dbc;
+      --admin-success: #22c55e;
+      --admin-danger: #ef4444;
+      --admin-warning: #f59e0b;
+      --admin-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+    [data-theme="dark"] body { background: var(--admin-body-bg); color: var(--admin-text); }
+    [data-theme="dark"] .topbar,
+    [data-theme="dark"] .sidebar-shell,
+    [data-theme="dark"] .panel,
+    [data-theme="dark"] .modal-box { background: var(--admin-surface); border-color: var(--admin-border); }
+    [data-theme="dark"] .topbar { background: var(--admin-topbar); border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .topbar-user-menu,
+    [data-theme="dark"] .topbar-search-expand input,
+    [data-theme="dark"] .action-menu-list { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .topbar-link,
+    [data-theme="dark"] .topbar-user-btn,
+    [data-theme="dark"] .topbar-user-menu-item { color: var(--admin-text); }
+    [data-theme="dark"] .topbar-link:hover,
+    [data-theme="dark"] .topbar-user-menu-item:hover { background: var(--admin-border); }
+    [data-theme="dark"] input,
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea { background: #22253a; color: var(--admin-text); border-color: var(--admin-border); }
+    [data-theme="dark"] input::placeholder,
+    [data-theme="dark"] textarea::placeholder { color: var(--admin-muted); }
+    [data-theme="dark"] .status-banner { background: var(--admin-surface); border-left-color: var(--admin-primary); color: var(--admin-text); }
+    [data-theme="dark"] .status-banner[data-tone="success"] { background: #0d2e1a; border-left-color: var(--admin-success); color: #86efac; }
+    [data-theme="dark"] .status-banner[data-tone="danger"] { background: #2d0f0f; border-left-color: var(--admin-danger); color: #fca5a5; }
+    [data-theme="dark"] .status-banner[data-tone="info"] { background: #0d1e2e; border-left-color: var(--admin-primary); color: #7dd3fc; }
+    [data-theme="dark"] table { color: var(--admin-text); }
+    [data-theme="dark"] thead tr { background: #22253a; }
+    [data-theme="dark"] tbody tr:hover { background: #22253a; }
+    [data-theme="dark"] tbody tr.row-selected { background: #1a2e3d; }
+    [data-theme="dark"] .dashboard-tile { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .dashboard-tile:hover { border-top-color: var(--admin-primary); }
+    [data-theme="dark"] .toast { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .login-shell,
+    [data-theme="dark"] .login-card,
+    [data-theme="dark"] .session-panel { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .nav-link { color: var(--admin-sidebar-text); }
+    [data-theme="dark"] .nav-link:hover,
+    [data-theme="dark"] .nav-link.active { background: var(--admin-sidebar-alt); color: #fff; }
+    [data-theme="dark"] hr,
+    [data-theme="dark"] .action-menu-divider { border-color: var(--admin-border); }
+    [data-theme="dark"] .muted { color: var(--admin-muted); }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body {
@@ -982,6 +1040,10 @@ const adminPrototypeHTML = `<!doctype html>
             <input type="search" placeholder="Search…" aria-label="Site-wide search">
           </div>
         </div>
+        <button class="topbar-action" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
+          <svg id="darkModeIconMoon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/></svg>
+          <svg id="darkModeIconSun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/></svg>
+        </button>
         <div class="topbar-user-dropdown" id="topbarUserDropdown" hidden>
           <button class="topbar-user-btn" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
             <span class="topbar-user-avatar" id="topbarUserAvatar">?</span>
@@ -1248,6 +1310,7 @@ const adminPrototypeHTML = `<!doctype html>
     const apiBase = '/api/v1/admin';
     const tokenStorageKey = 'gin-ninja-admin-token';
     const flashStorageKey = 'gin-ninja-admin-flash';
+    const themeStorageKey = 'gin-ninja-admin-theme';
     const adminPagePath = '/admin';
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
@@ -1323,7 +1386,10 @@ const adminPrototypeHTML = `<!doctype html>
       confirmModalCancel: document.getElementById('confirmModalCancel'),
       confirmModalConfirm: document.getElementById('confirmModalConfirm'),
       confirmModalTitle: document.getElementById('confirmModalTitle'),
-      confirmModalMessage: document.getElementById('confirmModalMessage')
+      confirmModalMessage: document.getElementById('confirmModalMessage'),
+      darkModeToggle: document.getElementById('darkModeToggle'),
+      darkModeIconMoon: document.getElementById('darkModeIconMoon'),
+      darkModeIconSun: document.getElementById('darkModeIconSun')
     };
 
     function inferStatusTone(value) {
@@ -1372,6 +1438,46 @@ const adminPrototypeHTML = `<!doctype html>
 
     function currentPagePath() {
       return window.location.pathname || '';
+    }
+
+    function applyTheme(dark) {
+      if (dark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      if (els.darkModeIconMoon) els.darkModeIconMoon.hidden = dark;
+      if (els.darkModeIconSun) els.darkModeIconSun.hidden = !dark;
+      if (els.darkModeToggle) els.darkModeToggle.setAttribute('aria-pressed', String(dark));
+    }
+
+    function toggleDarkMode() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const next = !isDark;
+      applyTheme(next);
+      try {
+        if (next) {
+          localStorage.setItem(themeStorageKey, 'dark');
+        } else {
+          localStorage.removeItem(themeStorageKey);
+        }
+      } catch (_) {
+        // localStorage may be unavailable in some contexts
+      }
+    }
+
+    function restoreTheme() {
+      try {
+        const saved = localStorage.getItem(themeStorageKey);
+        if (saved === 'dark') {
+          applyTheme(true);
+          return true;
+        }
+      } catch (_) {
+        // ignore
+      }
+      applyTheme(false);
+      return false;
     }
 
     function isStandaloneLoginPage() {
@@ -2704,9 +2810,13 @@ const adminPrototypeHTML = `<!doctype html>
         closeModal(els.confirmModal);
       }
     });
+    if (els.darkModeToggle) {
+      els.darkModeToggle.addEventListener('click', toggleDarkMode);
+    }
 
     resetAdminState();
     updatePageChrome();
+    restoreTheme();
     const restoredToken = restoreToken();
     const flashMessage = consumeFlashMessage();
     renderAuthState();
