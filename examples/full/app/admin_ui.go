@@ -277,17 +277,65 @@ const adminPrototypeHTML = `<!doctype html>
       position:absolute;
       top:calc(100% + 4px);
       right:0;
-      width:240px;
+      width:320px;
       z-index:200;
     }
     .topbar-search-expand.open { display:block; }
     .topbar-search-expand input {
       width:100%;
-      border-radius:0.35rem;
+      border-radius:0.35rem 0.35rem 0 0;
       border:1px solid var(--admin-border);
       padding:8px 14px;
       font-size:14px;
       box-shadow:0 2px 8px rgba(0,0,0,0.10);
+    }
+    .topbar-search-results {
+      display:none;
+      background:var(--admin-surface);
+      border:1px solid var(--admin-border);
+      border-top:none;
+      border-radius:0 0 0.35rem 0.35rem;
+      box-shadow:0 4px 12px rgba(0,0,0,0.12);
+      max-height:320px;
+      overflow-y:auto;
+    }
+    .topbar-search-results.has-results { display:block; }
+    .search-results-group-label {
+      padding:6px 12px 3px;
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.05em;
+      text-transform:uppercase;
+      color:var(--admin-muted);
+      background:var(--admin-body-bg);
+      border-top:1px solid var(--admin-border);
+    }
+    .search-results-group-label:first-child { border-top:none; }
+    .search-result-item {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      width:100%;
+      padding:7px 12px;
+      border:none;
+      background:none;
+      cursor:pointer;
+      text-align:left;
+      font-size:13px;
+      color:var(--admin-text);
+      transition:background 0.1s;
+    }
+    .search-result-item:hover,
+    .search-result-item:focus { background:var(--admin-body-bg); outline:none; }
+    .search-result-item mark { background:#fff9c4; color:inherit; border-radius:2px; padding:0 1px; }
+    [data-theme="dark"] .search-result-item mark { background:#4a4200; }
+    .search-result-summary { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .search-result-id { font-size:11px; color:var(--admin-muted); flex-shrink:0; }
+    .search-results-empty {
+      padding:14px 12px;
+      font-size:13px;
+      color:var(--admin-muted);
+      text-align:center;
     }
     .topbar-action-badge {
       position:absolute;
@@ -1037,7 +1085,8 @@ const adminPrototypeHTML = `<!doctype html>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
           </button>
           <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
-            <input type="search" placeholder="Search…" aria-label="Site-wide search">
+            <input type="search" id="topbarSearchInput" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
+            <div id="topbarSearchResults" class="topbar-search-results" role="listbox" aria-label="Search results"></div>
           </div>
         </div>
         <button class="topbar-action" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
@@ -1389,7 +1438,9 @@ const adminPrototypeHTML = `<!doctype html>
       confirmModalMessage: document.getElementById('confirmModalMessage'),
       darkModeToggle: document.getElementById('darkModeToggle'),
       darkModeIconMoon: document.getElementById('darkModeIconMoon'),
-      darkModeIconSun: document.getElementById('darkModeIconSun')
+      darkModeIconSun: document.getElementById('darkModeIconSun'),
+      topbarSearchInput: document.getElementById('topbarSearchInput'),
+      topbarSearchResults: document.getElementById('topbarSearchResults')
     };
 
     function inferStatusTone(value) {
@@ -1478,6 +1529,104 @@ const adminPrototypeHTML = `<!doctype html>
       }
       applyTheme(false);
       return false;
+    }
+
+    let globalSearchTimer = null;
+
+    function closeGlobalSearch() {
+      if (els.topbarSearchResults) {
+        els.topbarSearchResults.classList.remove('has-results');
+        els.topbarSearchResults.innerHTML = '';
+      }
+    }
+
+    function recordDisplayLabel(record, fields) {
+      // Pick the first string-like field that isn't the primary key for a summary
+      const strField = (fields || []).find((f) => f.name !== 'id' && (f.component === 'text' || f.component === 'textarea' || f.component === 'email' || !f.component));
+      if (strField) {
+        const val = record[strField.name];
+        if (val !== undefined && val !== null && val !== '') return String(val);
+      }
+      // Fallback: first non-id field
+      const keys = Object.keys(record).filter((k) => k !== 'id');
+      if (keys.length) return String(record[keys[0]]);
+      return '';
+    }
+
+    async function globalSearch(query) {
+      closeGlobalSearch();
+      if (!els.topbarSearchResults) return;
+      const q = query.trim();
+      if (!q || q.length < 2) return;
+      if (!state.resources.length) return;
+
+      const results = await Promise.all(
+        state.resources.map(async (resource) => {
+          try {
+            const basePath = apiBase + '/resources' + resource.path;
+            const data = await request(basePath + '?page=1&size=5&search=' + encodeURIComponent(q));
+            const items = data.items || data.results || data.data || [];
+            return { resource, items };
+          } catch (_) {
+            return { resource, items: [] };
+          }
+        })
+      );
+
+      const noResults = results.every((r) => r.items.length === 0);
+      if (noResults) {
+        els.topbarSearchResults.innerHTML = '<div class="search-results-empty">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
+        els.topbarSearchResults.classList.add('has-results');
+        return;
+      }
+
+      results.forEach(({ resource, items }) => {
+        if (!items.length) return;
+        const group = document.createElement('div');
+        group.className = 'search-results-group';
+        const label = document.createElement('div');
+        label.className = 'search-results-group-label';
+        label.textContent = resource.label || resource.name;
+        group.appendChild(label);
+
+        items.forEach((record) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'search-result-item';
+          btn.setAttribute('role', 'option');
+          const pk = recordPrimaryKey(record);
+          const displayLabel = recordDisplayLabel(record, []);
+          const summary = document.createElement('span');
+          summary.className = 'search-result-summary';
+          summary.innerHTML = highlightMatch(displayLabel || String(pk ?? ''), q);
+          const idSpan = document.createElement('span');
+          idSpan.className = 'search-result-id';
+          idSpan.textContent = '#' + String(pk ?? '');
+          btn.appendChild(summary);
+          if (displayLabel) btn.appendChild(idSpan);
+          btn.addEventListener('click', async () => {
+            if (els.topbarSearchInput) els.topbarSearchInput.value = '';
+            const expandEl = document.getElementById('topbarSearchExpand');
+            if (expandEl) expandEl.classList.remove('open');
+            closeGlobalSearch();
+            await selectResource(resource);
+            // Try to open the specific record
+            const found = (state.records || []).find((r) => String(recordPrimaryKey(r)) === String(pk));
+            if (found) {
+              state.selected = { item: found };
+              renderSelectedRecord();
+              await renderUpdateForm();
+              openModal(els.editModal);
+            }
+          });
+          group.appendChild(btn);
+        });
+        els.topbarSearchResults.appendChild(group);
+      });
+
+      if (els.topbarSearchResults.children.length) {
+        els.topbarSearchResults.classList.add('has-results');
+      }
     }
 
     function isStandaloneLoginPage() {
@@ -2587,12 +2736,38 @@ const adminPrototypeHTML = `<!doctype html>
       topbarSearchToggle.addEventListener('click', (event) => {
         event.stopPropagation();
         topbarSearchExpand.classList.toggle('open');
-        if (!topbarSearchExpand.classList.contains('open')) return;
-        const inp = topbarSearchExpand.querySelector('input');
-        if (inp) inp.focus();
+        if (!topbarSearchExpand.classList.contains('open')) {
+          closeGlobalSearch();
+          return;
+        }
+        if (els.topbarSearchInput) els.topbarSearchInput.focus();
       });
-      document.addEventListener('click', () => {
-        if (topbarSearchExpand) topbarSearchExpand.classList.remove('open');
+      document.addEventListener('click', (event) => {
+        if (topbarSearchExpand && !topbarSearchExpand.contains(event.target) && event.target !== topbarSearchToggle) {
+          topbarSearchExpand.classList.remove('open');
+          closeGlobalSearch();
+        }
+      });
+    }
+    if (els.topbarSearchInput) {
+      els.topbarSearchInput.addEventListener('input', (event) => {
+        clearTimeout(globalSearchTimer);
+        const q = event.target.value;
+        if (!q.trim() || q.trim().length < 2) {
+          closeGlobalSearch();
+          return;
+        }
+        globalSearchTimer = setTimeout(() => {
+          globalSearch(q).catch((err) => console.error('global search error:', err));
+        }, 350);
+      });
+      els.topbarSearchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          els.topbarSearchInput.value = '';
+          closeGlobalSearch();
+          if (topbarSearchExpand) topbarSearchExpand.classList.remove('open');
+        }
       });
     }
     // Topbar ☰ toggle: collapse / expand sidebar

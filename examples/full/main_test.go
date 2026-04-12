@@ -827,6 +827,21 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "localStorage.setItem(themeStorageKey") {
 		t.Fatalf("expected dark mode localStorage persistence in html: %q", html)
 	}
+	if !strings.Contains(html, "id=\"topbarSearchInput\"") {
+		t.Fatalf("expected topbar search input in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"topbarSearchResults\"") {
+		t.Fatalf("expected topbar search results panel in html: %q", html)
+	}
+	if !strings.Contains(html, "function globalSearch(query)") {
+		t.Fatalf("expected globalSearch function in html: %q", html)
+	}
+	if !strings.Contains(html, "function closeGlobalSearch()") {
+		t.Fatalf("expected closeGlobalSearch function in html: %q", html)
+	}
+	if !strings.Contains(html, "topbar-search-results") {
+		t.Fatalf("expected topbar-search-results CSS class in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
@@ -1517,6 +1532,48 @@ func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
 	// Moon icon should be visible, sun icon hidden
 	waitForBrowserCondition(t, ctx, "moon icon visible in light mode", `!document.getElementById('darkModeIconMoon').hidden`)
 	waitForBrowserCondition(t, ctx, "sun icon hidden in light mode", `document.getElementById('darkModeIconSun').hidden`)
+}
+
+func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	// Register Alice
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	// Navigate to admin prototype and sign in via the login form
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	// Wait for resources to load
+	waitForBrowserText(t, ctx, "#resources", "Users")
+
+	// The topbar search input should exist in the page
+	waitForBrowserCondition(t, ctx, "topbar search input exists", `!!document.getElementById('topbarSearchInput')`)
+	// The results panel should start hidden (no has-results class)
+	waitForBrowserCondition(t, ctx, "search results panel initially hidden", `!document.getElementById('topbarSearchResults').classList.contains('has-results')`)
+
+	// Open the search expand by clicking the search toggle
+	clickBrowser(t, ctx, "#topbarSearchToggle")
+	waitForBrowserCondition(t, ctx, "search expand opens", `document.getElementById('topbarSearchExpand').classList.contains('open')`)
+	waitForBrowserVisible(t, ctx, "#topbarSearchInput")
+
+	// Pressing Escape should close the search expand
+	runBrowser(t, ctx, chromedp.Focus("#topbarSearchInput"))
+	runBrowser(t, ctx, chromedp.KeyEvent("\x1b"))
+	waitForBrowserCondition(t, ctx, "search expand closes on Escape", `!document.getElementById('topbarSearchExpand').classList.contains('open')`)
 }
 
 func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
