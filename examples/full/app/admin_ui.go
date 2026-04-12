@@ -940,7 +940,7 @@ const adminPrototypeHTML = `<!doctype html>
     .action-menu-item:hover { background:#f1f3f5; }
     .action-menu-item:disabled { opacity:0.45; cursor:not-allowed; }
     .action-menu-divider { border:none; border-top:1px solid var(--admin-border); margin:4px 0; }
-    .action-menu-item.danger { color:var(--admin-danger); }
+    .action-menu-item.danger { background:transparent; color:var(--admin-danger); border-color:transparent; }
     .action-menu-item.danger:hover { background:#fdf1ef; }
     .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 12px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
     .action-btn-view:hover { background:#f8f9fa; border-color:#adb5bd; }

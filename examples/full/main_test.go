@@ -881,6 +881,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb()") {
 		t.Fatalf("expected safe confirm callback invocation in html: %q", html)
 	}
+	if !strings.Contains(html, ".action-menu-item.danger { background:transparent; color:var(--admin-danger); border-color:transparent; }") {
+		t.Fatalf("expected action menu danger item override in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
