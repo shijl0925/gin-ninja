@@ -1202,7 +1202,7 @@ const adminPrototypeHTML = `<!doctype html>
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
     const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
-    const DASHBOARD_COUNT_PLACEHOLDER = '—';
+    const dashboardCountPlaceholder = '—';
     let pendingConfirmCallback = null;
     const state = {
       auth: { name: '', userID: null },
@@ -1761,7 +1761,7 @@ const adminPrototypeHTML = `<!doctype html>
         tile.type = 'button';
         tile.className = 'dashboard-tile';
         tile.innerHTML =
-          '<span class="dashboard-tile-count">' + DASHBOARD_COUNT_PLACEHOLDER + '</span>' +
+          '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
           '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
           '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>';
         tile.onclick = () => selectResource(resource);
@@ -1771,7 +1771,7 @@ const adminPrototypeHTML = `<!doctype html>
         request(basePath + '?page=1&size=1')
           .then((data) => {
             const countEl = tile.querySelector('.dashboard-tile-count');
-            if (countEl) countEl.textContent = String(data.total ?? DASHBOARD_COUNT_PLACEHOLDER);
+            if (countEl) countEl.textContent = String(data.total ?? dashboardCountPlaceholder);
           })
           .catch((err) => {
             // Count is decorative; log but don't surface to user
