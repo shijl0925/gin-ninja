@@ -1950,6 +1950,18 @@ const adminPrototypeHTML = `<!doctype html>
       return scopeKey + ':' + field.name;
     }
 
+    function isMultiRelationField(field) {
+      return !!(field && field.relation && field.type === 'array');
+    }
+
+    function selectedRelationValues(select, field) {
+      if (!select) return isMultiRelationField(field) ? [] : '';
+      if (isMultiRelationField(field)) {
+        return Array.from(select.selectedOptions || []).map((option) => option.value).filter((value) => value !== '');
+      }
+      return select.value;
+    }
+
     function resetQueryState() {
       state.bulkSelected = {};
       state.relationSearch = {};
@@ -2268,7 +2280,11 @@ const adminPrototypeHTML = `<!doctype html>
       return options.items || [];
     }
 
-    function resolveRelationSelection(items, selectedValue, term) {
+    function resolveRelationSelection(field, items, selectedValue, term) {
+      if (isMultiRelationField(field)) {
+        const selected = Array.isArray(selectedValue) ? selectedValue.map((value) => String(value)) : [];
+        return selected;
+      }
       if (selectedValue != null && selectedValue !== '') {
         return selectedValue;
       }
@@ -2280,8 +2296,34 @@ const adminPrototypeHTML = `<!doctype html>
       return exactValueMatch ? exactValueMatch.value : selectedValue;
     }
 
-    function populateRelationSelect(select, items, selectedValue, placeholderLabel) {
+    function populateRelationSelect(field, select, items, selectedValue, placeholderLabel) {
+      const multiple = isMultiRelationField(field);
+      select.multiple = multiple;
+      if (multiple) {
+        select.size = Math.min(Math.max(items.length, 3), 6);
+      } else {
+        select.removeAttribute('size');
+      }
       select.innerHTML = '';
+      if (multiple) {
+        const selectedSet = new Set((Array.isArray(selectedValue) ? selectedValue : []).map((value) => String(value)));
+        items.forEach((item) => {
+          const option = document.createElement('option');
+          option.value = String(item.value);
+          option.textContent = item.label;
+          option.selected = selectedSet.has(String(item.value));
+          select.appendChild(option);
+        });
+        selectedSet.forEach((value) => {
+          if (Array.from(select.options).some((option) => option.value === value)) return;
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = 'Selected: ' + value;
+          option.selected = true;
+          select.appendChild(option);
+        });
+        return;
+      }
       const hasSelection = selectedValue != null && selectedValue !== '';
       if (!hasSelection) {
         const option = document.createElement('option');
@@ -2324,8 +2366,8 @@ const adminPrototypeHTML = `<!doctype html>
         try {
           const term = searchInput.value.trim();
           const items = await loadRelationOptions(field, term, 1, 8);
-          const nextValue = resolveRelationSelection(items, select.value, term);
-          populateRelationSelect(select, items, nextValue, field.label);
+          const nextValue = resolveRelationSelection(field, items, selectedRelationValues(select, field), term);
+          populateRelationSelect(field, select, items, nextValue, field.label);
           updateRelationPreview(preview, items, term);
           setStatus('Loaded ' + items.length + ' relation option(s) for ' + field.name + '.');
         } catch (error) {
@@ -2349,14 +2391,16 @@ const adminPrototypeHTML = `<!doctype html>
         preview.className = 'relation-preview';
         const help = document.createElement('div');
         help.className = 'field-help';
-        help.textContent = 'Search related records and choose the best matching option for this field.';
+        help.textContent = isMultiRelationField(field)
+          ? 'Search related records and choose one or more matching options for this field.'
+          : 'Search related records and choose the best matching option for this field.';
         wrapper.appendChild(searchInput);
         wrapper.appendChild(select);
         wrapper.appendChild(preview);
         wrapper.appendChild(help);
         const items = await loadRelationOptions(field, searchInput.value.trim(), 1, 8);
-        const nextValue = resolveRelationSelection(items, value, searchInput.value);
-        populateRelationSelect(select, items, nextValue, field.label);
+        const nextValue = resolveRelationSelection(field, items, value, searchInput.value);
+        populateRelationSelect(field, select, items, nextValue, field.label);
         updateRelationPreview(preview, items, searchInput.value.trim());
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;
@@ -2478,6 +2522,13 @@ const adminPrototypeHTML = `<!doctype html>
           continue;
         }
         if (field.relation) {
+          if (isMultiRelationField(field)) {
+            if (!Array.isArray(payload[key])) payload[key] = [];
+            if (value !== '') {
+              payload[key].push(numericFieldPattern.test(value) ? Number(value) : value);
+            }
+            continue;
+          }
           if (value === '') {
             payload[key] = null;
             continue;
@@ -2490,6 +2541,14 @@ const adminPrototypeHTML = `<!doctype html>
       form.querySelectorAll('input[type=checkbox][name]').forEach((checkbox) => {
         if (!fieldMeta(checkbox.name) || checkbox.disabled) return;
         payload[checkbox.name] = checkbox.checked;
+      });
+      form.querySelectorAll('select[multiple][name]').forEach((select) => {
+        const field = fieldMeta(select.name);
+        if (!field || !isMultiRelationField(field) || select.disabled) return;
+        payload[select.name] = Array.from(select.selectedOptions).map((option) => {
+          const value = option.value;
+          return numericFieldPattern.test(value) ? Number(value) : value;
+        });
       });
       return payload;
     }

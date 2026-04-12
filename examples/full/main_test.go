@@ -707,7 +707,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
 	}
-	if !strings.Contains(html, "resolveRelationSelection(items, select.value, term)") {
+	if !strings.Contains(html, "resolveRelationSelection(field, items, selectedRelationValues(select, field), term)") {
 		t.Fatalf("expected relation exact-id auto-selection flow in html: %q", html)
 	}
 	if !strings.Contains(html, "option.textContent = 'Choose ' + placeholderLabel;") {
@@ -1235,6 +1235,27 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	aliceToken := login("alice@example.com")
 	bobToken := login("bob@example.com")
 
+	for _, role := range []map[string]any{
+		{
+			"name":   "Administrators",
+			"code":   "admin",
+			"status": 1,
+			"remark": "full access",
+		},
+		{
+			"name":   "Editors",
+			"code":   "editor",
+			"status": 1,
+			"remark": "content editors",
+		},
+	} {
+		createRoleResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/roles", role, aliceToken)
+		if createRoleResp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected role create 201, got %d body=%s", createRoleResp.StatusCode, readBody(t, createRoleResp.Body))
+		}
+		createRoleResp.Body.Close()
+	}
+
 	resourceIndexResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources", nil, aliceToken)
 	if resourceIndexResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected admin resource index 200, got %d", resourceIndexResp.StatusCode)
@@ -1250,14 +1271,14 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 		t.Fatalf("decode resource index: %v", err)
 	}
 	resourceIndexResp.Body.Close()
-	if len(resourceIndex.Resources) != 2 {
-		t.Fatalf("expected 2 admin resources, got %+v", resourceIndex.Resources)
+	if len(resourceIndex.Resources) != 3 {
+		t.Fatalf("expected 3 admin resources, got %+v", resourceIndex.Resources)
 	}
 	resourcePaths := map[string]string{}
 	for _, resource := range resourceIndex.Resources {
 		resourcePaths[resource.Name] = resource.Path
 	}
-	if resourcePaths["users"] != "/users" || resourcePaths["projects"] != "/projects" {
+	if resourcePaths["users"] != "/users" || resourcePaths["roles"] != "/roles" || resourcePaths["projects"] != "/projects" {
 		t.Fatalf("unexpected admin resources: %+v", resourceIndex.Resources)
 	}
 
@@ -1269,6 +1290,15 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 		Actions      []string `json:"actions"`
 		CreateFields []string `json:"create_fields"`
 		UpdateFields []string `json:"update_fields"`
+		Fields       []struct {
+			Name      string `json:"name"`
+			Type      string `json:"type"`
+			Component string `json:"component"`
+			Relation  *struct {
+				Resource   string `json:"resource"`
+				LabelField string `json:"label_field"`
+			} `json:"relation"`
+		} `json:"fields"`
 	}
 	if err := json.NewDecoder(usersMetaResp.Body).Decode(&usersMeta); err != nil {
 		t.Fatalf("decode users metadata: %v", err)
@@ -1286,6 +1316,36 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	if !strings.Contains(strings.Join(usersMeta.CreateFields, ","), "password") || !strings.Contains(strings.Join(usersMeta.UpdateFields, ","), "password") {
 		t.Fatalf("expected password field in users metadata create/update fields, got %+v", usersMeta)
 	}
+	if !strings.Contains(strings.Join(usersMeta.CreateFields, ","), "role_ids") || !strings.Contains(strings.Join(usersMeta.UpdateFields, ","), "role_ids") {
+		t.Fatalf("expected role_ids field in users metadata create/update fields, got %+v", usersMeta)
+	}
+	var roleIDsFieldFound bool
+	for _, field := range usersMeta.Fields {
+		if field.Name == "role_ids" && field.Type == "array" && field.Component == "select" && field.Relation != nil && field.Relation.Resource == "roles" && field.Relation.LabelField == "name" {
+			roleIDsFieldFound = true
+		}
+	}
+	if !roleIDsFieldFound {
+		t.Fatalf("expected role_ids relation metadata, got %+v", usersMeta.Fields)
+	}
+
+	roleOptionsResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users/fields/role_ids/options?search=adm", nil, aliceToken)
+	if roleOptionsResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected role relation selector 200, got %d", roleOptionsResp.StatusCode)
+	}
+	var roleOptions struct {
+		Items []struct {
+			Value float64 `json:"value"`
+			Label string  `json:"label"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(roleOptionsResp.Body).Decode(&roleOptions); err != nil {
+		t.Fatalf("decode role options: %v", err)
+	}
+	roleOptionsResp.Body.Close()
+	if len(roleOptions.Items) != 1 || roleOptions.Items[0].Value != 1 || roleOptions.Items[0].Label != "Administrators" {
+		t.Fatalf("unexpected role relation selector payload: %+v", roleOptions.Items)
+	}
 
 	createUserResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/users", map[string]any{
 		"name":     "  Carol Admin  ",
@@ -1293,6 +1353,7 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 		"password": "password123",
 		"age":      27,
 		"is_admin": true,
+		"role_ids": []int{1, 2},
 	}, aliceToken)
 	if createUserResp.StatusCode != http.StatusCreated {
 		t.Fatalf("expected admin user create 201, got %d body=%s", createUserResp.StatusCode, readBody(t, createUserResp.Body))
@@ -1310,6 +1371,10 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	if createdUser.Item["is_admin"] != true {
 		t.Fatalf("expected created user to preserve is_admin=true, got %+v", createdUser.Item)
 	}
+	roleIDs, ok := createdUser.Item["role_ids"].([]any)
+	if !ok || len(roleIDs) != 2 || roleIDs[0] != float64(1) || roleIDs[1] != float64(2) {
+		t.Fatalf("expected created user role_ids [1 2], got %+v", createdUser.Item["role_ids"])
+	}
 	if _, ok := createdUser.Item["password"]; ok {
 		t.Fatalf("expected password to stay hidden in admin response, got %+v", createdUser.Item)
 	}
@@ -1320,9 +1385,10 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	_ = login("carol@example.com")
 
 	updateUserResp := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/users/3", map[string]any{
-		"name":  "  Carol Updated  ",
-		"email": "  CAROL.UPDATED@EXAMPLE.COM ",
-		"age":   28,
+		"name":     "  Carol Updated  ",
+		"email":    "  CAROL.UPDATED@EXAMPLE.COM ",
+		"age":      28,
+		"role_ids": []int{2},
 	}, aliceToken)
 	if updateUserResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected admin user update 200, got %d body=%s", updateUserResp.StatusCode, readBody(t, updateUserResp.Body))
@@ -1336,6 +1402,10 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	updateUserResp.Body.Close()
 	if updatedUser.Item["name"] != "Carol Updated" || updatedUser.Item["email"] != "carol.updated@example.com" {
 		t.Fatalf("expected normalized updated user payload, got %+v", updatedUser.Item)
+	}
+	updatedRoleIDs, ok := updatedUser.Item["role_ids"].([]any)
+	if !ok || len(updatedRoleIDs) != 1 || updatedRoleIDs[0] != float64(2) {
+		t.Fatalf("expected updated user role_ids [2], got %+v", updatedUser.Item["role_ids"])
 	}
 
 	_ = login("carol.updated@example.com")
@@ -1482,7 +1552,12 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 		return !!resources && !!search && search.value === "" && resources.textContent.includes("Users") && resources.textContent.includes("Projects");
 	})()`)
 
-	clickBrowser(t, ctx, "#resources li:nth-child(2) .nav-link")
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const button = Array.from(document.querySelectorAll('#resources .nav-link'))
+			.find((node) => node.textContent && node.textContent.includes('Projects'));
+		if (button) button.click();
+		return !!button;
+	})()`, nil))
 	waitForBrowserText(t, ctx, "#resourceTitle", "Projects")
 	waitForBrowserEnabled(t, ctx, "#openCreateModal")
 	waitForBrowserExists(t, ctx, "#createForm textarea[name='title']")
@@ -1589,6 +1664,116 @@ func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
 	// Moon icon should be visible, sun icon hidden
 	waitForBrowserCondition(t, ctx, "moon icon visible in light mode", `!document.getElementById('darkModeIconMoon').hidden`)
 	waitForBrowserCondition(t, ctx, "sun icon hidden in light mode", `document.getElementById('darkModeIconSun').hidden`)
+}
+
+func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+		"email":    "alice@example.com",
+		"password": "password123",
+	}, "")
+	if login.StatusCode != http.StatusCreated {
+		t.Fatalf("expected login 201, got %d body=%s", login.StatusCode, readBody(t, login.Body))
+	}
+	var auth struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	login.Body.Close()
+
+	for _, role := range []map[string]any{
+		{"name": "Administrators", "code": "admin", "status": 1, "remark": "full access"},
+		{"name": "Editors", "code": "editor", "status": 1, "remark": "content editors"},
+	} {
+		createRoleResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/roles", role, auth.Token)
+		if createRoleResp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected role create 201, got %d body=%s", createRoleResp.StatusCode, readBody(t, createRoleResp.Body))
+		}
+		createRoleResp.Body.Close()
+	}
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resources", "Roles")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserEnabled(t, ctx, "#openCreateModal")
+
+	clickBrowser(t, ctx, "#openCreateModal")
+	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserExists(t, ctx, "#createForm select[name='role_ids']")
+	waitForBrowserCondition(t, ctx, "role multiselect options loaded", `(() => {
+		const select = document.querySelector("#createForm select[name='role_ids']");
+		return !!select && Array.from(select.options).some((option) => option.value === "1") && Array.from(select.options).some((option) => option.value === "2");
+	})()`)
+
+	setBrowserValue(t, ctx, "#createForm textarea[name='name']", "Role User")
+	setBrowserValue(t, ctx, "#createForm input[name='email']", "role.user@example.com")
+	setBrowserValue(t, ctx, "#createForm input[name='password']", "password123")
+	setBrowserValue(t, ctx, "#createForm input[name='age']", "31")
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const select = document.querySelector("#createForm select[name='role_ids']");
+		Array.from(select.options).forEach((option) => {
+			option.selected = option.value === "1" || option.value === "2";
+		});
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+		return Array.from(select.selectedOptions).map((option) => option.value).join(",");
+	})()`, nil))
+	clickBrowser(t, ctx, "#createForm button[type='submit']")
+
+	waitForBrowserText(t, ctx, "#status", "Created a new users record.")
+	waitForBrowserText(t, ctx, "#list", "Role User")
+	waitForBrowserCondition(t, ctx, "created user visible with role ids", `document.getElementById('list').textContent.includes('Role User')`)
+
+	clickBrowser(t, ctx, "#list tbody tr:last-child .action-btn-view")
+	waitForBrowserVisible(t, ctx, "#recordModal")
+	waitForBrowserText(t, ctx, "#detailFields", "[1,2]")
+	clickBrowser(t, ctx, "#closeRecordModal")
+
+	clickBrowser(t, ctx, "#list tbody tr:last-child .action-menu-trigger")
+	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
+	clickBrowser(t, ctx, ".action-menu-list.open .action-menu-item")
+	waitForBrowserVisible(t, ctx, "#editModal")
+	waitForBrowserExists(t, ctx, "#updateForm select[name='role_ids']")
+	waitForBrowserCondition(t, ctx, "update multiselect options loaded", `(() => {
+		const select = document.querySelector("#updateForm select[name='role_ids']");
+		return !!select && Array.from(select.options).some((option) => option.value === "1") && Array.from(select.options).some((option) => option.value === "2");
+	})()`)
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const select = document.querySelector("#updateForm select[name='role_ids']");
+		Array.from(select.options).forEach((option) => {
+			option.selected = option.value === "2";
+		});
+		select.dispatchEvent(new Event("change", { bubbles: true }));
+		return Array.from(select.selectedOptions).map((option) => option.value).join(",");
+	})()`, nil))
+	clickBrowser(t, ctx, "#updateForm button[type='submit']")
+
+	waitForBrowserText(t, ctx, "#status", "Updated record #2.")
+	clickBrowser(t, ctx, "#list tbody tr:last-child .action-btn-view")
+	waitForBrowserText(t, ctx, "#detailFields", "[2]")
 }
 
 func TestFullExampleAdminPrototypeActionMenuPortal(t *testing.T) {
