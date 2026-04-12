@@ -1360,6 +1360,8 @@ const adminPrototypeHTML = `<!doctype html>
     const tokenStorageKey = 'gin-ninja-admin-token';
     const flashStorageKey = 'gin-ninja-admin-flash';
     const themeStorageKey = 'gin-ninja-admin-theme';
+    const toastDefaultDurationMs = 4000;
+    const globalSearchDebounceMs = 350;
     const adminPagePath = '/admin';
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
@@ -1481,7 +1483,7 @@ const adminPrototypeHTML = `<!doctype html>
       toast.appendChild(msg);
       toast.appendChild(closeBtn);
       els.toastContainer.appendChild(toast);
-      const timeout = durationMs !== undefined ? durationMs : 4000;
+      const timeout = durationMs !== undefined ? durationMs : toastDefaultDurationMs;
       if (timeout > 0) {
         setTimeout(() => { if (toast.parentNode) toast.remove(); }, timeout);
       }
@@ -2759,7 +2761,7 @@ const adminPrototypeHTML = `<!doctype html>
         }
         globalSearchTimer = setTimeout(() => {
           globalSearch(q).catch((err) => console.error('global search error:', err));
-        }, 350);
+        }, globalSearchDebounceMs);
       });
       els.topbarSearchInput.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
