@@ -77,7 +77,7 @@ func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("init db: %w", err)
 	}
-	if err := db.AutoMigrate(&app.User{}, &app.Project{}); err != nil {
+	if err := db.AutoMigrate(&app.User{}, &app.Role{}, &app.Project{}); err != nil {
 		return nil, fmt.Errorf("auto migrate: %w", err)
 	}
 	orm.Init(db)

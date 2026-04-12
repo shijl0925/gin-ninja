@@ -14,181 +14,1196 @@ const adminPrototypeHTML = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gin Ninja Admin</title>
   <style>
-    :root { color-scheme: light; }
+    :root {
+      color-scheme: light;
+      --admin-body-bg: #f4f6f9;
+      --admin-surface: #ffffff;
+      --admin-sidebar: #1f2d3d;
+      --admin-sidebar-alt: #243447;
+      --admin-sidebar-text: #c2c7d0;
+      --admin-sidebar-active: #3c8dbc;
+      --admin-topbar: #ffffff;
+      --admin-border: #dee2e6;
+      --admin-text: #212529;
+      --admin-muted: #6c757d;
+      --admin-primary: #3c8dbc;
+      --admin-primary-dark: #367fa9;
+      --admin-success: #00a65a;
+      --admin-danger: #dd4b39;
+      --admin-warning: #f39c12;
+      --admin-shadow: 0 1px 3px rgba(0, 0, 0, 0.14), 0 1px 2px rgba(0, 0, 0, 0.2);
+      --admin-radius: 0.5rem;
+      --admin-topbar-min-height: 64px;
+      --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
+      --admin-content-gap: 18px;
+      --admin-sidebar-width: 280px;
+    }
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --admin-body-bg: #0f1117;
+      --admin-surface: #1a1d27;
+      --admin-sidebar: #111827;
+      --admin-sidebar-alt: #1c2535;
+      --admin-sidebar-text: #9ca3af;
+      --admin-sidebar-active: #3c8dbc;
+      --admin-topbar: #1a1d27;
+      --admin-border: #2d3242;
+      --admin-text: #e2e8f0;
+      --admin-muted: #9ca3af;
+      --admin-primary: #4fa3d1;
+      --admin-primary-dark: #3c8dbc;
+      --admin-success: #22c55e;
+      --admin-danger: #ef4444;
+      --admin-warning: #f59e0b;
+      --admin-shadow: 0 1px 4px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+    [data-theme="dark"] body { background: var(--admin-body-bg); color: var(--admin-text); }
+    [data-theme="dark"] .topbar,
+    [data-theme="dark"] .sidebar-shell,
+    [data-theme="dark"] .panel,
+    [data-theme="dark"] .modal-box { background: var(--admin-surface); border-color: var(--admin-border); }
+    [data-theme="dark"] .topbar { background: var(--admin-topbar); border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .topbar-user-menu,
+    [data-theme="dark"] .topbar-search-expand input,
+    [data-theme="dark"] .action-menu-list { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .topbar-link,
+    [data-theme="dark"] .topbar-user-btn,
+    [data-theme="dark"] .topbar-user-menu-item { color: var(--admin-text); }
+    [data-theme="dark"] .topbar-link:hover,
+    [data-theme="dark"] .topbar-user-menu-item:hover { background: var(--admin-border); }
+    [data-theme="dark"] .topbar-toggle { color: var(--admin-muted); }
+    [data-theme="dark"] .topbar-toggle:hover,
+    [data-theme="dark"] .topbar-action:hover { background: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .topbar-user-btn:hover { background: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .topbar-user-avatar { background: #2d3242; color: var(--admin-text); }
+    [data-theme="dark"] input,
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea { background: #22253a; color: var(--admin-text); border-color: var(--admin-border); }
+    [data-theme="dark"] input::placeholder,
+    [data-theme="dark"] textarea::placeholder { color: var(--admin-muted); }
+    [data-theme="dark"] table { color: var(--admin-text); }
+    [data-theme="dark"] thead tr { background: #22253a; }
+    [data-theme="dark"] th { background: #22253a; color: var(--admin-muted); }
+    [data-theme="dark"] th.sortable-th:hover { background: #2d3150; color: #fff; }
+    [data-theme="dark"] th.sortable-th.sort-asc,
+    [data-theme="dark"] th.sortable-th.sort-desc { background: #1e2d4a; color: #93b4ff; }
+    [data-theme="dark"] tbody tr:hover { background: #22253a; }
+    [data-theme="dark"] tbody tr.row-selected { background: #1a2e3d; }
+    [data-theme="dark"] .dashboard-tile { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .dashboard-tile:hover { border-top-color: var(--admin-primary); }
+    [data-theme="dark"] .toast { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .login-shell,
+    [data-theme="dark"] .login-card,
+    [data-theme="dark"] .session-panel { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .nav-link { color: var(--admin-sidebar-text); }
+    [data-theme="dark"] .nav-link:hover,
+    [data-theme="dark"] .nav-link.active { background: var(--admin-sidebar-alt); color: #fff; }
+    [data-theme="dark"] hr,
+    [data-theme="dark"] .action-menu-divider { border-color: var(--admin-border); }
+    [data-theme="dark"] .muted { color: var(--admin-muted); }
+    /* table borders */
+    [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .table-shell { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .empty-state { background: var(--admin-surface); border-color: var(--admin-border); }
+    /* detail / form cards */
+    [data-theme="dark"] .detail-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .detail-row { border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .bulk-edit-field { background: var(--admin-surface); border-color: var(--admin-border); }
+    [data-theme="dark"] .relation-preview li { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .relation-preview mark { background: #4a4200; }
+    [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
+    /* labels */
+    [data-theme="dark"] label { color: var(--admin-text); }
+    /* modals */
+    [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
+    /* action buttons */
+    [data-theme="dark"] .action-menu-trigger,
+    [data-theme="dark"] .action-btn-view,
+    [data-theme="dark"] button.secondary { background: var(--admin-surface); color: var(--admin-text); border-color: var(--admin-border); }
+    [data-theme="dark"] .action-menu-trigger:hover,
+    [data-theme="dark"] .action-btn-view:hover,
+    [data-theme="dark"] button.secondary:hover { background: #2a2d42; border-color: #4e5275; }
+    [data-theme="dark"] .action-menu-item:hover { background: #2a2d42; }
+    [data-theme="dark"] .action-menu-item.danger:hover { background: #2d0f0f; }
+    /* badges and eyebrows */
+    [data-theme="dark"] .badge { background: #1a2a3e; color: #93b4ff; }
+    [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
+    /* login credentials */
+    [data-theme="dark"] .login-credentials { background: #22253a; border-color: var(--admin-border); }
+    [data-theme="dark"] .login-credentials code { background: #1a1d2e; border-color: var(--admin-border); color: var(--admin-text); }
+    /* standalone topbar specificity fix */
+    [data-theme="dark"] body.standalone-admin-page .topbar,
+    [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
+    /* button hover brightens in dark mode instead of darkening */
+    [data-theme="dark"] button:hover:not(:disabled) { filter: brightness(1.15); }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
-    body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #eef2f7; color: #0f172a; }
-    .topbar, .app-main { max-width: 1480px; margin: 0 auto; padding: 20px 24px; }
-    .topbar { display:flex; gap:20px; align-items:flex-start; justify-content:space-between; }
-    .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:8px; }
-    .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
+    body {
+      font-family: Inter, system-ui, "Segoe UI", sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      background: var(--admin-body-bg);
+      color: var(--admin-text);
+    }
+    a { color: inherit; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      min-height:var(--admin-topbar-min-height);
+      padding:0 16px;
+      background: var(--admin-topbar);
+      border-bottom:1px solid var(--admin-border);
+      box-shadow:0 1px 3px rgba(0,0,0,.1);
+    }
+    .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading, .topbar-context { display:grid; gap:6px; }
+    .topbar-left {
+      display:flex;
+      align-items:center;
+      gap:4px;
+      min-width:0;
+      flex:1 1 auto;
+    }
+    .topbar-brand {
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:14px;
+      min-width:0;
+    }
+    .topbar-toggle {
+      min-width:42px;
+      min-height:42px;
+      padding:0;
+      border:none;
+      background:transparent;
+      color:#6c757d;
+      box-shadow:none;
+      font-size:20px;
+      line-height:1;
+      border-radius:0.35rem;
+    }
+    .topbar-nav {
+      display:flex;
+      align-items:stretch;
+      gap:0;
+      min-width:0;
+    }
+    .topbar-link {
+      display:inline-flex;
+      align-items:center;
+      min-height:var(--admin-topbar-min-height);
+      padding:0 14px;
+      border-radius:0;
+      color:#495057;
+      text-decoration:none;
+      font-size:15px;
+      font-weight:400;
+    }
+    .topbar-link:hover { background:#f4f6f9; color:#212529; }
+    .brand-mark {
+      width:38px;
+      height:38px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      background:#f4f6f9;
+      color:#495057;
+      border:1px solid rgba(0,0,0,0.12);
+      font-weight:800;
+      letter-spacing:0.08em;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+    }
+    .topbar-copy h1, .sidebar-heading h2, .section-title, .topbar-context p { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
-    .topbar-meta { display:flex; justify-content:flex-end; align-items:center; min-width:0; }
-    .app-main { display:grid; gap:20px; padding-top:0; }
-    .panel { min-width:0; background:#fff; border:1px solid #dbe2ea; border-radius:18px; padding:20px; box-shadow:0 12px 30px rgba(15, 23, 42, 0.06); }
+    .topbar-meta {
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:0;
+      min-width:0;
+    }
+    .topbar-actions {
+      display:flex;
+      align-items:center;
+      gap:0;
+    }
+    .topbar-action {
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:48px;
+      min-height:var(--admin-topbar-min-height);
+      padding:0;
+      border:none;
+      border-left:1px solid var(--admin-border);
+      border-radius:0;
+      background:transparent;
+      color:#6c757d;
+      box-shadow:none;
+      font-size:18px;
+      line-height:1;
+    }
+    .topbar-action:hover { background:#f4f6f9; color:#212529; }
+    .topbar-user-dropdown { position:relative; display:inline-flex; align-items:center; }
+    .topbar-user-btn {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      width:auto;
+      min-height:var(--admin-topbar-min-height);
+      padding:0 14px 0 12px;
+      background:transparent;
+      border:none;
+      border-left:1px solid var(--admin-border);
+      box-shadow:none;
+      color:#495057;
+      font-size:14px;
+      font-weight:500;
+      cursor:pointer;
+      white-space:nowrap;
+      border-radius:0;
+    }
+    .topbar-user-btn:hover { background:#f4f6f9; color:#212529; }
+    .topbar-user-avatar {
+      display:inline-grid;
+      place-items:center;
+      width:32px;
+      height:32px;
+      border-radius:999px;
+      background:#d2d6de;
+      color:#495057;
+      font-size:13px;
+      font-weight:700;
+      flex-shrink:0;
+    }
+    .topbar-user-name { max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+    .topbar-caret { flex-shrink:0; color:#6c757d; }
+    .topbar-user-menu {
+      position:absolute;
+      top:calc(100% + 4px);
+      right:0;
+      min-width:160px;
+      background:#fff;
+      border:1px solid var(--admin-border);
+      border-radius:0.35rem;
+      box-shadow:0 4px 16px rgba(0,0,0,0.12);
+      list-style:none;
+      margin:0;
+      padding:4px 0;
+      z-index:200;
+    }
+    .topbar-user-menu-item {
+      display:block;
+      width:100%;
+      text-align:left;
+      padding:9px 16px;
+      background:none;
+      border:none;
+      box-shadow:none;
+      color:var(--admin-text);
+      font-size:14px;
+      cursor:pointer;
+      border-radius:0;
+    }
+    .topbar-user-menu-item:hover { background:#f4f6f9; }
+    .topbar-search-wrap { position:relative; display:inline-flex; align-items:center; }
+    .topbar-search-expand {
+      display:none;
+      position:absolute;
+      top:calc(100% + 4px);
+      right:0;
+      width:320px;
+      z-index:200;
+    }
+    .topbar-search-expand.open { display:block; }
+    .topbar-search-expand input {
+      width:100%;
+      border-radius:0.35rem 0.35rem 0 0;
+      border:1px solid var(--admin-border);
+      padding:8px 14px;
+      font-size:14px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.10);
+    }
+    .topbar-search-results {
+      display:none;
+      background:var(--admin-surface);
+      border:1px solid var(--admin-border);
+      border-top:none;
+      border-radius:0 0 0.35rem 0.35rem;
+      box-shadow:0 4px 12px rgba(0,0,0,0.12);
+      max-height:320px;
+      overflow-y:auto;
+    }
+    .topbar-search-results.has-results { display:block; }
+    .search-results-group-label {
+      padding:6px 12px 3px;
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.05em;
+      text-transform:uppercase;
+      color:var(--admin-muted);
+      background:var(--admin-body-bg);
+      border-top:1px solid var(--admin-border);
+    }
+    .search-results-group-label:first-child { border-top:none; }
+    .search-result-item {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      width:100%;
+      padding:7px 12px;
+      border:none;
+      background:none;
+      cursor:pointer;
+      text-align:left;
+      font-size:13px;
+      color:var(--admin-text);
+      transition:background 0.1s;
+    }
+    .search-result-item:hover,
+    .search-result-item:focus { background:var(--admin-body-bg); outline:none; }
+    .search-result-item mark { background:#fff9c4; color:inherit; border-radius:2px; padding:0 1px; }
+    [data-theme="dark"] .search-result-item mark { background:#4a4200; }
+    .search-result-summary { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .search-result-id { font-size:11px; color:var(--admin-muted); flex-shrink:0; }
+    .search-results-empty {
+      padding:14px 12px;
+      font-size:13px;
+      color:var(--admin-muted);
+      text-align:center;
+    }
+    .topbar-action-badge {
+      position:absolute;
+      top:4px;
+      right:2px;
+      min-width:18px;
+      height:18px;
+      padding:0 5px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      font-size:10px;
+      font-weight:700;
+      color:#fff;
+      background:#dc3545;
+    }
+    .topbar-action-badge.warning { background:#ffc107; color:#212529; }
+    .toast-container {
+      position:fixed;
+      top:calc(var(--admin-topbar-min-height) + 12px);
+      right:18px;
+      z-index:500;
+      display:grid;
+      gap:8px;
+      pointer-events:none;
+    }
+    .toast {
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+      min-width:280px;
+      max-width:420px;
+      padding:12px 14px;
+      background:#fff;
+      border:1px solid var(--admin-border);
+      border-left:4px solid var(--admin-border);
+      border-radius:0.45rem;
+      box-shadow:0 4px 18px rgba(0,0,0,.13);
+      font-size:14px;
+      pointer-events:all;
+      animation:toast-in 200ms ease;
+    }
+    .toast[data-tone="success"] { border-left-color:var(--admin-success); }
+    .toast[data-tone="danger"] { border-left-color:var(--admin-danger); }
+    .toast[data-tone="info"] { border-left-color:var(--admin-primary); }
+    .toast-message { flex:1 1 auto; min-width:0; line-height:1.45; }
+    .toast-close {
+      flex-shrink:0;
+      background:none;
+      border:none;
+      box-shadow:none;
+      cursor:pointer;
+      color:#6c757d;
+      padding:0;
+      font-size:18px;
+      line-height:1;
+      width:20px;
+      height:20px;
+      display:grid;
+      place-items:center;
+    }
+    .toast-close:hover { color:#212529; }
+    @keyframes toast-in {
+      from { opacity:0; transform:translateY(-8px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .app-main {
+      display:grid;
+      gap:var(--admin-content-gap);
+      padding:18px 24px 24px;
+      align-items:start;
+    }
+    .panel {
+      min-width:0;
+      background:var(--admin-surface);
+      border:1px solid var(--admin-border);
+      border-top:3px solid #d2d6de;
+      border-radius: var(--admin-radius);
+      padding:18px;
+      box-shadow: var(--admin-shadow);
+    }
     .stack { display:grid; gap:16px; }
     .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
     .toolbar > *, .row-actions > *, .workspace-meta > *, .table-toolbar > *, .pagination-bar > * { min-width:0; }
     .row-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .eyebrow { display:inline-flex; width:max-content; align-items:center; gap:6px; border-radius:999px; padding:6px 10px; background:#dbeafe; color:#1d4ed8; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; }
-    .eyebrow.subtle { background:#e2e8f0; color:#334155; }
-    .badge { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; background:#eef2ff; color:#3730a3; border-radius:999px; padding:7px 12px; }
-    .status-banner { border-radius:16px; border:1px solid #dbe2ea; background:#fff; color:#334155; padding:14px 16px; font-size:14px; line-height:1.5; box-shadow:0 10px 24px rgba(15, 23, 42, 0.05); }
-    .status-banner[data-tone="info"] { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
-    .status-banner[data-tone="success"] { background:#ecfdf5; border-color:#a7f3d0; color:#047857; }
-    .status-banner[data-tone="danger"] { background:#fef2f2; border-color:#fecaca; color:#b91c1c; }
+    .eyebrow {
+      display:inline-flex;
+      width:max-content;
+      align-items:center;
+      gap:6px;
+      border-radius:999px;
+      padding:6px 10px;
+      background:rgba(60, 141, 188, 0.12);
+      color:var(--admin-primary-dark);
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+    .eyebrow.subtle { background:#e9ecef; color:#495057; }
+    .badge {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      font-weight:700;
+      background:#eaf3f8;
+      color:var(--admin-primary-dark);
+      border-radius:999px;
+      padding:6px 11px;
+    }
+    .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0, 0, 0, 0); white-space:nowrap; border:0; }
     .login-shell { display:grid; gap:20px; }
     .session-panel { position:relative; overflow:hidden; }
     .login-marketing, .login-lead, .login-credentials { display:none; }
-    .login-marketing { align-content:start; }
-    .login-marketing h2, .login-lead h2 { margin:0; line-height:1.1; }
+    .login-marketing {
+      align-content:start;
+      background:linear-gradient(160deg, var(--admin-sidebar) 0%, var(--admin-sidebar-alt) 100%);
+      color:#f8fafc;
+      border:1px solid rgba(255,255,255,0.06);
+      border-top:3px solid var(--admin-primary);
+    }
+    .login-marketing h2, .login-lead h2 { margin:0; line-height:1.15; }
     .login-feature-list { display:grid; gap:12px; }
-    .login-feature { display:grid; gap:4px; padding:16px 18px; background:rgba(255,255,255,0.08); border:1px solid rgba(191,219,254,0.18); border-radius:16px; }
+    .login-feature {
+      display:grid;
+      gap:4px;
+      padding:16px 18px;
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:14px;
+    }
     .login-feature strong { font-size:15px; }
-    .login-credentials { gap:8px; padding:12px 14px; border-radius:14px; background:#f8fafc; border:1px solid #dbeafe; }
-    .login-credentials code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; background:#fff; border:1px solid #dbeafe; border-radius:8px; padding:2px 6px; }
-    .admin-shell { display:grid; gap:20px; }
-    .resource-strip { padding:18px; }
+    .login-credentials {
+      gap:8px;
+      padding:12px 14px;
+      border-radius:14px;
+      background:#f8fbfd;
+      border:1px solid #d8e5ec;
+    }
+    .login-credentials code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:13px;
+      background:#fff;
+      border:1px solid #d8e5ec;
+      border-radius:8px;
+      padding:2px 6px;
+    }
+    .admin-shell {
+      display:grid;
+      gap:20px;
+      grid-template-columns:var(--admin-sidebar-width) minmax(0, 1fr);
+      align-items:start;
+    }
+    .sidebar-shell {
+      position:sticky;
+      top:calc(var(--admin-topbar-height) + var(--admin-content-gap));
+      display:flex;
+      flex-direction:column;
+      min-height:calc(100vh - var(--admin-topbar-height) - (var(--admin-content-gap) * 2));
+      background:var(--admin-sidebar);
+      color:var(--admin-sidebar-text);
+      border:none;
+      border-radius:0.35rem;
+      box-shadow:none;
+      padding:0;
+      overflow:hidden;
+    }
+    .sidebar-brand {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:10px;
+      padding:12px 16px;
+      background:#343a40;
+      border-bottom:0.5px solid rgba(255,255,255,.1);
+    }
+    .sidebar-brand-mark {
+      width:33px;
+      height:33px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:#f4f6f9;
+      color:#495057;
+      font-size:16px;
+      font-weight:800;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      opacity:0.8;
+      flex-shrink:0;
+    }
+    .sidebar-brand-copy {
+      display:grid;
+      gap:2px;
+      min-width:0;
+    }
+    .sidebar-brand-copy strong {
+      color:#fff;
+      font-size:1.15rem;
+      font-weight:300;
+      letter-spacing:0.01em;
+      white-space:nowrap;
+    }
+    .sidebar-brand-copy span {
+      color:rgba(255,255,255,.4);
+      font-size:11px;
+      letter-spacing:0.02em;
+    }
+    .sidebar-user-panel {
+      display:grid;
+      grid-template-columns:auto 1fr;
+      align-items:center;
+      gap:10px;
+      padding:10px 16px;
+      margin:8px 0 0;
+      border-bottom:1px solid rgba(255,255,255,.1);
+    }
+    .sidebar-user-avatar {
+      width:34px;
+      height:34px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
+      color:#495057;
+      font-size:12px;
+      font-weight:700;
+      box-shadow:0 2px 4px rgba(0,0,0,0.2);
+      flex-shrink:0;
+    }
+    .sidebar-user-copy {
+      display:grid;
+      gap:2px;
+      min-width:0;
+    }
+    .sidebar-user-copy strong {
+      color:#f8f9fa;
+      font-size:14px;
+      font-weight:400;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .sidebar-user-status {
+      display:flex;
+      align-items:center;
+      gap:5px;
+      font-size:11px;
+      color:#adb5bd;
+    }
+    .sidebar-user-online {
+      display:inline-block;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--admin-success);
+      flex-shrink:0;
+    }
+    .sidebar-search {
+      position:relative;
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-search input {
+      width:100%;
+      height:42px;
+      padding-right:44px;
+      border-color:rgba(255,255,255,0.08);
+      background:#3f474e;
+      color:#f8f9fa;
+    }
+    .sidebar-search input::placeholder { color:#adb5bd; }
+    .sidebar-search button {
+      position:absolute;
+      top:50%;
+      right:22px;
+      transform:translateY(-50%);
+      width:34px;
+      height:34px;
+      padding:0;
+      background:#495057;
+      border:1px solid rgba(255,255,255,0.08);
+      color:#f8f9fa;
+      box-shadow:none;
+    }
+    .sidebar-search-empty {
+      padding:10px 14px;
+      color:#adb5bd;
+      font-size:12px;
+      line-height:1.4;
+    }
     .resource-strip-header, .resource-strip-copy { display:grid; gap:6px; }
-    .resource-strip-header { align-items:start; }
+    .resource-strip-header { display:none; }
     .resource-strip-copy strong, .resource-strip-copy p { margin:0; }
-    .nav-list { list-style:none; margin:0; padding:0; display:flex; gap:10px; flex-wrap:wrap; }
-    .nav-list li { margin:0; flex:0 0 auto; }
-    .nav-link { min-width:min(100%, 220px); text-align:left; background:#f8fafc; color:#0f172a; border:1px solid #dbe2ea; padding:14px 16px; border-radius:14px; display:grid; gap:4px; font-weight:600; }
-    .nav-link:hover { background:#eff6ff; border-color:#bfdbfe; }
-    .nav-link.active { background:linear-gradient(135deg, #1d4ed8 0%, #3730a3 100%); border-color:#1d4ed8; color:#fff; box-shadow:0 14px 28px rgba(37, 99, 235, 0.22); }
+    .sidebar-heading h2 { color:#fff; font-size:1.15rem; }
+    .sidebar-heading p, .sidebar-heading .eyebrow { color:var(--admin-sidebar-text); }
+    .sidebar-heading .eyebrow.subtle { background:rgba(255,255,255,0.08); }
+    .sidebar-nav-shell {
+      display:grid;
+      gap:12px;
+      flex:1 1 auto;
+      align-content:start;
+      padding:6px 10px 18px;
+      overflow:auto;
+    }
+    .sidebar-treeview {
+      display:grid;
+      gap:6px;
+    }
+    .sidebar-treeview-toggle {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      width:100%;
+      padding:11px 14px;
+      background:transparent;
+      border:none;
+      border-radius:0.25rem;
+      box-shadow:none;
+      color:#c2c7d0;
+      font-size:15px;
+      font-weight:400;
+      line-height:1.3;
+      transition:background 120ms ease, color 120ms ease;
+    }
+    .sidebar-treeview-toggle-copy {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+    }
+    .sidebar-treeview-toggle-icon,
+    .sidebar-treeview-caret {
+      flex-shrink:0;
+      width:16px;
+      height:16px;
+      display:grid;
+      place-items:center;
+      color:#6c757d;
+      transition:transform 120ms ease, color 120ms ease;
+    }
+    .sidebar-treeview-toggle-text {
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .sidebar-treeview-toggle:hover,
+    .sidebar-treeview.open .sidebar-treeview-toggle {
+      background:rgba(255,255,255,0.08);
+      color:#fff;
+    }
+    .sidebar-treeview-toggle:hover .sidebar-treeview-toggle-icon,
+    .sidebar-treeview-toggle:hover .sidebar-treeview-caret,
+    .sidebar-treeview.open .sidebar-treeview-toggle-icon,
+    .sidebar-treeview.open .sidebar-treeview-caret {
+      color:#c2c7d0;
+    }
+    .sidebar-treeview.open .sidebar-treeview-caret {
+      transform:rotate(-90deg);
+      color:#fff;
+    }
+    .nav-list { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
+    .nav-list li { margin:0; min-width:0; }
+    .sidebar-treeview-menu {
+      display:grid;
+      gap:2px;
+      padding:2px 0 0;
+      margin:0;
+    }
+    .sidebar-treeview:not(.open) .sidebar-treeview-menu { display:none; }
+    .nav-link {
+      position:relative;
+      width:100%;
+      text-align:left;
+      background:transparent;
+      color:var(--admin-sidebar-text);
+      border:none;
+      border-radius:0.25rem;
+      padding:9px 14px 9px 34px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-size:14px;
+      font-weight:400;
+      line-height:1.25;
+      box-shadow:none;
+      transition:background 120ms ease, color 120ms ease;
+    }
+    .nav-link:hover {
+      background:rgba(255,255,255,0.06);
+      color:#fff;
+    }
+    .nav-link.active {
+      background:rgba(255,255,255,0.12);
+      color:#fff;
+    }
+    .nav-link-icon {
+      width:6px;
+      height:6px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.55);
+      flex-shrink:0;
+      transition:transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+    }
+    .nav-link:hover .nav-link-icon { background:rgba(255,255,255,0.78); }
+    .nav-link.active .nav-link-icon {
+      background:#fff;
+      transform:scale(1.1);
+      box-shadow:0 0 0 3px rgba(60, 141, 188, 0.28);
+    }
+    .nav-link-label {
+      flex:1 1 auto;
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      font-size:14px;
+    }
+    .nav-link-label mark {
+      background:rgba(255,255,255,0.18);
+      color:#fff;
+      border-radius:4px;
+      padding:0 2px;
+    }
     .workspace { min-width:0; }
-    .workspace-header { display:flex; gap:12px 16px; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:16px 18px; }
-    .workspace-header-copy { display:grid; gap:6px; flex:1 1 380px; min-width:0; }
+    .workspace-header {
+      display:flex;
+      gap:10px 16px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      padding:14px 16px;
+      border-top-color:var(--admin-primary);
+    }
+    .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
     .workspace-header-copy p { margin:0; }
-    .workspace-header-copy h2 { font-size:clamp(1.55rem, 2vw, 1.9rem); line-height:1.1; }
-    .workspace-path { display:inline-flex; width:max-content; max-width:100%; align-items:center; padding:0; font-size:12px; line-height:1.45; color:#64748b; }
-    .workspace-meta { display:flex; gap:10px; align-items:center; justify-content:flex-end; flex:0 0 auto; margin-left:auto; }
+    .workspace-header-copy h2 { font-size:clamp(1.35rem, 1.8vw, 1.65rem); line-height:1.15; }
+    .workspace-path {
+      display:inline-flex;
+      width:max-content;
+      max-width:100%;
+      align-items:center;
+      padding:0;
+      font-size:12px;
+      line-height:1.35;
+      color:var(--admin-muted);
+    }
     .content-grid { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:14px; }
     .section-heading { display:grid; gap:6px; }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
     .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-    .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#334155; }
-    .field-help, .muted { font-size:13px; color:#64748b; }
+    .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
+    .field-help, .muted { font-size:13px; color:var(--admin-muted); }
     .relation-control { display:grid; gap:10px; }
+    .multi-relation-dropdown { position:relative; }
+    .multi-relation-dropdown summary {
+      list-style:none;
+      cursor:pointer;
+      border:1px solid var(--admin-border);
+      border-radius:12px;
+      background:#fff;
+      padding:12px 14px;
+      font-size:14px;
+      color:var(--admin-text);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+    }
+    .multi-relation-dropdown summary::-webkit-details-marker { display:none; }
+    .multi-relation-dropdown summary::after { content:'▾'; font-size:12px; color:var(--admin-muted); }
+    .multi-relation-dropdown[open] summary::after { content:'▴'; }
+    .multi-relation-menu {
+      position:absolute;
+      top:calc(100% + 8px);
+      left:0;
+      right:0;
+      z-index:5;
+      display:grid;
+      gap:6px;
+      max-height:240px;
+      overflow:auto;
+      border:1px solid var(--admin-border);
+      border-radius:12px;
+      background:#fff;
+      padding:10px;
+      box-shadow:0 18px 40px rgba(15, 23, 42, 0.12);
+    }
+    .multi-relation-option {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:14px;
+      color:var(--admin-text);
+    }
+    .multi-relation-option:hover { background:#f8fafc; }
+    .multi-relation-option input { margin:0; }
+    .multi-relation-empty {
+      padding:8px 10px;
+      border-radius:10px;
+      font-size:13px;
+      color:var(--admin-muted);
+      background:#f8fafc;
+    }
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
-    .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; }
-    .relation-preview mark { background:#fef3c7; padding:0; }
+    .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid var(--admin-border); border-radius:8px; padding:8px 10px; }
+    .relation-preview mark { background:#fcf8e3; padding:0; }
     .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
-    .detail-card { border:1px solid #e2e8f0; border-radius:16px; padding:18px; background:#fff; }
+    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
     .detail-grid { display:grid; gap:10px; }
-    .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf2f7; padding-bottom:10px; }
+    .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf1f4; padding-bottom:10px; }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
-    .detail-label { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.06em; }
-    .detail-value { font-size:14px; word-break:break-word; color:#0f172a; }
+    .detail-label { font-size:12px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.06em; }
+    .detail-value { font-size:14px; word-break:break-word; color:var(--admin-text); }
     .bulk-edit-fields { display:grid; gap:12px; }
-    .bulk-edit-field { border:1px solid #e2e8f0; border-radius:14px; padding:14px; background:#fff; }
+    .bulk-edit-field { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:14px; background:#fff; }
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
-    .pagination-info { font-size:14px; color:#64748b; }
-    .table-shell { overflow:auto; border:1px solid #e2e8f0; border-radius:16px; background:#fff; }
-    .empty-state { border:1px dashed #cbd5e1; border-radius:16px; padding:28px 20px; background:#fff; color:#64748b; text-align:center; }
+    .pagination-info { font-size:14px; color:var(--admin-muted); }
+    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
+    .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:#fff; color:var(--admin-muted); text-align:center; }
     .workspace-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .workspace-actions button { padding-inline:14px; }
-    .modal-overlay { position:fixed; inset:0; background:rgba(15, 23, 42, 0.56); display:grid; place-items:center; padding:24px; z-index:50; }
-    .modal-dialog { width:min(720px, 100%); max-height:min(85vh, 920px); overflow:auto; border-radius:24px; border:1px solid #dbe2ea; background:#fff; box-shadow:0 30px 90px rgba(15, 23, 42, 0.28); }
+    .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
+    .modal-dialog {
+      width:min(720px, 100%);
+      max-height:min(85vh, 920px);
+      overflow:auto;
+      border-radius:0.3rem;
+      border:1px solid var(--admin-border);
+      border-top:3px solid var(--admin-primary);
+      background:#fff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    }
     .modal-dialog.large { width:min(860px, 100%); }
     .modal-header { display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; padding:24px 24px 0; }
     .modal-body { padding:0 24px 24px; }
     .modal-close { min-width:44px; min-height:44px; padding:0 14px; }
     body.modal-open { overflow:hidden; }
-    label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#334155; }
-    input, select, textarea, button { font: inherit; padding: 11px 13px; border-radius: 12px; border: 1px solid #cbd5e1; background:#fff; color:#0f172a; transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease; }
-    input:focus, select:focus, textarea:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59, 130, 246, 0.18); }
+    label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
+    input, select, textarea, button {
+      font: inherit;
+      padding: 10px 12px;
+      border-radius: 0.25rem;
+      border: 1px solid #ced4da;
+      background:#fff;
+      color:var(--admin-text);
+      transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline:none;
+      border-color:#80bdff;
+      box-shadow:0 0 0 0.2rem rgba(60, 141, 188, 0.2);
+    }
     textarea { min-height: 112px; }
-    button { cursor:pointer; background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); color:#fff; border-color:transparent; font-weight:600; }
-    button.secondary { background:#fff; color:#0f172a; border-color:#cbd5e1; }
-    button.danger { background:linear-gradient(135deg, #991b1b 0%, #dc2626 100%); }
+    button {
+      cursor:pointer;
+      background:var(--admin-primary);
+      color:#fff;
+      border-color:var(--admin-primary-dark);
+      font-weight:400;
+    }
+    button.secondary { background:#fff; color:var(--admin-text); border-color:#ced4da; }
+    button.secondary:hover { background:#e9ecef; border-color:#adb5bd; }
+    button.danger { background:var(--admin-danger); border-color:#c0392b; }
+    button.danger:hover { background:#c0392b; border-color:#a93226; }
+    button:hover:not(:disabled) { filter:brightness(0.9); }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
-    table { width:100%; border-collapse:separate; border-spacing:0; min-width:720px; }
-    th, td { border-bottom:1px solid #e2e8f0; padding:12px 14px; text-align:left; font-size:14px; vertical-align:top; }
-    th { background:#f8fafc; color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }
-    tbody tr:hover { background:#f8fbff; }
-    tbody tr.row-selected { background:#eff6ff; }
+    table { width:100%; border-collapse:collapse; min-width:720px; }
+    th, td { border-bottom:1px solid #dee2e6; padding:0.75rem; text-align:left; font-size:14px; vertical-align:top; }
+    th { background:#f8f9fa; color:#495057; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; border-bottom-width:2px; }
+    th.sortable-th { cursor:pointer; user-select:none; white-space:nowrap; }
+    th.sortable-th:hover { background:#e9ecef; color:#212529; }
+    th.sortable-th.sort-asc, th.sortable-th.sort-desc { color:var(--admin-primary); background:#eef2ff; }
+    .sort-icon { display:inline-block; margin-left:4px; font-style:normal; opacity:0.45; font-size:10px; vertical-align:middle; }
+    th.sortable-th.sort-asc .sort-icon,
+    th.sortable-th.sort-desc .sort-icon { opacity:1; }
+    tbody tr:hover { background:rgba(0,0,0,.04); }
+    tbody tr.row-selected { background:#eaf3f8; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
     .action-menu { position:relative; display:inline-block; }
-    .action-menu-trigger { background:#fff; color:#0f172a; border:1px solid #cbd5e1; padding:6px 10px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; line-height:1; }
-    .action-menu-trigger:hover { background:#f1f5f9; border-color:#94a3b8; }
-    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid #dbe2ea; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
+    .action-menu-trigger { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 10px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
+    .action-menu-trigger:hover { background:#f8f9fa; border-color:#adb5bd; }
+    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid var(--admin-border); border-radius:0.25rem; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
     .action-menu-list.open { display:block; }
-    .action-menu-item { display:block; width:100%; text-align:left; background:none; color:#0f172a; border:none; border-radius:0; padding:10px 14px; font-size:14px; font-weight:500; cursor:pointer; transition:background 80ms; }
-    .action-menu-item:hover { background:#f1f5f9; }
+    .action-menu-item { display:block; width:100%; text-align:left; background:none; color:var(--admin-text); border:none; border-radius:0; padding:10px 14px; font-size:14px; font-weight:500; cursor:pointer; transition:background 80ms; }
+    .action-menu-item:hover { background:#f1f3f5; }
     .action-menu-item:disabled { opacity:0.45; cursor:not-allowed; }
-    .action-menu-divider { border:none; border-top:1px solid #e2e8f0; margin:4px 0; }
-    .action-menu-item.danger { color:#dc2626; }
-    .action-menu-item.danger:hover { background:#fef2f2; }
-    .action-btn-view { background:#fff; color:#0f172a; border:1px solid #cbd5e1; padding:6px 12px; font-size:13px; font-weight:600; border-radius:10px; cursor:pointer; line-height:1; }
-    .action-btn-view:hover { background:#f1f5f9; border-color:#94a3b8; }
-    pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:14px; }
-    body.standalone-login-page { background:
-      radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 36%),
-      radial-gradient(circle at bottom right, rgba(99,102,241,0.22), transparent 34%),
-      linear-gradient(180deg, #eef4ff 0%, #f8fafc 45%, #eef2ff 100%);
+    .action-menu-divider { border:none; border-top:1px solid var(--admin-border); margin:4px 0; }
+    .action-menu-item.danger { background:transparent; color:var(--admin-danger); border-color:transparent; }
+    .action-menu-item.danger:hover { background:#fdf1ef; }
+    .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 12px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
+    .action-btn-view:hover { background:#f8f9fa; border-color:#adb5bd; }
+    pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#1f2d3d; color:#e9ecef; padding:14px; border-radius:0.65rem; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .list-loading {
+      display:none;
+      align-items:center;
+      justify-content:center;
+      gap:12px;
+      padding:36px 20px;
+      color:var(--admin-muted);
+      font-size:14px;
+    }
+    .list-loading.active { display:flex; }
+    .list-spinner {
+      width:22px;
+      height:22px;
+      border:3px solid #dee2e6;
+      border-top-color:var(--admin-primary);
+      border-radius:50%;
+      animation:spin 0.65s linear infinite;
+      flex-shrink:0;
+    }
+    .confirm-dialog { width:min(460px, 100%); }
+    .confirm-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
+    .dashboard-tiles {
+      display:grid;
+      gap:16px;
+      grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+    }
+    .dashboard-tile {
+      display:grid;
+      gap:8px;
+      padding:20px 20px 18px;
+      border:1px solid var(--admin-border);
+      border-top:3px solid #d2d6de;
+      border-radius:var(--admin-radius);
+      background:#fff;
+      box-shadow:var(--admin-shadow);
+      cursor:pointer;
+      text-align:left;
+      color:var(--admin-text);
+      transition:border-top-color 120ms ease, box-shadow 120ms ease;
+    }
+    .dashboard-tile:hover { border-top-color:var(--admin-primary); box-shadow:0 4px 12px rgba(0,0,0,0.12); }
+    .dashboard-tile-count {
+      font-size:2rem;
+      font-weight:700;
+      color:var(--admin-primary);
+      line-height:1;
+    }
+    .dashboard-tile-label { font-size:15px; font-weight:600; }
+    .dashboard-tile-hint { font-size:12px; color:var(--admin-muted); }
+    .sidebar-footer {
+      padding:10px 16px;
+      border-top:1px solid rgba(255,255,255,.1);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      flex-shrink:0;
+    }
+    .sidebar-footer-text {
+      font-size:11px;
+      color:rgba(255,255,255,.4);
+      white-space:nowrap;
+    }
+    .sidebar-footer-link {
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      font-size:12px;
+      color:rgba(255,255,255,.55);
+      background:transparent;
+      border:1px solid transparent;
+      padding:4px 8px;
+      cursor:pointer;
+      border-radius:0.25rem;
+    }
+    /* Setting filter:none overrides the universal button:hover brightness filter for this link-style button */
+    .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
+    body.sidebar-collapsed .sidebar-shell { display:none !important; }
+    @media (min-width: 1121px) {
+      body.standalone-admin-page.sidebar-collapsed .topbar,
+      body.legacy-prototype-page.sidebar-collapsed .topbar {
+        width:100%;
+        margin-left:0;
+      }
+      body.standalone-admin-page.sidebar-collapsed .app-main,
+      body.legacy-prototype-page.sidebar-collapsed .app-main {
+        margin-left:0;
+      }
+    }
+    body.standalone-login-page {
+      background:
+        radial-gradient(circle at top left, rgba(60, 141, 188, 0.12), transparent 36%),
+        linear-gradient(180deg, #eef2f6 0%, #f4f6f9 48%, #eef1f4 100%);
     }
     body.standalone-login-page .topbar,
-    body.standalone-login-page .app-main { max-width:1120px; padding:24px; }
-    body.standalone-login-page .topbar { padding-top:48px; }
-    body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.1fr) minmax(360px, 420px); align-items:stretch; }
-    body.standalone-login-page .login-marketing { display:grid; gap:18px; color:#e5eefb; background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); border-radius:24px; padding:32px; box-shadow:0 24px 60px rgba(15, 23, 42, 0.22); }
+    body.standalone-login-page .app-main { max-width:1200px; margin:0 auto; width:100%; }
+    body.standalone-login-page .topbar { padding-top:24px; border-bottom:none; box-shadow:none; background:transparent; position:static; }
+    body.standalone-login-page .topbar-nav,
+    body.standalone-login-page .topbar-actions,
+    body.standalone-login-page .topbar-toggle,
+    body.standalone-login-page .topbar-context { display:none; }
+    body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px); align-items:stretch; }
+    body.standalone-login-page .login-marketing,
     body.standalone-login-page .login-lead,
     body.standalone-login-page .login-credentials { display:grid; }
-    body.standalone-login-page .session-panel { margin:0; padding:28px; border-color:#dbeafe; border-radius:24px; box-shadow:0 24px 60px rgba(15, 23, 42, 0.12); }
+    body.standalone-login-page .session-panel { margin:0; padding:28px; border-top-color:var(--admin-primary); }
     body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
-    body.standalone-login-page #loginForm label { font-size:13px; font-weight:600; color:#475569; }
-    body.standalone-login-page input { min-height:48px; border-color:#cbd5e1; background:#fff; }
-    body.standalone-login-page button { min-height:48px; }
-    body.standalone-login-page #loginButton { width:100%; background:linear-gradient(135deg, #111827 0%, #1d4ed8 100%); box-shadow:0 12px 24px rgba(29, 78, 216, 0.2); }
-    body.standalone-login-page #status { background:#0f172a; border-color:#0f172a; color:#e2e8f0; }
+    body.standalone-login-page input { min-height:46px; }
+    body.standalone-login-page button { min-height:46px; }
+    body.standalone-login-page #loginButton { width:100%; }
+    body.standalone-admin-page .topbar,
+    body.legacy-prototype-page .topbar {
+      background:#fff;
+    }
+    @media (min-width: 1121px) {
+      body.standalone-admin-page .topbar,
+      body.legacy-prototype-page .topbar {
+        width:calc(100% - var(--admin-sidebar-width));
+        margin-left:var(--admin-sidebar-width);
+      }
+      body.standalone-admin-page .app-main,
+      body.legacy-prototype-page .app-main {
+        margin-left:var(--admin-sidebar-width);
+      }
+      body.standalone-admin-page .admin-shell,
+      body.legacy-prototype-page .admin-shell {
+        grid-template-columns:minmax(0, 1fr);
+      }
+      body.standalone-admin-page .sidebar-shell,
+      body.legacy-prototype-page .sidebar-shell {
+        position:fixed;
+        top:0;
+        left:0;
+        bottom:0;
+        width:var(--admin-sidebar-width);
+        min-height:100vh;
+        border-radius:0;
+        z-index:35;
+      }
+    }
+    body.standalone-admin-page .topbar-brand,
+    body.legacy-prototype-page .topbar-brand {
+      display:none;
+    }
     @media (min-width: 1180px) {
       .detail-layout { grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr); }
     }
+    @media (max-width: 1120px) {
+      .admin-shell { grid-template-columns:1fr; }
+      .sidebar-shell {
+        position:static;
+        min-height:0;
+      }
+    }
     @media (max-width: 960px) {
       body.standalone-login-page .login-shell { grid-template-columns:1fr; }
-      .topbar, .app-main, body.standalone-login-page .topbar, body.standalone-login-page .app-main { padding:16px; }
-      body.standalone-login-page .topbar { padding-top:24px; }
-      .topbar { flex-direction:column; }
-      .topbar-meta { justify-content:flex-start; width:100%; }
+      .topbar, .app-main, body.standalone-login-page .topbar, body.standalone-login-page .app-main { padding-left:16px; padding-right:16px; }
+      .topbar { flex-direction:column; align-items:flex-start; }
+      .topbar-left, .topbar-meta { width:100%; }
+      .topbar-nav { flex-wrap:wrap; }
+      .topbar-meta { justify-content:flex-start; }
       .table-toolbar .row-actions { flex-basis:100%; }
-      .nav-list li, .nav-link { width:100%; min-width:0; }
     }
   </style>
 </head>
 <body>
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
   <header class="topbar">
-    <div class="topbar-brand">
-      <span id="shellEyebrow" class="eyebrow">Admin Console</span>
-      <div class="topbar-copy">
-        <h1 id="pageTitle">Gin Ninja Admin</h1>
-        <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+    <div class="topbar-left">
+      <button class="topbar-toggle" type="button" aria-label="Toggle navigation">☰</button>
+      <nav class="topbar-nav" aria-label="Admin navigation shortcuts">
+        <a class="topbar-link" href="/admin">Home</a>
+      </nav>
+      <div class="topbar-brand">
+        <span class="brand-mark">A</span>
+        <div class="topbar-copy">
+          <span id="shellEyebrow" class="eyebrow">Admin Console</span>
+          <h1 id="pageTitle">Gin Ninja Admin</h1>
+          <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+        </div>
       </div>
     </div>
     <div class="topbar-meta">
-      <div id="sessionActions" class="row-actions" hidden>
-        <button id="clearToken" type="button">Sign out</button>
+      <div class="topbar-actions" aria-label="Admin quick actions">
+        <div class="topbar-search-wrap">
+          <button class="topbar-action topbar-search-toggle" type="button" aria-label="Toggle search" id="topbarSearchToggle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
+          </button>
+          <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
+            <input type="search" id="topbarSearchInput" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
+            <div id="topbarSearchResults" class="topbar-search-results" role="listbox" aria-label="Search results"></div>
+          </div>
+        </div>
+        <button class="topbar-action" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
+          <svg id="darkModeIconMoon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/></svg>
+          <svg id="darkModeIconSun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/></svg>
+        </button>
+        <div class="topbar-user-dropdown" id="topbarUserDropdown" hidden>
+          <button class="topbar-user-btn" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
+            <span class="topbar-user-avatar" id="topbarUserAvatar">?</span>
+            <span class="topbar-user-name" id="topbarUserName">Guest</span>
+            <svg class="topbar-caret" xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>
+          </button>
+          <ul class="topbar-user-menu" id="topbarUserMenu" hidden role="menu">
+            <li role="none"><button id="clearToken" class="topbar-user-menu-item" type="button" role="menuitem">Sign out</button></li>
+          </ul>
+        </div>
       </div>
+      <div id="sessionActions" hidden></div>
     </div>
   </header>
   <main class="app-main">
-    <div id="status" class="status-banner" data-tone="neutral">Ready.</div>
+    <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
-      <section class="login-marketing">
+      <section class="panel login-marketing">
         <span class="eyebrow">Admin Console</span>
         <div class="stack">
-          <h2>A cleaner sign-in for the standalone admin console.</h2>
+          <h2>An AdminLTE-inspired sign-in for the standalone admin console.</h2>
           <p>Use a dedicated entrypoint to authenticate, then jump straight into the example back-office experience.</p>
         </div>
         <div class="login-feature-list">
           <div class="login-feature">
-            <strong>Dedicated admin entrypoint</strong>
+            <strong>Dashboard-style entrypoint</strong>
             <span>Keep login, redirects, and restored JWT sessions separate from the prototype page.</span>
           </div>
           <div class="login-feature">
@@ -232,28 +1247,72 @@ const adminPrototypeHTML = `<!doctype html>
       </section>
     </section>
     <section id="adminShell" class="admin-shell" hidden>
-      <section class="panel resource-strip stack">
-        <div class="resource-strip-header">
-          <div class="resource-strip-copy">
-            <span class="eyebrow subtle">Resource navigation</span>
-            <strong>Switch workspaces</strong>
-            <p class="muted">Jump between resources from a compact strip so the main workspace can stay wider.</p>
+      <aside class="panel resource-strip stack sidebar-shell">
+        <div class="sidebar-brand">
+          <span class="sidebar-brand-mark">G</span>
+          <div class="sidebar-brand-copy">
+            <strong>Gin Ninja</strong>
+            <span>Admin console</span>
           </div>
         </div>
-        <ul id="resources" class="nav-list"></ul>
-      </section>
+        <div class="sidebar-user-panel">
+          <span class="sidebar-user-avatar">AP</span>
+          <div class="sidebar-user-copy">
+            <strong>Alexander Pierce</strong>
+            <span class="sidebar-user-status">
+              <span class="sidebar-user-online" aria-hidden="true"></span>
+              Online
+            </span>
+          </div>
+        </div>
+        <div class="sidebar-search">
+          <input id="sidebarResourceSearch" type="search" placeholder="Search" aria-label="Search sidebar navigation">
+          <button id="sidebarResourceSearchButton" type="button" aria-label="Clear sidebar search">⌕</button>
+        </div>
+        <div class="resource-strip-header">
+          <div class="resource-strip-copy sidebar-heading">
+            <span class="eyebrow subtle">Resource navigation</span>
+            <h2>Switch workspaces</h2>
+            <p class="muted">Move between admin resources from a left-hand menu while keeping the workspace focused.</p>
+          </div>
+        </div>
+        <div class="sidebar-nav-shell">
+          <div class="sidebar-treeview open" id="resourceTreeview">
+            <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
+              <span class="sidebar-treeview-toggle-copy">
+                <span class="sidebar-treeview-toggle-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M3 2.75A1.75 1.75 0 0 1 4.75 1h1.94c.55 0 1.07.26 1.4.7l.52.7a.25.25 0 0 0 .2.1h2.44A1.75 1.75 0 0 1 13 4.25v7A1.75 1.75 0 0 1 11.25 13h-6.5A1.75 1.75 0 0 1 3 11.25zM4.75 2.5a.25.25 0 0 0-.25.25v8.5c0 .14.11.25.25.25h6.5a.25.25 0 0 0 .25-.25v-7a.25.25 0 0 0-.25-.25H8.81a1.75 1.75 0 0 1-1.4-.7l-.52-.7a.25.25 0 0 0-.2-.1z"/></svg>
+                </span>
+                <span class="sidebar-treeview-toggle-text">Resources</span>
+              </span>
+              <span class="sidebar-treeview-caret" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M11.354 8.354a.5.5 0 0 0 0-.708L6.707 3l-.707.707L10.293 8 6 12.293l.707.707 4.647-4.646z"/></svg>
+              </span>
+            </button>
+            <ul id="resources" class="nav-list sidebar-treeview-menu"></ul>
+          </div>
+        </div>
+        <div class="sidebar-footer">
+          <span class="sidebar-footer-text">v0.1 · Gin Ninja</span>
+          <button id="sidebarSignOut" class="sidebar-footer-link" type="button" aria-label="Sign out">⏻ Sign out</button>
+        </div>
+      </aside>
       <section class="workspace stack">
         <section class="panel workspace-header">
           <div class="workspace-header-copy">
-            <span class="eyebrow subtle">Admin Workspace</span>
             <h2 id="resourceTitle">Select a resource</h2>
             <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
           </div>
-          <div class="workspace-meta">
-            <div class="workspace-actions">
-              <button id="openCreateModal" type="button">Create record</button>
-            </div>
+          <div class="workspace-actions">
+            <button id="openCreateModal" type="button">Create record</button>
           </div>
+        </section>
+        <section id="dashboardShell" class="panel stack" hidden>
+          <div class="section-heading">
+            <h3 class="section-title">Resources</h3>
+            <p class="section-copy muted">Select a resource below to open its workspace.</p>
+          </div>
+          <div id="dashboardTiles" class="dashboard-tiles"></div>
         </section>
         <section class="content-grid">
           <section class="stack">
@@ -292,6 +1351,10 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
               </div>
               <div id="list"></div>
+              <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
+                <span class="list-spinner" aria-hidden="true"></span>
+                <span>Loading records…</span>
+              </div>
             </section>
           </section>
         </section>
@@ -355,21 +1418,45 @@ const adminPrototypeHTML = `<!doctype html>
             </div>
           </div>
         </section>
+        <section id="confirmModal" class="modal-overlay" hidden>
+          <div class="modal-dialog confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+            <div class="modal-header">
+              <div class="section-heading">
+                <h3 id="confirmModalTitle" class="section-title">Confirm action</h3>
+              </div>
+              <button id="closeConfirmModal" type="button" class="secondary modal-close" aria-label="Close confirm dialog">Close</button>
+            </div>
+            <div class="modal-body">
+              <p id="confirmModalMessage" class="muted"></p>
+              <div class="confirm-actions">
+                <button id="confirmModalCancel" type="button" class="secondary">Cancel</button>
+                <button id="confirmModalConfirm" type="button" class="danger">Delete</button>
+              </div>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
   <script>
     const apiBase = '/api/v1/admin';
     const tokenStorageKey = 'gin-ninja-admin-token';
     const flashStorageKey = 'gin-ninja-admin-flash';
+    const themeStorageKey = 'gin-ninja-admin-theme';
+    const toastDefaultDurationMs = 4000;
+    const globalSearchDebounceMs = 350;
+    const stringLikeComponents = new Set(['text', 'textarea', 'email']);
     const adminPagePath = '/admin';
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
     const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
+    const dashboardCountPlaceholder = '—';
+    let pendingConfirmCallback = null;
     const state = {
       auth: { name: '', userID: null },
       current: null,
       meta: null,
       resources: [],
+      resourceSearch: '',
       records: [],
       selected: null,
       bulkSelected: {},
@@ -394,6 +1481,9 @@ const adminPrototypeHTML = `<!doctype html>
       shellEyebrow: document.getElementById('shellEyebrow'),
       adminShell: document.getElementById('adminShell'),
       resources: document.getElementById('resources'),
+      sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
+      sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
+      toastContainer: document.getElementById('toastContainer'),
       resourceTitle: document.getElementById('resourceTitle'),
       resourcePath: document.getElementById('resourcePath'),
       selectedCountBadge: document.getElementById('selectedCountBadge'),
@@ -421,7 +1511,21 @@ const adminPrototypeHTML = `<!doctype html>
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
       bulkDelete: document.getElementById('bulkDelete'),
-      search: document.getElementById('search')
+      search: document.getElementById('search'),
+      listLoading: document.getElementById('listLoading'),
+      dashboardShell: document.getElementById('dashboardShell'),
+      dashboardTiles: document.getElementById('dashboardTiles'),
+      confirmModal: document.getElementById('confirmModal'),
+      closeConfirmModal: document.getElementById('closeConfirmModal'),
+      confirmModalCancel: document.getElementById('confirmModalCancel'),
+      confirmModalConfirm: document.getElementById('confirmModalConfirm'),
+      confirmModalTitle: document.getElementById('confirmModalTitle'),
+      confirmModalMessage: document.getElementById('confirmModalMessage'),
+      darkModeToggle: document.getElementById('darkModeToggle'),
+      darkModeIconMoon: document.getElementById('darkModeIconMoon'),
+      darkModeIconSun: document.getElementById('darkModeIconSun'),
+      topbarSearchInput: document.getElementById('topbarSearchInput'),
+      topbarSearchResults: document.getElementById('topbarSearchResults')
     };
 
     function inferStatusTone(value) {
@@ -444,8 +1548,170 @@ const adminPrototypeHTML = `<!doctype html>
       els.status.dataset.tone = tone || inferStatusTone(value);
     }
 
+    function showToast(message, tone, durationMs) {
+      if (!els.toastContainer) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.setAttribute('role', 'status');
+      toast.dataset.tone = tone || inferStatusTone(message);
+      const msg = document.createElement('span');
+      msg.className = 'toast-message';
+      msg.textContent = message;
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'toast-close';
+      closeBtn.textContent = '×';
+      closeBtn.setAttribute('aria-label', 'Dismiss notification');
+      closeBtn.onclick = () => toast.remove();
+      toast.appendChild(msg);
+      toast.appendChild(closeBtn);
+      els.toastContainer.appendChild(toast);
+      const timeout = durationMs !== undefined ? durationMs : toastDefaultDurationMs;
+      if (timeout > 0) {
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, timeout);
+      }
+    }
+
     function currentPagePath() {
       return window.location.pathname || '';
+    }
+
+    function applyTheme(dark) {
+      if (dark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      if (els.darkModeIconMoon) els.darkModeIconMoon.hidden = dark;
+      if (els.darkModeIconSun) els.darkModeIconSun.hidden = !dark;
+      if (els.darkModeToggle) els.darkModeToggle.setAttribute('aria-pressed', String(dark));
+    }
+
+    function toggleDarkMode() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const next = !isDark;
+      applyTheme(next);
+      try {
+        if (next) {
+          localStorage.setItem(themeStorageKey, 'dark');
+        } else {
+          localStorage.removeItem(themeStorageKey);
+        }
+      } catch (_) {
+        // localStorage may be unavailable in some contexts
+      }
+    }
+
+    function restoreTheme() {
+      try {
+        const saved = localStorage.getItem(themeStorageKey);
+        if (saved === 'dark') {
+          applyTheme(true);
+          return true;
+        }
+      } catch (_) {
+        // ignore
+      }
+      applyTheme(false);
+      return false;
+    }
+
+    let globalSearchTimer = null;
+
+    function closeGlobalSearch() {
+      if (els.topbarSearchResults) {
+        els.topbarSearchResults.classList.remove('has-results');
+        els.topbarSearchResults.innerHTML = '';
+      }
+    }
+
+    function recordDisplayLabel(record, fields) {
+      // Pick the first string-like field that isn't the primary key for a summary
+      const strField = (fields || []).find((f) => f.name !== 'id' && (stringLikeComponents.has(f.component) || !f.component));
+      if (strField) {
+        const val = record[strField.name];
+        if (val !== undefined && val !== null && val !== '') return String(val);
+      }
+      // Fallback: first non-id field
+      const keys = Object.keys(record).filter((k) => k !== 'id');
+      if (keys.length) return String(record[keys[0]]);
+      return '';
+    }
+
+    async function globalSearch(query) {
+      closeGlobalSearch();
+      if (!els.topbarSearchResults) return;
+      const q = query.trim();
+      if (!q || q.length < 2) return;
+      if (!state.resources.length) return;
+
+      const results = await Promise.all(
+        state.resources.map(async (resource) => {
+          try {
+            const basePath = apiBase + '/resources' + resource.path;
+            const data = await request(basePath + '?page=1&size=5&search=' + encodeURIComponent(q));
+            const items = data.items || data.results || data.data || [];
+            return { resource, items };
+          } catch (_) {
+            return { resource, items: [] };
+          }
+        })
+      );
+
+      const noResults = results.every((r) => r.items.length === 0);
+      if (noResults) {
+        els.topbarSearchResults.innerHTML = '<div class="search-results-empty">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
+        els.topbarSearchResults.classList.add('has-results');
+        return;
+      }
+
+      results.forEach(({ resource, items }) => {
+        if (!items.length) return;
+        const group = document.createElement('div');
+        group.className = 'search-results-group';
+        const label = document.createElement('div');
+        label.className = 'search-results-group-label';
+        label.textContent = resource.label || resource.name;
+        group.appendChild(label);
+
+        items.forEach((record) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'search-result-item';
+          btn.setAttribute('role', 'option');
+          const pk = recordPrimaryKey(record);
+          const displayLabel = recordDisplayLabel(record, []);
+          const summary = document.createElement('span');
+          summary.className = 'search-result-summary';
+          summary.innerHTML = highlightMatch(displayLabel || String(pk ?? ''), q);
+          const idSpan = document.createElement('span');
+          idSpan.className = 'search-result-id';
+          idSpan.textContent = '#' + String(pk ?? '');
+          btn.appendChild(summary);
+          if (displayLabel) btn.appendChild(idSpan);
+          btn.addEventListener('click', async () => {
+            if (els.topbarSearchInput) els.topbarSearchInput.value = '';
+            const expandEl = document.getElementById('topbarSearchExpand');
+            if (expandEl) expandEl.classList.remove('open');
+            closeGlobalSearch();
+            await selectResource(resource);
+            // Try to open the specific record
+            const found = (state.records || []).find((r) => String(recordPrimaryKey(r)) === String(pk));
+            if (found) {
+              state.selected = { item: found };
+              renderSelectedRecord();
+              await renderUpdateForm();
+              openModal(els.editModal);
+            }
+          });
+          group.appendChild(btn);
+        });
+        els.topbarSearchResults.appendChild(group);
+      });
+
+      if (els.topbarSearchResults.children.length) {
+        els.topbarSearchResults.classList.add('has-results');
+      }
     }
 
     function isStandaloneLoginPage() {
@@ -475,6 +1741,8 @@ const adminPrototypeHTML = `<!doctype html>
 
     function updatePageChrome() {
       document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage());
+      document.body.classList.toggle('standalone-admin-page', isStandaloneAdminPage());
+      document.body.classList.toggle('legacy-prototype-page', isLegacyPrototypePage());
       if (isStandaloneLoginPage()) {
         document.title = 'Gin Ninja Admin Login';
         els.shellEyebrow.textContent = 'Admin Login';
@@ -547,6 +1815,8 @@ const adminPrototypeHTML = `<!doctype html>
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
+      const topbarUserDropdown = document.getElementById('topbarUserDropdown');
+      if (topbarUserDropdown) topbarUserDropdown.hidden = true;
     }
 
     function renderSignedInState() {
@@ -556,6 +1826,19 @@ const adminPrototypeHTML = `<!doctype html>
       els.sessionShell.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = standaloneLoginPage;
+      // Update user info in sidebar and topbar
+      const name = state.auth.name || 'Admin';
+      const initials = name.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
+      const sidebarAvatar = document.querySelector('.sidebar-user-avatar');
+      const sidebarName = document.querySelector('.sidebar-user-copy strong');
+      if (sidebarAvatar) sidebarAvatar.textContent = initials;
+      if (sidebarName) sidebarName.textContent = name;
+      const topbarAvatar = document.getElementById('topbarUserAvatar');
+      const topbarName = document.getElementById('topbarUserName');
+      if (topbarAvatar) topbarAvatar.textContent = initials;
+      if (topbarName) topbarName.textContent = name;
+      const topbarUserDropdown = document.getElementById('topbarUserDropdown');
+      if (topbarUserDropdown) topbarUserDropdown.hidden = standaloneLoginPage;
     }
 
     function renderAuthState() {
@@ -574,13 +1857,17 @@ const adminPrototypeHTML = `<!doctype html>
       state.current = null;
       state.meta = null;
       state.resources = [];
+      state.resourceSearch = '';
       state.records = [];
       state.selected = null;
       state.bulkSelected = {};
       state.relationSearch = {};
       state.relationTimers = {};
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
-       renderResources();
+       if (els.sidebarResourceSearch) {
+         els.sidebarResourceSearch.value = '';
+       }
+        renderResources();
        els.resourceTitle.textContent = 'Select a resource';
        els.resourcePath.textContent = 'Sign in to open a resource workspace.';
        els.detailTitle.textContent = 'No record selected';
@@ -717,10 +2004,76 @@ const adminPrototypeHTML = `<!doctype html>
       return scopeKey + ':' + field.name;
     }
 
+    function isMultiRelationField(field) {
+      return !!(field && field.relation && field.type === 'array');
+    }
+
+    function selectedRelationValues(select, field) {
+      if (!select) return isMultiRelationField(field) ? [] : '';
+      if (isMultiRelationField(field)) {
+        return Array.from(select.selectedOptions || []).map((option) => option.value).filter((value) => value !== '');
+      }
+      return select.value;
+    }
+
+    function relationSummaryText(field, select) {
+      const selected = Array.from(select.selectedOptions || []);
+      if (!selected.length) return 'Choose ' + field.label;
+      const selectedLabels = selected
+        .map((option) => option.textContent || '')
+        .filter((label) => label && !label.startsWith('Selected: '));
+      if (selectedLabels.length > 0 && selectedLabels.length === selected.length && selectedLabels.length <= 2) {
+        return selectedLabels.join(', ');
+      }
+      return selected.length + ' selected';
+    }
+
+    function syncMultiRelationDropdown(field, select, summary, menu, items) {
+      if (!summary || !menu || !isMultiRelationField(field)) return;
+      summary.textContent = relationSummaryText(field, select);
+      menu.innerHTML = '';
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'multi-relation-empty';
+        empty.textContent = 'No matching options.';
+        menu.appendChild(empty);
+        return;
+      }
+      const selected = new Set(selectedRelationValues(select, field).map((value) => String(value)));
+      items.forEach((item) => {
+        const label = document.createElement('label');
+        label.className = 'multi-relation-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = String(item.value);
+        checkbox.checked = selected.has(String(item.value));
+        const text = document.createElement('span');
+        text.textContent = item.label;
+        checkbox.addEventListener('change', () => {
+          let option = Array.from(select.options).find((candidate) => candidate.value === String(item.value));
+          if (!option) {
+            option = document.createElement('option');
+            option.value = String(item.value);
+            option.textContent = item.label;
+            select.appendChild(option);
+          }
+          option.selected = checkbox.checked;
+          summary.textContent = relationSummaryText(field, select);
+        });
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        menu.appendChild(label);
+      });
+    }
+
     function resetQueryState() {
       state.bulkSelected = {};
       state.relationSearch = {};
+      state.resourceSearch = '';
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
+      if (els.sidebarResourceSearch) {
+        els.sidebarResourceSearch.value = '';
+      }
       els.search.value = '';
       els.sort.innerHTML = '';
       els.filtersForm.innerHTML = '';
@@ -747,18 +2100,50 @@ const adminPrototypeHTML = `<!doctype html>
       }, 300);
     }
 
+    function filteredResources() {
+      const term = String(state.resourceSearch || '').trim().toLowerCase();
+      if (!term) return state.resources.slice();
+      return state.resources.filter((resource) => {
+        const label = String(resource.label || '').toLowerCase();
+        const name = String(resource.name || '').toLowerCase();
+        return label.includes(term) || name.includes(term);
+      });
+    }
+
     function renderResources() {
       els.resources.innerHTML = '';
-      state.resources.forEach((resource) => {
+      const resourceTreeview = document.getElementById('resourceTreeview');
+      if (resourceTreeview) resourceTreeview.classList.add('open');
+      const matches = filteredResources();
+      if (!matches.length) {
+        const li = document.createElement('li');
+        li.className = 'sidebar-search-empty';
+        li.textContent = state.resourceSearch
+          ? ('No resources matched "' + String(state.resourceSearch || '').trim() + '".')
+          : 'No resources available.';
+        els.resources.appendChild(li);
+      }
+      matches.forEach((resource) => {
         const li = document.createElement('li');
         const button = document.createElement('button');
+        const icon = document.createElement('span');
+        const label = document.createElement('span');
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
-        button.textContent = resource.label + ' (' + resource.name + ')';
+        icon.className = 'nav-link-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        label.className = 'nav-link-label';
+        label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
+        button.appendChild(icon);
+        button.appendChild(label);
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
         els.resources.appendChild(li);
       });
+      if (els.sidebarResourceSearchButton) {
+        els.sidebarResourceSearchButton.textContent = state.resourceSearch ? '×' : '⌕';
+        els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
+      }
     }
 
      function openModal(modal) {
@@ -771,7 +2156,7 @@ const adminPrototypeHTML = `<!doctype html>
      }
 
      function anyModalOpen() {
-       return [els.createModal, els.recordModal, els.editModal].some((modal) => modal && !modal.hidden);
+       return [els.createModal, els.recordModal, els.editModal, els.confirmModal].some((modal) => modal && !modal.hidden);
      }
 
      function closeModal(modal) {
@@ -784,8 +2169,58 @@ const adminPrototypeHTML = `<!doctype html>
      }
 
      function closeAllModals() {
-       [els.createModal, els.recordModal, els.editModal].forEach((modal) => closeModal(modal));
+       [els.createModal, els.recordModal, els.editModal, els.confirmModal].forEach((modal) => closeModal(modal));
      }
+
+    let _actionMenuPortal = null;
+    function getActionMenuPortal() {
+      if (!_actionMenuPortal) {
+        _actionMenuPortal = document.createElement('div');
+        _actionMenuPortal.id = 'action-menu-portal';
+        document.body.appendChild(_actionMenuPortal);
+      }
+      return _actionMenuPortal;
+    }
+    function closeActionMenuPortal() {
+      const portal = getActionMenuPortal();
+      portal.innerHTML = '';
+      delete portal.dataset.forRow;
+    }
+    function openActionMenuAt(triggerEl, rowId, items) {
+      const portal = getActionMenuPortal();
+      const isOpen = portal.dataset.forRow === String(rowId) && portal.firstChild;
+      closeActionMenuPortal();
+      if (isOpen) return;
+      const rect = triggerEl.getBoundingClientRect();
+      const menu = document.createElement('div');
+      menu.className = 'action-menu-list open';
+      menu.style.cssText = 'position:fixed;z-index:1500;top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;left:auto;';
+      items.forEach((item) => {
+        if (item.divider) {
+          const hr = document.createElement('hr');
+          hr.className = 'action-menu-divider';
+          menu.appendChild(hr);
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'action-menu-item' + (item.className ? ' ' + item.className : '');
+          btn.textContent = item.label;
+          btn.disabled = !!item.disabled;
+          btn.onclick = (e) => { e.stopPropagation(); closeActionMenuPortal(); item.onClick(); };
+          menu.appendChild(btn);
+        }
+      });
+      portal.dataset.forRow = String(rowId);
+      portal.appendChild(menu);
+    }
+
+    function openConfirmDialog(title, message, onConfirm, confirmLabel) {
+      pendingConfirmCallback = onConfirm;
+      els.confirmModalTitle.textContent = title;
+      els.confirmModalMessage.textContent = message;
+      els.confirmModalConfirm.textContent = confirmLabel || 'Confirm';
+      openModal(els.confirmModal);
+    }
 
      function syncWorkspaceActionState() {
        const createEnabled = Boolean(state.current && hasAction('create'));
@@ -819,6 +2254,66 @@ const adminPrototypeHTML = `<!doctype html>
         desc.value = '-' + name;
         desc.textContent = 'Sort by ' + name + ' ↓';
         els.sort.appendChild(desc);
+      });
+    }
+
+    function applySortFromHeader(field) {
+      const current = els.sort.value;
+      let next;
+      if (current === field) {
+        next = '-' + field;
+      } else if (current === '-' + field) {
+        next = '';
+      } else {
+        next = field;
+      }
+      els.sort.value = next;
+      cancelScheduledSearchReload();
+      resetToFirstPage();
+      renderList().catch((error) => setStatus(String(error.message || error)));
+    }
+
+    function activeSortField() {
+      const v = els.sort.value;
+      if (!v) return { field: '', dir: '' };
+      if (v.startsWith('-')) return { field: v.slice(1), dir: 'desc' };
+      return { field: v, dir: 'asc' };
+    }
+
+    function setListLoading(active) {
+      if (els.listLoading) els.listLoading.classList.toggle('active', active);
+      if (active) els.list.innerHTML = '';
+    }
+
+    function renderDashboard() {
+      if (!els.dashboardShell || !els.dashboardTiles) return;
+      if (state.current || !state.resources.length) {
+        els.dashboardShell.hidden = true;
+        return;
+      }
+      els.dashboardShell.hidden = false;
+      els.dashboardTiles.innerHTML = '';
+      state.resources.forEach((resource) => {
+        const tile = document.createElement('button');
+        tile.type = 'button';
+        tile.className = 'dashboard-tile';
+        tile.innerHTML =
+          '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
+          '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
+          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>';
+        tile.onclick = () => selectResource(resource);
+        els.dashboardTiles.appendChild(tile);
+        // Load record count in background for each tile
+        const basePath = apiBase + '/resources' + resource.path;
+        request(basePath + '?page=1&size=1')
+          .then((data) => {
+            const countEl = tile.querySelector('.dashboard-tile-count');
+            if (countEl) countEl.textContent = String(data.total ?? dashboardCountPlaceholder);
+          })
+          .catch((err) => {
+            // Count is decorative; log but don't surface to user
+            console.error('dashboard tile count load failed for ' + resource.name + ':', err);
+          });
       });
     }
 
@@ -865,6 +2360,9 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function updateRelationPreview(preview, items, term) {
+      if (!preview) {
+        return;
+      }
       const normalizedTerm = term.trim();
       if (!normalizedTerm) {
         preview.hidden = true;
@@ -889,7 +2387,11 @@ const adminPrototypeHTML = `<!doctype html>
       return options.items || [];
     }
 
-    function resolveRelationSelection(items, selectedValue, term) {
+    function resolveRelationSelection(field, items, selectedValue, term) {
+      if (isMultiRelationField(field)) {
+        const selected = Array.isArray(selectedValue) ? selectedValue.map((value) => String(value)) : [];
+        return selected;
+      }
       if (selectedValue != null && selectedValue !== '') {
         return selectedValue;
       }
@@ -901,8 +2403,30 @@ const adminPrototypeHTML = `<!doctype html>
       return exactValueMatch ? exactValueMatch.value : selectedValue;
     }
 
-    function populateRelationSelect(select, items, selectedValue, placeholderLabel) {
+    function populateRelationSelect(field, select, items, selectedValue, placeholderLabel) {
+      const multiple = isMultiRelationField(field);
+      select.multiple = multiple;
+      select.removeAttribute('size');
       select.innerHTML = '';
+      if (multiple) {
+        const selectedSet = new Set((Array.isArray(selectedValue) ? selectedValue : []).map((value) => String(value)));
+        items.forEach((item) => {
+          const option = document.createElement('option');
+          option.value = String(item.value);
+          option.textContent = item.label;
+          option.selected = selectedSet.has(String(item.value));
+          select.appendChild(option);
+        });
+        selectedSet.forEach((value) => {
+          if (Array.from(select.options).some((option) => option.value === value)) return;
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = 'Selected: ' + value;
+          option.selected = true;
+          select.appendChild(option);
+        });
+        return;
+      }
       const hasSelection = selectedValue != null && selectedValue !== '';
       if (!hasSelection) {
         const option = document.createElement('option');
@@ -938,15 +2462,16 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
-    function scheduleRelationSearch(field, scopeKey, searchInput, select, preview) {
+    function scheduleRelationSearch(field, scopeKey, searchInput, select, preview, summary, menu) {
       const key = relationStateKey(scopeKey, field);
       clearTimeout(state.relationTimers[key]);
       state.relationTimers[key] = setTimeout(async () => {
         try {
           const term = searchInput.value.trim();
           const items = await loadRelationOptions(field, term, 1, 8);
-          const nextValue = resolveRelationSelection(items, select.value, term);
-          populateRelationSelect(select, items, nextValue, field.label);
+          const nextValue = resolveRelationSelection(field, items, selectedRelationValues(select, field), term);
+          populateRelationSelect(field, select, items, nextValue, field.label);
+          syncMultiRelationDropdown(field, select, summary, menu, items);
           updateRelationPreview(preview, items, term);
           setStatus('Loaded ' + items.length + ' relation option(s) for ' + field.name + '.');
         } catch (error) {
@@ -966,22 +2491,44 @@ const adminPrototypeHTML = `<!doctype html>
         searchInput.value = state.relationSearch[searchKey] || '';
         const select = document.createElement('select');
         select.name = field.name;
-        const preview = document.createElement('ul');
-        preview.className = 'relation-preview';
+        const preview = isMultiRelationField(field) ? null : document.createElement('ul');
+        if (preview) preview.className = 'relation-preview';
+        const dropdown = isMultiRelationField(field) ? document.createElement('details') : null;
+        const dropdownSummary = dropdown ? document.createElement('summary') : null;
+        const dropdownMenu = dropdown ? document.createElement('div') : null;
+        if (dropdown) {
+          dropdown.className = 'multi-relation-dropdown';
+          dropdownSummary.className = 'multi-relation-summary';
+          dropdownMenu.className = 'multi-relation-menu';
+          dropdown.appendChild(dropdownSummary);
+          dropdown.appendChild(dropdownMenu);
+          select.hidden = true;
+        }
         const help = document.createElement('div');
         help.className = 'field-help';
-        help.textContent = 'Search related records and choose the best matching option for this field.';
+        help.textContent = isMultiRelationField(field)
+          ? 'Search related records and choose one or more matching options for this field.'
+          : 'Search related records and choose the best matching option for this field.';
         wrapper.appendChild(searchInput);
-        wrapper.appendChild(select);
-        wrapper.appendChild(preview);
+        if (dropdown) {
+          wrapper.appendChild(dropdown);
+        } else {
+          wrapper.appendChild(select);
+        }
+        if (preview) wrapper.appendChild(preview);
+        if (dropdown) wrapper.appendChild(select);
         wrapper.appendChild(help);
         const items = await loadRelationOptions(field, searchInput.value.trim(), 1, 8);
-        const nextValue = resolveRelationSelection(items, value, searchInput.value);
-        populateRelationSelect(select, items, nextValue, field.label);
+        const nextValue = resolveRelationSelection(field, items, value, searchInput.value);
+        populateRelationSelect(field, select, items, nextValue, field.label);
+        syncMultiRelationDropdown(field, select, dropdownSummary, dropdownMenu, items);
         updateRelationPreview(preview, items, searchInput.value.trim());
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;
-          scheduleRelationSearch(field, scopeKey, searchInput, select, preview);
+          scheduleRelationSearch(field, scopeKey, searchInput, select, preview, dropdownSummary, dropdownMenu);
+        });
+        select.addEventListener('change', () => {
+          syncMultiRelationDropdown(field, select, dropdownSummary, dropdownMenu, items);
         });
         return wrapper;
       }
@@ -1099,6 +2646,13 @@ const adminPrototypeHTML = `<!doctype html>
           continue;
         }
         if (field.relation) {
+          if (isMultiRelationField(field)) {
+            if (!Array.isArray(payload[key])) payload[key] = [];
+            if (value !== '') {
+              payload[key].push(numericFieldPattern.test(value) ? Number(value) : value);
+            }
+            continue;
+          }
           if (value === '') {
             payload[key] = null;
             continue;
@@ -1111,6 +2665,14 @@ const adminPrototypeHTML = `<!doctype html>
       form.querySelectorAll('input[type=checkbox][name]').forEach((checkbox) => {
         if (!fieldMeta(checkbox.name) || checkbox.disabled) return;
         payload[checkbox.name] = checkbox.checked;
+      });
+      form.querySelectorAll('select[multiple][name]').forEach((select) => {
+        const field = fieldMeta(select.name);
+        if (!field || !isMultiRelationField(field) || select.disabled) return;
+        payload[select.name] = Array.from(select.selectedOptions).map((option) => {
+          const value = option.value;
+          return numericFieldPattern.test(value) ? Number(value) : value;
+        });
       });
       return payload;
     }
@@ -1151,7 +2713,13 @@ const adminPrototypeHTML = `<!doctype html>
 
     async function renderList() {
       if (!state.current) return;
-      const data = await request(currentBasePath() + buildListQuery());
+      setListLoading(true);
+      let data;
+      try {
+        data = await request(currentBasePath() + buildListQuery());
+      } finally {
+        setListLoading(false);
+      }
       const fields = state.meta?.list_fields || [];
       const rows = data.items || [];
       state.records = rows;
@@ -1186,9 +2754,26 @@ const adminPrototypeHTML = `<!doctype html>
       };
       bulkCell.appendChild(selectAll);
       headRow.appendChild(bulkCell);
+      const sortable = new Set(state.meta?.sort_fields || []);
+      const { field: sortField, dir: sortDir } = activeSortField();
       fields.forEach((field) => {
         const th = document.createElement('th');
-        th.textContent = field;
+        if (sortable.has(field)) {
+          th.className = 'sortable-th' + (sortField === field ? ' sort-' + sortDir : '');
+          th.setAttribute('aria-sort', sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+          th.setAttribute('title', 'Click to sort by ' + field);
+          const labelSpan = document.createElement('span');
+          labelSpan.textContent = field;
+          const iconSpan = document.createElement('span');
+          iconSpan.className = 'sort-icon';
+          iconSpan.setAttribute('aria-hidden', 'true');
+          iconSpan.textContent = sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅';
+          th.appendChild(labelSpan);
+          th.appendChild(iconSpan);
+          th.onclick = () => applySortFromHeader(field);
+        } else {
+          th.textContent = field;
+        }
         headRow.appendChild(th);
       });
       const actionHead = document.createElement('th');
@@ -1226,42 +2811,21 @@ const adminPrototypeHTML = `<!doctype html>
         openButton.textContent = 'View';
         openButton.onclick = () => selectRecord(row, { openModal: 'record' });
         actionWrap.appendChild(openButton);
-        // More (···) dropdown menu
-        const menuWrap = document.createElement('div');
-        menuWrap.className = 'action-menu';
+        // More (···) dropdown menu — uses portal to escape overflow:auto clipping
         const trigger = document.createElement('button');
         trigger.type = 'button';
         trigger.className = 'action-menu-trigger';
         trigger.setAttribute('aria-label', 'More actions');
         trigger.textContent = '···';
-        const menuList = document.createElement('div');
-        menuList.className = 'action-menu-list';
-        const editItem = document.createElement('button');
-        editItem.type = 'button';
-        editItem.className = 'action-menu-item';
-        editItem.textContent = 'Edit';
-        editItem.disabled = !hasAction('update');
-        editItem.onclick = () => { menuList.classList.remove('open'); selectRecord(row, { openModal: 'edit' }); };
-        menuList.appendChild(editItem);
-        const divider = document.createElement('hr');
-        divider.className = 'action-menu-divider';
-        menuList.appendChild(divider);
-        const deleteItem = document.createElement('button');
-        deleteItem.type = 'button';
-        deleteItem.className = 'action-menu-item danger';
-        deleteItem.textContent = 'Delete';
-        deleteItem.disabled = !hasAction('delete');
-        deleteItem.onclick = () => { menuList.classList.remove('open'); deleteRecordByID(id); };
-        menuList.appendChild(deleteItem);
         trigger.onclick = (e) => {
           e.stopPropagation();
-          const isOpen = menuList.classList.contains('open');
-          document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
-          if (!isOpen) menuList.classList.add('open');
+          openActionMenuAt(trigger, id, [
+            { label: 'Edit', disabled: !hasAction('update'), onClick: () => selectRecord(row, { openModal: 'edit' }) },
+            { divider: true },
+            { label: 'Delete', className: 'danger', disabled: !hasAction('delete'), onClick: () => deleteRecordByID(id) },
+          ]);
         };
-        menuWrap.appendChild(trigger);
-        menuWrap.appendChild(menuList);
-        actionWrap.appendChild(menuWrap);
+        actionWrap.appendChild(trigger);
         actionCell.appendChild(actionWrap);
         tr.appendChild(actionCell);
         tbody.appendChild(tr);
@@ -1293,26 +2857,37 @@ const adminPrototypeHTML = `<!doctype html>
          }
          setStatus('Loaded record #' + id + '.');
         } catch (error) {
+          showToast(String(error.message || error), 'danger');
           setStatus(String(error.message || error));
         }
       }
 
       async function deleteRecordByID(id) {
         if (!state.current || id == null) return;
-        try {
-         await request(currentBasePath() + '/' + encodeURIComponent(String(id)), { method: 'DELETE' });
-         if (state.selected && String(recordPrimaryKey(state.selected.item)) === String(id)) {
-           state.selected = null;
-           renderSelectedRecord();
-           await renderUpdateForm();
-         }
-         setSelectedForBulk(id, false);
-         closeModal(els.recordModal);
-         closeModal(els.editModal);
-         await reloadListWithStatus('Deleted record #' + id + '.', false);
-        } catch (error) {
-          setStatus(String(error.message || error));
-        }
+        openConfirmDialog(
+          'Delete record',
+          'Are you sure you want to permanently delete record #' + id + '? This action cannot be undone.',
+          async () => {
+            closeModal(els.confirmModal);
+            try {
+              await request(currentBasePath() + '/' + encodeURIComponent(String(id)), { method: 'DELETE' });
+              if (state.selected && String(recordPrimaryKey(state.selected.item)) === String(id)) {
+                state.selected = null;
+                renderSelectedRecord();
+                await renderUpdateForm();
+              }
+              setSelectedForBulk(id, false);
+              closeModal(els.recordModal);
+              closeModal(els.editModal);
+              showToast('Deleted record #' + id + '.', 'success');
+              await reloadListWithStatus('Deleted record #' + id + '.', false);
+            } catch (error) {
+              showToast(String(error.message || error), 'danger');
+              setStatus(String(error.message || error));
+            }
+          },
+          'Delete'
+        );
       }
 
      async function reloadListWithStatus(message, resetPage) {
@@ -1332,6 +2907,7 @@ const adminPrototypeHTML = `<!doctype html>
         const payload = await request(apiBase + '/resources');
         state.resources = payload.resources || [];
         renderResources();
+        renderDashboard();
         setStatus('Loaded ' + state.resources.length + ' resources.');
         if (state.resources.length) {
           await selectResource(state.resources[0]);
@@ -1345,6 +2921,7 @@ const adminPrototypeHTML = `<!doctype html>
       state.current = resource;
       state.selected = null;
       resetQueryState();
+      renderDashboard();
       try {
         state.meta = await request(currentBasePath() + '/meta');
         renderResources();
@@ -1405,6 +2982,113 @@ const adminPrototypeHTML = `<!doctype html>
     els.clearToken.onclick = () => {
       logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
     };
+
+    // User dropdown toggle
+    const topbarUserBtn = document.getElementById('topbarUserBtn');
+    const topbarUserMenu = document.getElementById('topbarUserMenu');
+    if (topbarUserBtn && topbarUserMenu) {
+      topbarUserBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const open = topbarUserMenu.hidden === false;
+        topbarUserMenu.hidden = open;
+        topbarUserBtn.setAttribute('aria-expanded', String(!open));
+      });
+      document.addEventListener('click', () => {
+        if (topbarUserMenu) topbarUserMenu.hidden = true;
+        if (topbarUserBtn) topbarUserBtn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    // Topbar search toggle
+    const topbarSearchToggle = document.getElementById('topbarSearchToggle');
+    const topbarSearchExpand = document.getElementById('topbarSearchExpand');
+    if (topbarSearchToggle && topbarSearchExpand) {
+      topbarSearchToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        topbarSearchExpand.classList.toggle('open');
+        if (!topbarSearchExpand.classList.contains('open')) {
+          closeGlobalSearch();
+          return;
+        }
+        if (els.topbarSearchInput) els.topbarSearchInput.focus();
+      });
+      document.addEventListener('click', (event) => {
+        if (topbarSearchExpand && !topbarSearchExpand.contains(event.target) && event.target !== topbarSearchToggle) {
+          topbarSearchExpand.classList.remove('open');
+          closeGlobalSearch();
+        }
+      });
+    }
+    if (els.topbarSearchInput) {
+      els.topbarSearchInput.addEventListener('input', (event) => {
+        clearTimeout(globalSearchTimer);
+        const q = event.target.value;
+        if (!q.trim() || q.trim().length < 2) {
+          closeGlobalSearch();
+          return;
+        }
+        globalSearchTimer = setTimeout(() => {
+          globalSearch(q).catch((err) => console.error('global search error:', err));
+        }, globalSearchDebounceMs);
+      });
+      els.topbarSearchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          els.topbarSearchInput.value = '';
+          closeGlobalSearch();
+          if (topbarSearchExpand) topbarSearchExpand.classList.remove('open');
+        }
+      });
+    }
+    // Topbar ☰ toggle: collapse / expand sidebar
+    const topbarToggle = document.querySelector('.topbar-toggle');
+    if (topbarToggle) {
+      topbarToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        document.body.classList.toggle('sidebar-collapsed');
+      });
+    }
+    const sidebarSignOut = document.getElementById('sidebarSignOut');
+    if (sidebarSignOut) {
+      sidebarSignOut.addEventListener('click', () => {
+        els.clearToken.click();
+      });
+    }
+    const resourceTreeview = document.getElementById('resourceTreeview');
+    const resourceTreeviewToggle = document.getElementById('resourceTreeviewToggle');
+    if (resourceTreeview && resourceTreeviewToggle) {
+      resourceTreeviewToggle.addEventListener('click', () => {
+        const open = resourceTreeview.classList.toggle('open');
+        resourceTreeviewToggle.setAttribute('aria-expanded', String(open));
+      });
+    }
+    if (els.sidebarResourceSearch) {
+      els.sidebarResourceSearch.addEventListener('input', () => {
+        state.resourceSearch = els.sidebarResourceSearch.value.trim();
+        renderResources();
+      });
+      els.sidebarResourceSearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && els.sidebarResourceSearch.value) {
+          event.preventDefault();
+          state.resourceSearch = '';
+          els.sidebarResourceSearch.value = '';
+          renderResources();
+        }
+      });
+    }
+    if (els.sidebarResourceSearchButton) {
+      els.sidebarResourceSearchButton.addEventListener('click', () => {
+        if (!els.sidebarResourceSearch) return;
+        if (!els.sidebarResourceSearch.value) {
+          els.sidebarResourceSearch.focus();
+          return;
+        }
+        state.resourceSearch = '';
+        els.sidebarResourceSearch.value = '';
+        renderResources();
+        els.sidebarResourceSearch.focus();
+      });
+    }
      els.openCreateModal.onclick = () => {
        if (els.openCreateModal.disabled) return;
        openModal(els.createModal);
@@ -1420,12 +3104,26 @@ const adminPrototypeHTML = `<!doctype html>
       });
      });
      document.addEventListener('keydown', (event) => {
-       if (event.key !== 'Escape') return;
-       document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
-       closeAllModals();
+       if (event.key === 'Escape') {
+         closeActionMenuPortal();
+         closeAllModals();
+         return;
+       }
+       // Ignore shortcuts when focus is in a text control or a modal is open
+       const tag = document.activeElement ? document.activeElement.tagName : '';
+       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+       if (anyModalOpen()) return;
+       if (event.ctrlKey || event.metaKey || event.altKey) return;
+       if (event.key === '/' && state.current) {
+         event.preventDefault();
+         if (els.search) els.search.focus();
+       } else if (event.key === 'n' && !event.shiftKey) {
+         event.preventDefault();
+         if (!els.openCreateModal.disabled) els.openCreateModal.click();
+       }
      });
      document.addEventListener('click', () => {
-       document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
+       closeActionMenuPortal();
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
      els.clearFilters.onclick = () => {
@@ -1491,8 +3189,10 @@ const adminPrototypeHTML = `<!doctype html>
         });
         await renderCreateForm();
         closeModal(els.createModal);
+        showToast('Created a new ' + state.current.name + ' record.', 'success');
         await reloadListWithStatus('Created a new ' + state.current.name + ' record.', true);
       } catch (error) {
+        showToast(String(error.message || error), 'danger');
         setStatus(String(error.message || error));
       }
     };
@@ -1508,33 +3208,60 @@ const adminPrototypeHTML = `<!doctype html>
         closeModal(els.editModal);
         await renderList();
         await selectRecord({ id: id });
+        showToast('Updated record #' + id + '.', 'success');
         setStatus('Updated record #' + id + '.');
       } catch (error) {
+        showToast(String(error.message || error), 'danger');
         setStatus(String(error.message || error));
       }
     };
-    els.bulkDelete.onclick = async () => {
+    els.bulkDelete.onclick = () => {
       if (!state.current || !selectedIDs().length) return;
-      try {
-        const ids = selectedIDs();
-        const result = await request(currentBasePath() + '/bulk-delete', {
-          method: 'POST',
-          body: JSON.stringify({ ids: ids })
-        });
-        if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
-          state.selected = null;
-          renderSelectedRecord();
-          await renderUpdateForm();
-        }
-        state.bulkSelected = {};
-        await reloadListWithStatus('Bulk deleted ' + String(result.deleted || 0) + ' record(s).', false);
-      } catch (error) {
-        setStatus(String(error.message || error));
-      }
+      const count = selectedIDs().length;
+      openConfirmDialog(
+        'Bulk delete',
+        'Are you sure you want to permanently delete ' + count + ' selected record(s)? This action cannot be undone.',
+        async () => {
+          closeModal(els.confirmModal);
+          try {
+            const ids = selectedIDs();
+            const result = await request(currentBasePath() + '/bulk-delete', {
+              method: 'POST',
+              body: JSON.stringify({ ids: ids })
+            });
+            if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
+              state.selected = null;
+              renderSelectedRecord();
+              await renderUpdateForm();
+            }
+            state.bulkSelected = {};
+            const deleted = String(result.deleted || 0);
+            showToast('Bulk deleted ' + deleted + ' record(s).', 'success');
+            await reloadListWithStatus('Bulk deleted ' + deleted + ' record(s).', false);
+          } catch (error) {
+            showToast(String(error.message || error), 'danger');
+            setStatus(String(error.message || error));
+          }
+        },
+        'Delete ' + count
+      );
     };
+    els.closeConfirmModal.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
+    els.confirmModalCancel.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
+    els.confirmModalConfirm.onclick = () => { const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb(); };
+    els.confirmModal.addEventListener('click', (event) => {
+      if (event.target === els.confirmModal) {
+        pendingConfirmCallback = null;
+        closeModal(els.confirmModal);
+      }
+    });
+    if (els.darkModeToggle) {
+      els.darkModeToggle.addEventListener('click', toggleDarkMode);
+    }
 
     resetAdminState();
     updatePageChrome();
+    restoreTheme();
     const restoredToken = restoreToken();
     const flashMessage = consumeFlashMessage();
     renderAuthState();

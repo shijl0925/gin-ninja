@@ -556,8 +556,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "A cleaner sign-in for the standalone admin console.") {
-		t.Fatalf("expected polished login marketing copy in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "An AdminLTE-inspired sign-in for the standalone admin console.") {
+		t.Fatalf("expected AdminLTE-inspired login marketing copy in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "Demo credentials") {
 		t.Fatalf("expected demo credentials card in html: %q", loginHTML)
@@ -594,14 +594,17 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "const adminPagePath = '/admin'") {
 		t.Fatalf("expected standalone admin path in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "Admin Workspace") {
-		t.Fatalf("expected polished admin workspace header in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "Admin Workspace") {
+		t.Fatalf("expected compact admin workspace header copy to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "class=\"workspace-path muted\"") {
 		t.Fatalf("expected compact workspace summary markup in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';") {
 		t.Fatalf("expected shorter admin workspace summary copy in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "workspace-breadcrumbs") {
+		t.Fatalf("expected oversized workspace breadcrumbs to be removed from html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Refresh workspace") {
 		t.Fatalf("expected admin workspace refresh action to be removed from html: %q", adminHTML)
@@ -615,8 +618,26 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "Resource navigation") || !strings.Contains(adminHTML, "Switch workspaces") {
 		t.Fatalf("expected compact resource strip copy in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "Jump between resources from a compact strip so the main workspace can stay wider.") {
-		t.Fatalf("expected wider-workspace resource strip copy in html: %q", adminHTML)
+	if !strings.Contains(adminHTML, "Move between admin resources from a left-hand menu while keeping the workspace focused.") {
+		t.Fatalf("expected left-hand resource navigation copy in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "sidebar-brand-mark") || !strings.Contains(adminHTML, "Alexander Pierce") {
+		t.Fatalf("expected AdminLTE-style sidebar brand and user panel in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
+		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "aria-label=\"Search sidebar navigation\"") {
+		t.Fatalf("expected AdminLTE-style sidebar search box in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"sidebarResourceSearch\"") || !strings.Contains(adminHTML, "id=\"sidebarResourceSearchButton\"") {
+		t.Fatalf("expected searchable sidebar resource controls in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-copy\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-icon\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-text\">Resources</span>") {
+		t.Fatalf("expected AdminLTE-style resource treeview toggle markup in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "function filteredResources()") || !strings.Contains(adminHTML, "state.resourceSearch = els.sidebarResourceSearch.value.trim();") {
+		t.Fatalf("expected sidebar resource search filtering logic in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, ">Navigation<") {
 		t.Fatalf("expected old sidebar navigation label to be removed from html: %q", adminHTML)
@@ -624,8 +645,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if strings.Contains(adminHTML, "Choose a resource to manage records, filters, and bulk actions.") {
 		t.Fatalf("expected old sidebar helper copy to be removed from html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "class=\"panel resource-strip stack\"") {
-		t.Fatalf("expected horizontal resource strip shell in html: %q", adminHTML)
+	if !strings.Contains(adminHTML, "class=\"panel resource-strip stack sidebar-shell\"") {
+		t.Fatalf("expected admin sidebar resource shell in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
@@ -686,7 +707,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
 	}
-	if !strings.Contains(html, "resolveRelationSelection(items, select.value, term)") {
+	if !strings.Contains(html, "resolveRelationSelection(field, items, selectedRelationValues(select, field), term)") {
 		t.Fatalf("expected relation exact-id auto-selection flow in html: %q", html)
 	}
 	if !strings.Contains(html, "option.textContent = 'Choose ' + placeholderLabel;") {
@@ -758,11 +779,20 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "paginationInfo") {
 		t.Fatalf("expected pagination controls in html: %q", html)
 	}
-	if !strings.Contains(html, "id=\"status\" class=\"status-banner\"") {
-		t.Fatalf("expected status banner styling in html: %q", html)
+	if !strings.Contains(html, "id=\"status\" class=\"visually-hidden\" aria-live=\"polite\" aria-atomic=\"true\"") {
+		t.Fatalf("expected hidden live status region in html: %q", html)
+	}
+	if strings.Contains(html, "class=\"status-banner\"") {
+		t.Fatalf("expected visible status banner card to be removed from html: %q", html)
 	}
 	if !strings.Contains(html, "button.className = 'nav-link'") {
 		t.Fatalf("expected active resource navigation styling in html: %q", html)
+	}
+	if !strings.Contains(html, "sidebar-treeview.open .sidebar-treeview-toggle") || !strings.Contains(html, "box-shadow:0 0 0 3px rgba(60, 141, 188, 0.28);") {
+		t.Fatalf("expected AdminLTE-style sidebar menu styling in html: %q", html)
+	}
+	if strings.Contains(html, "nav-link-caret") {
+		t.Fatalf("expected sidebar submenu leaf caret to be removed from html: %q", html)
 	}
 	if strings.Contains(html, "renderActionSummary()") {
 		t.Fatalf("expected action pill rendering to be removed from html: %q", html)
@@ -778,6 +808,96 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "Deleted record #") {
 		t.Fatalf("expected delete flow in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"toastContainer\"") || !strings.Contains(html, "class=\"toast-container\"") {
+		t.Fatalf("expected toast notification container in html: %q", html)
+	}
+	if !strings.Contains(html, "function showToast(message, tone, durationMs)") {
+		t.Fatalf("expected showToast function in html: %q", html)
+	}
+	if !strings.Contains(html, "toast.dataset.tone = tone || inferStatusTone(message)") {
+		t.Fatalf("expected toast tone assignment in html: %q", html)
+	}
+	if !strings.Contains(html, "event.key === '/' && state.current") {
+		t.Fatalf("expected '/' keyboard shortcut to focus search in html: %q", html)
+	}
+	if !strings.Contains(html, "event.key === 'n' && !event.shiftKey") {
+		t.Fatalf("expected 'n' keyboard shortcut to open create modal in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"]") {
+		t.Fatalf("expected dark mode CSS custom properties in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"darkModeToggle\"") {
+		t.Fatalf("expected dark mode toggle button in html: %q", html)
+	}
+	if !strings.Contains(html, "function applyTheme(dark)") {
+		t.Fatalf("expected applyTheme function in html: %q", html)
+	}
+	if !strings.Contains(html, "function toggleDarkMode()") {
+		t.Fatalf("expected toggleDarkMode function in html: %q", html)
+	}
+	if !strings.Contains(html, "function restoreTheme()") {
+		t.Fatalf("expected restoreTheme function in html: %q", html)
+	}
+	if !strings.Contains(html, "localStorage.setItem(themeStorageKey") {
+		t.Fatalf("expected dark mode localStorage persistence in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"topbarSearchInput\"") {
+		t.Fatalf("expected topbar search input in html: %q", html)
+	}
+	if !strings.Contains(html, "id=\"topbarSearchResults\"") {
+		t.Fatalf("expected topbar search results panel in html: %q", html)
+	}
+	if !strings.Contains(html, "function globalSearch(query)") {
+		t.Fatalf("expected globalSearch function in html: %q", html)
+	}
+	if !strings.Contains(html, "function closeGlobalSearch()") {
+		t.Fatalf("expected closeGlobalSearch function in html: %q", html)
+	}
+	if !strings.Contains(html, "topbar-search-results") {
+		t.Fatalf("expected topbar-search-results CSS class in html: %q", html)
+	}
+	if !strings.Contains(html, "sortable-th") {
+		t.Fatalf("expected sortable-th CSS class in html: %q", html)
+	}
+	if !strings.Contains(html, "function applySortFromHeader(field)") {
+		t.Fatalf("expected applySortFromHeader function in html: %q", html)
+	}
+	if !strings.Contains(html, "function activeSortField()") {
+		t.Fatalf("expected activeSortField function in html: %q", html)
+	}
+	if !strings.Contains(html, "function closeActionMenuPortal()") {
+		t.Fatalf("expected closeActionMenuPortal function in html: %q", html)
+	}
+	if !strings.Contains(html, "function openActionMenuAt(triggerEl") {
+		t.Fatalf("expected openActionMenuAt function in html: %q", html)
+	}
+	if !strings.Contains(html, "action-menu-portal") {
+		t.Fatalf("expected action-menu-portal in html: %q", html)
+	}
+	if !strings.Contains(html, ".table-shell { background: var(--admin-surface)") {
+		t.Fatalf("expected dark mode table-shell override in html: %q", html)
+	}
+	if !strings.Contains(html, ".detail-card { background: var(--admin-surface)") {
+		t.Fatalf("expected dark mode detail-card override in html: %q", html)
+	}
+	if !strings.Contains(html, ".action-menu-trigger,") {
+		t.Fatalf("expected dark mode action-menu-trigger override in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] th { background: #22253a; color: var(--admin-muted); }") {
+		t.Fatalf("expected dark mode th override in html: %q", html)
+	}
+	if !strings.Contains(html, ".topbar-user-avatar { background: #2d3242") {
+		t.Fatalf("expected dark mode topbar-user-avatar override in html: %q", html)
+	}
+	if !strings.Contains(html, "button:hover:not(:disabled) { filter: brightness(1.15)") {
+		t.Fatalf("expected dark mode button hover filter reversal in html: %q", html)
+	}
+	if !strings.Contains(html, "const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb()") {
+		t.Fatalf("expected safe confirm callback invocation in html: %q", html)
+	}
+	if !strings.Contains(html, ".action-menu-item.danger { background:transparent; color:var(--admin-danger); border-color:transparent; }") {
+		t.Fatalf("expected action menu danger item override in html: %q", html)
 	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
@@ -1115,6 +1235,27 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	aliceToken := login("alice@example.com")
 	bobToken := login("bob@example.com")
 
+	for _, role := range []map[string]any{
+		{
+			"name":   "Administrators",
+			"code":   "admin",
+			"status": 1,
+			"remark": "full access",
+		},
+		{
+			"name":   "Editors",
+			"code":   "editor",
+			"status": 1,
+			"remark": "content editors",
+		},
+	} {
+		createRoleResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/roles", role, aliceToken)
+		if createRoleResp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected role create 201, got %d body=%s", createRoleResp.StatusCode, readBody(t, createRoleResp.Body))
+		}
+		createRoleResp.Body.Close()
+	}
+
 	resourceIndexResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources", nil, aliceToken)
 	if resourceIndexResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected admin resource index 200, got %d", resourceIndexResp.StatusCode)
@@ -1130,14 +1271,14 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 		t.Fatalf("decode resource index: %v", err)
 	}
 	resourceIndexResp.Body.Close()
-	if len(resourceIndex.Resources) != 2 {
-		t.Fatalf("expected 2 admin resources, got %+v", resourceIndex.Resources)
+	if len(resourceIndex.Resources) != 3 {
+		t.Fatalf("expected 3 admin resources, got %+v", resourceIndex.Resources)
 	}
 	resourcePaths := map[string]string{}
 	for _, resource := range resourceIndex.Resources {
 		resourcePaths[resource.Name] = resource.Path
 	}
-	if resourcePaths["users"] != "/users" || resourcePaths["projects"] != "/projects" {
+	if resourcePaths["users"] != "/users" || resourcePaths["roles"] != "/roles" || resourcePaths["projects"] != "/projects" {
 		t.Fatalf("unexpected admin resources: %+v", resourceIndex.Resources)
 	}
 
@@ -1149,6 +1290,15 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 		Actions      []string `json:"actions"`
 		CreateFields []string `json:"create_fields"`
 		UpdateFields []string `json:"update_fields"`
+		Fields       []struct {
+			Name      string `json:"name"`
+			Type      string `json:"type"`
+			Component string `json:"component"`
+			Relation  *struct {
+				Resource   string `json:"resource"`
+				LabelField string `json:"label_field"`
+			} `json:"relation"`
+		} `json:"fields"`
 	}
 	if err := json.NewDecoder(usersMetaResp.Body).Decode(&usersMeta); err != nil {
 		t.Fatalf("decode users metadata: %v", err)
@@ -1166,6 +1316,36 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	if !strings.Contains(strings.Join(usersMeta.CreateFields, ","), "password") || !strings.Contains(strings.Join(usersMeta.UpdateFields, ","), "password") {
 		t.Fatalf("expected password field in users metadata create/update fields, got %+v", usersMeta)
 	}
+	if !strings.Contains(strings.Join(usersMeta.CreateFields, ","), "role_ids") || !strings.Contains(strings.Join(usersMeta.UpdateFields, ","), "role_ids") {
+		t.Fatalf("expected role_ids field in users metadata create/update fields, got %+v", usersMeta)
+	}
+	var roleIDsFieldFound bool
+	for _, field := range usersMeta.Fields {
+		if field.Name == "role_ids" && field.Type == "array" && field.Component == "select" && field.Relation != nil && field.Relation.Resource == "roles" && field.Relation.LabelField == "name" {
+			roleIDsFieldFound = true
+		}
+	}
+	if !roleIDsFieldFound {
+		t.Fatalf("expected role_ids relation metadata, got %+v", usersMeta.Fields)
+	}
+
+	roleOptionsResp := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users/fields/role_ids/options?search=adm", nil, aliceToken)
+	if roleOptionsResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected role relation selector 200, got %d", roleOptionsResp.StatusCode)
+	}
+	var roleOptions struct {
+		Items []struct {
+			Value float64 `json:"value"`
+			Label string  `json:"label"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(roleOptionsResp.Body).Decode(&roleOptions); err != nil {
+		t.Fatalf("decode role options: %v", err)
+	}
+	roleOptionsResp.Body.Close()
+	if len(roleOptions.Items) != 1 || roleOptions.Items[0].Value != 1 || roleOptions.Items[0].Label != "Administrators" {
+		t.Fatalf("unexpected role relation selector payload: %+v", roleOptions.Items)
+	}
 
 	createUserResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/users", map[string]any{
 		"name":     "  Carol Admin  ",
@@ -1173,6 +1353,7 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 		"password": "password123",
 		"age":      27,
 		"is_admin": true,
+		"role_ids": []int{1, 2},
 	}, aliceToken)
 	if createUserResp.StatusCode != http.StatusCreated {
 		t.Fatalf("expected admin user create 201, got %d body=%s", createUserResp.StatusCode, readBody(t, createUserResp.Body))
@@ -1190,6 +1371,10 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	if createdUser.Item["is_admin"] != true {
 		t.Fatalf("expected created user to preserve is_admin=true, got %+v", createdUser.Item)
 	}
+	roleIDs, ok := createdUser.Item["role_ids"].([]any)
+	if !ok || len(roleIDs) != 2 || roleIDs[0] != float64(1) || roleIDs[1] != float64(2) {
+		t.Fatalf("expected created user role_ids [1 2], got %+v", createdUser.Item["role_ids"])
+	}
 	if _, ok := createdUser.Item["password"]; ok {
 		t.Fatalf("expected password to stay hidden in admin response, got %+v", createdUser.Item)
 	}
@@ -1200,9 +1385,10 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	_ = login("carol@example.com")
 
 	updateUserResp := doFullJSON(t, server, http.MethodPut, "/api/v1/admin/resources/users/3", map[string]any{
-		"name":  "  Carol Updated  ",
-		"email": "  CAROL.UPDATED@EXAMPLE.COM ",
-		"age":   28,
+		"name":     "  Carol Updated  ",
+		"email":    "  CAROL.UPDATED@EXAMPLE.COM ",
+		"age":      28,
+		"role_ids": []int{2},
 	}, aliceToken)
 	if updateUserResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected admin user update 200, got %d body=%s", updateUserResp.StatusCode, readBody(t, updateUserResp.Body))
@@ -1216,6 +1402,10 @@ func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
 	updateUserResp.Body.Close()
 	if updatedUser.Item["name"] != "Carol Updated" || updatedUser.Item["email"] != "carol.updated@example.com" {
 		t.Fatalf("expected normalized updated user payload, got %+v", updatedUser.Item)
+	}
+	updatedRoleIDs, ok := updatedUser.Item["role_ids"].([]any)
+	if !ok || len(updatedRoleIDs) != 1 || updatedRoleIDs[0] != float64(2) {
+		t.Fatalf("expected updated user role_ids [2], got %+v", updatedUser.Item["role_ids"])
 	}
 
 	_ = login("carol.updated@example.com")
@@ -1346,11 +1536,29 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
 
-	waitForBrowserText(t, ctx, "#resources", "Users (users)")
-	waitForBrowserText(t, ctx, "#resources", "Projects (projects)")
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resources", "Roles")
+	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 
-	clickBrowser(t, ctx, "#resources li:nth-child(2) .nav-link")
+	setBrowserValue(t, ctx, "#sidebarResourceSearch", "proj")
+	waitForBrowserCondition(t, ctx, "sidebar resource search filters navigation", `(() => {
+		const resources = document.querySelector("#resources");
+		return !!resources && resources.textContent.includes("Projects") && !resources.textContent.includes("Users");
+	})()`)
+	clickBrowser(t, ctx, "#sidebarResourceSearchButton")
+	waitForBrowserCondition(t, ctx, "sidebar resource search reset restores navigation", `(() => {
+		const resources = document.querySelector("#resources");
+		const search = document.querySelector("#sidebarResourceSearch");
+		return !!resources && !!search && search.value === "" && resources.textContent.includes("Users") && resources.textContent.includes("Projects");
+	})()`)
+
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const button = Array.from(document.querySelectorAll('#resources .nav-link'))
+			.find((node) => node.textContent && node.textContent.includes('Projects'));
+		if (button) button.click();
+		return !!button;
+	})()`, nil))
 	waitForBrowserText(t, ctx, "#resourceTitle", "Projects")
 	waitForBrowserEnabled(t, ctx, "#openCreateModal")
 	waitForBrowserExists(t, ctx, "#createForm textarea[name='title']")
@@ -1375,6 +1583,11 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Created a new projects record.")
 	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+	// Toast should appear for successful create
+	waitForBrowserCondition(t, ctx, "create toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("Created a new projects record.");
+	})()`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
 	waitForBrowserVisible(t, ctx, "#recordModal")
@@ -1392,18 +1605,333 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Updated record #1.")
 	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+	// Toast should appear for successful update
+	waitForBrowserCondition(t, ctx, "update toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("Updated record #1.");
+	})()`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
 	waitForBrowserText(t, ctx, "#detailFields", "updated through browser flow")
 	clickBrowser(t, ctx, "#closeRecordModal")
+
+	// Verify '/' keyboard shortcut focuses the search input
+	waitForBrowserCondition(t, ctx, "search input exists before shortcut", `document.getElementById('search') !== null`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child td:first-child input[type='checkbox']")
 	waitForBrowserText(t, ctx, "#selectedCountBadge", "1 selected")
 	waitForBrowserEnabled(t, ctx, "#bulkDelete")
 	clickBrowser(t, ctx, "#bulkDelete")
 
+	// Confirm the bulk delete in the confirm dialog
+	waitForBrowserVisible(t, ctx, "#confirmModal")
+	waitForBrowserExists(t, ctx, "#confirmModalConfirm")
+	clickBrowser(t, ctx, "#confirmModalConfirm")
+
 	waitForBrowserText(t, ctx, "#status", "Bulk deleted 1 record(s).")
 	waitForBrowserText(t, ctx, "#list", "No records matched the current filters.")
+	// Toast should appear for successful bulk delete
+	waitForBrowserCondition(t, ctx, "bulk delete toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("Bulk deleted 1 record(s).");
+	})()`)
+}
+
+func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#darkModeToggle")
+
+	// By default the page should NOT be in dark mode
+	waitForBrowserCondition(t, ctx, "page starts in light mode", `document.documentElement.getAttribute('data-theme') !== 'dark'`)
+
+	// Click the toggle — should enter dark mode
+	clickBrowser(t, ctx, "#darkModeToggle")
+	waitForBrowserCondition(t, ctx, "dark mode activated after toggle", `document.documentElement.getAttribute('data-theme') === 'dark'`)
+
+	// Sun icon should be visible, moon icon should be hidden
+	waitForBrowserCondition(t, ctx, "sun icon visible in dark mode", `!document.getElementById('darkModeIconSun').hidden`)
+	waitForBrowserCondition(t, ctx, "moon icon hidden in dark mode", `document.getElementById('darkModeIconMoon').hidden`)
+
+	// Click again — should return to light mode
+	clickBrowser(t, ctx, "#darkModeToggle")
+	waitForBrowserCondition(t, ctx, "light mode restored after second toggle", `document.documentElement.getAttribute('data-theme') !== 'dark'`)
+
+	// Moon icon should be visible, sun icon hidden
+	waitForBrowserCondition(t, ctx, "moon icon visible in light mode", `!document.getElementById('darkModeIconMoon').hidden`)
+	waitForBrowserCondition(t, ctx, "sun icon hidden in light mode", `document.getElementById('darkModeIconSun').hidden`)
+}
+
+func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+		"email":    "alice@example.com",
+		"password": "password123",
+	}, "")
+	if login.StatusCode != http.StatusCreated {
+		t.Fatalf("expected login 201, got %d body=%s", login.StatusCode, readBody(t, login.Body))
+	}
+	var auth struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	login.Body.Close()
+
+	for _, role := range []map[string]any{
+		{"name": "Administrators", "code": "admin", "status": 1, "remark": "full access"},
+		{"name": "Editors", "code": "editor", "status": 1, "remark": "content editors"},
+	} {
+		createRoleResp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/roles", role, auth.Token)
+		if createRoleResp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected role create 201, got %d body=%s", createRoleResp.StatusCode, readBody(t, createRoleResp.Body))
+		}
+		createRoleResp.Body.Close()
+	}
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resources", "Roles")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserEnabled(t, ctx, "#openCreateModal")
+
+	clickBrowser(t, ctx, "#openCreateModal")
+	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserExists(t, ctx, "#createForm details.multi-relation-dropdown")
+	waitForBrowserCondition(t, ctx, "role multiselect dropdown options loaded", `(() => {
+		const menu = document.querySelector("#createForm .multi-relation-menu");
+		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Administrators")) && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Editors"));
+	})()`)
+
+	setBrowserValue(t, ctx, "#createForm textarea[name='name']", "Role User")
+	setBrowserValue(t, ctx, "#createForm input[name='email']", "role.user@example.com")
+	setBrowserValue(t, ctx, "#createForm input[name='password']", "password123")
+	setBrowserValue(t, ctx, "#createForm input[name='age']", "31")
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const dropdown = document.querySelector("#createForm details.multi-relation-dropdown");
+		if (!dropdown) return "";
+		dropdown.open = true;
+		Array.from(dropdown.querySelectorAll(".multi-relation-option")).forEach((option) => {
+			const checkbox = option.querySelector("input[type='checkbox']");
+			const shouldSelect = option.textContent.includes("Administrators") || option.textContent.includes("Editors");
+			if (checkbox && checkbox.checked !== shouldSelect) checkbox.click();
+		});
+		const select = document.querySelector("#createForm select[name='role_ids']");
+		return select ? Array.from(select.selectedOptions).map((option) => option.value).join(",") : "";
+	})()`, nil))
+	clickBrowser(t, ctx, "#createForm button[type='submit']")
+
+	waitForBrowserText(t, ctx, "#status", "Created a new users record.")
+	waitForBrowserText(t, ctx, "#list", "Role User")
+	waitForBrowserCondition(t, ctx, "created user visible with role ids", `document.getElementById('list').textContent.includes('Role User')`)
+
+	clickBrowser(t, ctx, "#list tbody tr:last-child .action-btn-view")
+	waitForBrowserVisible(t, ctx, "#recordModal")
+	waitForBrowserText(t, ctx, "#detailFields", "[1,2]")
+	clickBrowser(t, ctx, "#closeRecordModal")
+
+	clickBrowser(t, ctx, "#list tbody tr:last-child .action-menu-trigger")
+	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
+	clickBrowser(t, ctx, ".action-menu-list.open .action-menu-item")
+	waitForBrowserVisible(t, ctx, "#editModal")
+	waitForBrowserExists(t, ctx, "#updateForm details.multi-relation-dropdown")
+	waitForBrowserCondition(t, ctx, "update multiselect dropdown options loaded", `(() => {
+		const menu = document.querySelector("#updateForm .multi-relation-menu");
+		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Administrators")) && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Editors"));
+	})()`)
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const dropdown = document.querySelector("#updateForm details.multi-relation-dropdown");
+		if (!dropdown) return "";
+		dropdown.open = true;
+		Array.from(dropdown.querySelectorAll(".multi-relation-option")).forEach((option) => {
+			const checkbox = option.querySelector("input[type='checkbox']");
+			const shouldSelect = option.textContent.includes("Editors");
+			if (checkbox && checkbox.checked !== shouldSelect) checkbox.click();
+		});
+		const select = document.querySelector("#updateForm select[name='role_ids']");
+		return select ? Array.from(select.selectedOptions).map((option) => option.value).join(",") : "";
+	})()`, nil))
+	clickBrowser(t, ctx, "#updateForm button[type='submit']")
+
+	waitForBrowserText(t, ctx, "#status", "Updated record #2.")
+	clickBrowser(t, ctx, "#list tbody tr:last-child .action-btn-view")
+	waitForBrowserText(t, ctx, "#detailFields", "[2]")
+}
+
+func TestFullExampleAdminPrototypeActionMenuPortal(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserCondition(t, ctx, "list table loaded", `document.querySelector('#list table') !== null`)
+
+	// Clicking the ··· trigger should open the portal menu (not inside the table)
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
+	waitForBrowserCondition(t, ctx, "action menu portal opened", `document.querySelector('#action-menu-portal .action-menu-list.open') !== null`)
+
+	// The portal menu must be a direct child of body (not inside table-shell)
+	waitForBrowserCondition(t, ctx, "action menu portal is direct child of body", `
+		document.getElementById('action-menu-portal') !== null &&
+		document.getElementById('action-menu-portal').parentElement === document.body
+	`)
+
+	// Clicking outside should close the portal
+	runBrowser(t, ctx, chromedp.Evaluate(`document.body.click()`, nil))
+	waitForBrowserCondition(t, ctx, "action menu portal closed after outside click", `document.querySelector('#action-menu-portal .action-menu-list.open') === null`)
+
+	// Pressing Escape after re-opening should also close it
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
+	waitForBrowserCondition(t, ctx, "action menu portal re-opened", `document.querySelector('#action-menu-portal .action-menu-list.open') !== null`)
+	runBrowser(t, ctx, chromedp.KeyEvent("\x1b"))
+	waitForBrowserCondition(t, ctx, "action menu portal closed by Escape", `document.querySelector('#action-menu-portal .action-menu-list.open') === null`)
+}
+
+func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	// Register Alice
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	// Navigate to admin prototype and sign in via the login form
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	// Wait for resources to load
+	waitForBrowserText(t, ctx, "#resources", "Users")
+
+	// The topbar search input should exist in the page
+	waitForBrowserCondition(t, ctx, "topbar search input exists", `!!document.getElementById('topbarSearchInput')`)
+	// The results panel should start hidden (no has-results class)
+	waitForBrowserCondition(t, ctx, "search results panel initially hidden", `!document.getElementById('topbarSearchResults').classList.contains('has-results')`)
+
+	// Open the search expand by clicking the search toggle
+	clickBrowser(t, ctx, "#topbarSearchToggle")
+	waitForBrowserCondition(t, ctx, "search expand opens", `document.getElementById('topbarSearchExpand').classList.contains('open')`)
+	waitForBrowserVisible(t, ctx, "#topbarSearchInput")
+
+	// Pressing Escape should close the search expand
+	runBrowser(t, ctx, chromedp.Focus("#topbarSearchInput"))
+	runBrowser(t, ctx, chromedp.KeyEvent("\x1b"))
+	waitForBrowserCondition(t, ctx, "search expand closes on Escape", `!document.getElementById('topbarSearchExpand').classList.contains('open')`)
+}
+
+func TestFullExampleAdminPrototypeSortableColumns(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	// Register and sign in
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	// Wait for resources and list to load
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserCondition(t, ctx, "list has at least one row", `document.querySelector('#list table') !== null`)
+
+	// There should be sortable column headers in the Users table
+	waitForBrowserCondition(t, ctx, "sortable header exists", `document.querySelector('th.sortable-th') !== null`)
+
+	// Clicking a sortable header should update the sort dropdown to ascending
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const th = document.querySelector('th.sortable-th');
+		if (th) th.click();
+		return !!th;
+	})()`, nil))
+
+	// The sort select should now have a non-empty value (ascending sort was applied)
+	waitForBrowserCondition(t, ctx, "sort select updated after header click", `document.getElementById('sort').value !== ''`)
+	// Wait for list to finish re-rendering before next click
+	waitForBrowserCondition(t, ctx, "list table re-rendered after first click", `document.querySelector('#list th.sortable-th') !== null`)
+
+	// Clicking again should switch to descending
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const th = document.querySelector('th.sortable-th');
+		if (th) th.click();
+		return !!th;
+	})()`, nil))
+	waitForBrowserCondition(t, ctx, "sort select shows descending after second click", `document.getElementById('sort').value.startsWith('-')`)
+	// Wait for list to finish re-rendering before next click
+	waitForBrowserCondition(t, ctx, "list table re-rendered after second click", `document.querySelector('#list th.sortable-th.sort-desc') !== null`)
+
+	// Clicking a third time should clear the sort (return to default)
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const th = document.querySelector('th.sortable-th');
+		if (th) th.click();
+		return !!th;
+	})()`, nil))
+	waitForBrowserCondition(t, ctx, "sort select cleared after third click", `document.getElementById('sort').value === ''`)
 }
 
 func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
@@ -1434,7 +1962,7 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 
 	waitForBrowserPath(t, ctx, "/admin")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
-	waitForBrowserText(t, ctx, "#resources", "Projects (projects)")
+	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserCondition(t, ctx, "#adminShell visible", `(() => {
 		const el = document.querySelector("#adminShell");
 		return !!el && !el.hidden;
