@@ -1724,10 +1724,10 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 
 	clickBrowser(t, ctx, "#openCreateModal")
 	waitForBrowserVisible(t, ctx, "#createModal")
-	waitForBrowserExists(t, ctx, "#createForm select[name='role_ids']")
-	waitForBrowserCondition(t, ctx, "role multiselect options loaded", `(() => {
-		const select = document.querySelector("#createForm select[name='role_ids']");
-		return !!select && Array.from(select.options).some((option) => option.value === "1") && Array.from(select.options).some((option) => option.value === "2");
+	waitForBrowserExists(t, ctx, "#createForm details.multi-relation-dropdown")
+	waitForBrowserCondition(t, ctx, "role multiselect dropdown options loaded", `(() => {
+		const menu = document.querySelector("#createForm .multi-relation-menu");
+		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Administrators")) && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Editors"));
 	})()`)
 
 	setBrowserValue(t, ctx, "#createForm textarea[name='name']", "Role User")
@@ -1735,12 +1735,16 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 	setBrowserValue(t, ctx, "#createForm input[name='password']", "password123")
 	setBrowserValue(t, ctx, "#createForm input[name='age']", "31")
 	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
-		const select = document.querySelector("#createForm select[name='role_ids']");
-		Array.from(select.options).forEach((option) => {
-			option.selected = option.value === "1" || option.value === "2";
+		const dropdown = document.querySelector("#createForm details.multi-relation-dropdown");
+		if (!dropdown) return "";
+		dropdown.open = true;
+		Array.from(dropdown.querySelectorAll(".multi-relation-option")).forEach((option) => {
+			const checkbox = option.querySelector("input[type='checkbox']");
+			const shouldSelect = option.textContent.includes("Administrators") || option.textContent.includes("Editors");
+			if (checkbox && checkbox.checked !== shouldSelect) checkbox.click();
 		});
-		select.dispatchEvent(new Event("change", { bubbles: true }));
-		return Array.from(select.selectedOptions).map((option) => option.value).join(",");
+		const select = document.querySelector("#createForm select[name='role_ids']");
+		return select ? Array.from(select.selectedOptions).map((option) => option.value).join(",") : "";
 	})()`, nil))
 	clickBrowser(t, ctx, "#createForm button[type='submit']")
 
@@ -1757,18 +1761,22 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
 	clickBrowser(t, ctx, ".action-menu-list.open .action-menu-item")
 	waitForBrowserVisible(t, ctx, "#editModal")
-	waitForBrowserExists(t, ctx, "#updateForm select[name='role_ids']")
-	waitForBrowserCondition(t, ctx, "update multiselect options loaded", `(() => {
-		const select = document.querySelector("#updateForm select[name='role_ids']");
-		return !!select && Array.from(select.options).some((option) => option.value === "1") && Array.from(select.options).some((option) => option.value === "2");
+	waitForBrowserExists(t, ctx, "#updateForm details.multi-relation-dropdown")
+	waitForBrowserCondition(t, ctx, "update multiselect dropdown options loaded", `(() => {
+		const menu = document.querySelector("#updateForm .multi-relation-menu");
+		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Administrators")) && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Editors"));
 	})()`)
 	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
-		const select = document.querySelector("#updateForm select[name='role_ids']");
-		Array.from(select.options).forEach((option) => {
-			option.selected = option.value === "2";
+		const dropdown = document.querySelector("#updateForm details.multi-relation-dropdown");
+		if (!dropdown) return "";
+		dropdown.open = true;
+		Array.from(dropdown.querySelectorAll(".multi-relation-option")).forEach((option) => {
+			const checkbox = option.querySelector("input[type='checkbox']");
+			const shouldSelect = option.textContent.includes("Editors");
+			if (checkbox && checkbox.checked !== shouldSelect) checkbox.click();
 		});
-		select.dispatchEvent(new Event("change", { bubbles: true }));
-		return Array.from(select.selectedOptions).map((option) => option.value).join(",");
+		const select = document.querySelector("#updateForm select[name='role_ids']");
+		return select ? Array.from(select.selectedOptions).map((option) => option.value).join(",") : "";
 	})()`, nil))
 	clickBrowser(t, ctx, "#updateForm button[type='submit']")
 
