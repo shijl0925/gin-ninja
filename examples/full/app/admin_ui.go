@@ -1364,7 +1364,7 @@ const adminPrototypeHTML = `<!doctype html>
       toast.appendChild(msg);
       toast.appendChild(closeBtn);
       els.toastContainer.appendChild(toast);
-      const timeout = durationMs != null ? durationMs : 4000;
+      const timeout = durationMs !== undefined ? durationMs : 4000;
       if (timeout > 0) {
         setTimeout(() => { if (toast.parentNode) toast.remove(); }, timeout);
       }
