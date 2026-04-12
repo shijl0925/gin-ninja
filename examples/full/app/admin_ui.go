@@ -81,10 +81,6 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] textarea { background: #22253a; color: var(--admin-text); border-color: var(--admin-border); }
     [data-theme="dark"] input::placeholder,
     [data-theme="dark"] textarea::placeholder { color: var(--admin-muted); }
-    [data-theme="dark"] .status-banner { background: var(--admin-surface); border-left-color: var(--admin-primary); color: var(--admin-text); }
-    [data-theme="dark"] .status-banner[data-tone="success"] { background: #0d2e1a; border-left-color: var(--admin-success); color: #86efac; }
-    [data-theme="dark"] .status-banner[data-tone="danger"] { background: #2d0f0f; border-left-color: var(--admin-danger); color: #fca5a5; }
-    [data-theme="dark"] .status-banner[data-tone="info"] { background: #0d1e2e; border-left-color: var(--admin-primary); color: #7dd3fc; }
     [data-theme="dark"] table { color: var(--admin-text); }
     [data-theme="dark"] thead tr { background: #22253a; }
     [data-theme="dark"] th { background: #22253a; color: var(--admin-muted); }
@@ -491,19 +487,7 @@ const adminPrototypeHTML = `<!doctype html>
       border-radius:999px;
       padding:6px 11px;
     }
-    .status-banner {
-      border-radius: var(--admin-radius);
-      border-left:4px solid #adb5bd;
-      background:#fff;
-      color:#495057;
-      padding:13px 16px;
-      font-size:14px;
-      line-height:1.5;
-      box-shadow: var(--admin-shadow);
-    }
-    .status-banner[data-tone="info"] { border-left-color:var(--admin-primary); background:#f0f7fb; color:var(--admin-primary-dark); }
-    .status-banner[data-tone="success"] { border-left-color:var(--admin-success); background:#eefaf4; color:#008d4c; }
-    .status-banner[data-tone="danger"] { border-left-color:var(--admin-danger); background:#fdf1ef; color:#b03a2e; }
+    .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0, 0, 0, 0); white-space:nowrap; border:0; }
     .login-shell { display:grid; gap:20px; }
     .session-panel { position:relative; overflow:hidden; }
     .login-marketing, .login-lead, .login-credentials { display:none; }
@@ -814,37 +798,27 @@ const adminPrototypeHTML = `<!doctype html>
     .workspace { min-width:0; }
     .workspace-header {
       display:flex;
-      gap:14px 16px;
-      align-items:flex-start;
+      gap:10px 16px;
+      align-items:center;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:20px;
+      padding:14px 16px;
       border-top-color:var(--admin-primary);
     }
-    .workspace-header-copy { display:grid; gap:8px; flex:1 1 420px; min-width:0; }
+    .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
     .workspace-header-copy p { margin:0; }
-    .workspace-header-copy h2 { font-size:clamp(1.6rem, 2vw, 2rem); line-height:1.1; }
-    .workspace-breadcrumbs {
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      align-items:center;
-      font-size:12px;
-      color:var(--admin-muted);
-    }
-    .workspace-breadcrumbs strong { color:var(--admin-primary-dark); }
+    .workspace-header-copy h2 { font-size:clamp(1.35rem, 1.8vw, 1.65rem); line-height:1.15; }
     .workspace-path {
       display:inline-flex;
       width:max-content;
       max-width:100%;
       align-items:center;
       padding:0;
-      font-size:13px;
-      line-height:1.45;
+      font-size:12px;
+      line-height:1.35;
       color:var(--admin-muted);
     }
-    .workspace-meta { display:flex; gap:10px; align-items:center; justify-content:flex-end; flex:0 0 auto; margin-left:auto; }
     .content-grid { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:14px; }
     .section-heading { display:grid; gap:6px; }
@@ -1158,7 +1132,7 @@ const adminPrototypeHTML = `<!doctype html>
     </div>
   </header>
   <main class="app-main">
-    <div id="status" class="status-banner" data-tone="neutral">Ready.</div>
+    <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
       <section class="panel login-marketing">
         <span class="eyebrow">Admin Console</span>
@@ -1258,21 +1232,11 @@ const adminPrototypeHTML = `<!doctype html>
       <section class="workspace stack">
         <section class="panel workspace-header">
           <div class="workspace-header-copy">
-            <span class="eyebrow subtle">Admin Workspace</span>
-            <div class="workspace-breadcrumbs">
-              <span>Dashboard</span>
-              <span>/</span>
-              <span>Resources</span>
-              <span>/</span>
-              <strong>Active workspace</strong>
-            </div>
             <h2 id="resourceTitle">Select a resource</h2>
             <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
           </div>
-          <div class="workspace-meta">
-            <div class="workspace-actions">
-              <button id="openCreateModal" type="button">Create record</button>
-            </div>
+          <div class="workspace-actions">
+            <button id="openCreateModal" type="button">Create record</button>
           </div>
         </section>
         <section id="dashboardShell" class="panel stack" hidden>

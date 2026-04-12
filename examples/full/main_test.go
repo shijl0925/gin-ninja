@@ -594,14 +594,17 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "const adminPagePath = '/admin'") {
 		t.Fatalf("expected standalone admin path in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "Admin Workspace") {
-		t.Fatalf("expected polished admin workspace header in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "Admin Workspace") {
+		t.Fatalf("expected compact admin workspace header copy to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "class=\"workspace-path muted\"") {
 		t.Fatalf("expected compact workspace summary markup in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';") {
 		t.Fatalf("expected shorter admin workspace summary copy in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "workspace-breadcrumbs") {
+		t.Fatalf("expected oversized workspace breadcrumbs to be removed from html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Refresh workspace") {
 		t.Fatalf("expected admin workspace refresh action to be removed from html: %q", adminHTML)
@@ -773,8 +776,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "paginationInfo") {
 		t.Fatalf("expected pagination controls in html: %q", html)
 	}
-	if !strings.Contains(html, "id=\"status\" class=\"status-banner\"") {
-		t.Fatalf("expected status banner styling in html: %q", html)
+	if !strings.Contains(html, "id=\"status\" class=\"visually-hidden\" aria-live=\"polite\" aria-atomic=\"true\"") {
+		t.Fatalf("expected hidden live status region in html: %q", html)
+	}
+	if strings.Contains(html, "class=\"status-banner\"") {
+		t.Fatalf("expected visible status banner card to be removed from html: %q", html)
 	}
 	if !strings.Contains(html, "button.className = 'nav-link'") {
 		t.Fatalf("expected active resource navigation styling in html: %q", html)
