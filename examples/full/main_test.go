@@ -1537,6 +1537,7 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	clickBrowser(t, ctx, "#loginButton")
 
 	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resources", "Roles")
 	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 
