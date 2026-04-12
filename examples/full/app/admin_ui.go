@@ -1371,6 +1371,7 @@ const adminPrototypeHTML = `<!doctype html>
     const themeStorageKey = 'gin-ninja-admin-theme';
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
+    const stringLikeComponents = new Set(['text', 'textarea', 'email']);
     const adminPagePath = '/admin';
     const adminLoginPath = '/admin/login';
     const prototypePagePath = '/admin-prototype';
@@ -1553,7 +1554,7 @@ const adminPrototypeHTML = `<!doctype html>
 
     function recordDisplayLabel(record, fields) {
       // Pick the first string-like field that isn't the primary key for a summary
-      const strField = (fields || []).find((f) => f.name !== 'id' && (f.component === 'text' || f.component === 'textarea' || f.component === 'email' || !f.component));
+      const strField = (fields || []).find((f) => f.name !== 'id' && (stringLikeComponents.has(f.component) || !f.component));
       if (strField) {
         const val = record[strField.name];
         if (val !== undefined && val !== null && val !== '') return String(val);
