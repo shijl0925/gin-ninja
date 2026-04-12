@@ -689,42 +689,63 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:10px;
+      gap:12px;
       width:100%;
-      padding:10px 14px;
+      padding:11px 14px;
       background:transparent;
       border:none;
-      border-radius:0.35rem;
+      border-radius:0.25rem;
       box-shadow:none;
       color:#c2c7d0;
-      text-transform:uppercase;
-      letter-spacing:0.08em;
-      font-size:11px;
-      font-weight:700;
+      font-size:15px;
+      font-weight:400;
+      line-height:1.3;
+      transition:background 120ms ease, color 120ms ease;
     }
-    .sidebar-treeview-toggle:hover {
-      background:rgba(255,255,255,0.04);
-      color:#f8f9fa;
+    .sidebar-treeview-toggle-copy {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
     }
+    .sidebar-treeview-toggle-icon,
     .sidebar-treeview-caret {
       flex-shrink:0;
-      font-size:14px;
-      line-height:1;
-      color:rgba(255,255,255,0.55);
+      width:16px;
+      height:16px;
+      display:grid;
+      place-items:center;
+      color:#6c757d;
       transition:transform 120ms ease, color 120ms ease;
     }
+    .sidebar-treeview-toggle-text {
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .sidebar-treeview-toggle:hover,
+    .sidebar-treeview.open .sidebar-treeview-toggle {
+      background:rgba(255,255,255,0.08);
+      color:#fff;
+    }
+    .sidebar-treeview-toggle:hover .sidebar-treeview-toggle-icon,
+    .sidebar-treeview-toggle:hover .sidebar-treeview-caret,
+    .sidebar-treeview.open .sidebar-treeview-toggle-icon,
     .sidebar-treeview.open .sidebar-treeview-caret {
-      transform:rotate(90deg);
+      color:#c2c7d0;
+    }
+    .sidebar-treeview.open .sidebar-treeview-caret {
+      transform:rotate(-90deg);
       color:#fff;
     }
     .nav-list { list-style:none; margin:0; padding:0; display:grid; gap:4px; }
     .nav-list li { margin:0; min-width:0; }
     .sidebar-treeview-menu {
       display:grid;
-      gap:4px;
-      padding-left:12px;
-      margin-left:10px;
-      border-left:1px solid rgba(255,255,255,0.08);
+      gap:2px;
+      padding:2px 0 0;
+      margin:0;
     }
     .sidebar-treeview:not(.open) .sidebar-treeview-menu { display:none; }
     .nav-link {
@@ -734,24 +755,16 @@ const adminPrototypeHTML = `<!doctype html>
       background:transparent;
       color:var(--admin-sidebar-text);
       border:none;
-      border-radius:0.35rem;
-      padding:11px 14px 11px 18px;
+      border-radius:0.25rem;
+      padding:9px 14px 9px 34px;
       display:flex;
       align-items:center;
-      gap:10px;
+      gap:12px;
+      font-size:14px;
       font-weight:400;
+      line-height:1.25;
       box-shadow:none;
-    }
-    .nav-link::before {
-      content:"";
-      position:absolute;
-      left:0;
-      top:7px;
-      bottom:7px;
-      width:3px;
-      border-radius:0 999px 999px 0;
-      background:transparent;
-      transition:background 120ms ease;
+      transition:background 120ms ease, color 120ms ease;
     }
     .nav-link:hover {
       background:rgba(255,255,255,0.06);
@@ -760,17 +773,21 @@ const adminPrototypeHTML = `<!doctype html>
     .nav-link.active {
       background:rgba(255,255,255,0.12);
       color:#fff;
-      border-radius:0.35rem;
     }
-    .nav-link.active::before { background:var(--admin-primary); }
     .nav-link-icon {
-      width:8px;
-      height:8px;
+      width:6px;
+      height:6px;
       border-radius:999px;
-      border:1.5px solid rgba(255,255,255,0.55);
+      background:rgba(255,255,255,0.55);
       flex-shrink:0;
+      transition:transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
     }
-    .nav-link.active .nav-link-icon { border-color:#fff; background:#fff; }
+    .nav-link:hover .nav-link-icon { background:rgba(255,255,255,0.78); }
+    .nav-link.active .nav-link-icon {
+      background:#fff;
+      transform:scale(1.1);
+      box-shadow:0 0 0 3px rgba(60, 141, 188, 0.28);
+    }
     .nav-link-label {
       flex:1 1 auto;
       min-width:0;
@@ -784,16 +801,6 @@ const adminPrototypeHTML = `<!doctype html>
       color:#fff;
       border-radius:4px;
       padding:0 2px;
-    }
-    .nav-link-caret {
-      flex-shrink:0;
-      font-size:16px;
-      line-height:1;
-      color:rgba(255,255,255,0.55);
-    }
-    .nav-link.active .nav-link-caret {
-      color:rgba(255,255,255,0.9);
-      transform:translateX(2px);
     }
     .workspace { min-width:0; }
     .workspace-header {
@@ -1218,8 +1225,15 @@ const adminPrototypeHTML = `<!doctype html>
         <div class="sidebar-nav-shell">
           <div class="sidebar-treeview open" id="resourceTreeview">
             <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
-              <span>Resources</span>
-              <span class="sidebar-treeview-caret" aria-hidden="true">›</span>
+              <span class="sidebar-treeview-toggle-copy">
+                <span class="sidebar-treeview-toggle-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M3 2.75A1.75 1.75 0 0 1 4.75 1h1.94c.55 0 1.07.26 1.4.7l.52.7a.25.25 0 0 0 .2.1h2.44A1.75 1.75 0 0 1 13 4.25v7A1.75 1.75 0 0 1 11.25 13h-6.5A1.75 1.75 0 0 1 3 11.25zM4.75 2.5a.25.25 0 0 0-.25.25v8.5c0 .14.11.25.25.25h6.5a.25.25 0 0 0 .25-.25v-7a.25.25 0 0 0-.25-.25H8.81a1.75 1.75 0 0 1-1.4-.7l-.52-.7a.25.25 0 0 0-.2-.1z"/></svg>
+                </span>
+                <span class="sidebar-treeview-toggle-text">Resources</span>
+              </span>
+              <span class="sidebar-treeview-caret" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M11.354 8.354a.5.5 0 0 0 0-.708L6.707 3l-.707.707L10.293 8 6 12.293l.707.707 4.647-4.646z"/></svg>
+              </span>
             </button>
             <ul id="resources" class="nav-list sidebar-treeview-menu"></ul>
           </div>
@@ -1998,19 +2012,14 @@ const adminPrototypeHTML = `<!doctype html>
         const button = document.createElement('button');
         const icon = document.createElement('span');
         const label = document.createElement('span');
-        const caret = document.createElement('span');
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
-        caret.className = 'nav-link-caret';
-        caret.setAttribute('aria-hidden', 'true');
-        caret.textContent = '›';
         button.appendChild(icon);
         button.appendChild(label);
-        button.appendChild(caret);
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
         els.resources.appendChild(li);
