@@ -64,9 +64,9 @@ func NewAdminSite() *admin.Site {
 				return nil
 			}
 			delete(values, "role_ids")
-			normalizedRoleIDs, ok := roleIDs.([]uint)
-			if !ok {
-				return ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must be an array of unsigned integers")
+			normalizedRoleIDs, err := normalizeAdminRoleIDs(roleIDs)
+			if err != nil {
+				return err
 			}
 			return syncAdminUserRoles(ctx, user, normalizedRoleIDs)
 		},
@@ -168,8 +168,44 @@ func normalizeAdminRoleIDs(raw any) ([]uint, error) {
 	if raw == nil {
 		return []uint{}, nil
 	}
-	roleIDs, ok := raw.([]uint)
-	if !ok {
+	var roleIDs []uint
+	switch ids := raw.(type) {
+	case []uint:
+		roleIDs = append(roleIDs, ids...)
+	case []int:
+		for _, id := range ids {
+			if id < 0 {
+				return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must not contain negative values")
+			}
+			roleIDs = append(roleIDs, uint(id))
+		}
+	case []float64:
+		for _, id := range ids {
+			if id < 0 || id != float64(uint(id)) {
+				return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must contain whole unsigned integers")
+			}
+			roleIDs = append(roleIDs, uint(id))
+		}
+	case []any:
+		for _, item := range ids {
+			switch id := item.(type) {
+			case uint:
+				roleIDs = append(roleIDs, id)
+			case int:
+				if id < 0 {
+					return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must not contain negative values")
+				}
+				roleIDs = append(roleIDs, uint(id))
+			case float64:
+				if id < 0 || id != float64(uint(id)) {
+					return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must contain whole unsigned integers")
+				}
+				roleIDs = append(roleIDs, uint(id))
+			default:
+				return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must be an array of unsigned integers")
+			}
+		}
+	default:
 		return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must be an array of unsigned integers")
 	}
 	seen := make(map[uint]struct{}, len(roleIDs))
