@@ -842,6 +842,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "topbar-search-results") {
 		t.Fatalf("expected topbar-search-results CSS class in html: %q", html)
 	}
+	if !strings.Contains(html, "sortable-th") {
+		t.Fatalf("expected sortable-th CSS class in html: %q", html)
+	}
+	if !strings.Contains(html, "function applySortFromHeader(field)") {
+		t.Fatalf("expected applySortFromHeader function in html: %q", html)
+	}
+	if !strings.Contains(html, "function activeSortField()") {
+		t.Fatalf("expected activeSortField function in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
@@ -1574,6 +1583,67 @@ func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
 	runBrowser(t, ctx, chromedp.Focus("#topbarSearchInput"))
 	runBrowser(t, ctx, chromedp.KeyEvent("\x1b"))
 	waitForBrowserCondition(t, ctx, "search expand closes on Escape", `!document.getElementById('topbarSearchExpand').classList.contains('open')`)
+}
+
+func TestFullExampleAdminPrototypeSortableColumns(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	// Register and sign in
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	// Wait for resources and list to load
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserCondition(t, ctx, "list has at least one row", `document.querySelector('#list table') !== null`)
+
+	// There should be sortable column headers in the Users table
+	waitForBrowserCondition(t, ctx, "sortable header exists", `document.querySelector('th.sortable-th') !== null`)
+
+	// Clicking a sortable header should update the sort dropdown to ascending
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const th = document.querySelector('th.sortable-th');
+		if (th) th.click();
+		return !!th;
+	})()`, nil))
+
+	// The sort select should now have a non-empty value (ascending sort was applied)
+	waitForBrowserCondition(t, ctx, "sort select updated after header click", `document.getElementById('sort').value !== ''`)
+	// Wait for list to finish re-rendering before next click
+	waitForBrowserCondition(t, ctx, "list table re-rendered after first click", `document.querySelector('#list th.sortable-th') !== null`)
+
+	// Clicking again should switch to descending
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const th = document.querySelector('th.sortable-th');
+		if (th) th.click();
+		return !!th;
+	})()`, nil))
+	waitForBrowserCondition(t, ctx, "sort select shows descending after second click", `document.getElementById('sort').value.startsWith('-')`)
+	// Wait for list to finish re-rendering before next click
+	waitForBrowserCondition(t, ctx, "list table re-rendered after second click", `document.querySelector('#list th.sortable-th.sort-desc') !== null`)
+
+	// Clicking a third time should clear the sort (return to default)
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const th = document.querySelector('th.sortable-th');
+		if (th) th.click();
+		return !!th;
+	})()`, nil))
+	waitForBrowserCondition(t, ctx, "sort select cleared after third click", `document.getElementById('sort').value === ''`)
 }
 
 func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {

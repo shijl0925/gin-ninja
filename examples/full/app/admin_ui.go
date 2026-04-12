@@ -82,6 +82,9 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .status-banner[data-tone="info"] { background: #0d1e2e; border-left-color: var(--admin-primary); color: #7dd3fc; }
     [data-theme="dark"] table { color: var(--admin-text); }
     [data-theme="dark"] thead tr { background: #22253a; }
+    [data-theme="dark"] th.sortable-th:hover { background: #2d3150; color: #fff; }
+    [data-theme="dark"] th.sortable-th.sort-asc,
+    [data-theme="dark"] th.sortable-th.sort-desc { background: #1e2d4a; color: #93b4ff; }
     [data-theme="dark"] tbody tr:hover { background: #22253a; }
     [data-theme="dark"] tbody tr.row-selected { background: #1a2e3d; }
     [data-theme="dark"] .dashboard-tile { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
@@ -878,6 +881,12 @@ const adminPrototypeHTML = `<!doctype html>
     table { width:100%; border-collapse:collapse; min-width:720px; }
     th, td { border-bottom:1px solid #dee2e6; padding:0.75rem; text-align:left; font-size:14px; vertical-align:top; }
     th { background:#f8f9fa; color:#495057; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; border-bottom-width:2px; }
+    th.sortable-th { cursor:pointer; user-select:none; white-space:nowrap; }
+    th.sortable-th:hover { background:#e9ecef; color:#212529; }
+    th.sortable-th.sort-asc, th.sortable-th.sort-desc { color:var(--admin-primary); background:#eef2ff; }
+    .sort-icon { display:inline-block; margin-left:4px; font-style:normal; opacity:0.45; font-size:10px; vertical-align:middle; }
+    th.sortable-th.sort-asc .sort-icon,
+    th.sortable-th.sort-desc .sort-icon { opacity:1; }
     tbody tr:hover { background:rgba(0,0,0,.04); }
     tbody tr.row-selected { background:#eaf3f8; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
@@ -2075,6 +2084,29 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
+    function applySortFromHeader(field) {
+      const current = els.sort.value;
+      let next;
+      if (current === field) {
+        next = '-' + field;
+      } else if (current === '-' + field) {
+        next = '';
+      } else {
+        next = field;
+      }
+      els.sort.value = next;
+      cancelScheduledSearchReload();
+      resetToFirstPage();
+      renderList().catch((error) => setStatus(String(error.message || error)));
+    }
+
+    function activeSortField() {
+      const v = els.sort.value;
+      if (!v) return { field: '', dir: '' };
+      if (v.startsWith('-')) return { field: v.slice(1), dir: 'desc' };
+      return { field: v, dir: 'asc' };
+    }
+
     function setListLoading(active) {
       if (els.listLoading) els.listLoading.classList.toggle('active', active);
       if (active) els.list.innerHTML = '';
@@ -2482,9 +2514,26 @@ const adminPrototypeHTML = `<!doctype html>
       };
       bulkCell.appendChild(selectAll);
       headRow.appendChild(bulkCell);
+      const sortable = new Set(state.meta?.sort_fields || []);
+      const { field: sortField, dir: sortDir } = activeSortField();
       fields.forEach((field) => {
         const th = document.createElement('th');
-        th.textContent = field;
+        if (sortable.has(field)) {
+          th.className = 'sortable-th' + (sortField === field ? ' sort-' + sortDir : '');
+          th.setAttribute('aria-sort', sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+          th.setAttribute('title', 'Click to sort by ' + field);
+          const labelSpan = document.createElement('span');
+          labelSpan.textContent = field;
+          const iconSpan = document.createElement('span');
+          iconSpan.className = 'sort-icon';
+          iconSpan.setAttribute('aria-hidden', 'true');
+          iconSpan.textContent = sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅';
+          th.appendChild(labelSpan);
+          th.appendChild(iconSpan);
+          th.onclick = () => applySortFromHeader(field);
+        } else {
+          th.textContent = field;
+        }
         headRow.appendChild(th);
       });
       const actionHead = document.createElement('th');
