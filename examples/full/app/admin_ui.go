@@ -99,6 +99,39 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] hr,
     [data-theme="dark"] .action-menu-divider { border-color: var(--admin-border); }
     [data-theme="dark"] .muted { color: var(--admin-muted); }
+    /* table borders */
+    [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .table-shell { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .empty-state { background: var(--admin-surface); border-color: var(--admin-border); }
+    /* detail / form cards */
+    [data-theme="dark"] .detail-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .detail-row { border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .bulk-edit-field { background: var(--admin-surface); border-color: var(--admin-border); }
+    [data-theme="dark"] .relation-preview li { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .relation-preview mark { background: #4a4200; }
+    [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
+    /* labels */
+    [data-theme="dark"] label { color: var(--admin-text); }
+    /* modals */
+    [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
+    /* action buttons */
+    [data-theme="dark"] .action-menu-trigger,
+    [data-theme="dark"] .action-btn-view,
+    [data-theme="dark"] button.secondary { background: var(--admin-surface); color: var(--admin-text); border-color: var(--admin-border); }
+    [data-theme="dark"] .action-menu-trigger:hover,
+    [data-theme="dark"] .action-btn-view:hover,
+    [data-theme="dark"] button.secondary:hover { background: #2a2d42; border-color: #4e5275; }
+    [data-theme="dark"] .action-menu-item:hover { background: #2a2d42; }
+    [data-theme="dark"] .action-menu-item.danger:hover { background: #2d0f0f; }
+    /* badges and eyebrows */
+    [data-theme="dark"] .badge { background: #1a2a3e; color: #93b4ff; }
+    [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
+    /* login credentials */
+    [data-theme="dark"] .login-credentials { background: #22253a; border-color: var(--admin-border); }
+    [data-theme="dark"] .login-credentials code { background: #1a1d2e; border-color: var(--admin-border); color: var(--admin-text); }
+    /* standalone topbar specificity fix */
+    [data-theme="dark"] body.standalone-admin-page .topbar,
+    [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body {
@@ -2042,6 +2075,48 @@ const adminPrototypeHTML = `<!doctype html>
        [els.createModal, els.recordModal, els.editModal, els.confirmModal].forEach((modal) => closeModal(modal));
      }
 
+    let _actionMenuPortal = null;
+    function getActionMenuPortal() {
+      if (!_actionMenuPortal) {
+        _actionMenuPortal = document.createElement('div');
+        _actionMenuPortal.id = 'action-menu-portal';
+        document.body.appendChild(_actionMenuPortal);
+      }
+      return _actionMenuPortal;
+    }
+    function closeActionMenuPortal() {
+      const portal = getActionMenuPortal();
+      portal.innerHTML = '';
+      delete portal.dataset.forRow;
+    }
+    function openActionMenuAt(triggerEl, rowId, items) {
+      const portal = getActionMenuPortal();
+      const isOpen = portal.dataset.forRow === String(rowId) && portal.firstChild;
+      closeActionMenuPortal();
+      if (isOpen) return;
+      const rect = triggerEl.getBoundingClientRect();
+      const menu = document.createElement('div');
+      menu.className = 'action-menu-list open';
+      menu.style.cssText = 'position:fixed;z-index:1500;top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;left:auto;';
+      items.forEach((item) => {
+        if (item.divider) {
+          const hr = document.createElement('hr');
+          hr.className = 'action-menu-divider';
+          menu.appendChild(hr);
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'action-menu-item' + (item.className ? ' ' + item.className : '');
+          btn.textContent = item.label;
+          btn.disabled = !!item.disabled;
+          btn.onclick = (e) => { e.stopPropagation(); closeActionMenuPortal(); item.onClick(); };
+          menu.appendChild(btn);
+        }
+      });
+      portal.dataset.forRow = String(rowId);
+      portal.appendChild(menu);
+    }
+
     function openConfirmDialog(title, message, onConfirm, confirmLabel) {
       pendingConfirmCallback = onConfirm;
       els.confirmModalTitle.textContent = title;
@@ -2572,42 +2647,21 @@ const adminPrototypeHTML = `<!doctype html>
         openButton.textContent = 'View';
         openButton.onclick = () => selectRecord(row, { openModal: 'record' });
         actionWrap.appendChild(openButton);
-        // More (···) dropdown menu
-        const menuWrap = document.createElement('div');
-        menuWrap.className = 'action-menu';
+        // More (···) dropdown menu — uses portal to escape overflow:auto clipping
         const trigger = document.createElement('button');
         trigger.type = 'button';
         trigger.className = 'action-menu-trigger';
         trigger.setAttribute('aria-label', 'More actions');
         trigger.textContent = '···';
-        const menuList = document.createElement('div');
-        menuList.className = 'action-menu-list';
-        const editItem = document.createElement('button');
-        editItem.type = 'button';
-        editItem.className = 'action-menu-item';
-        editItem.textContent = 'Edit';
-        editItem.disabled = !hasAction('update');
-        editItem.onclick = () => { menuList.classList.remove('open'); selectRecord(row, { openModal: 'edit' }); };
-        menuList.appendChild(editItem);
-        const divider = document.createElement('hr');
-        divider.className = 'action-menu-divider';
-        menuList.appendChild(divider);
-        const deleteItem = document.createElement('button');
-        deleteItem.type = 'button';
-        deleteItem.className = 'action-menu-item danger';
-        deleteItem.textContent = 'Delete';
-        deleteItem.disabled = !hasAction('delete');
-        deleteItem.onclick = () => { menuList.classList.remove('open'); deleteRecordByID(id); };
-        menuList.appendChild(deleteItem);
         trigger.onclick = (e) => {
           e.stopPropagation();
-          const isOpen = menuList.classList.contains('open');
-          document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
-          if (!isOpen) menuList.classList.add('open');
+          openActionMenuAt(trigger, id, [
+            { label: 'Edit', disabled: !hasAction('update'), onClick: () => selectRecord(row, { openModal: 'edit' }) },
+            { divider: true },
+            { label: 'Delete', className: 'danger', disabled: !hasAction('delete'), onClick: () => deleteRecordByID(id) },
+          ]);
         };
-        menuWrap.appendChild(trigger);
-        menuWrap.appendChild(menuList);
-        actionWrap.appendChild(menuWrap);
+        actionWrap.appendChild(trigger);
         actionCell.appendChild(actionWrap);
         tr.appendChild(actionCell);
         tbody.appendChild(tr);
@@ -2887,7 +2941,7 @@ const adminPrototypeHTML = `<!doctype html>
      });
      document.addEventListener('keydown', (event) => {
        if (event.key === 'Escape') {
-         document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
+         closeActionMenuPortal();
          closeAllModals();
          return;
        }
@@ -2905,7 +2959,7 @@ const adminPrototypeHTML = `<!doctype html>
        }
      });
      document.addEventListener('click', () => {
-       document.querySelectorAll('.action-menu-list.open').forEach(m => m.classList.remove('open'));
+       closeActionMenuPortal();
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
      els.clearFilters.onclick = () => {

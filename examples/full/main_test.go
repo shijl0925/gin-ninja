@@ -851,6 +851,24 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "function activeSortField()") {
 		t.Fatalf("expected activeSortField function in html: %q", html)
 	}
+	if !strings.Contains(html, "function closeActionMenuPortal()") {
+		t.Fatalf("expected closeActionMenuPortal function in html: %q", html)
+	}
+	if !strings.Contains(html, "function openActionMenuAt(triggerEl") {
+		t.Fatalf("expected openActionMenuAt function in html: %q", html)
+	}
+	if !strings.Contains(html, "action-menu-portal") {
+		t.Fatalf("expected action-menu-portal in html: %q", html)
+	}
+	if !strings.Contains(html, ".table-shell { background: var(--admin-surface)") {
+		t.Fatalf("expected dark mode table-shell override in html: %q", html)
+	}
+	if !strings.Contains(html, ".detail-card { background: var(--admin-surface)") {
+		t.Fatalf("expected dark mode detail-card override in html: %q", html)
+	}
+	if !strings.Contains(html, ".action-menu-trigger,") {
+		t.Fatalf("expected dark mode action-menu-trigger override in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
@@ -1541,6 +1559,52 @@ func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
 	// Moon icon should be visible, sun icon hidden
 	waitForBrowserCondition(t, ctx, "moon icon visible in light mode", `!document.getElementById('darkModeIconMoon').hidden`)
 	waitForBrowserCondition(t, ctx, "sun icon hidden in light mode", `document.getElementById('darkModeIconSun').hidden`)
+}
+
+func TestFullExampleAdminPrototypeActionMenuPortal(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserText(t, ctx, "#resources", "Users")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserCondition(t, ctx, "list table loaded", `document.querySelector('#list table') !== null`)
+
+	// Clicking the ··· trigger should open the portal menu (not inside the table)
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
+	waitForBrowserCondition(t, ctx, "action menu portal opened", `document.querySelector('#action-menu-portal .action-menu-list.open') !== null`)
+
+	// The portal menu must be a direct child of body (not inside table-shell)
+	waitForBrowserCondition(t, ctx, "action menu portal is direct child of body", `
+		document.getElementById('action-menu-portal') !== null &&
+		document.getElementById('action-menu-portal').parentElement === document.body
+	`)
+
+	// Clicking outside should close the portal
+	runBrowser(t, ctx, chromedp.Evaluate(`document.body.click()`, nil))
+	waitForBrowserCondition(t, ctx, "action menu portal closed after outside click", `document.querySelector('#action-menu-portal .action-menu-list.open') === null`)
+
+	// Pressing Escape after re-opening should also close it
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
+	waitForBrowserCondition(t, ctx, "action menu portal re-opened", `document.querySelector('#action-menu-portal .action-menu-list.open') !== null`)
+	runBrowser(t, ctx, chromedp.KeyEvent("\x1b"))
+	waitForBrowserCondition(t, ctx, "action menu portal closed by Escape", `document.querySelector('#action-menu-portal .action-menu-list.open') === null`)
 }
 
 func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
