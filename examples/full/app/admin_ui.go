@@ -71,6 +71,11 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .topbar-user-menu-item { color: var(--admin-text); }
     [data-theme="dark"] .topbar-link:hover,
     [data-theme="dark"] .topbar-user-menu-item:hover { background: var(--admin-border); }
+    [data-theme="dark"] .topbar-toggle { color: var(--admin-muted); }
+    [data-theme="dark"] .topbar-toggle:hover,
+    [data-theme="dark"] .topbar-action:hover { background: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .topbar-user-btn:hover { background: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .topbar-user-avatar { background: #2d3242; color: var(--admin-text); }
     [data-theme="dark"] input,
     [data-theme="dark"] select,
     [data-theme="dark"] textarea { background: #22253a; color: var(--admin-text); border-color: var(--admin-border); }
@@ -82,6 +87,7 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .status-banner[data-tone="info"] { background: #0d1e2e; border-left-color: var(--admin-primary); color: #7dd3fc; }
     [data-theme="dark"] table { color: var(--admin-text); }
     [data-theme="dark"] thead tr { background: #22253a; }
+    [data-theme="dark"] th { background: #22253a; color: var(--admin-muted); }
     [data-theme="dark"] th.sortable-th:hover { background: #2d3150; color: #fff; }
     [data-theme="dark"] th.sortable-th.sort-asc,
     [data-theme="dark"] th.sortable-th.sort-desc { background: #1e2d4a; color: #93b4ff; }
@@ -132,6 +138,8 @@ const adminPrototypeHTML = `<!doctype html>
     /* standalone topbar specificity fix */
     [data-theme="dark"] body.standalone-admin-page .topbar,
     [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
+    /* button hover brightens in dark mode instead of darkening */
+    [data-theme="dark"] button:hover:not(:disabled) { filter: brightness(1.15); }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body {
@@ -3084,7 +3092,7 @@ const adminPrototypeHTML = `<!doctype html>
     };
     els.closeConfirmModal.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
     els.confirmModalCancel.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
-    els.confirmModalConfirm.onclick = () => { if (pendingConfirmCallback) pendingConfirmCallback(); };
+    els.confirmModalConfirm.onclick = () => { const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb(); };
     els.confirmModal.addEventListener('click', (event) => {
       if (event.target === els.confirmModal) {
         pendingConfirmCallback = null;

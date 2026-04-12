@@ -869,6 +869,18 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, ".action-menu-trigger,") {
 		t.Fatalf("expected dark mode action-menu-trigger override in html: %q", html)
 	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] th { background: #22253a; color: var(--admin-muted); }") {
+		t.Fatalf("expected dark mode th override in html: %q", html)
+	}
+	if !strings.Contains(html, ".topbar-user-avatar { background: #2d3242") {
+		t.Fatalf("expected dark mode topbar-user-avatar override in html: %q", html)
+	}
+	if !strings.Contains(html, "button:hover:not(:disabled) { filter: brightness(1.15)") {
+		t.Fatalf("expected dark mode button hover filter reversal in html: %q", html)
+	}
+	if !strings.Contains(html, "const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb()") {
+		t.Fatalf("expected safe confirm callback invocation in html: %q", html)
+	}
 
 	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
