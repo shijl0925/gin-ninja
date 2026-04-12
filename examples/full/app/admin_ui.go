@@ -478,6 +478,12 @@ const adminPrototypeHTML = `<!doctype html>
       color:#f8f9fa;
       box-shadow:none;
     }
+    .sidebar-search-empty {
+      padding:10px 14px;
+      color:#adb5bd;
+      font-size:12px;
+      line-height:1.4;
+    }
     .resource-strip-header, .resource-strip-copy { display:grid; gap:6px; }
     .resource-strip-header { display:none; }
     .resource-strip-copy strong, .resource-strip-copy p { margin:0; }
@@ -589,6 +595,12 @@ const adminPrototypeHTML = `<!doctype html>
       text-overflow:ellipsis;
       white-space:nowrap;
       font-size:14px;
+    }
+    .nav-link-label mark {
+      background:rgba(255,255,255,0.18);
+      color:#fff;
+      border-radius:4px;
+      padding:0 2px;
     }
     .nav-link-caret {
       flex-shrink:0;
@@ -1008,8 +1020,8 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
         <div class="sidebar-search">
-          <input type="search" placeholder="Search" aria-label="Search sidebar navigation">
-          <button type="button" aria-label="Search sidebar">⌕</button>
+          <input id="sidebarResourceSearch" type="search" placeholder="Search" aria-label="Search sidebar navigation">
+          <button id="sidebarResourceSearchButton" type="button" aria-label="Clear sidebar search">⌕</button>
         </div>
         <div class="resource-strip-header">
           <div class="resource-strip-copy sidebar-heading">
@@ -1197,6 +1209,7 @@ const adminPrototypeHTML = `<!doctype html>
       current: null,
       meta: null,
       resources: [],
+      resourceSearch: '',
       records: [],
       selected: null,
       bulkSelected: {},
@@ -1221,6 +1234,8 @@ const adminPrototypeHTML = `<!doctype html>
       shellEyebrow: document.getElementById('shellEyebrow'),
       adminShell: document.getElementById('adminShell'),
       resources: document.getElementById('resources'),
+      sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
+      sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
       resourceTitle: document.getElementById('resourceTitle'),
       resourcePath: document.getElementById('resourcePath'),
       selectedCountBadge: document.getElementById('selectedCountBadge'),
@@ -1427,13 +1442,17 @@ const adminPrototypeHTML = `<!doctype html>
       state.current = null;
       state.meta = null;
       state.resources = [];
+      state.resourceSearch = '';
       state.records = [];
       state.selected = null;
       state.bulkSelected = {};
       state.relationSearch = {};
       state.relationTimers = {};
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
-       renderResources();
+       if (els.sidebarResourceSearch) {
+         els.sidebarResourceSearch.value = '';
+       }
+        renderResources();
        els.resourceTitle.textContent = 'Select a resource';
        els.resourcePath.textContent = 'Sign in to open a resource workspace.';
        els.detailTitle.textContent = 'No record selected';
@@ -1573,7 +1592,11 @@ const adminPrototypeHTML = `<!doctype html>
     function resetQueryState() {
       state.bulkSelected = {};
       state.relationSearch = {};
+      state.resourceSearch = '';
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
+      if (els.sidebarResourceSearch) {
+        els.sidebarResourceSearch.value = '';
+      }
       els.search.value = '';
       els.sort.innerHTML = '';
       els.filtersForm.innerHTML = '';
@@ -1600,11 +1623,30 @@ const adminPrototypeHTML = `<!doctype html>
       }, 300);
     }
 
+    function filteredResources() {
+      const term = String(state.resourceSearch || '').trim().toLowerCase();
+      if (!term) return state.resources.slice();
+      return state.resources.filter((resource) => {
+        const label = String(resource.label || '').toLowerCase();
+        const name = String(resource.name || '').toLowerCase();
+        return label.includes(term) || name.includes(term);
+      });
+    }
+
     function renderResources() {
       els.resources.innerHTML = '';
       const resourceTreeview = document.getElementById('resourceTreeview');
       if (resourceTreeview) resourceTreeview.classList.add('open');
-      state.resources.forEach((resource) => {
+      const matches = filteredResources();
+      if (!matches.length) {
+        const li = document.createElement('li');
+        li.className = 'sidebar-search-empty';
+        li.textContent = state.resourceSearch
+          ? ('No resources matched "' + String(state.resourceSearch || '').trim() + '".')
+          : 'No resources available.';
+        els.resources.appendChild(li);
+      }
+      matches.forEach((resource) => {
         const li = document.createElement('li');
         const button = document.createElement('button');
         const icon = document.createElement('span');
@@ -1615,7 +1657,7 @@ const adminPrototypeHTML = `<!doctype html>
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
         label.className = 'nav-link-label';
-        label.textContent = resource.label;
+        label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         caret.className = 'nav-link-caret';
         caret.setAttribute('aria-hidden', 'true');
         caret.textContent = '›';
@@ -1626,6 +1668,10 @@ const adminPrototypeHTML = `<!doctype html>
         li.appendChild(button);
         els.resources.appendChild(li);
       });
+      if (els.sidebarResourceSearchButton) {
+        els.sidebarResourceSearchButton.textContent = state.resourceSearch ? '×' : '⌕';
+        els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
+      }
     }
 
      function openModal(modal) {
@@ -2385,6 +2431,33 @@ const adminPrototypeHTML = `<!doctype html>
       resourceTreeviewToggle.addEventListener('click', () => {
         const open = resourceTreeview.classList.toggle('open');
         resourceTreeviewToggle.setAttribute('aria-expanded', String(open));
+      });
+    }
+    if (els.sidebarResourceSearch) {
+      els.sidebarResourceSearch.addEventListener('input', () => {
+        state.resourceSearch = els.sidebarResourceSearch.value.trim();
+        renderResources();
+      });
+      els.sidebarResourceSearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && els.sidebarResourceSearch.value) {
+          event.preventDefault();
+          state.resourceSearch = '';
+          els.sidebarResourceSearch.value = '';
+          renderResources();
+        }
+      });
+    }
+    if (els.sidebarResourceSearchButton) {
+      els.sidebarResourceSearchButton.addEventListener('click', () => {
+        if (!els.sidebarResourceSearch) return;
+        if (!els.sidebarResourceSearch.value) {
+          els.sidebarResourceSearch.focus();
+          return;
+        }
+        state.resourceSearch = '';
+        els.sidebarResourceSearch.value = '';
+        renderResources();
+        els.sidebarResourceSearch.focus();
       });
     }
      els.openCreateModal.onclick = () => {

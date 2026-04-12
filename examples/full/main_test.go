@@ -627,6 +627,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "aria-label=\"Search sidebar navigation\"") {
 		t.Fatalf("expected AdminLTE-style sidebar search box in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "id=\"sidebarResourceSearch\"") || !strings.Contains(adminHTML, "id=\"sidebarResourceSearchButton\"") {
+		t.Fatalf("expected searchable sidebar resource controls in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "function filteredResources()") || !strings.Contains(adminHTML, "state.resourceSearch = els.sidebarResourceSearch.value.trim();") {
+		t.Fatalf("expected sidebar resource search filtering logic in html: %q", adminHTML)
+	}
 	if strings.Contains(adminHTML, ">Navigation<") {
 		t.Fatalf("expected old sidebar navigation label to be removed from html: %q", adminHTML)
 	}
@@ -1358,6 +1364,18 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	waitForBrowserText(t, ctx, "#resources", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+
+	setBrowserValue(t, ctx, "#sidebarResourceSearch", "proj")
+	waitForBrowserCondition(t, ctx, "sidebar resource search filters navigation", `(() => {
+		const resources = document.querySelector("#resources");
+		return !!resources && resources.textContent.includes("Projects") && !resources.textContent.includes("Users");
+	})()`)
+	clickBrowser(t, ctx, "#sidebarResourceSearchButton")
+	waitForBrowserCondition(t, ctx, "sidebar resource search reset restores navigation", `(() => {
+		const resources = document.querySelector("#resources");
+		const search = document.querySelector("#sidebarResourceSearch");
+		return !!resources && !!search && search.value === "" && resources.textContent.includes("Users") && resources.textContent.includes("Projects");
+	})()`)
 
 	clickBrowser(t, ctx, "#resources li:nth-child(2) .nav-link")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Projects")
