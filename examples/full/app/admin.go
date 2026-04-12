@@ -64,7 +64,11 @@ func NewAdminSite() *admin.Site {
 				return nil
 			}
 			delete(values, "role_ids")
-			return syncAdminUserRoles(ctx, user, roleIDs.([]uint))
+			normalizedRoleIDs, ok := roleIDs.([]uint)
+			if !ok {
+				return ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must be an array of unsigned integers")
+			}
+			return syncAdminUserRoles(ctx, user, normalizedRoleIDs)
 		},
 		AfterUpdate: func(ctx *ninja.Context, current any) error {
 			user, ok := current.(*User)
