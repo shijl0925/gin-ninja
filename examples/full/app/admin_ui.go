@@ -194,6 +194,7 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-link {
       display:inline-flex;
       align-items:center;
+      gap:8px;
       min-height:var(--admin-topbar-min-height);
       padding:0 14px;
       border-radius:0;
@@ -203,6 +204,23 @@ const adminPrototypeHTML = `<!doctype html>
       font-weight:400;
     }
     .topbar-link:hover { background:#f4f6f9; color:#212529; }
+    .topbar-link-icon {
+      display:grid;
+      place-items:center;
+      width:16px;
+      height:16px;
+      flex-shrink:0;
+      color:#6c757d;
+    }
+    .topbar-link-icon svg {
+      width:100%;
+      height:100%;
+      stroke:currentColor;
+      stroke-width:1.8;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
     .brand-mark {
       width:38px;
       height:38px;
@@ -222,15 +240,31 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       align-items:center;
       justify-content:flex-end;
-      gap:0;
+      gap:14px;
       min-width:0;
       margin-left:auto;
       flex:0 0 auto;
+    }
+    .topbar-context {
+      display:grid;
+      gap:2px;
+      min-width:0;
+      padding:10px 12px;
+      border:1px solid rgba(108,117,125,0.16);
+      border-radius:0.5rem;
+      background:#f8f9fa;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.75);
+    }
+    .topbar-context p {
+      font-size:12px;
+      line-height:1.35;
+      color:var(--admin-muted);
     }
     .topbar-actions {
       display:flex;
       align-items:center;
       gap:0;
+      border-left:1px solid var(--admin-border);
     }
     .topbar-action {
       position:relative;
@@ -837,18 +871,27 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .workspace { min-width:0; }
     .workspace-header {
+      display:grid;
+      gap:0;
+      padding:0;
+      border-top-color:var(--admin-primary);
+      overflow:hidden;
+    }
+    .workspace-header-main {
       display:flex;
-      gap:10px 16px;
-      align-items:center;
+      gap:18px;
+      align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:14px 16px;
-      border-top-color:var(--admin-primary);
+      padding:18px 20px 14px;
+      background:linear-gradient(180deg, rgba(248,249,250,0.95) 0%, rgba(255,255,255,0.98) 100%);
+      border-bottom:1px solid rgba(0,0,0,0.06);
     }
     .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
     .workspace-header-copy p { margin:0; }
     .workspace-header-copy h2 { font-size:clamp(1.35rem, 1.8vw, 1.65rem); line-height:1.15; }
+    .workspace-header-kicker { margin-bottom:2px; }
     .workspace-path {
       display:inline-flex;
       width:max-content;
@@ -859,9 +902,90 @@ const adminPrototypeHTML = `<!doctype html>
       line-height:1.35;
       color:var(--admin-muted);
     }
+    .content-header-breadcrumb {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      list-style:none;
+      margin:0;
+      padding:0;
+      color:var(--admin-muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+    }
+    .content-header-breadcrumb li {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .content-header-breadcrumb li + li::before {
+      content:'/';
+      color:#adb5bd;
+      margin-right:8px;
+    }
+    .workspace-actions {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 20px 18px;
+      background:var(--admin-surface);
+    }
+    .workspace-actions-copy {
+      display:grid;
+      gap:2px;
+      min-width:0;
+    }
+    .workspace-actions-copy strong {
+      font-size:13px;
+      color:#495057;
+    }
+    .workspace-actions-copy span {
+      font-size:12px;
+      color:var(--admin-muted);
+    }
     .content-grid { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:14px; }
     .section-heading { display:grid; gap:6px; }
+    .section-card-header,
+    .section-card-footer {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      padding:16px 18px;
+      background:linear-gradient(180deg, rgba(248,249,250,0.95) 0%, rgba(255,255,255,1) 100%);
+    }
+    .section-card-header {
+      border-bottom:1px solid rgba(0,0,0,0.06);
+      border-top-left-radius:calc(var(--admin-radius) - 1px);
+      border-top-right-radius:calc(var(--admin-radius) - 1px);
+    }
+    .section-card-body {
+      display:grid;
+      gap:14px;
+      padding:18px;
+      background:var(--admin-surface);
+    }
+    .section-card-footer {
+      align-items:center;
+      border-top:1px solid rgba(0,0,0,0.06);
+      background:#fbfcfd;
+    }
+    .section-card-tools {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-left:auto;
+    }
+    .section-card-tools .eyebrow {
+      background:rgba(0,123,255,0.08);
+    }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
     .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
@@ -939,7 +1063,6 @@ const adminPrototypeHTML = `<!doctype html>
     .pagination-info { font-size:14px; color:var(--admin-muted); }
     .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:#fff; color:var(--admin-muted); text-align:center; }
-    .workspace-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .workspace-actions button { padding-inline:14px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
     .modal-dialog {
@@ -1124,15 +1247,63 @@ const adminPrototypeHTML = `<!doctype html>
     .session-panel.login-box { width:100%; max-width:none; }
     .panel.card,
     .detail-card.card { margin-bottom:0; }
-    .dashboard-tile.small-box { border:none; margin-bottom:0; text-align:left; cursor:pointer; }
+    .dashboard-tile.small-box {
+      position:relative;
+      min-height:142px;
+      border:1px solid rgba(0,0,0,0.08);
+      border-top:3px solid var(--admin-primary);
+      margin-bottom:0;
+      text-align:left;
+      cursor:pointer;
+      background:linear-gradient(180deg, #ffffff 0%, #fdfefe 100%);
+      box-shadow:0 10px 20px rgba(31,45,61,0.08);
+    }
     .dashboard-tile.small-box .inner { display:grid; gap:4px; }
-    .dashboard-tile.small-box .icon { color:rgba(255,255,255,.24); }
+    .dashboard-tile.small-box .icon {
+      position:absolute;
+      right:16px;
+      bottom:14px;
+      color:rgba(0,123,255,.12);
+      transform:none;
+    }
+    .dashboard-tile.small-box .icon svg {
+      width:54px;
+      height:54px;
+      stroke-width:1.5;
+    }
+    .dashboard-tile-count { color:var(--admin-primary); }
+    .dashboard-tile-hint { text-transform:uppercase; letter-spacing:0.05em; }
     .table-shell.table-responsive { border-radius:var(--admin-radius); }
+    .section-shell .table-shell {
+      border-radius:0.35rem;
+      box-shadow:none;
+      border-color:#d8dee4;
+    }
+    .section-shell .table-shell table { min-width:760px; }
+    .section-shell .pagination-bar { margin-top:2px; }
     .btn-sidebar { background:rgba(255,255,255,.08); color:var(--admin-sidebar-text); }
     [data-theme="dark"] .main-header,
     [data-theme="dark"] .content-wrapper,
     [data-theme="dark"] .card,
     [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
+    [data-theme="dark"] .topbar-context,
+    [data-theme="dark"] .workspace-header-main,
+    [data-theme="dark"] .section-card-header,
+    [data-theme="dark"] .section-card-footer {
+      background:#1f2430;
+      border-color:var(--admin-border);
+      box-shadow:none;
+    }
+    [data-theme="dark"] .workspace-actions { background:var(--admin-surface); }
+    [data-theme="dark"] .workspace-actions-copy strong { color:var(--admin-text); }
+    [data-theme="dark"] .topbar-link-icon,
+    [data-theme="dark"] .content-header-breadcrumb { color:var(--admin-muted); }
+    [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
+    [data-theme="dark"] .dashboard-tile.small-box {
+      background:linear-gradient(180deg, rgba(26,29,39,0.98) 0%, rgba(26,29,39,0.92) 100%);
+      box-shadow:none;
+    }
+    [data-theme="dark"] .dashboard-tile.small-box .icon { color:rgba(102,176,255,.12); }
     [data-theme="dark"] .btn-sidebar { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
@@ -1218,6 +1389,10 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar-left, .topbar-meta { width:100%; }
       .topbar-nav { flex-wrap:wrap; }
       .topbar-meta { justify-content:flex-start; margin-left:0; }
+      .workspace-header-main,
+      .workspace-actions,
+      .section-card-header,
+      .section-card-footer { padding-left:16px; padding-right:16px; }
       .table-toolbar .row-actions { flex-basis:100%; }
     }
   </style>
@@ -1229,7 +1404,12 @@ const adminPrototypeHTML = `<!doctype html>
     <div class="topbar-left">
       <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
       <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link nav-link" href="/admin">Home</a>
+        <a class="topbar-link nav-link" href="/admin">
+          <span class="topbar-link-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 7.25 8 2.75l5.5 4.5"/><path d="M4.25 6.25v6h7.5v-6"/><path d="M6.5 12.25v-3h3v3"/></svg>
+          </span>
+          <span>Home</span>
+        </a>
       </nav>
       <div class="topbar-brand brand-link">
         <span class="brand-mark">A</span>
@@ -1241,6 +1421,10 @@ const adminPrototypeHTML = `<!doctype html>
       </div>
     </div>
     <div class="topbar-meta">
+      <div class="topbar-context" aria-label="Current admin area">
+        <span class="eyebrow subtle">Control panel</span>
+        <p>Standalone workspace</p>
+      </div>
       <div class="topbar-actions" aria-label="Admin quick actions">
         <div class="topbar-search-wrap navbar-search-block">
           <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle">
@@ -1396,61 +1580,90 @@ const adminPrototypeHTML = `<!doctype html>
       </aside>
       <section class="workspace stack content-wrapper">
         <section class="panel workspace-header card card-outline card-primary">
-          <div class="workspace-header-copy">
-            <h2 id="resourceTitle">Select a resource</h2>
-            <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
+          <div class="workspace-header-main">
+            <div class="workspace-header-copy">
+              <span class="workspace-header-kicker eyebrow">Workspace</span>
+              <h2 id="resourceTitle">Select a resource</h2>
+              <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
+            </div>
+            <ol class="content-header-breadcrumb" aria-label="Workspace breadcrumb">
+              <li>Home</li>
+              <li>Admin</li>
+              <li>Workspace</li>
+            </ol>
           </div>
           <div class="workspace-actions">
+            <div class="workspace-actions-copy">
+              <strong>AdminLTE workspace chrome</strong>
+              <span>Operate resources with dashboard, filters, and table controls in one place.</span>
+            </div>
             <button id="openCreateModal" class="btn btn-primary" type="button">Create record</button>
           </div>
         </section>
         <section id="dashboardShell" class="panel stack card card-outline card-info" hidden>
-          <div class="section-heading">
-            <h3 class="section-title">Resources</h3>
-            <p class="section-copy muted">Select a resource below to open its workspace.</p>
+          <div class="card-header section-card-header">
+            <div class="section-heading">
+              <h3 class="section-title">Resources</h3>
+              <p class="section-copy muted">Select a resource below to open its workspace.</p>
+            </div>
+            <div class="section-card-tools">
+              <span class="eyebrow subtle">Dashboard cards</span>
+            </div>
           </div>
-          <div id="dashboardTiles" class="dashboard-tiles"></div>
+          <div class="card-body section-card-body">
+            <div id="dashboardTiles" class="dashboard-tiles"></div>
+          </div>
         </section>
         <section class="content-grid">
           <section class="stack">
             <section class="panel section-shell card card-outline card-primary">
-              <div class="toolbar">
+              <div class="card-header section-card-header">
                 <div class="section-heading">
                   <h3 class="section-title">Records</h3>
                   <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
-                  <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
-                  <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
-                  <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                 </div>
               </div>
-              <div class="table-toolbar">
-                <div class="row-actions">
-                  <input id="search" class="form-control" placeholder="Search current resource">
-                  <select id="sort" class="custom-select"></select>
-                  <select id="pageSize" class="custom-select">
-                    <option value="5">5 / page</option>
-                    <option value="10" selected>10 / page</option>
-                    <option value="20">20 / page</option>
-                    <option value="50">50 / page</option>
-                  </select>
+              <div class="card-body section-card-body">
+                <div class="toolbar">
+                  <div class="section-heading">
+                    <span class="eyebrow subtle">Table tools</span>
+                    <p class="section-copy muted">Apply fast filters, reload data, and run bulk actions from the record list.</p>
+                  </div>
+                  <div class="row-actions">
+                    <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
+                    <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
+                    <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
+                  </div>
                 </div>
-                <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+                <div class="table-toolbar">
+                  <div class="row-actions">
+                    <input id="search" class="form-control" placeholder="Search current resource">
+                    <select id="sort" class="custom-select"></select>
+                    <select id="pageSize" class="custom-select">
+                      <option value="5">5 / page</option>
+                      <option value="10" selected>10 / page</option>
+                      <option value="20">20 / page</option>
+                      <option value="50">50 / page</option>
+                    </select>
+                  </div>
+                  <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+                </div>
+                <form id="filtersForm" class="filters"></form>
+                <div id="list"></div>
+                <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
+                  <span class="list-spinner" aria-hidden="true"></span>
+                  <span>Loading records…</span>
+                </div>
               </div>
-              <form id="filtersForm" class="filters"></form>
-              <div class="pagination-bar">
+              <div class="card-footer section-card-footer">
                 <div class="muted">Use filters to refine the current workspace.</div>
                 <div class="row-actions">
                   <button id="prevPage" class="secondary btn btn-default" type="button">Previous</button>
                   <button id="nextPage" class="secondary btn btn-default" type="button">Next</button>
                 </div>
-              </div>
-              <div id="list"></div>
-              <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
-                <span class="list-spinner" aria-hidden="true"></span>
-                <span>Loading records…</span>
               </div>
             </section>
           </section>

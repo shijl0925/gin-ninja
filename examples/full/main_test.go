@@ -627,6 +627,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
 		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "class=\"topbar-link-icon\"") || !strings.Contains(adminHTML, "class=\"topbar-context\"") {
+		t.Fatalf("expected richer AdminLTE-style navbar icon and context chrome in html: %q", adminHTML)
+	}
 	if !strings.Contains(adminHTML, "aria-label=\"Search sidebar navigation\"") {
 		t.Fatalf("expected AdminLTE-style sidebar search box in html: %q", adminHTML)
 	}
@@ -662,6 +665,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"content-header-breadcrumb\"") || !strings.Contains(adminHTML, "AdminLTE workspace chrome") {
+		t.Fatalf("expected richer AdminLTE-style content header chrome in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"card-header section-card-header\"") || !strings.Contains(adminHTML, "class=\"card-footer section-card-footer\"") {
+		t.Fatalf("expected AdminLTE-style card header/footer treatment in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Record workspace") {
 		t.Fatalf("expected record workspace card to be removed from html: %q", adminHTML)
@@ -790,6 +799,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "paginationInfo") {
 		t.Fatalf("expected pagination controls in html: %q", html)
+	}
+	if !strings.Contains(html, "Dashboard cards") || !strings.Contains(html, "Table tools") {
+		t.Fatalf("expected richer AdminLTE-style dashboard and table section labels in html: %q", html)
 	}
 	if !strings.Contains(html, "id=\"status\" class=\"visually-hidden\" aria-live=\"polite\" aria-atomic=\"true\"") {
 		t.Fatalf("expected hidden live status region in html: %q", html)
