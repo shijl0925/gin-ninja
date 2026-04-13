@@ -1071,8 +1071,12 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .topbar-action-badge.warning { background:#ffc107; color:#212529; }
     .main-header.topbar { margin-left:0; width:100%; }
-    .topbar .nav-link { color:inherit; }
-    .topbar .nav-link:hover { color:var(--admin-primary); }
+    .topbar .topbar-link.nav-link,
+    .topbar .topbar-action.nav-link,
+    .topbar .topbar-user-btn.nav-link { color:inherit; }
+    .topbar .topbar-link.nav-link:hover,
+    .topbar .topbar-action.nav-link:hover,
+    .topbar .topbar-user-btn.nav-link:hover { color:var(--admin-primary); }
     .topbar-search-wrap.navbar-search-block { position:relative; display:flex; align-items:center; margin-bottom:0; }
     .sidebar-brand.brand-link { height:auto; color:inherit; border-bottom:1px solid rgba(255,255,255,.1); }
     .sidebar-user-panel.user-panel { margin:0; padding:14px 16px 14px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
@@ -1204,7 +1208,9 @@ const adminPrototypeHTML = `<!doctype html>
     <div class="topbar-meta">
       <div class="topbar-actions" aria-label="Admin quick actions">
         <div class="topbar-search-wrap navbar-search-block">
-          <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle"><span aria-hidden="true">⌕</span></button>
+          <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+          </button>
           <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
             <input type="search" id="topbarSearchInput" class="form-control form-control-navbar" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
             <div id="topbarSearchResults" class="topbar-search-results" role="listbox" aria-label="Search results"></div>
@@ -1304,7 +1310,9 @@ const adminPrototypeHTML = `<!doctype html>
         <div class="sidebar-search input-group input-group-sm sidebar-search-form">
           <input id="sidebarResourceSearch" class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search sidebar navigation">
           <div class="input-group-append">
-            <button id="sidebarResourceSearchButton" class="btn btn-sidebar" type="button" aria-label="Clear sidebar search"><span aria-hidden="true">⌕</span></button>
+            <button id="sidebarResourceSearchButton" class="btn btn-sidebar" type="button" aria-label="Clear sidebar search">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+            </button>
           </div>
         </div>
         <div class="resource-strip-header">
@@ -2185,9 +2193,42 @@ const adminPrototypeHTML = `<!doctype html>
         els.resources.appendChild(li);
       });
       if (els.sidebarResourceSearchButton) {
-        els.sidebarResourceSearchButton.innerHTML = state.resourceSearch ? '<span aria-hidden="true">&times;</span>' : '<span aria-hidden="true">⌕</span>';
+        setSidebarSearchButtonContent(Boolean(state.resourceSearch));
         els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
       }
+    }
+
+    function setSidebarSearchButtonContent(activeClear) {
+      if (!els.sidebarResourceSearchButton) return;
+      els.sidebarResourceSearchButton.replaceChildren();
+      if (activeClear) {
+        const span = document.createElement('span');
+        span.setAttribute('aria-hidden', 'true');
+        span.textContent = '×';
+        els.sidebarResourceSearchButton.appendChild(span);
+        return;
+      }
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('width', '14');
+      svg.setAttribute('height', '14');
+      svg.setAttribute('viewBox', '0 0 16 16');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', '6.5');
+      circle.setAttribute('cy', '6.5');
+      circle.setAttribute('r', '4.5');
+      circle.setAttribute('stroke', 'currentColor');
+      circle.setAttribute('stroke-width', '1.5');
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', 'M10 10l4 4');
+      path.setAttribute('stroke', 'currentColor');
+      path.setAttribute('stroke-width', '1.5');
+      path.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(circle);
+      svg.appendChild(path);
+      els.sidebarResourceSearchButton.appendChild(svg);
     }
 
      function openModal(modal) {
@@ -2239,7 +2280,7 @@ const adminPrototypeHTML = `<!doctype html>
       if (isOpen) return;
       const rect = triggerEl.getBoundingClientRect();
       const menu = document.createElement('div');
-      menu.className = 'action-menu-list dropdown-menu show open';
+      menu.className = 'action-menu-list open';
       menu.style.cssText = 'position:fixed;z-index:1500;top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;left:auto;';
       items.forEach((item) => {
         if (item.divider) {
@@ -2249,7 +2290,7 @@ const adminPrototypeHTML = `<!doctype html>
         } else {
           const btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'action-menu-item dropdown-item' + (item.className ? ' ' + item.className : '');
+          btn.className = 'action-menu-item' + (item.className ? ' ' + item.className : '');
           btn.textContent = item.label;
           btn.disabled = !!item.disabled;
           btn.onclick = (e) => { e.stopPropagation(); closeActionMenuPortal(); item.onClick(); };
