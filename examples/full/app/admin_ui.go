@@ -520,11 +520,11 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       flex-direction:column;
       min-height:calc(100vh - var(--admin-topbar-height) - (var(--admin-content-gap) * 2));
-      background:var(--admin-sidebar);
+      background:#343a40;
       color:var(--admin-sidebar-text);
       border:none;
-      border-radius:0.35rem;
-      box-shadow:none;
+      border-radius:0.5rem;
+      box-shadow:0 14px 30px rgba(17, 24, 39, 0.16);
       padding:0;
       overflow:hidden;
     }
@@ -532,64 +532,63 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       grid-template-columns:auto 1fr;
       align-items:center;
-      gap:10px;
-      padding:12px 16px;
-      background:#343a40;
-      border-bottom:0.5px solid rgba(255,255,255,.1);
+      gap:14px;
+      padding:20px 18px;
+      background:transparent;
+      border-bottom:1px solid rgba(255,255,255,.1);
     }
     .sidebar-brand-mark {
-      width:33px;
-      height:33px;
+      width:48px;
+      height:48px;
       display:grid;
       place-items:center;
       border-radius:50%;
       background:#f4f6f9;
-      color:#495057;
-      font-size:16px;
+      color:#343a40;
+      font-size:23px;
       font-weight:800;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-      opacity:0.8;
+      box-shadow:0 4px 14px rgba(0,0,0,0.28);
       flex-shrink:0;
     }
     .sidebar-brand-copy { display:grid; gap:2px; min-width:0; }
     .sidebar-brand-copy strong {
-      color:#fff;
-      font-size:1.15rem;
+      color:#f8f9fa;
+      font-size:1.05rem;
       font-weight:300;
       letter-spacing:0.01em;
       white-space:nowrap;
     }
     .sidebar-brand-copy span {
-      color:rgba(255,255,255,.4);
-      font-size:11px;
+      color:rgba(255,255,255,.5);
+      font-size:12px;
       letter-spacing:0.02em;
     }
     .sidebar-user-panel {
       display:grid;
       grid-template-columns:auto 1fr;
       align-items:center;
-      gap:10px;
-      padding:10px 16px 10px 20px;
-      margin:8px 0 0;
+      gap:14px;
+      padding:20px 18px;
+      margin:0;
       border-bottom:1px solid rgba(255,255,255,.1);
     }
     .sidebar-user-avatar {
-      width:34px;
-      height:34px;
+      width:46px;
+      height:46px;
       display:grid;
       place-items:center;
       border-radius:50%;
       background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
       color:#495057;
-      font-size:12px;
+      font-size:14px;
       font-weight:700;
-      box-shadow:0 2px 4px rgba(0,0,0,0.2);
+      box-shadow:0 4px 10px rgba(0,0,0,0.24);
       flex-shrink:0;
     }
     .sidebar-user-copy { display:grid; gap:2px; min-width:0; }
     .sidebar-user-copy strong {
       color:#f8f9fa;
-      font-size:14px;
+      font-size:16px;
       font-weight:400;
       white-space:nowrap;
       overflow:hidden;
@@ -612,28 +611,28 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .sidebar-search {
       position:relative;
-      padding:14px 16px;
+      padding:18px;
       border-bottom:1px solid rgba(255,255,255,0.08);
     }
     .sidebar-search input {
       width:100%;
-      height:42px;
+      height:44px;
       padding-right:44px;
-      border-color:rgba(255,255,255,0.08);
-      background:#3f474e;
+      border-color:#56606a;
+      background:#495057;
       color:#f8f9fa;
     }
     .sidebar-search input::placeholder { color:#adb5bd; }
     .sidebar-search button {
       position:absolute;
       top:50%;
-      right:22px;
+      right:24px;
       transform:translateY(-50%);
-      width:34px;
-      height:34px;
+      width:36px;
+      height:36px;
       padding:0;
       background:#495057;
-      border:1px solid rgba(255,255,255,0.08);
+      border:1px solid #56606a;
       color:#f8f9fa;
       box-shadow:none;
     }
@@ -651,23 +650,32 @@ const adminPrototypeHTML = `<!doctype html>
     .sidebar-heading .eyebrow.subtle { background:rgba(255,255,255,0.08); }
     .sidebar-nav-shell {
       display:grid;
-      gap:12px;
+      gap:10px;
       flex:1 1 auto;
       align-content:start;
-      padding:6px 10px 18px;
+      padding:14px 14px 18px;
       overflow:auto;
+    }
+    .sidebar-section-label {
+      padding:8px 8px 2px;
+      font-size:12px;
+      line-height:1.2;
+      font-weight:700;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color:rgba(255,255,255,.58);
     }
     .sidebar-treeview { display:grid; gap:6px; }
     .sidebar-treeview-toggle {
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:flex-start;
       gap:12px;
       width:100%;
       padding:11px 14px;
       background:transparent;
       border:none;
-      border-radius:0.25rem;
+      border-radius:0.35rem;
       box-shadow:none;
       color:#c2c7d0;
       font-size:15px;
@@ -680,6 +688,7 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       gap:12px;
       min-width:0;
+      flex:1 1 auto;
     }
     .sidebar-treeview-toggle-icon,
     .sidebar-treeview-caret {
@@ -720,6 +729,19 @@ const adminPrototypeHTML = `<!doctype html>
       background:rgba(255,255,255,0.08);
       color:#fff;
     }
+    .sidebar-treeview-toggle-badge {
+      min-width:22px;
+      height:22px;
+      padding:0 7px;
+      border-radius:0.45rem;
+      display:grid;
+      place-items:center;
+      font-size:12px;
+      font-weight:700;
+      color:#fff;
+      background:#17a2b8;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.15);
+    }
     .sidebar-treeview-toggle:hover .sidebar-treeview-toggle-icon,
     .sidebar-treeview-toggle:hover .sidebar-treeview-caret,
     .sidebar-treeview.open .sidebar-treeview-toggle-icon,
@@ -744,8 +766,8 @@ const adminPrototypeHTML = `<!doctype html>
       background:transparent;
       color:var(--admin-sidebar-text);
       border:none;
-      border-radius:0.25rem;
-      padding:9px 14px 9px 18px;
+      border-radius:0.5rem;
+      padding:12px 14px;
       display:flex;
       align-items:center;
       gap:12px;
@@ -756,43 +778,49 @@ const adminPrototypeHTML = `<!doctype html>
       transition:background 120ms ease, color 120ms ease;
     }
     .nav-link:hover {
-      background:rgba(255,255,255,0.06);
+      background:rgba(255,255,255,0.08);
       color:#fff;
     }
     .nav-link.active {
-      background:rgba(255,255,255,0.12);
+      background:#007bff;
       color:#fff;
+      box-shadow:0 10px 18px rgba(0, 123, 255, 0.3);
     }
     .nav-link-icon {
-      position:relative;
       width:18px;
       height:18px;
       flex-shrink:0;
+      display:grid;
+      place-items:center;
       transition:transform 120ms ease, color 120ms ease;
     }
-    .nav-link-icon::before {
-      content:"";
-      position:absolute;
-      top:50%;
-      left:50%;
-      width:5px;
-      height:5px;
-      border-radius:999px;
-      background:currentColor;
-      transform:translate(-50%, -50%);
-      opacity:0.75;
+    .nav-link-icon svg,
+    .nav-link-suffix svg {
+      width:100%;
+      height:100%;
+      stroke:currentColor;
+      stroke-width:1.8;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
     }
-    .nav-link:hover .nav-link-icon { color:rgba(255,255,255,0.88); }
+    .nav-link-suffix {
+      margin-left:auto;
+      width:14px;
+      height:14px;
+      display:grid;
+      place-items:center;
+      flex-shrink:0;
+      color:#cfd4da;
+      transition:transform 120ms ease, color 120ms ease;
+    }
+    .nav-link:hover .nav-link-icon,
+    .nav-link:hover .nav-link-suffix { color:#fff; }
     .nav-link.active .nav-link-icon {
       color:#fff;
-      transform:scale(1.05);
+      transform:none;
     }
-    .nav-link.active .nav-link-icon::before {
-      width:7px;
-      height:7px;
-      opacity:1;
-      box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);
-    }
+    .nav-link.active .nav-link-suffix { color:#fff; transform:translateX(1px); }
     .nav-link-label {
       flex:1 1 auto;
       min-width:0;
@@ -1035,7 +1063,7 @@ const adminPrototypeHTML = `<!doctype html>
     .dashboard-tile-label { font-size:15px; font-weight:600; }
     .dashboard-tile-hint { font-size:12px; color:var(--admin-muted); }
     .sidebar-footer {
-      padding:10px 16px;
+      padding:14px 18px 18px;
       border-top:1px solid rgba(255,255,255,.1);
       display:flex;
       align-items:center;
@@ -1044,21 +1072,21 @@ const adminPrototypeHTML = `<!doctype html>
       flex-shrink:0;
     }
     .sidebar-footer-text {
-      font-size:11px;
-      color:rgba(255,255,255,.4);
+      font-size:12px;
+      color:rgba(255,255,255,.48);
       white-space:nowrap;
     }
     .sidebar-footer-link {
       display:inline-flex;
       align-items:center;
       gap:5px;
-      font-size:12px;
-      color:rgba(255,255,255,.55);
+      font-size:13px;
+      color:rgba(255,255,255,.68);
       background:transparent;
       border:1px solid transparent;
-      padding:4px 8px;
+      padding:6px 10px;
       cursor:pointer;
-      border-radius:0.25rem;
+      border-radius:0.35rem;
     }
     .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
     .topbar-action-badge {
@@ -1330,6 +1358,21 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
         <div class="sidebar-nav-shell">
+          <div class="sidebar-section-label">Overview</div>
+          <ul class="nav-list nav nav-pills nav-sidebar flex-column" role="menu">
+            <li class="nav-item">
+              <button id="sidebarDashboardLink" class="nav-link" type="button" aria-label="Open admin dashboard">
+                <span class="nav-link-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 12.5h11"/><path d="M4.25 11.75V8.5"/><path d="M8 11.75V4.25"/><path d="M11.75 11.75V6.5"/><path d="M8 2.25a.75.75 0 1 1 0 1.5"/></svg>
+                </span>
+                <span class="nav-link-label">Dashboard</span>
+                <span class="nav-link-suffix" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
+                </span>
+              </button>
+            </li>
+          </ul>
+          <div class="sidebar-section-label">Resources</div>
           <div class="sidebar-treeview open nav nav-pills nav-sidebar flex-column" id="resourceTreeview" data-widget="treeview" role="menu">
             <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
               <span class="sidebar-treeview-toggle-copy">
@@ -1338,6 +1381,7 @@ const adminPrototypeHTML = `<!doctype html>
                 </span>
                 <span class="sidebar-treeview-toggle-text">Resources</span>
               </span>
+              <span class="sidebar-treeview-toggle-badge" id="resourceTreeviewBadge">0</span>
               <span class="sidebar-treeview-caret" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
               </span>
@@ -1535,6 +1579,7 @@ const adminPrototypeHTML = `<!doctype html>
       pageIntro: document.getElementById('pageIntro'),
       shellEyebrow: document.getElementById('shellEyebrow'),
       adminShell: document.getElementById('adminShell'),
+      sidebarDashboardLink: document.getElementById('sidebarDashboardLink'),
       resources: document.getElementById('resources'),
       sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
       sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
@@ -2171,6 +2216,12 @@ const adminPrototypeHTML = `<!doctype html>
       els.resources.innerHTML = '';
       const resourceTreeview = document.getElementById('resourceTreeview');
       if (resourceTreeview) resourceTreeview.classList.add('open');
+      const resourceTreeviewBadge = document.getElementById('resourceTreeviewBadge');
+      if (resourceTreeviewBadge) resourceTreeviewBadge.textContent = String(state.resources.length);
+      if (els.sidebarDashboardLink) {
+        els.sidebarDashboardLink.classList.toggle('active', !state.current);
+        els.sidebarDashboardLink.setAttribute('aria-current', !state.current ? 'page' : 'false');
+      }
       const matches = filteredResources();
       if (!matches.length) {
         const li = document.createElement('li');
@@ -2185,16 +2236,23 @@ const adminPrototypeHTML = `<!doctype html>
         const button = document.createElement('button');
         const icon = document.createElement('span');
         const label = document.createElement('span');
+        const suffix = document.createElement('span');
         li.className = 'nav-item';
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 3.5h9v9h-9z"/><path d="M6 6h4"/><path d="M6 8h4"/><path d="M6 10h2"/></svg>';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
+        suffix.className = 'nav-link-suffix';
+        suffix.setAttribute('aria-hidden', 'true');
+        suffix.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>';
+        button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
         button.appendChild(icon);
         button.appendChild(label);
+        button.appendChild(suffix);
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
         els.resources.appendChild(li);
@@ -3130,6 +3188,29 @@ const adminPrototypeHTML = `<!doctype html>
         }
       });
     }
+
+    function showDashboard() {
+      state.current = null;
+      state.meta = null;
+      state.selected = null;
+      resetQueryState();
+      renderResources();
+      renderDashboard();
+      els.resourceTitle.textContent = 'Admin dashboard';
+      els.resourcePath.textContent = 'Choose a resource from the sidebar to load its workspace.';
+      els.detailTitle.textContent = 'No record selected';
+      els.detailObjectBadge.textContent = 'Dashboard';
+      els.detail.textContent = 'Choose a resource from the sidebar.';
+      els.detailFields.innerHTML = '<p class="muted">Select a resource to inspect records, filters, and actions.</p>';
+      els.createForm.innerHTML = '<p class="muted">Select a resource to create records.</p>';
+      els.updateForm.innerHTML = '<p class="muted">Select a resource to edit records.</p>';
+      els.editHint.textContent = 'Select a resource to open the change form.';
+      els.list.innerHTML = '<div class="empty-state">Select a resource from the sidebar to load records.</div>';
+      renderPagination();
+      syncBulkActionState();
+      syncWorkspaceActionState();
+      setStatus('Showing dashboard.');
+    }
     if (els.topbarSearchInput) {
       els.topbarSearchInput.addEventListener('input', (event) => {
         clearTimeout(globalSearchTimer);
@@ -3198,6 +3279,11 @@ const adminPrototypeHTML = `<!doctype html>
         els.sidebarResourceSearch.value = '';
         renderResources();
         els.sidebarResourceSearch.focus();
+      });
+    }
+    if (els.sidebarDashboardLink) {
+      els.sidebarDashboardLink.addEventListener('click', () => {
+        showDashboard();
       });
     }
      els.openCreateModal.onclick = () => {

@@ -633,8 +633,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"sidebarResourceSearch\"") || !strings.Contains(adminHTML, "id=\"sidebarResourceSearchButton\"") {
 		t.Fatalf("expected searchable sidebar resource controls in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "id=\"sidebarDashboardLink\"") || !strings.Contains(adminHTML, "class=\"sidebar-section-label\">Overview</div>") {
+		t.Fatalf("expected AdminLTE-style dashboard entry and overview section label in html: %q", adminHTML)
+	}
 	if !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-copy\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-icon\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-text\">Resources</span>") {
 		t.Fatalf("expected AdminLTE-style resource treeview toggle markup in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"resourceTreeviewBadge\"") || !strings.Contains(adminHTML, "class=\"nav-link-suffix\"") {
+		t.Fatalf("expected AdminLTE-style sidebar badges and chevrons in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "function filteredResources()") || !strings.Contains(adminHTML, "state.resourceSearch = els.sidebarResourceSearch.value.trim();") {
 		t.Fatalf("expected sidebar resource search filtering logic in html: %q", adminHTML)
@@ -788,7 +794,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "button.className = 'nav-link'") {
 		t.Fatalf("expected active resource navigation styling in html: %q", html)
 	}
-	if !strings.Contains(html, "sidebar-treeview.open .sidebar-treeview-toggle") || !strings.Contains(html, "box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);") {
+	if !strings.Contains(html, "sidebar-treeview-toggle-badge") || !strings.Contains(html, "box-shadow:0 10px 18px rgba(0, 123, 255, 0.3);") {
 		t.Fatalf("expected AdminLTE-style sidebar menu styling in html: %q", html)
 	}
 	if strings.Contains(html, "nav-link-caret") {
