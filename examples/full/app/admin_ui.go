@@ -144,7 +144,7 @@ const adminPrototypeHTML = `<!doctype html>
       z-index: 30;
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:flex-start;
       gap:16px;
       min-height:var(--admin-topbar-min-height);
       padding:0 16px;
@@ -158,7 +158,7 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       gap:4px;
       min-width:0;
-      flex:1 1 auto;
+      flex:0 1 auto;
     }
     .topbar-brand {
       grid-template-columns:auto 1fr;
@@ -183,7 +183,7 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:stretch;
       gap:0;
       min-width:0;
-      margin:0 auto 0 0;
+      margin:0;
       flex-direction:row;
     }
     .topbar-link {
@@ -219,6 +219,8 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:flex-end;
       gap:0;
       min-width:0;
+      margin-left:auto;
+      flex:0 0 auto;
     }
     .topbar-actions {
       display:flex;
@@ -1182,7 +1184,7 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar { flex-direction:column; align-items:flex-start; }
       .topbar-left, .topbar-meta { width:100%; }
       .topbar-nav { flex-wrap:wrap; }
-      .topbar-meta { justify-content:flex-start; }
+      .topbar-meta { justify-content:flex-start; margin-left:0; }
       .table-toolbar .row-actions { flex-basis:100%; }
     }
   </style>
