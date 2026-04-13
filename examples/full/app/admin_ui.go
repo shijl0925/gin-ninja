@@ -21,13 +21,13 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-sidebar: #1f2d3d;
       --admin-sidebar-alt: #243447;
       --admin-sidebar-text: #c2c7d0;
-      --admin-sidebar-active: #3c8dbc;
+      --admin-sidebar-active: #007bff;
       --admin-topbar: #ffffff;
       --admin-border: #dee2e6;
       --admin-text: #212529;
       --admin-muted: #6c757d;
-      --admin-primary: #3c8dbc;
-      --admin-primary-dark: #367fa9;
+      --admin-primary: #007bff;
+      --admin-primary-dark: #0056b3;
       --admin-success: #00a65a;
       --admin-danger: #dd4b39;
       --admin-warning: #f39c12;
@@ -45,13 +45,13 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-sidebar: #111827;
       --admin-sidebar-alt: #1c2535;
       --admin-sidebar-text: #9ca3af;
-      --admin-sidebar-active: #3c8dbc;
+      --admin-sidebar-active: #007bff;
       --admin-topbar: #1a1d27;
       --admin-border: #2d3242;
       --admin-text: #e2e8f0;
       --admin-muted: #9ca3af;
-      --admin-primary: #4fa3d1;
-      --admin-primary-dark: #3c8dbc;
+      --admin-primary: #66b0ff;
+      --admin-primary-dark: #007bff;
       --admin-success: #22c55e;
       --admin-danger: #ef4444;
       --admin-warning: #f59e0b;
@@ -101,22 +101,17 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] hr,
     [data-theme="dark"] .action-menu-divider { border-color: var(--admin-border); }
     [data-theme="dark"] .muted { color: var(--admin-muted); }
-    /* table borders */
     [data-theme="dark"] th, [data-theme="dark"] td { border-bottom-color: var(--admin-border); }
     [data-theme="dark"] .table-shell { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
     [data-theme="dark"] .empty-state { background: var(--admin-surface); border-color: var(--admin-border); }
-    /* detail / form cards */
     [data-theme="dark"] .detail-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
     [data-theme="dark"] .detail-row { border-bottom-color: var(--admin-border); }
     [data-theme="dark"] .bulk-edit-field { background: var(--admin-surface); border-color: var(--admin-border); }
     [data-theme="dark"] .relation-preview li { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .relation-preview mark { background: #4a4200; }
     [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
-    /* labels */
     [data-theme="dark"] label { color: var(--admin-text); }
-    /* modals */
     [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
-    /* action buttons */
     [data-theme="dark"] .action-menu-trigger,
     [data-theme="dark"] .action-btn-view,
     [data-theme="dark"] button.secondary { background: var(--admin-surface); color: var(--admin-text); border-color: var(--admin-border); }
@@ -125,17 +120,14 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] button.secondary:hover { background: #2a2d42; border-color: #4e5275; }
     [data-theme="dark"] .action-menu-item:hover { background: #2a2d42; }
     [data-theme="dark"] .action-menu-item.danger:hover { background: #2d0f0f; }
-    /* badges and eyebrows */
     [data-theme="dark"] .badge { background: #1a2a3e; color: #93b4ff; }
     [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
-    /* login credentials */
     [data-theme="dark"] .login-credentials { background: #22253a; border-color: var(--admin-border); }
     [data-theme="dark"] .login-credentials code { background: #1a1d2e; border-color: var(--admin-border); color: var(--admin-text); }
-    /* standalone topbar specificity fix */
     [data-theme="dark"] body.standalone-admin-page .topbar,
     [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
-    /* button hover brightens in dark mode instead of darkening */
     [data-theme="dark"] button:hover:not(:disabled) { filter: brightness(1.15); }
+    [data-theme="dark"] .search-result-item mark { background: #4a4200; }
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body {
@@ -152,7 +144,7 @@ const adminPrototypeHTML = `<!doctype html>
       z-index: 30;
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:flex-start;
       gap:16px;
       min-height:var(--admin-topbar-min-height);
       padding:0 16px;
@@ -166,7 +158,7 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       gap:4px;
       min-width:0;
-      flex:1 1 auto;
+      flex:0 1 auto;
     }
     .topbar-brand {
       grid-template-columns:auto 1fr;
@@ -174,7 +166,12 @@ const adminPrototypeHTML = `<!doctype html>
       gap:14px;
       min-width:0;
     }
-    .topbar-toggle {
+    .topbar .topbar-toggle {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:42px;
+      flex:0 0 42px;
       min-width:42px;
       min-height:42px;
       padding:0;
@@ -191,6 +188,8 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:stretch;
       gap:0;
       min-width:0;
+      margin:0;
+      flex-direction:row;
     }
     .topbar-link {
       display:inline-flex;
@@ -225,6 +224,8 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:flex-end;
       gap:0;
       min-width:0;
+      margin-left:auto;
+      flex:0 0 auto;
     }
     .topbar-actions {
       display:flex;
@@ -368,7 +369,6 @@ const adminPrototypeHTML = `<!doctype html>
     .search-result-item:hover,
     .search-result-item:focus { background:var(--admin-body-bg); outline:none; }
     .search-result-item mark { background:#fff9c4; color:inherit; border-radius:2px; padding:0 1px; }
-    [data-theme="dark"] .search-result-item mark { background:#4a4200; }
     .search-result-summary { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .search-result-id { font-size:11px; color:var(--admin-muted); flex-shrink:0; }
     .search-results-empty {
@@ -377,22 +377,6 @@ const adminPrototypeHTML = `<!doctype html>
       color:var(--admin-muted);
       text-align:center;
     }
-    .topbar-action-badge {
-      position:absolute;
-      top:4px;
-      right:2px;
-      min-width:18px;
-      height:18px;
-      padding:0 5px;
-      border-radius:999px;
-      display:grid;
-      place-items:center;
-      font-size:10px;
-      font-weight:700;
-      color:#fff;
-      background:#dc3545;
-    }
-    .topbar-action-badge.warning { background:#ffc107; color:#212529; }
     .toast-container {
       position:fixed;
       top:calc(var(--admin-topbar-min-height) + 12px);
@@ -468,7 +452,7 @@ const adminPrototypeHTML = `<!doctype html>
       gap:6px;
       border-radius:999px;
       padding:6px 10px;
-      background:rgba(60, 141, 188, 0.12);
+      background:rgba(0, 123, 255, 0.12);
       color:var(--admin-primary-dark);
       font-size:11px;
       font-weight:700;
@@ -567,11 +551,7 @@ const adminPrototypeHTML = `<!doctype html>
       opacity:0.8;
       flex-shrink:0;
     }
-    .sidebar-brand-copy {
-      display:grid;
-      gap:2px;
-      min-width:0;
-    }
+    .sidebar-brand-copy { display:grid; gap:2px; min-width:0; }
     .sidebar-brand-copy strong {
       color:#fff;
       font-size:1.15rem;
@@ -589,7 +569,7 @@ const adminPrototypeHTML = `<!doctype html>
       grid-template-columns:auto 1fr;
       align-items:center;
       gap:10px;
-      padding:10px 16px;
+      padding:10px 16px 10px 20px;
       margin:8px 0 0;
       border-bottom:1px solid rgba(255,255,255,.1);
     }
@@ -606,11 +586,7 @@ const adminPrototypeHTML = `<!doctype html>
       box-shadow:0 2px 4px rgba(0,0,0,0.2);
       flex-shrink:0;
     }
-    .sidebar-user-copy {
-      display:grid;
-      gap:2px;
-      min-width:0;
-    }
+    .sidebar-user-copy { display:grid; gap:2px; min-width:0; }
     .sidebar-user-copy strong {
       color:#f8f9fa;
       font-size:14px;
@@ -681,10 +657,7 @@ const adminPrototypeHTML = `<!doctype html>
       padding:6px 10px 18px;
       overflow:auto;
     }
-    .sidebar-treeview {
-      display:grid;
-      gap:6px;
-    }
+    .sidebar-treeview { display:grid; gap:6px; }
     .sidebar-treeview-toggle {
       display:flex;
       align-items:center;
@@ -718,6 +691,24 @@ const adminPrototypeHTML = `<!doctype html>
       color:#6c757d;
       transition:transform 120ms ease, color 120ms ease;
     }
+    .sidebar-treeview-toggle-icon svg {
+      width:15px;
+      height:15px;
+      stroke:currentColor;
+      stroke-width:1.75;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .sidebar-treeview-caret svg {
+      width:13px;
+      height:13px;
+      stroke:currentColor;
+      stroke-width:2;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
     .sidebar-treeview-toggle-text {
       min-width:0;
       overflow:hidden;
@@ -732,9 +723,7 @@ const adminPrototypeHTML = `<!doctype html>
     .sidebar-treeview-toggle:hover .sidebar-treeview-toggle-icon,
     .sidebar-treeview-toggle:hover .sidebar-treeview-caret,
     .sidebar-treeview.open .sidebar-treeview-toggle-icon,
-    .sidebar-treeview.open .sidebar-treeview-caret {
-      color:#c2c7d0;
-    }
+    .sidebar-treeview.open .sidebar-treeview-caret { color:#c2c7d0; }
     .sidebar-treeview.open .sidebar-treeview-caret {
       transform:rotate(-90deg);
       color:#fff;
@@ -756,7 +745,7 @@ const adminPrototypeHTML = `<!doctype html>
       color:var(--admin-sidebar-text);
       border:none;
       border-radius:0.25rem;
-      padding:9px 14px 9px 34px;
+      padding:9px 14px 9px 18px;
       display:flex;
       align-items:center;
       gap:12px;
@@ -775,18 +764,34 @@ const adminPrototypeHTML = `<!doctype html>
       color:#fff;
     }
     .nav-link-icon {
-      width:6px;
-      height:6px;
-      border-radius:999px;
-      background:rgba(255,255,255,0.55);
+      position:relative;
+      width:18px;
+      height:18px;
       flex-shrink:0;
-      transition:transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+      transition:transform 120ms ease, color 120ms ease;
     }
-    .nav-link:hover .nav-link-icon { background:rgba(255,255,255,0.78); }
+    .nav-link-icon::before {
+      content:"";
+      position:absolute;
+      top:50%;
+      left:50%;
+      width:5px;
+      height:5px;
+      border-radius:999px;
+      background:currentColor;
+      transform:translate(-50%, -50%);
+      opacity:0.75;
+    }
+    .nav-link:hover .nav-link-icon { color:rgba(255,255,255,0.88); }
     .nav-link.active .nav-link-icon {
-      background:#fff;
-      transform:scale(1.1);
-      box-shadow:0 0 0 3px rgba(60, 141, 188, 0.28);
+      color:#fff;
+      transform:scale(1.05);
+    }
+    .nav-link.active .nav-link-icon::before {
+      width:7px;
+      height:7px;
+      opacity:1;
+      box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);
     }
     .nav-link-label {
       flex:1 1 auto;
@@ -848,7 +853,6 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       justify-content:space-between;
       gap:12px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
     }
     .multi-relation-dropdown summary::-webkit-details-marker { display:none; }
     .multi-relation-dropdown summary::after { content:'▾'; font-size:12px; color:var(--admin-muted); }
@@ -893,7 +897,7 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview mark { background:#fcf8e3; padding:0; }
     .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
-    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
+    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
     .detail-grid { display:grid; gap:10px; }
     .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf1f4; padding-bottom:10px; }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
@@ -905,7 +909,7 @@ const adminPrototypeHTML = `<!doctype html>
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
     .pagination-info { font-size:14px; color:var(--admin-muted); }
-    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
+    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:#fff; color:var(--admin-muted); text-align:center; }
     .workspace-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .workspace-actions button { padding-inline:14px; }
@@ -938,7 +942,7 @@ const adminPrototypeHTML = `<!doctype html>
     input:focus, select:focus, textarea:focus {
       outline:none;
       border-color:#80bdff;
-      box-shadow:0 0 0 0.2rem rgba(60, 141, 188, 0.2);
+      box-shadow:0 0 0 0.2rem rgba(0, 123, 255, 0.2);
     }
     textarea { min-height: 112px; }
     button {
@@ -967,7 +971,8 @@ const adminPrototypeHTML = `<!doctype html>
     tbody tr.row-selected { background:#eaf3f8; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
     .action-menu { position:relative; display:inline-block; }
-    .action-menu-trigger { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 10px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
+    .action-menu-trigger,
+    .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 10px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
     .action-menu-trigger:hover { background:#f8f9fa; border-color:#adb5bd; }
     .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid var(--admin-border); border-radius:0.25rem; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
     .action-menu-list.open { display:block; }
@@ -977,7 +982,6 @@ const adminPrototypeHTML = `<!doctype html>
     .action-menu-divider { border:none; border-top:1px solid var(--admin-border); margin:4px 0; }
     .action-menu-item.danger { background:transparent; color:var(--admin-danger); border-color:transparent; }
     .action-menu-item.danger:hover { background:#fdf1ef; }
-    .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 12px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
     .action-btn-view:hover { background:#f8f9fa; border-color:#adb5bd; }
     pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#1f2d3d; color:#e9ecef; padding:14px; border-radius:0.65rem; }
     @keyframes spin { to { transform:rotate(360deg); } }
@@ -1056,8 +1060,52 @@ const adminPrototypeHTML = `<!doctype html>
       cursor:pointer;
       border-radius:0.25rem;
     }
-    /* Setting filter:none overrides the universal button:hover brightness filter for this link-style button */
     .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
+    .topbar-action-badge {
+      position:absolute;
+      top:4px;
+      right:2px;
+      min-width:18px;
+      height:18px;
+      padding:0 5px;
+      border-radius:999px;
+      display:grid;
+      place-items:center;
+      font-size:10px;
+      font-weight:700;
+      color:#fff;
+      background:#dc3545;
+    }
+    .topbar-action-badge.warning { background:#ffc107; color:#212529; }
+    .main-header.topbar { margin-left:0; width:100%; }
+    .topbar .topbar-link,
+    .topbar .topbar-action,
+    .topbar .topbar-user-btn { color:inherit; }
+    .topbar .topbar-link:hover,
+    .topbar .topbar-action:hover,
+    .topbar .topbar-user-btn:hover { color:var(--admin-primary); }
+    .topbar-search-wrap.navbar-search-block { position:relative; display:flex; align-items:center; margin-bottom:0; }
+    .sidebar-brand { height:auto; color:inherit; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-user-panel { margin:0; padding:14px 16px 14px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-search.input-group { margin-bottom:0; }
+    .sidebar-search.input-group .form-control,
+    .sidebar-search.input-group .btn { min-height:38px; }
+    .sidebar-search.input-group .btn { border-color:rgba(255,255,255,.1); }
+    .workspace.content-wrapper { margin-left:0; min-height:auto; background:transparent; padding:0; }
+    .workspace.content-wrapper > * { width:100%; }
+    .session-panel.login-box { width:100%; max-width:none; }
+    .panel.card,
+    .detail-card.card { margin-bottom:0; }
+    .dashboard-tile.small-box { border:none; margin-bottom:0; text-align:left; cursor:pointer; }
+    .dashboard-tile.small-box .inner { display:grid; gap:4px; }
+    .dashboard-tile.small-box .icon { color:rgba(255,255,255,.24); }
+    .table-shell.table-responsive { border-radius:var(--admin-radius); }
+    .btn-sidebar { background:rgba(255,255,255,.08); color:var(--admin-sidebar-text); }
+    [data-theme="dark"] .main-header,
+    [data-theme="dark"] .content-wrapper,
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
+    [data-theme="dark"] .btn-sidebar { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
       body.standalone-admin-page.sidebar-collapsed .topbar,
@@ -1072,7 +1120,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     body.standalone-login-page {
       background:
-        radial-gradient(circle at top left, rgba(60, 141, 188, 0.12), transparent 36%),
+        radial-gradient(circle at top left, rgba(0, 123, 255, 0.12), transparent 36%),
         linear-gradient(180deg, #eef2f6 0%, #f4f6f9 48%, #eef1f4 100%);
     }
     body.standalone-login-page .topbar,
@@ -1141,20 +1189,21 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar { flex-direction:column; align-items:flex-start; }
       .topbar-left, .topbar-meta { width:100%; }
       .topbar-nav { flex-wrap:wrap; }
-      .topbar-meta { justify-content:flex-start; }
+      .topbar-meta { justify-content:flex-start; margin-left:0; }
       .table-toolbar .row-actions { flex-basis:100%; }
     }
   </style>
 </head>
-<body>
+<body class="sidebar-mini layout-fixed">
+  <div class="wrapper">
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <header class="topbar">
+  <header class="topbar main-header navbar navbar-expand navbar-white navbar-light elevation-1">
     <div class="topbar-left">
-      <button class="topbar-toggle" type="button" aria-label="Toggle navigation">☰</button>
-      <nav class="topbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link" href="/admin">Home</a>
+      <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
+      <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
+        <a class="topbar-link nav-link" href="/admin">Home</a>
       </nav>
-      <div class="topbar-brand">
+      <div class="topbar-brand brand-link">
         <span class="brand-mark">A</span>
         <div class="topbar-copy">
           <span id="shellEyebrow" class="eyebrow">Admin Console</span>
@@ -1165,27 +1214,27 @@ const adminPrototypeHTML = `<!doctype html>
     </div>
     <div class="topbar-meta">
       <div class="topbar-actions" aria-label="Admin quick actions">
-        <div class="topbar-search-wrap">
-          <button class="topbar-action topbar-search-toggle" type="button" aria-label="Toggle search" id="topbarSearchToggle">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
+        <div class="topbar-search-wrap navbar-search-block">
+          <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
           </button>
           <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
-            <input type="search" id="topbarSearchInput" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
+            <input type="search" id="topbarSearchInput" class="form-control form-control-navbar" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
             <div id="topbarSearchResults" class="topbar-search-results" role="listbox" aria-label="Search results"></div>
           </div>
         </div>
-        <button class="topbar-action" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
+        <button class="topbar-action nav-link" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
           <svg id="darkModeIconMoon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/></svg>
           <svg id="darkModeIconSun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/></svg>
         </button>
-        <div class="topbar-user-dropdown" id="topbarUserDropdown" hidden>
-          <button class="topbar-user-btn" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
+        <div class="topbar-user-dropdown nav-item dropdown" id="topbarUserDropdown" hidden>
+          <button class="topbar-user-btn nav-link" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
             <span class="topbar-user-avatar" id="topbarUserAvatar">?</span>
             <span class="topbar-user-name" id="topbarUserName">Guest</span>
             <svg class="topbar-caret" xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>
           </button>
-          <ul class="topbar-user-menu" id="topbarUserMenu" hidden role="menu">
-            <li role="none"><button id="clearToken" class="topbar-user-menu-item" type="button" role="menuitem">Sign out</button></li>
+          <ul class="topbar-user-menu dropdown-menu dropdown-menu-right" id="topbarUserMenu" hidden role="menu">
+            <li role="none"><button id="clearToken" class="topbar-user-menu-item dropdown-item" type="button" role="menuitem">Sign out</button></li>
           </ul>
         </div>
       </div>
@@ -1195,7 +1244,7 @@ const adminPrototypeHTML = `<!doctype html>
   <main class="app-main">
     <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
-      <section class="panel login-marketing">
+      <section class="panel login-marketing card card-outline card-secondary">
         <span class="eyebrow">Admin Console</span>
         <div class="stack">
           <h2>An AdminLTE-inspired sign-in for the standalone admin console.</h2>
@@ -1216,7 +1265,7 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
       </section>
-      <section class="panel stack session-panel">
+      <section class="panel stack session-panel login-box card card-outline card-primary">
         <div class="login-lead">
           <span class="eyebrow">Secure Sign In</span>
           <h2>Welcome back</h2>
@@ -1229,18 +1278,18 @@ const adminPrototypeHTML = `<!doctype html>
         </div>
         <form id="loginForm" class="two-col">
           <label>Email
-            <input id="loginEmail" type="email" placeholder="alice@example.com" autocomplete="username email">
+            <input id="loginEmail" class="form-control" type="email" placeholder="alice@example.com" autocomplete="username email">
           </label>
           <label>Password
-            <input id="loginPassword" type="password" placeholder="password123" autocomplete="current-password">
+            <input id="loginPassword" class="form-control" type="password" placeholder="password123" autocomplete="current-password">
           </label>
           <div class="row-actions">
-            <button id="loginButton" type="submit">Sign in</button>
+            <button id="loginButton" class="btn btn-primary" type="submit">Sign in</button>
           </div>
         </form>
         <div id="manualTokenTools" class="stack">
           <label>JWT token
-            <input id="token" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
+            <input id="token" class="form-control" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
           </label>
           <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
         </div>
@@ -1248,14 +1297,14 @@ const adminPrototypeHTML = `<!doctype html>
     </section>
     <section id="adminShell" class="admin-shell" hidden>
       <aside class="panel resource-strip stack sidebar-shell">
-        <div class="sidebar-brand">
+        <div class="sidebar-brand brand-link">
           <span class="sidebar-brand-mark">G</span>
           <div class="sidebar-brand-copy">
             <strong>Gin Ninja</strong>
             <span>Admin console</span>
           </div>
         </div>
-        <div class="sidebar-user-panel">
+        <div class="sidebar-user-panel user-panel">
           <span class="sidebar-user-avatar">AP</span>
           <div class="sidebar-user-copy">
             <strong>Alexander Pierce</strong>
@@ -1265,9 +1314,13 @@ const adminPrototypeHTML = `<!doctype html>
             </span>
           </div>
         </div>
-        <div class="sidebar-search">
-          <input id="sidebarResourceSearch" type="search" placeholder="Search" aria-label="Search sidebar navigation">
-          <button id="sidebarResourceSearchButton" type="button" aria-label="Clear sidebar search">⌕</button>
+        <div class="sidebar-search input-group input-group-sm sidebar-search-form">
+          <input id="sidebarResourceSearch" class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search sidebar navigation">
+          <div class="input-group-append">
+            <button id="sidebarResourceSearchButton" class="btn btn-sidebar" type="button" aria-label="Clear sidebar search">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+            </button>
+          </div>
         </div>
         <div class="resource-strip-header">
           <div class="resource-strip-copy sidebar-heading">
@@ -1277,37 +1330,37 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
         <div class="sidebar-nav-shell">
-          <div class="sidebar-treeview open" id="resourceTreeview">
+          <div class="sidebar-treeview open nav nav-pills nav-sidebar flex-column" id="resourceTreeview" data-widget="treeview" role="menu">
             <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
               <span class="sidebar-treeview-toggle-copy">
                 <span class="sidebar-treeview-toggle-icon" aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M3 2.75A1.75 1.75 0 0 1 4.75 1h1.94c.55 0 1.07.26 1.4.7l.52.7a.25.25 0 0 0 .2.1h2.44A1.75 1.75 0 0 1 13 4.25v7A1.75 1.75 0 0 1 11.25 13h-6.5A1.75 1.75 0 0 1 3 11.25zM4.75 2.5a.25.25 0 0 0-.25.25v8.5c0 .14.11.25.25.25h6.5a.25.25 0 0 0 .25-.25v-7a.25.25 0 0 0-.25-.25H8.81a1.75 1.75 0 0 1-1.4-.7l-.52-.7a.25.25 0 0 0-.2-.1z"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 4.5h4l1.4 1.5H13a1 1 0 0 1 1 1v4.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5.5a1 1 0 0 1 .5-1z"/></svg>
                 </span>
                 <span class="sidebar-treeview-toggle-text">Resources</span>
               </span>
               <span class="sidebar-treeview-caret" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M11.354 8.354a.5.5 0 0 0 0-.708L6.707 3l-.707.707L10.293 8 6 12.293l.707.707 4.647-4.646z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
               </span>
             </button>
-            <ul id="resources" class="nav-list sidebar-treeview-menu"></ul>
+            <ul id="resources" class="nav-list nav nav-treeview sidebar-treeview-menu"></ul>
           </div>
         </div>
         <div class="sidebar-footer">
           <span class="sidebar-footer-text">v0.1 · Gin Ninja</span>
-          <button id="sidebarSignOut" class="sidebar-footer-link" type="button" aria-label="Sign out">⏻ Sign out</button>
+          <button id="sidebarSignOut" class="sidebar-footer-link btn btn-link" type="button" aria-label="Sign out"><span aria-hidden="true">⏻</span> Sign out</button>
         </div>
       </aside>
-      <section class="workspace stack">
-        <section class="panel workspace-header">
+      <section class="workspace stack content-wrapper">
+        <section class="panel workspace-header card card-outline card-primary">
           <div class="workspace-header-copy">
             <h2 id="resourceTitle">Select a resource</h2>
             <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
           </div>
           <div class="workspace-actions">
-            <button id="openCreateModal" type="button">Create record</button>
+            <button id="openCreateModal" class="btn btn-primary" type="button">Create record</button>
           </div>
         </section>
-        <section id="dashboardShell" class="panel stack" hidden>
+        <section id="dashboardShell" class="panel stack card card-outline card-info" hidden>
           <div class="section-heading">
             <h3 class="section-title">Resources</h3>
             <p class="section-copy muted">Select a resource below to open its workspace.</p>
@@ -1316,7 +1369,7 @@ const adminPrototypeHTML = `<!doctype html>
         </section>
         <section class="content-grid">
           <section class="stack">
-            <section class="panel section-shell">
+            <section class="panel section-shell card card-outline card-primary">
               <div class="toolbar">
                 <div class="section-heading">
                   <h3 class="section-title">Records</h3>
@@ -1324,16 +1377,16 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
-                  <button id="reloadList" class="secondary" type="button">Refresh list</button>
-                  <button id="clearFilters" class="secondary" type="button">Clear filters</button>
-                  <button id="bulkDelete" class="danger" type="button">Bulk delete</button>
+                  <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
+                  <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
+                  <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                 </div>
               </div>
               <div class="table-toolbar">
                 <div class="row-actions">
-                  <input id="search" placeholder="Search current resource">
-                  <select id="sort"></select>
-                  <select id="pageSize">
+                  <input id="search" class="form-control" placeholder="Search current resource">
+                  <select id="sort" class="custom-select"></select>
+                  <select id="pageSize" class="custom-select">
                     <option value="5">5 / page</option>
                     <option value="10" selected>10 / page</option>
                     <option value="20">20 / page</option>
@@ -1346,8 +1399,8 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="pagination-bar">
                 <div class="muted">Use filters to refine the current workspace.</div>
                 <div class="row-actions">
-                  <button id="prevPage" class="secondary" type="button">Previous</button>
-                  <button id="nextPage" class="secondary" type="button">Next</button>
+                  <button id="prevPage" class="secondary btn btn-default" type="button">Previous</button>
+                  <button id="nextPage" class="secondary btn btn-default" type="button">Next</button>
                 </div>
               </div>
               <div id="list"></div>
@@ -1365,7 +1418,7 @@ const adminPrototypeHTML = `<!doctype html>
                 <h3 id="createModalTitle" class="section-title">Create record</h3>
                 <p class="section-copy muted">Use the same admin layout to add a new record to the active resource.</p>
               </div>
-              <button id="closeCreateModal" type="button" class="secondary modal-close" aria-label="Close create record dialog">Close</button>
+              <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
             </div>
             <div class="modal-body">
               <form id="createForm" class="stack"></form>
@@ -1382,12 +1435,12 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
                 <p class="section-copy muted">Inspect the selected record and review the reference payload in a focused dialog.</p>
               </div>
-              <button id="closeRecordModal" type="button" class="secondary modal-close" aria-label="Close record dialog">Close</button>
+              <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">Close</button>
             </div>
             <div class="modal-body">
               <div class="detail-layout">
                 <section class="stack">
-                  <div class="detail-card stack">
+                  <div class="detail-card stack card card-outline card-primary">
                     <div class="toolbar">
                       <strong id="detailTitle">No record selected</strong>
                     </div>
@@ -1395,7 +1448,7 @@ const adminPrototypeHTML = `<!doctype html>
                       <p class="muted">No record selected.</p>
                     </div>
                   </div>
-                  <div class="detail-card stack">
+                  <div class="detail-card stack card card-outline card-secondary">
                     <strong>Reference payload</strong>
                     <pre id="detail">No record selected.</pre>
                   </div>
@@ -1411,7 +1464,7 @@ const adminPrototypeHTML = `<!doctype html>
                 <h3 id="editModalTitle" class="section-title">Edit record</h3>
                 <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
               </div>
-              <button id="closeEditModal" type="button" class="secondary modal-close" aria-label="Close edit record dialog">Close</button>
+              <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">Close</button>
             </div>
             <div class="modal-body">
               <form id="updateForm" class="stack"></form>
@@ -1424,19 +1477,21 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="section-heading">
                 <h3 id="confirmModalTitle" class="section-title">Confirm action</h3>
               </div>
-              <button id="closeConfirmModal" type="button" class="secondary modal-close" aria-label="Close confirm dialog">Close</button>
+              <button id="closeConfirmModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close confirm dialog">Close</button>
             </div>
             <div class="modal-body">
               <p id="confirmModalMessage" class="muted"></p>
               <div class="confirm-actions">
-                <button id="confirmModalCancel" type="button" class="secondary">Cancel</button>
-                <button id="confirmModalConfirm" type="button" class="danger">Delete</button>
+                <button id="confirmModalCancel" type="button" class="secondary btn btn-default">Cancel</button>
+                <button id="confirmModalConfirm" type="button" class="danger btn btn-danger">Delete</button>
               </div>
             </div>
           </div>
         </section>
       </section>
     </section>
+  </main>
+  </div>
   <script>
     const apiBase = '/api/v1/admin';
     const tokenStorageKey = 'gin-ninja-admin-token';
@@ -1582,6 +1637,7 @@ const adminPrototypeHTML = `<!doctype html>
       } else {
         document.documentElement.removeAttribute('data-theme');
       }
+      document.body.classList.toggle('dark-mode', dark);
       if (els.darkModeIconMoon) els.darkModeIconMoon.hidden = dark;
       if (els.darkModeIconSun) els.darkModeIconSun.hidden = !dark;
       if (els.darkModeToggle) els.darkModeToggle.setAttribute('aria-pressed', String(dark));
@@ -1743,6 +1799,7 @@ const adminPrototypeHTML = `<!doctype html>
       document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage());
       document.body.classList.toggle('standalone-admin-page', isStandaloneAdminPage());
       document.body.classList.toggle('legacy-prototype-page', isLegacyPrototypePage());
+      document.body.classList.toggle('login-page', isStandaloneLoginPage());
       if (isStandaloneLoginPage()) {
         document.title = 'Gin Ninja Admin Login';
         els.shellEyebrow.textContent = 'Admin Login';
@@ -2128,8 +2185,10 @@ const adminPrototypeHTML = `<!doctype html>
         const button = document.createElement('button');
         const icon = document.createElement('span');
         const label = document.createElement('span');
+        li.className = 'nav-item';
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
+        button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
         label.className = 'nav-link-label';
@@ -2141,28 +2200,63 @@ const adminPrototypeHTML = `<!doctype html>
         els.resources.appendChild(li);
       });
       if (els.sidebarResourceSearchButton) {
-        els.sidebarResourceSearchButton.textContent = state.resourceSearch ? '×' : '⌕';
+        setSidebarSearchButtonContent(Boolean(state.resourceSearch));
         els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
       }
     }
 
-     function openModal(modal) {
-       if (!modal || modal.hidden) {
-         if (modal) {
-           modal.hidden = false;
-        }
+    function setSidebarSearchButtonContent(activeClear) {
+      if (!els.sidebarResourceSearchButton) return;
+      els.sidebarResourceSearchButton.replaceChildren();
+      if (activeClear) {
+        const span = document.createElement('span');
+        span.setAttribute('aria-hidden', 'true');
+        span.textContent = '×';
+        els.sidebarResourceSearchButton.appendChild(span);
+        return;
       }
-       document.body.classList.add('modal-open');
-     }
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('width', '14');
+      svg.setAttribute('height', '14');
+      svg.setAttribute('viewBox', '0 0 16 16');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', '6.5');
+      circle.setAttribute('cy', '6.5');
+      circle.setAttribute('r', '4.5');
+      circle.setAttribute('stroke', 'currentColor');
+      circle.setAttribute('stroke-width', '1.5');
+      const path = document.createElementNS(svgNS, 'path');
+      path.setAttribute('d', 'M10 10l4 4');
+      path.setAttribute('stroke', 'currentColor');
+      path.setAttribute('stroke-width', '1.5');
+      path.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(circle);
+      svg.appendChild(path);
+      els.sidebarResourceSearchButton.appendChild(svg);
+    }
+
+     function openModal(modal) {
+        if (!modal || modal.hidden) {
+          if (modal) {
+            modal.hidden = false;
+            modal.classList.add('show');
+         }
+       }
+        document.body.classList.add('modal-open');
+      }
 
      function anyModalOpen() {
        return [els.createModal, els.recordModal, els.editModal, els.confirmModal].some((modal) => modal && !modal.hidden);
      }
 
      function closeModal(modal) {
-       if (modal) {
-         modal.hidden = true;
-       }
+        if (modal) {
+          modal.classList.remove('show');
+          modal.hidden = true;
+        }
        if (!anyModalOpen()) {
          document.body.classList.remove('modal-open');
        }
@@ -2296,11 +2390,14 @@ const adminPrototypeHTML = `<!doctype html>
       state.resources.forEach((resource) => {
         const tile = document.createElement('button');
         tile.type = 'button';
-        tile.className = 'dashboard-tile';
+        tile.className = 'dashboard-tile small-box bg-info';
         tile.innerHTML =
+          '<div class="inner">' +
           '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
           '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
-          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>';
+          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
+          '</div>' +
+          '<div class="icon" aria-hidden="true">▣</div>';
         tile.onclick = () => selectResource(resource);
         els.dashboardTiles.appendChild(tile);
         // Load record count in background for each tile
@@ -2319,11 +2416,12 @@ const adminPrototypeHTML = `<!doctype html>
 
     function buildFilterControl(field) {
       const wrapper = document.createElement('label');
-      wrapper.className = 'inline-field';
+      wrapper.className = 'inline-field form-group';
       wrapper.textContent = field.label;
       let input;
       if (field.component === 'checkbox') {
         input = document.createElement('select');
+        input.className = 'custom-select';
         [['', 'Any'], ['true', 'True'], ['false', 'False']].forEach((pair) => {
           const option = document.createElement('option');
           option.value = pair[0];
@@ -2333,12 +2431,15 @@ const adminPrototypeHTML = `<!doctype html>
       } else if (field.component === 'number') {
         input = document.createElement('input');
         input.type = 'number';
+        input.className = 'form-control';
       } else if (field.component === 'datetime') {
         input = document.createElement('input');
         input.type = 'datetime-local';
+        input.className = 'form-control';
       } else {
         input = document.createElement('input');
         input.type = 'text';
+        input.className = 'form-control';
       }
       input.name = field.name;
       input.placeholder = 'Filter by ' + field.label;
@@ -2483,14 +2584,16 @@ const adminPrototypeHTML = `<!doctype html>
     async function buildFieldControl(field, value, scopeKey) {
       if (field.relation) {
         const wrapper = document.createElement('div');
-        wrapper.className = 'relation-control';
+        wrapper.className = 'relation-control form-group';
         const searchKey = relationStateKey(scopeKey, field);
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.placeholder = 'Search related ' + field.label;
         searchInput.value = state.relationSearch[searchKey] || '';
+        searchInput.className = 'form-control';
         const select = document.createElement('select');
         select.name = field.name;
+        select.className = 'custom-select';
         const preview = isMultiRelationField(field) ? null : document.createElement('ul');
         if (preview) preview.className = 'relation-preview';
         const dropdown = isMultiRelationField(field) ? document.createElement('details') : null;
@@ -2537,11 +2640,13 @@ const adminPrototypeHTML = `<!doctype html>
         input.type = 'checkbox';
         input.name = field.name;
         input.checked = Boolean(value);
+        input.className = 'form-check-input';
         return input;
       }
       if (field.component === 'array' || field.component === 'text' || field.component === 'textarea') {
         const input = document.createElement('textarea');
         input.name = field.name;
+        input.className = 'form-control';
         input.value = field.component === 'array'
           ? (Array.isArray(value) ? JSON.stringify(value, null, 2) : (value ? JSON.stringify(value, null, 2) : ''))
           : (value == null ? '' : String(value));
@@ -2551,6 +2656,7 @@ const adminPrototypeHTML = `<!doctype html>
       input.name = field.name;
       input.type = ({ email: 'email', password: 'password', number: 'number', datetime: 'datetime-local' }[field.component]) || 'text';
       input.value = value == null ? '' : String(value);
+      input.className = 'form-control';
       return input;
     }
 
@@ -2564,7 +2670,7 @@ const adminPrototypeHTML = `<!doctype html>
         const field = fieldMeta(name);
         if (!field) continue;
         const wrapper = document.createElement('label');
-        wrapper.className = 'form-field';
+        wrapper.className = 'form-field form-group';
         wrapper.textContent = field.label;
         const control = await buildFieldControl(field, values[name], scopeKey);
         wrapper.appendChild(control);
@@ -2573,6 +2679,7 @@ const adminPrototypeHTML = `<!doctype html>
       const submit = document.createElement('button');
       submit.type = 'submit';
       submit.textContent = mode === 'update' ? 'Update' : 'Create';
+      submit.className = 'btn btn-primary';
       target.appendChild(submit);
     }
 
@@ -2739,13 +2846,16 @@ const adminPrototypeHTML = `<!doctype html>
         return;
       }
       const tableShell = document.createElement('div');
-      tableShell.className = 'table-shell';
+      tableShell.className = 'table-shell table-responsive p-0';
       const table = document.createElement('table');
+      table.className = 'table table-bordered table-striped table-hover';
       const thead = document.createElement('thead');
+      thead.className = 'thead-light';
       const headRow = document.createElement('tr');
       const bulkCell = document.createElement('th');
       const selectAll = document.createElement('input');
       selectAll.type = 'checkbox';
+      selectAll.className = 'form-check-input position-static';
       selectAll.checked = rows.length > 0 && rows.every((row) => isSelectedForBulk(recordPrimaryKey(row)));
       selectAll.onchange = () => {
         rows.forEach((row) => setSelectedForBulk(recordPrimaryKey(row), selectAll.checked));
@@ -2789,6 +2899,7 @@ const adminPrototypeHTML = `<!doctype html>
         const checkCell = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input position-static';
         checkbox.checked = isSelectedForBulk(id);
         checkbox.onchange = () => {
           setSelectedForBulk(id, checkbox.checked);
@@ -2807,14 +2918,14 @@ const adminPrototypeHTML = `<!doctype html>
         // View button
         const openButton = document.createElement('button');
         openButton.type = 'button';
-        openButton.className = 'action-btn-view';
+        openButton.className = 'action-btn-view btn btn-default btn-sm';
         openButton.textContent = 'View';
         openButton.onclick = () => selectRecord(row, { openModal: 'record' });
         actionWrap.appendChild(openButton);
         // More (···) dropdown menu — uses portal to escape overflow:auto clipping
         const trigger = document.createElement('button');
         trigger.type = 'button';
-        trigger.className = 'action-menu-trigger';
+        trigger.className = 'action-menu-trigger btn btn-default btn-sm dropdown-toggle';
         trigger.setAttribute('aria-label', 'More actions');
         trigger.textContent = '···';
         trigger.onclick = (e) => {
