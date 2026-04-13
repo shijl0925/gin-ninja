@@ -1071,15 +1071,15 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .topbar-action-badge.warning { background:#ffc107; color:#212529; }
     .main-header.topbar { margin-left:0; width:100%; }
-    .topbar .topbar-link.nav-link,
-    .topbar .topbar-action.nav-link,
-    .topbar .topbar-user-btn.nav-link { color:inherit; }
-    .topbar .topbar-link.nav-link:hover,
-    .topbar .topbar-action.nav-link:hover,
-    .topbar .topbar-user-btn.nav-link:hover { color:var(--admin-primary); }
+    .topbar .topbar-link,
+    .topbar .topbar-action,
+    .topbar .topbar-user-btn { color:inherit; }
+    .topbar .topbar-link:hover,
+    .topbar .topbar-action:hover,
+    .topbar .topbar-user-btn:hover { color:var(--admin-primary); }
     .topbar-search-wrap.navbar-search-block { position:relative; display:flex; align-items:center; margin-bottom:0; }
-    .sidebar-brand.brand-link { height:auto; color:inherit; border-bottom:1px solid rgba(255,255,255,.1); }
-    .sidebar-user-panel.user-panel { margin:0; padding:14px 16px 14px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-brand { height:auto; color:inherit; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-user-panel { margin:0; padding:14px 16px 14px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
     .sidebar-search.input-group { margin-bottom:0; }
     .sidebar-search.input-group .form-control,
     .sidebar-search.input-group .btn { min-height:38px; }
@@ -2907,7 +2907,7 @@ const adminPrototypeHTML = `<!doctype html>
         });
         const actionCell = document.createElement('td');
         const actionWrap = document.createElement('div');
-        actionWrap.className = 'action-cell btn-group';
+        actionWrap.className = 'action-cell';
         // View button
         const openButton = document.createElement('button');
         openButton.type = 'button';
