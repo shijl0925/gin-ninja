@@ -627,8 +627,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
 		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "class=\"topbar-link-icon\"") || !strings.Contains(adminHTML, "class=\"topbar-context\"") {
-		t.Fatalf("expected richer AdminLTE-style navbar icon and context chrome in html: %q", adminHTML)
+	if !strings.Contains(adminHTML, "class=\"topbar-link-icon\"") {
+		t.Fatalf("expected richer AdminLTE-style navbar icon chrome in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "Control panel") || strings.Contains(adminHTML, "Standalone workspace") || strings.Contains(adminHTML, "class=\"topbar-context\"") {
+		t.Fatalf("expected topbar context label block to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "aria-label=\"Search sidebar navigation\"") {
 		t.Fatalf("expected AdminLTE-style sidebar search box in html: %q", adminHTML)

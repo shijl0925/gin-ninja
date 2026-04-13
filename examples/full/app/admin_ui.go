@@ -152,7 +152,7 @@ const adminPrototypeHTML = `<!doctype html>
       border-bottom:1px solid var(--admin-border);
       box-shadow:0 1px 3px rgba(0,0,0,.1);
     }
-    .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading, .topbar-context { display:grid; gap:6px; }
+    .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:6px; }
     .topbar-left {
       display:flex;
       align-items:center;
@@ -234,7 +234,7 @@ const adminPrototypeHTML = `<!doctype html>
       letter-spacing:0.08em;
       box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     }
-    .topbar-copy h1, .sidebar-heading h2, .section-title, .topbar-context p { margin:0; }
+    .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
     .topbar-meta {
       display:flex;
@@ -244,21 +244,6 @@ const adminPrototypeHTML = `<!doctype html>
       min-width:0;
       margin-left:auto;
       flex:0 0 auto;
-    }
-    .topbar-context {
-      display:grid;
-      gap:2px;
-      min-width:0;
-      padding:10px 12px;
-      border:1px solid rgba(108,117,125,0.16);
-      border-radius:0.5rem;
-      background:#f8f9fa;
-      box-shadow:inset 0 1px 0 rgba(255,255,255,0.75);
-    }
-    .topbar-context p {
-      font-size:12px;
-      line-height:1.35;
-      color:var(--admin-muted);
     }
     .topbar-actions {
       display:flex;
@@ -1273,7 +1258,6 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .content-wrapper,
     [data-theme="dark"] .card,
     [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
-    [data-theme="dark"] .topbar-context,
     [data-theme="dark"] .workspace-header-main,
     [data-theme="dark"] .section-card-header,
     [data-theme="dark"] .section-card-footer {
@@ -1314,8 +1298,7 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .topbar { padding-top:24px; border-bottom:none; box-shadow:none; background:transparent; position:static; }
     body.standalone-login-page .topbar-nav,
     body.standalone-login-page .topbar-actions,
-    body.standalone-login-page .topbar-toggle,
-    body.standalone-login-page .topbar-context { display:none; }
+    body.standalone-login-page .topbar-toggle { display:none; }
     body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px); align-items:stretch; }
     body.standalone-login-page .login-marketing,
     body.standalone-login-page .login-lead,
@@ -1408,10 +1391,6 @@ const adminPrototypeHTML = `<!doctype html>
       </div>
     </div>
     <div class="topbar-meta">
-      <div class="topbar-context" aria-label="Current admin area">
-        <span class="eyebrow subtle">Control panel</span>
-        <p>Standalone workspace</p>
-      </div>
       <div class="topbar-actions" aria-label="Admin quick actions">
         <div class="topbar-search-wrap navbar-search-block">
           <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle">
