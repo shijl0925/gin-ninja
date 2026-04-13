@@ -1677,6 +1677,48 @@ const adminPrototypeHTML = `<!doctype html>
       return window.location.pathname || '';
     }
 
+    function buildNavigationState(view, resourceName) {
+      return {
+        pagePath: currentPagePath(),
+        view: view || 'dashboard',
+        resourceName: resourceName || ''
+      };
+    }
+
+    function sameNavigationState(a, b) {
+      return !!a && !!b &&
+        (a.pagePath || '') === (b.pagePath || '') &&
+        (a.view || '') === (b.view || '') &&
+        (a.resourceName || '') === (b.resourceName || '');
+    }
+
+    function updateNavigationState(mode, view, resourceName) {
+      if (!window.history) return;
+      const nextState = buildNavigationState(view, resourceName);
+      const currentState = window.history.state;
+      if (sameNavigationState(currentState, nextState)) return;
+      if (mode === 'push' && typeof window.history.pushState === 'function') {
+        window.history.pushState(nextState, '', nextState.pagePath);
+        return;
+      }
+      if (typeof window.history.replaceState === 'function') {
+        window.history.replaceState(nextState, '', nextState.pagePath);
+      }
+    }
+
+    async function restoreNavigationState(navState) {
+      if (!state.resources.length) return false;
+      if (navState?.view === 'dashboard') {
+        showDashboard({ history: 'none' });
+        return true;
+      }
+      if (!navState?.resourceName) return false;
+      const resource = state.resources.find((item) => item.name === navState.resourceName);
+      if (!resource) return false;
+      await selectResource(resource, { history: 'none' });
+      return true;
+    }
+
     function applyTheme(dark) {
       if (dark) {
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -3078,15 +3120,21 @@ const adminPrototypeHTML = `<!doctype html>
         renderResources();
         renderDashboard();
         setStatus('Loaded ' + state.resources.length + ' resources.');
-        if (state.resources.length) {
-          await selectResource(state.resources[0]);
+        if (await restoreNavigationState(window.history.state)) {
+          return;
         }
+        if (state.resources.length) {
+          await selectResource(state.resources[0], { history: 'replace' });
+          return;
+        }
+        updateNavigationState('replace', 'dashboard');
       } catch (error) {
         setStatus(String(error.message || error));
       }
     }
 
-    async function selectResource(resource) {
+    async function selectResource(resource, options) {
+      const navigationMode = options?.history || 'push';
       state.current = resource;
       state.selected = null;
       resetQueryState();
@@ -3102,6 +3150,9 @@ const adminPrototypeHTML = `<!doctype html>
         renderSelectedRecord();
         syncBulkActionState();
         syncWorkspaceActionState();
+        if (navigationMode !== 'none') {
+          updateNavigationState(navigationMode, 'resource', resource.name);
+        }
         setStatus('Loaded resource ' + resource.name + '.');
       } catch (error) {
         setStatus(String(error.message || error));
@@ -3189,7 +3240,8 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
-    function showDashboard() {
+    function showDashboard(options) {
+      const navigationMode = options?.history || 'push';
       state.current = null;
       state.meta = null;
       state.selected = null;
@@ -3209,8 +3261,14 @@ const adminPrototypeHTML = `<!doctype html>
       renderPagination();
       syncBulkActionState();
       syncWorkspaceActionState();
+      if (navigationMode !== 'none') {
+        updateNavigationState(navigationMode, 'dashboard');
+      }
       setStatus('Showing Dashboard.');
     }
+    window.addEventListener('popstate', (event) => {
+      restoreNavigationState(event.state).catch((error) => setStatus(String(error.message || error)));
+    });
     if (els.topbarSearchInput) {
       els.topbarSearchInput.addEventListener('input', (event) => {
         clearTimeout(globalSearchTimer);

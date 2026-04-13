@@ -1990,6 +1990,53 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	waitForBrowserVisible(t, ctx, "#loginForm")
 }
 
+func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+
+	clickBrowser(t, ctx, "#sidebarDashboardLink")
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
+	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
+
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const tiles = Array.from(document.querySelectorAll('#dashboardTiles .dashboard-tile'));
+		const tile = tiles.find((item) => String(item.textContent || '').includes('Users'));
+		if (tile) tile.click();
+		return !!tile;
+	})()`, nil))
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserPath(t, ctx, "/admin")
+
+	runBrowser(t, ctx, chromedp.Evaluate(`history.back()`, nil))
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
+	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
+}
+
 func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
