@@ -13,10 +13,6 @@ const adminPrototypeHTML = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gin Ninja Admin</title>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/css/adminlte.min.css">
   <style>
     :root {
       color-scheme: light;
@@ -858,7 +854,7 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview mark { background:#fcf8e3; padding:0; }
     .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
-    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
+    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
     .detail-grid { display:grid; gap:10px; }
     .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf1f4; padding-bottom:10px; }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
@@ -870,9 +866,7 @@ const adminPrototypeHTML = `<!doctype html>
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
     .pagination-info { font-size:14px; color:var(--admin-muted); }
-    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:#fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
-    .table-shell { background: var(--admin-surface); }
-    .detail-card { background: var(--admin-surface); }
+    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:#fff; color:var(--admin-muted); text-align:center; }
     .workspace-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .workspace-actions button { padding-inline:14px; }
@@ -1158,7 +1152,7 @@ const adminPrototypeHTML = `<!doctype html>
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
   <header class="topbar main-header navbar navbar-expand navbar-white navbar-light elevation-1">
     <div class="topbar-left">
-      <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><i class="fas fa-bars" aria-hidden="true"></i><span class="visually-hidden">Toggle navigation</span></button>
+      <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
       <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
         <a class="topbar-link nav-link" href="/admin">Home</a>
       </nav>
@@ -1174,9 +1168,7 @@ const adminPrototypeHTML = `<!doctype html>
     <div class="topbar-meta">
       <div class="topbar-actions" aria-label="Admin quick actions">
         <div class="topbar-search-wrap navbar-search-block">
-          <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle">
-            <i class="fas fa-search" aria-hidden="true"></i>
-          </button>
+          <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle"><span aria-hidden="true">⌕</span></button>
           <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
             <input type="search" id="topbarSearchInput" class="form-control form-control-navbar" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
             <div id="topbarSearchResults" class="topbar-search-results" role="listbox" aria-label="Search results"></div>
@@ -1276,7 +1268,7 @@ const adminPrototypeHTML = `<!doctype html>
         <div class="sidebar-search input-group input-group-sm sidebar-search-form">
           <input id="sidebarResourceSearch" class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search sidebar navigation">
           <div class="input-group-append">
-            <button id="sidebarResourceSearchButton" class="btn btn-sidebar" type="button" aria-label="Clear sidebar search"><i class="fas fa-search" aria-hidden="true"></i></button>
+            <button id="sidebarResourceSearchButton" class="btn btn-sidebar" type="button" aria-label="Clear sidebar search"><span aria-hidden="true">⌕</span></button>
           </div>
         </div>
         <div class="resource-strip-header">
@@ -1304,7 +1296,7 @@ const adminPrototypeHTML = `<!doctype html>
         </div>
         <div class="sidebar-footer">
           <span class="sidebar-footer-text">v0.1 · Gin Ninja</span>
-          <button id="sidebarSignOut" class="sidebar-footer-link btn btn-link" type="button" aria-label="Sign out"><i class="fas fa-power-off" aria-hidden="true"></i> Sign out</button>
+          <button id="sidebarSignOut" class="sidebar-footer-link btn btn-link" type="button" aria-label="Sign out"><span aria-hidden="true">⏻</span> Sign out</button>
         </div>
       </aside>
       <section class="workspace stack content-wrapper">
@@ -2148,7 +2140,7 @@ const adminPrototypeHTML = `<!doctype html>
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.innerHTML = '<i class="far fa-circle nav-icon"></i>';
+        icon.textContent = '•';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         button.appendChild(icon);
@@ -2158,7 +2150,7 @@ const adminPrototypeHTML = `<!doctype html>
         els.resources.appendChild(li);
       });
       if (els.sidebarResourceSearchButton) {
-        els.sidebarResourceSearchButton.innerHTML = state.resourceSearch ? '&times;' : '<i class="fas fa-search" aria-hidden="true"></i>';
+        els.sidebarResourceSearchButton.innerHTML = state.resourceSearch ? '&times;' : '<span aria-hidden="true">⌕</span>';
         els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
       }
     }
@@ -2322,7 +2314,7 @@ const adminPrototypeHTML = `<!doctype html>
           '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
           '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
           '</div>' +
-          '<div class="icon"><i class="fas fa-database" aria-hidden="true"></i></div>';
+          '<div class="icon" aria-hidden="true">▣</div>';
         tile.onclick = () => selectResource(resource);
         els.dashboardTiles.appendChild(tile);
         // Load record count in background for each tile
@@ -3317,8 +3309,5 @@ const adminPrototypeHTML = `<!doctype html>
       }
     }
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.slim.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2.0/dist/js/adminlte.min.js"></script>
 </body>
 </html>`
