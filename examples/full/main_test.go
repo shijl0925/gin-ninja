@@ -788,7 +788,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "button.className = 'nav-link'") {
 		t.Fatalf("expected active resource navigation styling in html: %q", html)
 	}
-	if !strings.Contains(html, "sidebar-treeview.open .sidebar-treeview-toggle") || !strings.Contains(html, "box-shadow:0 0 0 3px rgba(60, 141, 188, 0.28);") {
+	if !strings.Contains(html, "sidebar-treeview.open .sidebar-treeview-toggle") || !strings.Contains(html, "box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);") {
 		t.Fatalf("expected AdminLTE-style sidebar menu styling in html: %q", html)
 	}
 	if strings.Contains(html, "nav-link-caret") {

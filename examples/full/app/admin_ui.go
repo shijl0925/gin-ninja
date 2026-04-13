@@ -21,13 +21,13 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-sidebar: #1f2d3d;
       --admin-sidebar-alt: #243447;
       --admin-sidebar-text: #c2c7d0;
-      --admin-sidebar-active: #3c8dbc;
+      --admin-sidebar-active: #007bff;
       --admin-topbar: #ffffff;
       --admin-border: #dee2e6;
       --admin-text: #212529;
       --admin-muted: #6c757d;
-      --admin-primary: #3c8dbc;
-      --admin-primary-dark: #367fa9;
+      --admin-primary: #007bff;
+      --admin-primary-dark: #0056b3;
       --admin-success: #00a65a;
       --admin-danger: #dd4b39;
       --admin-warning: #f39c12;
@@ -45,13 +45,13 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-sidebar: #111827;
       --admin-sidebar-alt: #1c2535;
       --admin-sidebar-text: #9ca3af;
-      --admin-sidebar-active: #3c8dbc;
+      --admin-sidebar-active: #007bff;
       --admin-topbar: #1a1d27;
       --admin-border: #2d3242;
       --admin-text: #e2e8f0;
       --admin-muted: #9ca3af;
-      --admin-primary: #4fa3d1;
-      --admin-primary-dark: #3c8dbc;
+      --admin-primary: #66b0ff;
+      --admin-primary-dark: #007bff;
       --admin-success: #22c55e;
       --admin-danger: #ef4444;
       --admin-warning: #f59e0b;
@@ -183,6 +183,8 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:stretch;
       gap:0;
       min-width:0;
+      margin:0 auto 0 0;
+      flex-direction:row;
     }
     .topbar-link {
       display:inline-flex;
@@ -443,7 +445,7 @@ const adminPrototypeHTML = `<!doctype html>
       gap:6px;
       border-radius:999px;
       padding:6px 10px;
-      background:rgba(60, 141, 188, 0.12);
+      background:rgba(0, 123, 255, 0.12);
       color:var(--admin-primary-dark);
       font-size:11px;
       font-weight:700;
@@ -560,7 +562,7 @@ const adminPrototypeHTML = `<!doctype html>
       grid-template-columns:auto 1fr;
       align-items:center;
       gap:10px;
-      padding:10px 16px;
+      padding:10px 16px 10px 20px;
       margin:8px 0 0;
       border-bottom:1px solid rgba(255,255,255,.1);
     }
@@ -682,6 +684,24 @@ const adminPrototypeHTML = `<!doctype html>
       color:#6c757d;
       transition:transform 120ms ease, color 120ms ease;
     }
+    .sidebar-treeview-toggle-icon svg {
+      width:15px;
+      height:15px;
+      stroke:currentColor;
+      stroke-width:1.75;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .sidebar-treeview-caret svg {
+      width:13px;
+      height:13px;
+      stroke:currentColor;
+      stroke-width:2;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
     .sidebar-treeview-toggle-text {
       min-width:0;
       overflow:hidden;
@@ -718,7 +738,7 @@ const adminPrototypeHTML = `<!doctype html>
       color:var(--admin-sidebar-text);
       border:none;
       border-radius:0.25rem;
-      padding:9px 14px 9px 34px;
+      padding:9px 14px 9px 18px;
       display:flex;
       align-items:center;
       gap:12px;
@@ -737,18 +757,34 @@ const adminPrototypeHTML = `<!doctype html>
       color:#fff;
     }
     .nav-link-icon {
-      width:6px;
-      height:6px;
-      border-radius:999px;
-      background:rgba(255,255,255,0.55);
+      position:relative;
+      width:18px;
+      height:18px;
       flex-shrink:0;
-      transition:transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
+      transition:transform 120ms ease, color 120ms ease;
     }
-    .nav-link:hover .nav-link-icon { background:rgba(255,255,255,0.78); }
+    .nav-link-icon::before {
+      content:"";
+      position:absolute;
+      top:50%;
+      left:50%;
+      width:5px;
+      height:5px;
+      border-radius:999px;
+      background:currentColor;
+      transform:translate(-50%, -50%);
+      opacity:0.75;
+    }
+    .nav-link:hover .nav-link-icon { color:rgba(255,255,255,0.88); }
     .nav-link.active .nav-link-icon {
-      background:#fff;
-      transform:scale(1.1);
-      box-shadow:0 0 0 3px rgba(60, 141, 188, 0.28);
+      color:#fff;
+      transform:scale(1.05);
+    }
+    .nav-link.active .nav-link-icon::before {
+      width:7px;
+      height:7px;
+      opacity:1;
+      box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);
     }
     .nav-link-label {
       flex:1 1 auto;
@@ -899,7 +935,7 @@ const adminPrototypeHTML = `<!doctype html>
     input:focus, select:focus, textarea:focus {
       outline:none;
       border-color:#80bdff;
-      box-shadow:0 0 0 0.2rem rgba(60, 141, 188, 0.2);
+      box-shadow:0 0 0 0.2rem rgba(0, 123, 255, 0.2);
     }
     textarea { min-height: 112px; }
     button {
@@ -1039,7 +1075,7 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar .nav-link:hover { color:var(--admin-primary); }
     .topbar-search-wrap.navbar-search-block { position:relative; display:flex; align-items:center; margin-bottom:0; }
     .sidebar-brand.brand-link { height:auto; color:inherit; border-bottom:1px solid rgba(255,255,255,.1); }
-    .sidebar-user-panel.user-panel { margin:0; padding:14px 0; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-user-panel.user-panel { margin:0; padding:14px 16px 14px 20px; border-bottom:1px solid rgba(255,255,255,.1); }
     .sidebar-search.input-group { margin-bottom:0; }
     .sidebar-search.input-group .form-control,
     .sidebar-search.input-group .btn { min-height:38px; }
@@ -1073,7 +1109,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     body.standalone-login-page {
       background:
-        radial-gradient(circle at top left, rgba(60, 141, 188, 0.12), transparent 36%),
+        radial-gradient(circle at top left, rgba(0, 123, 255, 0.12), transparent 36%),
         linear-gradient(180deg, #eef2f6 0%, #f4f6f9 48%, #eef1f4 100%);
     }
     body.standalone-login-page .topbar,
@@ -1283,12 +1319,12 @@ const adminPrototypeHTML = `<!doctype html>
             <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
               <span class="sidebar-treeview-toggle-copy">
                 <span class="sidebar-treeview-toggle-icon" aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M3 2.75A1.75 1.75 0 0 1 4.75 1h1.94c.55 0 1.07.26 1.4.7l.52.7a.25.25 0 0 0 .2.1h2.44A1.75 1.75 0 0 1 13 4.25v7A1.75 1.75 0 0 1 11.25 13h-6.5A1.75 1.75 0 0 1 3 11.25zM4.75 2.5a.25.25 0 0 0-.25.25v8.5c0 .14.11.25.25.25h6.5a.25.25 0 0 0 .25-.25v-7a.25.25 0 0 0-.25-.25H8.81a1.75 1.75 0 0 1-1.4-.7l-.52-.7a.25.25 0 0 0-.2-.1z"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 4.5h4l1.4 1.5H13a1 1 0 0 1 1 1v4.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5.5a1 1 0 0 1 .5-1z"/></svg>
                 </span>
                 <span class="sidebar-treeview-toggle-text">Resources</span>
               </span>
               <span class="sidebar-treeview-caret" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M11.354 8.354a.5.5 0 0 0 0-.708L6.707 3l-.707.707L10.293 8 6 12.293l.707.707 4.647-4.646z"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
               </span>
             </button>
             <ul id="resources" class="nav-list nav nav-treeview sidebar-treeview-menu"></ul>
@@ -2140,7 +2176,6 @@ const adminPrototypeHTML = `<!doctype html>
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '▸';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         button.appendChild(icon);
