@@ -1040,6 +1040,31 @@ const adminPrototypeHTML = `<!doctype html>
       background:#dc3545;
     }
     .topbar-action-badge.warning { background:#ffc107; color:#212529; }
+    .main-header.topbar { margin-left:0; width:100%; }
+    .topbar .nav-link { color:inherit; }
+    .topbar .nav-link:hover { color:var(--admin-primary); }
+    .topbar-search-wrap.navbar-search-block { position:relative; display:flex; align-items:center; margin-bottom:0; }
+    .sidebar-brand.brand-link { height:auto; color:inherit; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-user-panel.user-panel { margin:0; padding:14px 0; border-bottom:1px solid rgba(255,255,255,.1); }
+    .sidebar-search.input-group { margin-bottom:0; }
+    .sidebar-search.input-group .form-control,
+    .sidebar-search.input-group .btn { min-height:38px; }
+    .sidebar-search.input-group .btn { border-color:rgba(255,255,255,.1); }
+    .workspace.content-wrapper { margin-left:0; min-height:auto; background:transparent; padding:0; }
+    .workspace.content-wrapper > * { width:100%; }
+    .session-panel.login-box { width:100%; max-width:none; }
+    .panel.card,
+    .detail-card.card { margin-bottom:0; }
+    .dashboard-tile.small-box { border:none; margin-bottom:0; text-align:left; cursor:pointer; }
+    .dashboard-tile.small-box .inner { display:grid; gap:4px; }
+    .dashboard-tile.small-box .icon { color:rgba(255,255,255,.24); }
+    .table-shell.table-responsive { border-radius:var(--admin-radius); }
+    .btn-sidebar { background:rgba(255,255,255,.08); color:var(--admin-sidebar-text); }
+    [data-theme="dark"] .main-header,
+    [data-theme="dark"] .content-wrapper,
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
+    [data-theme="dark"] .btn-sidebar { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
       body.standalone-admin-page.sidebar-collapsed .topbar,
@@ -1128,16 +1153,16 @@ const adminPrototypeHTML = `<!doctype html>
     }
   </style>
 </head>
-<body class="hold-transition sidebar-mini">
+<body class="hold-transition sidebar-mini layout-fixed">
   <div class="wrapper">
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <header class="topbar">
+  <header class="topbar main-header navbar navbar-expand navbar-white navbar-light elevation-1">
     <div class="topbar-left">
-      <button class="topbar-toggle" type="button" aria-label="Toggle navigation">☰</button>
-      <nav class="topbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link" href="/admin">Home</a>
+      <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><i class="fas fa-bars" aria-hidden="true"></i><span class="visually-hidden">Toggle navigation</span></button>
+      <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
+        <a class="topbar-link nav-link" href="/admin">Home</a>
       </nav>
-      <div class="topbar-brand">
+      <div class="topbar-brand brand-link">
         <span class="brand-mark">A</span>
         <div class="topbar-copy">
           <span id="shellEyebrow" class="eyebrow">Admin Console</span>
@@ -1148,27 +1173,27 @@ const adminPrototypeHTML = `<!doctype html>
     </div>
     <div class="topbar-meta">
       <div class="topbar-actions" aria-label="Admin quick actions">
-        <div class="topbar-search-wrap">
-          <button class="topbar-action topbar-search-toggle" type="button" aria-label="Toggle search" id="topbarSearchToggle">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.414zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
+        <div class="topbar-search-wrap navbar-search-block">
+          <button class="topbar-action topbar-search-toggle nav-link" type="button" aria-label="Toggle search" id="topbarSearchToggle">
+            <i class="fas fa-search" aria-hidden="true"></i>
           </button>
           <div id="topbarSearchExpand" class="topbar-search-expand" role="search">
-            <input type="search" id="topbarSearchInput" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
+            <input type="search" id="topbarSearchInput" class="form-control form-control-navbar" placeholder="Search all resources…" aria-label="Site-wide search" aria-autocomplete="list" aria-controls="topbarSearchResults" autocomplete="off">
             <div id="topbarSearchResults" class="topbar-search-results" role="listbox" aria-label="Search results"></div>
           </div>
         </div>
-        <button class="topbar-action" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
+        <button class="topbar-action nav-link" type="button" aria-label="Toggle dark mode" id="darkModeToggle">
           <svg id="darkModeIconMoon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 .278a.77.77 0 0 1 .08.858 7.2 7.2 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277q.792-.001 1.533-.16a.79.79 0 0 1 .81.316.73.73 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.75.75 0 0 1 6 .278"/></svg>
           <svg id="darkModeIconSun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0m0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13m8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5M3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8m10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0m-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0m9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707M4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708"/></svg>
         </button>
-        <div class="topbar-user-dropdown" id="topbarUserDropdown" hidden>
-          <button class="topbar-user-btn" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
+        <div class="topbar-user-dropdown nav-item dropdown" id="topbarUserDropdown" hidden>
+          <button class="topbar-user-btn nav-link" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false" id="topbarUserBtn">
             <span class="topbar-user-avatar" id="topbarUserAvatar">?</span>
             <span class="topbar-user-name" id="topbarUserName">Guest</span>
             <svg class="topbar-caret" xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>
           </button>
-          <ul class="topbar-user-menu" id="topbarUserMenu" hidden role="menu">
-            <li role="none"><button id="clearToken" class="topbar-user-menu-item" type="button" role="menuitem">Sign out</button></li>
+          <ul class="topbar-user-menu dropdown-menu dropdown-menu-right" id="topbarUserMenu" hidden role="menu">
+            <li role="none"><button id="clearToken" class="topbar-user-menu-item dropdown-item" type="button" role="menuitem">Sign out</button></li>
           </ul>
         </div>
       </div>
@@ -1178,7 +1203,7 @@ const adminPrototypeHTML = `<!doctype html>
   <main class="app-main">
     <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
-      <section class="panel login-marketing">
+      <section class="panel login-marketing card card-outline card-secondary">
         <span class="eyebrow">Admin Console</span>
         <div class="stack">
           <h2>An AdminLTE-inspired sign-in for the standalone admin console.</h2>
@@ -1199,7 +1224,7 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
       </section>
-      <section class="panel stack session-panel">
+      <section class="panel stack session-panel login-box card card-outline card-primary">
         <div class="login-lead">
           <span class="eyebrow">Secure Sign In</span>
           <h2>Welcome back</h2>
@@ -1212,18 +1237,18 @@ const adminPrototypeHTML = `<!doctype html>
         </div>
         <form id="loginForm" class="two-col">
           <label>Email
-            <input id="loginEmail" type="email" placeholder="alice@example.com" autocomplete="username email">
+            <input id="loginEmail" class="form-control" type="email" placeholder="alice@example.com" autocomplete="username email">
           </label>
           <label>Password
-            <input id="loginPassword" type="password" placeholder="password123" autocomplete="current-password">
+            <input id="loginPassword" class="form-control" type="password" placeholder="password123" autocomplete="current-password">
           </label>
           <div class="row-actions">
-            <button id="loginButton" type="submit">Sign in</button>
+            <button id="loginButton" class="btn btn-primary" type="submit">Sign in</button>
           </div>
         </form>
         <div id="manualTokenTools" class="stack">
           <label>JWT token
-            <input id="token" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
+            <input id="token" class="form-control" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
           </label>
           <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
         </div>
@@ -1231,14 +1256,14 @@ const adminPrototypeHTML = `<!doctype html>
     </section>
     <section id="adminShell" class="admin-shell" hidden>
       <aside class="panel resource-strip stack sidebar-shell">
-        <div class="sidebar-brand">
+        <div class="sidebar-brand brand-link">
           <span class="sidebar-brand-mark">G</span>
           <div class="sidebar-brand-copy">
             <strong>Gin Ninja</strong>
             <span>Admin console</span>
           </div>
         </div>
-        <div class="sidebar-user-panel">
+        <div class="sidebar-user-panel user-panel">
           <span class="sidebar-user-avatar">AP</span>
           <div class="sidebar-user-copy">
             <strong>Alexander Pierce</strong>
@@ -1248,9 +1273,11 @@ const adminPrototypeHTML = `<!doctype html>
             </span>
           </div>
         </div>
-        <div class="sidebar-search">
-          <input id="sidebarResourceSearch" type="search" placeholder="Search" aria-label="Search sidebar navigation">
-          <button id="sidebarResourceSearchButton" type="button" aria-label="Clear sidebar search">⌕</button>
+        <div class="sidebar-search input-group input-group-sm sidebar-search-form">
+          <input id="sidebarResourceSearch" class="form-control form-control-sidebar" type="search" placeholder="Search" aria-label="Search sidebar navigation">
+          <div class="input-group-append">
+            <button id="sidebarResourceSearchButton" class="btn btn-sidebar" type="button" aria-label="Clear sidebar search"><i class="fas fa-search" aria-hidden="true"></i></button>
+          </div>
         </div>
         <div class="resource-strip-header">
           <div class="resource-strip-copy sidebar-heading">
@@ -1260,7 +1287,7 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
         <div class="sidebar-nav-shell">
-          <div class="sidebar-treeview open" id="resourceTreeview">
+          <div class="sidebar-treeview open nav nav-pills nav-sidebar flex-column" id="resourceTreeview" data-widget="treeview" role="menu">
             <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
               <span class="sidebar-treeview-toggle-copy">
                 <span class="sidebar-treeview-toggle-icon" aria-hidden="true">
@@ -1272,25 +1299,25 @@ const adminPrototypeHTML = `<!doctype html>
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M11.354 8.354a.5.5 0 0 0 0-.708L6.707 3l-.707.707L10.293 8 6 12.293l.707.707 4.647-4.646z"/></svg>
               </span>
             </button>
-            <ul id="resources" class="nav-list sidebar-treeview-menu"></ul>
+            <ul id="resources" class="nav-list nav nav-treeview sidebar-treeview-menu"></ul>
           </div>
         </div>
         <div class="sidebar-footer">
           <span class="sidebar-footer-text">v0.1 · Gin Ninja</span>
-          <button id="sidebarSignOut" class="sidebar-footer-link" type="button" aria-label="Sign out">⏻ Sign out</button>
+          <button id="sidebarSignOut" class="sidebar-footer-link btn btn-link" type="button" aria-label="Sign out"><i class="fas fa-power-off" aria-hidden="true"></i> Sign out</button>
         </div>
       </aside>
-      <section class="workspace stack">
-        <section class="panel workspace-header">
+      <section class="workspace stack content-wrapper">
+        <section class="panel workspace-header card card-outline card-primary">
           <div class="workspace-header-copy">
             <h2 id="resourceTitle">Select a resource</h2>
             <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
           </div>
           <div class="workspace-actions">
-            <button id="openCreateModal" type="button">Create record</button>
+            <button id="openCreateModal" class="btn btn-primary" type="button">Create record</button>
           </div>
         </section>
-        <section id="dashboardShell" class="panel stack" hidden>
+        <section id="dashboardShell" class="panel stack card card-outline card-info" hidden>
           <div class="section-heading">
             <h3 class="section-title">Resources</h3>
             <p class="section-copy muted">Select a resource below to open its workspace.</p>
@@ -1299,7 +1326,7 @@ const adminPrototypeHTML = `<!doctype html>
         </section>
         <section class="content-grid">
           <section class="stack">
-            <section class="panel section-shell">
+            <section class="panel section-shell card card-outline card-primary">
               <div class="toolbar">
                 <div class="section-heading">
                   <h3 class="section-title">Records</h3>
@@ -1307,16 +1334,16 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
-                  <button id="reloadList" class="secondary" type="button">Refresh list</button>
-                  <button id="clearFilters" class="secondary" type="button">Clear filters</button>
-                  <button id="bulkDelete" class="danger" type="button">Bulk delete</button>
+                  <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
+                  <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
+                  <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                 </div>
               </div>
               <div class="table-toolbar">
                 <div class="row-actions">
-                  <input id="search" placeholder="Search current resource">
-                  <select id="sort"></select>
-                  <select id="pageSize">
+                  <input id="search" class="form-control" placeholder="Search current resource">
+                  <select id="sort" class="custom-select"></select>
+                  <select id="pageSize" class="custom-select">
                     <option value="5">5 / page</option>
                     <option value="10" selected>10 / page</option>
                     <option value="20">20 / page</option>
@@ -1329,8 +1356,8 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="pagination-bar">
                 <div class="muted">Use filters to refine the current workspace.</div>
                 <div class="row-actions">
-                  <button id="prevPage" class="secondary" type="button">Previous</button>
-                  <button id="nextPage" class="secondary" type="button">Next</button>
+                  <button id="prevPage" class="secondary btn btn-default" type="button">Previous</button>
+                  <button id="nextPage" class="secondary btn btn-default" type="button">Next</button>
                 </div>
               </div>
               <div id="list"></div>
@@ -1348,7 +1375,7 @@ const adminPrototypeHTML = `<!doctype html>
                 <h3 id="createModalTitle" class="section-title">Create record</h3>
                 <p class="section-copy muted">Use the same admin layout to add a new record to the active resource.</p>
               </div>
-              <button id="closeCreateModal" type="button" class="secondary modal-close" aria-label="Close create record dialog">Close</button>
+              <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
             </div>
             <div class="modal-body">
               <form id="createForm" class="stack"></form>
@@ -1365,12 +1392,12 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
                 <p class="section-copy muted">Inspect the selected record and review the reference payload in a focused dialog.</p>
               </div>
-              <button id="closeRecordModal" type="button" class="secondary modal-close" aria-label="Close record dialog">Close</button>
+              <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">Close</button>
             </div>
             <div class="modal-body">
               <div class="detail-layout">
                 <section class="stack">
-                  <div class="detail-card stack">
+                  <div class="detail-card stack card card-outline card-primary">
                     <div class="toolbar">
                       <strong id="detailTitle">No record selected</strong>
                     </div>
@@ -1378,7 +1405,7 @@ const adminPrototypeHTML = `<!doctype html>
                       <p class="muted">No record selected.</p>
                     </div>
                   </div>
-                  <div class="detail-card stack">
+                  <div class="detail-card stack card card-outline card-secondary">
                     <strong>Reference payload</strong>
                     <pre id="detail">No record selected.</pre>
                   </div>
@@ -1394,7 +1421,7 @@ const adminPrototypeHTML = `<!doctype html>
                 <h3 id="editModalTitle" class="section-title">Edit record</h3>
                 <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
               </div>
-              <button id="closeEditModal" type="button" class="secondary modal-close" aria-label="Close edit record dialog">Close</button>
+              <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">Close</button>
             </div>
             <div class="modal-body">
               <form id="updateForm" class="stack"></form>
@@ -1407,13 +1434,13 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="section-heading">
                 <h3 id="confirmModalTitle" class="section-title">Confirm action</h3>
               </div>
-              <button id="closeConfirmModal" type="button" class="secondary modal-close" aria-label="Close confirm dialog">Close</button>
+              <button id="closeConfirmModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close confirm dialog">Close</button>
             </div>
             <div class="modal-body">
               <p id="confirmModalMessage" class="muted"></p>
               <div class="confirm-actions">
-                <button id="confirmModalCancel" type="button" class="secondary">Cancel</button>
-                <button id="confirmModalConfirm" type="button" class="danger">Delete</button>
+                <button id="confirmModalCancel" type="button" class="secondary btn btn-default">Cancel</button>
+                <button id="confirmModalConfirm" type="button" class="danger btn btn-danger">Delete</button>
               </div>
             </div>
           </div>
@@ -1567,6 +1594,7 @@ const adminPrototypeHTML = `<!doctype html>
       } else {
         document.documentElement.removeAttribute('data-theme');
       }
+      document.body.classList.toggle('dark-mode', dark);
       if (els.darkModeIconMoon) els.darkModeIconMoon.hidden = dark;
       if (els.darkModeIconSun) els.darkModeIconSun.hidden = !dark;
       if (els.darkModeToggle) els.darkModeToggle.setAttribute('aria-pressed', String(dark));
@@ -1728,6 +1756,7 @@ const adminPrototypeHTML = `<!doctype html>
       document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage());
       document.body.classList.toggle('standalone-admin-page', isStandaloneAdminPage());
       document.body.classList.toggle('legacy-prototype-page', isLegacyPrototypePage());
+      document.body.classList.toggle('login-page', isStandaloneLoginPage());
       if (isStandaloneLoginPage()) {
         document.title = 'Gin Ninja Admin Login';
         els.shellEyebrow.textContent = 'Admin Login';
@@ -2113,10 +2142,13 @@ const adminPrototypeHTML = `<!doctype html>
         const button = document.createElement('button');
         const icon = document.createElement('span');
         const label = document.createElement('span');
+        li.className = 'nav-item';
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
+        button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<i class="far fa-circle nav-icon"></i>';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         button.appendChild(icon);
@@ -2126,28 +2158,30 @@ const adminPrototypeHTML = `<!doctype html>
         els.resources.appendChild(li);
       });
       if (els.sidebarResourceSearchButton) {
-        els.sidebarResourceSearchButton.textContent = state.resourceSearch ? '×' : '⌕';
+        els.sidebarResourceSearchButton.innerHTML = state.resourceSearch ? '&times;' : '<i class="fas fa-search" aria-hidden="true"></i>';
         els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
       }
     }
 
      function openModal(modal) {
-       if (!modal || modal.hidden) {
-         if (modal) {
-           modal.hidden = false;
-        }
+        if (!modal || modal.hidden) {
+          if (modal) {
+            modal.hidden = false;
+            modal.classList.add('show');
+         }
+       }
+        document.body.classList.add('modal-open');
       }
-       document.body.classList.add('modal-open');
-     }
 
      function anyModalOpen() {
        return [els.createModal, els.recordModal, els.editModal, els.confirmModal].some((modal) => modal && !modal.hidden);
      }
 
      function closeModal(modal) {
-       if (modal) {
-         modal.hidden = true;
-       }
+        if (modal) {
+          modal.classList.remove('show');
+          modal.hidden = true;
+        }
        if (!anyModalOpen()) {
          document.body.classList.remove('modal-open');
        }
@@ -2178,7 +2212,7 @@ const adminPrototypeHTML = `<!doctype html>
       if (isOpen) return;
       const rect = triggerEl.getBoundingClientRect();
       const menu = document.createElement('div');
-      menu.className = 'action-menu-list open';
+      menu.className = 'action-menu-list dropdown-menu show open';
       menu.style.cssText = 'position:fixed;z-index:1500;top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;left:auto;';
       items.forEach((item) => {
         if (item.divider) {
@@ -2188,7 +2222,7 @@ const adminPrototypeHTML = `<!doctype html>
         } else {
           const btn = document.createElement('button');
           btn.type = 'button';
-          btn.className = 'action-menu-item' + (item.className ? ' ' + item.className : '');
+          btn.className = 'action-menu-item dropdown-item' + (item.className ? ' ' + item.className : '');
           btn.textContent = item.label;
           btn.disabled = !!item.disabled;
           btn.onclick = (e) => { e.stopPropagation(); closeActionMenuPortal(); item.onClick(); };
@@ -2281,11 +2315,14 @@ const adminPrototypeHTML = `<!doctype html>
       state.resources.forEach((resource) => {
         const tile = document.createElement('button');
         tile.type = 'button';
-        tile.className = 'dashboard-tile';
+        tile.className = 'dashboard-tile small-box bg-info';
         tile.innerHTML =
+          '<div class="inner">' +
           '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
           '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
-          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>';
+          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
+          '</div>' +
+          '<div class="icon"><i class="fas fa-database" aria-hidden="true"></i></div>';
         tile.onclick = () => selectResource(resource);
         els.dashboardTiles.appendChild(tile);
         // Load record count in background for each tile
@@ -2304,11 +2341,12 @@ const adminPrototypeHTML = `<!doctype html>
 
     function buildFilterControl(field) {
       const wrapper = document.createElement('label');
-      wrapper.className = 'inline-field';
+      wrapper.className = 'inline-field form-group';
       wrapper.textContent = field.label;
       let input;
       if (field.component === 'checkbox') {
         input = document.createElement('select');
+        input.className = 'custom-select';
         [['', 'Any'], ['true', 'True'], ['false', 'False']].forEach((pair) => {
           const option = document.createElement('option');
           option.value = pair[0];
@@ -2318,12 +2356,15 @@ const adminPrototypeHTML = `<!doctype html>
       } else if (field.component === 'number') {
         input = document.createElement('input');
         input.type = 'number';
+        input.className = 'form-control';
       } else if (field.component === 'datetime') {
         input = document.createElement('input');
         input.type = 'datetime-local';
+        input.className = 'form-control';
       } else {
         input = document.createElement('input');
         input.type = 'text';
+        input.className = 'form-control';
       }
       input.name = field.name;
       input.placeholder = 'Filter by ' + field.label;
@@ -2468,14 +2509,16 @@ const adminPrototypeHTML = `<!doctype html>
     async function buildFieldControl(field, value, scopeKey) {
       if (field.relation) {
         const wrapper = document.createElement('div');
-        wrapper.className = 'relation-control';
+        wrapper.className = 'relation-control form-group';
         const searchKey = relationStateKey(scopeKey, field);
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.placeholder = 'Search related ' + field.label;
         searchInput.value = state.relationSearch[searchKey] || '';
+        searchInput.className = 'form-control';
         const select = document.createElement('select');
         select.name = field.name;
+        select.className = 'custom-select';
         const preview = isMultiRelationField(field) ? null : document.createElement('ul');
         if (preview) preview.className = 'relation-preview';
         const dropdown = isMultiRelationField(field) ? document.createElement('details') : null;
@@ -2522,11 +2565,13 @@ const adminPrototypeHTML = `<!doctype html>
         input.type = 'checkbox';
         input.name = field.name;
         input.checked = Boolean(value);
+        input.className = 'form-check-input';
         return input;
       }
       if (field.component === 'array' || field.component === 'text' || field.component === 'textarea') {
         const input = document.createElement('textarea');
         input.name = field.name;
+        input.className = 'form-control';
         input.value = field.component === 'array'
           ? (Array.isArray(value) ? JSON.stringify(value, null, 2) : (value ? JSON.stringify(value, null, 2) : ''))
           : (value == null ? '' : String(value));
@@ -2536,6 +2581,7 @@ const adminPrototypeHTML = `<!doctype html>
       input.name = field.name;
       input.type = ({ email: 'email', password: 'password', number: 'number', datetime: 'datetime-local' }[field.component]) || 'text';
       input.value = value == null ? '' : String(value);
+      input.className = 'form-control';
       return input;
     }
 
@@ -2549,7 +2595,7 @@ const adminPrototypeHTML = `<!doctype html>
         const field = fieldMeta(name);
         if (!field) continue;
         const wrapper = document.createElement('label');
-        wrapper.className = 'form-field';
+        wrapper.className = 'form-field form-group';
         wrapper.textContent = field.label;
         const control = await buildFieldControl(field, values[name], scopeKey);
         wrapper.appendChild(control);
@@ -2558,6 +2604,7 @@ const adminPrototypeHTML = `<!doctype html>
       const submit = document.createElement('button');
       submit.type = 'submit';
       submit.textContent = mode === 'update' ? 'Update' : 'Create';
+      submit.className = 'btn btn-primary';
       target.appendChild(submit);
     }
 
@@ -2724,13 +2771,16 @@ const adminPrototypeHTML = `<!doctype html>
         return;
       }
       const tableShell = document.createElement('div');
-      tableShell.className = 'table-shell';
+      tableShell.className = 'table-shell table-responsive p-0';
       const table = document.createElement('table');
+      table.className = 'table table-bordered table-striped table-hover';
       const thead = document.createElement('thead');
+      thead.className = 'thead-light';
       const headRow = document.createElement('tr');
       const bulkCell = document.createElement('th');
       const selectAll = document.createElement('input');
       selectAll.type = 'checkbox';
+      selectAll.className = 'form-check-input position-static';
       selectAll.checked = rows.length > 0 && rows.every((row) => isSelectedForBulk(recordPrimaryKey(row)));
       selectAll.onchange = () => {
         rows.forEach((row) => setSelectedForBulk(recordPrimaryKey(row), selectAll.checked));
@@ -2774,6 +2824,7 @@ const adminPrototypeHTML = `<!doctype html>
         const checkCell = document.createElement('td');
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input position-static';
         checkbox.checked = isSelectedForBulk(id);
         checkbox.onchange = () => {
           setSelectedForBulk(id, checkbox.checked);
@@ -2788,18 +2839,18 @@ const adminPrototypeHTML = `<!doctype html>
         });
         const actionCell = document.createElement('td');
         const actionWrap = document.createElement('div');
-        actionWrap.className = 'action-cell';
+        actionWrap.className = 'action-cell btn-group';
         // View button
         const openButton = document.createElement('button');
         openButton.type = 'button';
-        openButton.className = 'action-btn-view';
+        openButton.className = 'action-btn-view btn btn-default btn-sm';
         openButton.textContent = 'View';
         openButton.onclick = () => selectRecord(row, { openModal: 'record' });
         actionWrap.appendChild(openButton);
         // More (···) dropdown menu — uses portal to escape overflow:auto clipping
         const trigger = document.createElement('button');
         trigger.type = 'button';
-        trigger.className = 'action-menu-trigger';
+        trigger.className = 'action-menu-trigger btn btn-default btn-sm dropdown-toggle';
         trigger.setAttribute('aria-label', 'More actions');
         trigger.textContent = '···';
         trigger.onclick = (e) => {
