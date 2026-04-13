@@ -1580,6 +1580,7 @@ const adminPrototypeHTML = `<!doctype html>
       shellEyebrow: document.getElementById('shellEyebrow'),
       adminShell: document.getElementById('adminShell'),
       sidebarDashboardLink: document.getElementById('sidebarDashboardLink'),
+      resourceTreeviewBadge: document.getElementById('resourceTreeviewBadge'),
       resources: document.getElementById('resources'),
       sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
       sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
@@ -2216,8 +2217,7 @@ const adminPrototypeHTML = `<!doctype html>
       els.resources.innerHTML = '';
       const resourceTreeview = document.getElementById('resourceTreeview');
       if (resourceTreeview) resourceTreeview.classList.add('open');
-      const resourceTreeviewBadge = document.getElementById('resourceTreeviewBadge');
-      if (resourceTreeviewBadge) resourceTreeviewBadge.textContent = String(state.resources.length);
+      if (els.resourceTreeviewBadge) els.resourceTreeviewBadge.textContent = String(state.resources.length);
       if (els.sidebarDashboardLink) {
         els.sidebarDashboardLink.classList.toggle('active', !state.current);
         els.sidebarDashboardLink.setAttribute('aria-current', !state.current ? 'page' : 'false');
@@ -3209,7 +3209,7 @@ const adminPrototypeHTML = `<!doctype html>
       renderPagination();
       syncBulkActionState();
       syncWorkspaceActionState();
-      setStatus('Showing dashboard.');
+      setStatus('Showing Dashboard.');
     }
     if (els.topbarSearchInput) {
       els.topbarSearchInput.addEventListener('input', (event) => {
