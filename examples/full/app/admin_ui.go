@@ -166,7 +166,7 @@ const adminPrototypeHTML = `<!doctype html>
       gap:14px;
       min-width:0;
     }
-    .topbar-toggle {
+    .topbar .topbar-toggle {
       display:inline-flex;
       align-items:center;
       justify-content:center;
@@ -174,7 +174,7 @@ const adminPrototypeHTML = `<!doctype html>
       flex:0 0 42px;
       min-width:42px;
       min-height:42px;
-      padding:0 !important;
+      padding:0;
       border:none;
       background:transparent;
       color:#6c757d;
