@@ -1,6 +1,7 @@
 # gin-ninja
 
 [![DeepSource](https://app.deepsource.com/gh/shijl0925/gin-ninja.svg/?label=active+issues&show_trend=true&token=Z7EU9QDXvlUfgC30hbZQc3dz)](https://app.deepsource.com/gh/shijl0925/gin-ninja/)
+[![DeepSource](https://app.deepsource.com/gh/shijl0925/gin-ninja.svg/?label=code+coverage&show_trend=true&token=Z7EU9QDXvlUfgC30hbZQc3dz)](https://app.deepsource.com/gh/shijl0925/gin-ninja/)
 
 [English](./README.md) | [中文](./README-zh.md)
 
