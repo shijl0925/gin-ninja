@@ -3267,7 +3267,10 @@ const adminPrototypeHTML = `<!doctype html>
       setStatus('Showing Dashboard.');
     }
     window.addEventListener('popstate', (event) => {
-      restoreNavigationState(event.state).catch((error) => setStatus(String(error.message || error)));
+      restoreNavigationState(event.state).catch((error) => {
+        console.error('navigation state restore failed:', error);
+        setStatus(String(error.message || error));
+      });
     });
     if (els.topbarSearchInput) {
       els.topbarSearchInput.addEventListener('input', (event) => {
