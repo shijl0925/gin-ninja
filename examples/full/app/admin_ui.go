@@ -90,7 +90,7 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] tbody tr:hover { background: #22253a; }
     [data-theme="dark"] tbody tr.row-selected { background: #1a2e3d; }
     [data-theme="dark"] .dashboard-tile { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
-    [data-theme="dark"] .dashboard-tile:hover { border-top-color: var(--admin-primary); }
+    [data-theme="dark"] .dashboard-tile:hover { border-top-color: var(--dashboard-tile-accent); }
     [data-theme="dark"] .toast { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .login-shell,
     [data-theme="dark"] .login-card,
@@ -1131,32 +1131,141 @@ const adminPrototypeHTML = `<!doctype html>
     .confirm-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
     .dashboard-tiles {
       display:grid;
-      gap:16px;
-      grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+      gap:18px;
+      grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));
+      align-items:stretch;
     }
     .dashboard-tile {
+      --dashboard-tile-accent: var(--admin-primary);
       display:grid;
-      gap:8px;
-      padding:20px 20px 18px;
+      gap:14px;
+      padding:18px 18px 16px;
       border:1px solid var(--admin-border);
-      border-top:3px solid #d2d6de;
-      border-radius:var(--admin-radius);
+      border-top:3px solid var(--dashboard-tile-accent);
+      border-radius:calc(var(--admin-radius) + 2px);
       background:#fff;
       box-shadow:var(--admin-shadow);
       cursor:pointer;
       text-align:left;
       color:var(--admin-text);
-      transition:border-top-color 120ms ease, box-shadow 120ms ease;
+      transition:transform 140ms ease, border-top-color 140ms ease, box-shadow 140ms ease;
     }
-    .dashboard-tile:hover { border-top-color:var(--admin-primary); box-shadow:0 4px 12px rgba(0,0,0,0.12); }
-    .dashboard-tile-count {
-      font-size:2rem;
+    .dashboard-tile:hover,
+    .dashboard-tile:focus-visible {
+      transform:translateY(-2px);
+      border-top-color:var(--dashboard-tile-accent);
+      box-shadow:0 14px 28px rgba(31,45,61,0.14);
+    }
+    .dashboard-tile:focus-visible {
+      outline:2px solid color-mix(in srgb, var(--dashboard-tile-accent) 55%, white);
+      outline-offset:2px;
+    }
+    .dashboard-tile-header,
+    .dashboard-tile-footer {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .dashboard-tile-badge {
+      display:inline-flex;
+      align-items:center;
+      padding:5px 10px;
+      border-radius:999px;
+      background:color-mix(in srgb, var(--dashboard-tile-accent) 12%, white);
+      color:var(--dashboard-tile-accent);
+      font-size:11px;
       font-weight:700;
-      color:var(--admin-primary);
-      line-height:1;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
     }
-    .dashboard-tile-label { font-size:15px; font-weight:600; }
-    .dashboard-tile-hint { font-size:12px; color:var(--admin-muted); }
+    .dashboard-tile-icon-badge {
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      background:color-mix(in srgb, var(--dashboard-tile-accent) 14%, white);
+      color:var(--dashboard-tile-accent);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+      flex-shrink:0;
+    }
+    .dashboard-tile-icon-badge svg {
+      width:22px;
+      height:22px;
+      stroke:currentColor;
+      stroke-width:1.8;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .dashboard-tile-main {
+      display:grid;
+      gap:8px;
+      min-height:132px;
+      align-content:start;
+    }
+    .dashboard-tile-count-row {
+      display:flex;
+      align-items:flex-end;
+      gap:8px;
+    }
+    .dashboard-tile-count {
+      font-size:2.4rem;
+      font-weight:800;
+      color:var(--dashboard-tile-accent);
+      line-height:0.95;
+      letter-spacing:-0.03em;
+    }
+    .dashboard-tile-count-label {
+      font-size:12px;
+      font-weight:700;
+      color:var(--admin-muted);
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      transform:translateY(-2px);
+    }
+    .dashboard-tile-label { font-size:1.2rem; font-weight:700; line-height:1.15; }
+    .dashboard-tile-hint {
+      font-size:12px;
+      color:var(--admin-muted);
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+    }
+    .dashboard-tile-description {
+      margin:0;
+      font-size:13px;
+      line-height:1.5;
+      color:var(--admin-muted);
+    }
+    .dashboard-tile-meta {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+      color:var(--admin-muted);
+    }
+    .dashboard-tile-meta-dot {
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--dashboard-tile-accent);
+      box-shadow:0 0 0 4px color-mix(in srgb, var(--dashboard-tile-accent) 15%, transparent);
+      flex-shrink:0;
+    }
+    .dashboard-tile-action {
+      font-size:13px;
+      font-weight:700;
+      color:var(--dashboard-tile-accent);
+    }
+    .dashboard-tile-arrow {
+      color:var(--dashboard-tile-accent);
+      font-size:18px;
+      line-height:1;
+      transition:transform 140ms ease;
+    }
+    .dashboard-tile:hover .dashboard-tile-arrow,
+    .dashboard-tile:focus-visible .dashboard-tile-arrow { transform:translateX(2px); }
     .sidebar-footer {
       padding:14px 18px 18px;
       border-top:1px solid rgba(255,255,255,.1);
@@ -1221,30 +1330,13 @@ const adminPrototypeHTML = `<!doctype html>
     .detail-card.card { margin-bottom:0; }
     .dashboard-tile.small-box {
       position:relative;
-      min-height:142px;
-      border:1px solid rgba(0,0,0,0.08);
-      border-top:3px solid var(--admin-primary);
+      min-height:238px;
       margin-bottom:0;
-      text-align:left;
-      cursor:pointer;
-      background:linear-gradient(180deg, #ffffff 0%, #fdfefe 100%);
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--dashboard-tile-accent) 14%, transparent) 0, transparent 34%),
+        linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
       box-shadow:0 10px 20px rgba(31,45,61,0.08);
     }
-    .dashboard-tile.small-box .inner { display:grid; gap:4px; }
-    .dashboard-tile.small-box .icon {
-      position:absolute;
-      right:16px;
-      bottom:14px;
-      color:rgba(0,123,255,.12);
-      transform:none;
-    }
-    .dashboard-tile.small-box .icon svg {
-      width:54px;
-      height:54px;
-      stroke-width:1.5;
-    }
-    .dashboard-tile-count { color:var(--admin-primary); }
-    .dashboard-tile-hint { text-transform:uppercase; letter-spacing:0.05em; }
     .table-shell.table-responsive { border-radius:var(--admin-radius); }
     .section-shell .table-shell {
       border-radius:0.35rem;
@@ -1271,10 +1363,16 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .content-header-breadcrumb { color:var(--admin-muted); }
     [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
     [data-theme="dark"] .dashboard-tile.small-box {
-      background:linear-gradient(180deg, rgba(26,29,39,0.98) 0%, rgba(26,29,39,0.92) 100%);
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--dashboard-tile-accent) 16%, transparent) 0, transparent 34%),
+        linear-gradient(180deg, rgba(26,29,39,0.98) 0%, rgba(26,29,39,0.92) 100%);
       box-shadow:none;
     }
-    [data-theme="dark"] .dashboard-tile.small-box .icon { color:rgba(102,176,255,.12); }
+    [data-theme="dark"] .dashboard-tile-badge,
+    [data-theme="dark"] .dashboard-tile-icon-badge { background:color-mix(in srgb, var(--dashboard-tile-accent) 20%, #1b2333); }
+    [data-theme="dark"] .dashboard-tile-description,
+    [data-theme="dark"] .dashboard-tile-count-label,
+    [data-theme="dark"] .dashboard-tile-meta { color:var(--admin-muted); }
     [data-theme="dark"] .btn-sidebar { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
@@ -2657,6 +2755,39 @@ const adminPrototypeHTML = `<!doctype html>
       if (active) els.list.innerHTML = '';
     }
 
+    function dashboardTileMeta(resource, index) {
+      const palette = ['#007bff', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
+      const byName = {
+        users: {
+          badge: 'Core access',
+          description: 'Open the user workspace to review profiles, roles, and sign-in ready records.',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+        },
+        roles: {
+          badge: 'Permissions',
+          description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+        },
+        projects: {
+          badge: 'Delivery',
+          description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+        }
+      };
+      const normalizedName = String(resource?.name || '').toLowerCase();
+      const meta = byName[normalizedName] || {
+        badge: 'Workspace',
+        description: 'Open this admin resource to review records, filters, and available actions.',
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
+      };
+      return {
+        accent: palette[index % palette.length],
+        badge: meta.badge,
+        description: meta.description,
+        icon: meta.icon
+      };
+    }
+
     function renderDashboard() {
       if (!els.dashboardShell || !els.dashboardTiles) return;
       if (state.current || !state.resources.length) {
@@ -2665,17 +2796,32 @@ const adminPrototypeHTML = `<!doctype html>
       }
       els.dashboardShell.hidden = false;
       els.dashboardTiles.innerHTML = '';
-      state.resources.forEach((resource) => {
+      state.resources.forEach((resource, index) => {
+        const meta = dashboardTileMeta(resource, index);
         const tile = document.createElement('button');
         tile.type = 'button';
         tile.className = 'dashboard-tile small-box bg-info';
+        tile.style.setProperty('--dashboard-tile-accent', meta.accent);
+        tile.setAttribute('aria-label', 'Open ' + resource.label + ' workspace');
         tile.innerHTML =
-          '<div class="inner">' +
-          '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
-          '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
-          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
+          '<div class="dashboard-tile-header">' +
+            '<span class="dashboard-tile-badge">' + escapeHTML(meta.badge) + '</span>' +
+            '<span class="dashboard-tile-icon-badge" aria-hidden="true">' + meta.icon + '</span>' +
           '</div>' +
-          '<div class="icon" aria-hidden="true">▣</div>';
+          '<div class="dashboard-tile-main">' +
+            '<div class="dashboard-tile-count-row">' +
+              '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
+              '<span class="dashboard-tile-count-label">records</span>' +
+            '</div>' +
+            '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
+            '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
+            '<p class="dashboard-tile-description">' + escapeHTML(meta.description) + '</p>' +
+            '<div class="dashboard-tile-meta"><span class="dashboard-tile-meta-dot" aria-hidden="true"></span><span>Connected admin workspace</span></div>' +
+          '</div>' +
+          '<div class="dashboard-tile-footer">' +
+            '<span class="dashboard-tile-action">Open workspace</span>' +
+            '<span class="dashboard-tile-arrow" aria-hidden="true">→</span>' +
+          '</div>';
         tile.onclick = () => selectResource(resource);
         els.dashboardTiles.appendChild(tile);
         // Load record count in background for each tile

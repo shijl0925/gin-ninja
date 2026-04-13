@@ -815,6 +815,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "Dashboard cards") || !strings.Contains(html, "Table tools") {
 		t.Fatalf("expected richer AdminLTE-style dashboard and table section labels in html: %q", html)
 	}
+	if !strings.Contains(html, "dashboard-tile-description") || !strings.Contains(html, "dashboard-tile-icon-badge") || !strings.Contains(html, "Open workspace") {
+		t.Fatalf("expected upgraded dashboard resource card chrome in html: %q", html)
+	}
+	if !strings.Contains(html, "Connected admin workspace") || !strings.Contains(html, "function dashboardTileMeta(resource, index)") {
+		t.Fatalf("expected richer dashboard resource metadata helpers in html: %q", html)
+	}
 	if !strings.Contains(html, "els.workspaceHeader.hidden = true;") || !strings.Contains(html, "els.recordsShell.hidden = true;") {
 		t.Fatalf("expected dashboard state to hide workspace header and records shell in html: %q", html)
 	}
