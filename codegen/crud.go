@@ -458,13 +458,19 @@ func optionalType(typeExpr string) string {
 	return "*" + typeExpr
 }
 
+// DefaultOutputName returns the default scaffold file name for a model.
+func DefaultOutputName(model string) string {
+	return toSnake(model) + "_crud_gen.go"
+}
+
 func pluralizeName(name string) string {
 	if name == "" {
 		return name
 	}
 	lower := strings.ToLower(name)
+	runes := []rune(lower)
 	switch {
-	case strings.HasSuffix(lower, "y") && len(name) > 1 && !isVowel(rune(lower[len(lower)-2])):
+	case strings.HasSuffix(lower, "y") && len(runes) > 1 && !isVowel(runes[len(runes)-2]):
 		return name[:len(name)-1] + "ies"
 	case strings.HasSuffix(lower, "s"), strings.HasSuffix(lower, "x"), strings.HasSuffix(lower, "z"), strings.HasSuffix(lower, "ch"), strings.HasSuffix(lower, "sh"):
 		return name + "es"
@@ -498,7 +504,9 @@ func splitWords(name string) []string {
 	var current []rune
 	runes := []rune(name)
 	for i, r := range runes {
-		if i > 0 && unicode.IsUpper(r) && (unicode.IsLower(runes[i-1]) || (i+1 < len(runes) && unicode.IsLower(runes[i+1]))) {
+		hasLowercasePrev := i > 0 && unicode.IsLower(runes[i-1])
+		hasLowercaseNext := i+1 < len(runes) && unicode.IsLower(runes[i+1])
+		if i > 0 && unicode.IsUpper(r) && (hasLowercasePrev || hasLowercaseNext) {
 			parts = append(parts, string(current))
 			current = current[:0]
 		}
@@ -530,6 +538,20 @@ func lowerCamel(name string) string {
 		parts[i] = strings.ToUpper(parts[i][:1]) + strings.ToLower(parts[i][1:])
 	}
 	return strings.Join(parts, "")
+}
+
+func toSnake(input string) string {
+	if input == "" {
+		return input
+	}
+	var out []rune
+	for i, r := range input {
+		if i > 0 && unicode.IsUpper(r) {
+			out = append(out, '_')
+		}
+		out = append(out, unicode.ToLower(r))
+	}
+	return string(out)
 }
 
 func contains(values []string, target string) bool {

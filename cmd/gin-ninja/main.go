@@ -69,7 +69,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 
 	out := strings.TrimSpace(*output)
 	if out == "" {
-		out = filepath.Join(filepath.Dir(cfg.ModelFile), defaultOutputName(cfg.Model))
+		out = filepath.Join(filepath.Dir(cfg.ModelFile), codegen.DefaultOutputName(cfg.Model))
 	}
 	if err := codegen.WriteCRUDFile(cfg, out); err != nil {
 		fmt.Fprintf(stderr, "generate crud scaffold: %v\n", err)
@@ -77,27 +77,6 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	}
 	fmt.Fprintf(stdout, "generated %s\n", out)
 	return 0
-}
-
-func defaultOutputName(model string) string {
-	return toSnake(model) + "_crud_gen.go"
-}
-
-func toSnake(input string) string {
-	if input == "" {
-		return input
-	}
-	var out []rune
-	for i, r := range input {
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			out = append(out, '_')
-		}
-		if r >= 'A' && r <= 'Z' {
-			r = r - 'A' + 'a'
-		}
-		out = append(out, r)
-	}
-	return string(out)
 }
 
 func printUsage(w io.Writer) {
