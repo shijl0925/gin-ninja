@@ -136,17 +136,19 @@ return modelSpec{}, fmt.Errorf("parse model file: %w", err)
 
 importAliases := map[string]importSpec{}
 importPaths := map[string]string{}
-for _, imp := range file.Imports {
-path, err := strconv.Unquote(imp.Path.Value)
-if err != nil {
-return modelSpec{}, fmt.Errorf("decode import path: %w", err)
-}
-alias := filepath.Base(path)
-if imp.Name != nil && imp.Name.Name != "" && imp.Name.Name != "." && imp.Name.Name != "_" {
-alias = imp.Name.Name
-}
-importAliases[alias] = importSpec{Alias: alias, Path: path}
-importPaths[alias] = path
+	for _, imp := range file.Imports {
+		path, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			return modelSpec{}, fmt.Errorf("decode import path: %w", err)
+		}
+		lookup := filepath.Base(path)
+		renderAlias := ""
+		if imp.Name != nil && imp.Name.Name != "" && imp.Name.Name != "." && imp.Name.Name != "_" {
+			lookup = imp.Name.Name
+			renderAlias = imp.Name.Name
+		}
+		importAliases[lookup] = importSpec{Alias: renderAlias, Path: path}
+		importPaths[lookup] = path
 }
 
 var structType *ast.StructType
@@ -217,9 +219,9 @@ idTypeExpr = typeExpr
 idResolved = true
 }
 
-if hidden || !isRenderableFieldType(field.Type, importPaths) {
-continue
-}
+			if hidden || shouldSkipOutputField(gormTag) || !isRenderableFieldType(field.Type, importPaths) {
+				continue
+			}
 
 binding := strings.TrimSpace(tags.Get("binding"))
 description := strings.TrimSpace(tags.Get("description"))
@@ -254,7 +256,7 @@ imports := []importSpec{
 {Alias: "", Path: "github.com/shijl0925/gin-ninja/pagination"},
 {Alias: "", Path: "gorm.io/gorm"},
 }
-imports = append(imports, collector.imports()...)
+	imports = append(imports, collector.list()...)
 imports = uniqueImports(imports)
 
 tag := strings.TrimSpace(cfg.Tag)
@@ -280,12 +282,12 @@ pluralLabel:   lowerLabel(pluralModel),
 }
 
 type importCollector struct {
-used    map[string]struct{}
-imports map[string]importSpec
+	used    map[string]struct{}
+	importMap map[string]importSpec
 }
 
 func newImportCollector(imports map[string]importSpec) *importCollector {
-return &importCollector{used: map[string]struct{}{}, imports: imports}
+	return &importCollector{used: map[string]struct{}{}, importMap: imports}
 }
 
 func (c *importCollector) addExpr(expr ast.Expr) {
@@ -298,19 +300,19 @@ ident, ok := sel.X.(*ast.Ident)
 if !ok {
 return true
 }
-if _, exists := c.imports[ident.Name]; exists {
-c.used[ident.Name] = struct{}{}
-}
-return true
-})
+		if _, exists := c.importMap[ident.Name]; exists {
+			c.used[ident.Name] = struct{}{}
+		}
+		return true
+	})
 }
 
-func (c *importCollector) imports() []importSpec {
-out := make([]importSpec, 0, len(c.used))
-for alias := range c.used {
-imp := c.imports[alias]
-out = append(out, imp)
-}
+func (c *importCollector) list() []importSpec {
+	out := make([]importSpec, 0, len(c.used))
+	for alias := range c.used {
+		imp := c.importMap[alias]
+		out = append(out, imp)
+	}
 sort.Slice(out, func(i, j int) bool {
 if out[i].Path == out[j].Path {
 return out[i].Alias < out[j].Alias
@@ -382,10 +384,18 @@ return strings.Contains(lower, "primarykey") || strings.Contains(lower, "primary
 }
 
 func isWritableField(name string, expr ast.Expr, gormTag string, imports map[string]string) bool {
-if isReadOnlyName(name) || hasDisallowedGORMTag(gormTag) {
-return false
+	if isReadOnlyName(name) || hasDisallowedGORMTag(gormTag) {
+		return false
+	}
+	return isRenderableFieldType(expr, imports)
 }
-return isRenderableFieldType(expr, imports)
+
+func shouldSkipOutputField(gormTag string) bool {
+	lower := strings.ToLower(gormTag)
+	return strings.Contains(lower, "-") ||
+		strings.Contains(lower, "many2many") ||
+		strings.Contains(lower, "foreignkey") ||
+		strings.Contains(lower, "references")
 }
 
 func isReadOnlyName(name string) bool {
@@ -562,9 +572,8 @@ var crudTemplate = template.Must(template.New("crud").Parse(`// Code generated b
 package {{ .PackageName }}
 
 import (
-{{- range .Imports }}
-{{- if .Alias }}{{ .Alias }} {{ end }}"{{ .Path }}"
-{{- end }}
+{{ range .Imports }}	{{ if .Alias }}{{ .Alias }} {{ end }}"{{ .Path }}"
+{{ end }}
 )
 
 // {{ .ModelName }}Out is the default public response schema generated from {{ .ModelName }}.
@@ -584,17 +593,17 @@ ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
 
 // Create{{ .ModelName }}Input is the generated request body for creating {{ .SingularLabel }} records.
 type Create{{ .ModelName }}Input struct {
-{{- range .CreateFields }}
-{{ .Name }} {{ .TypeExpr }} ` + "`json:\"{{ .JSONName }}\"{{ if .Binding }} binding:\"{{ .Binding }}\"{{ end }}{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
-{{- end }}
+{{ range .CreateFields }}
+	{{ .Name }} {{ .TypeExpr }} ` + "`json:\"{{ .JSONName }}\"{{ if .Binding }} binding:\"{{ .Binding }}\"{{ end }}{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
+{{ end }}
 }
 
 // Update{{ .ModelName }}Input is the generated request body for updating {{ .SingularLabel }} records.
 type Update{{ .ModelName }}Input struct {
-ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
-{{- range .UpdateFields }}
-{{ .Name }} {{ .UpdateType }} ` + "`json:\"{{ .JSONName }}\"{{ if .Binding }} binding:\"{{ .Binding }}\"{{ end }}{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
-{{- end }}
+	ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
+{{ range .UpdateFields }}
+	{{ .Name }} {{ .UpdateType }} ` + "`json:\"{{ .JSONName }}\"{{ if .Binding }} binding:\"{{ .Binding }}\"{{ end }}{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
+{{ end }}
 }
 
 // Delete{{ .ModelName }}Input identifies the {{ .SingularLabel }} record to delete.
@@ -651,13 +660,13 @@ return ninja.BindModelSchema[{{ .ModelName }}Out](item)
 
 // Create{{ .ModelName }} inserts a new {{ .SingularLabel }} record.
 func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
-item := {{ .ModelName }}{}
-{{- range .CreateFields }}
-item.{{ .Name }} = in.{{ .Name }}
-{{- end }}
-if err := orm.WithContext(ctx.Context).Create(&item).Error; err != nil {
-return nil, err
-}
+	item := {{ .ModelName }}{}
+{{ range .CreateFields }}
+	item.{{ .Name }} = in.{{ .Name }}
+{{ end }}
+	if err := orm.WithContext(ctx.Context).Create(&item).Error; err != nil {
+		return nil, err
+	}
 return ninja.BindModelSchema[{{ .ModelName }}Out](item)
 }
 
@@ -665,20 +674,20 @@ return ninja.BindModelSchema[{{ .ModelName }}Out](item)
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 db := orm.WithContext(ctx.Context)
 var item {{ .ModelName }}
-if err := db.First(&item, in.ID).Error; err != nil {
-if errors.Is(err, gorm.ErrRecordNotFound) {
-return nil, ninja.NotFoundError()
-}
-return nil, err
-}
-{{- range .UpdateFields }}
-if in.{{ .Name }} != nil {
-item.{{ .Name }} = *in.{{ .Name }}
-}
-{{- end }}
-if err := db.Save(&item).Error; err != nil {
-return nil, err
-}
+	if err := db.First(&item, in.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
+	}
+{{ range .UpdateFields }}
+	if in.{{ .Name }} != nil {
+		item.{{ .Name }} = *in.{{ .Name }}
+	}
+{{ end }}
+	if err := db.Save(&item).Error; err != nil {
+		return nil, err
+	}
 return ninja.BindModelSchema[{{ .ModelName }}Out](item)
 }
 

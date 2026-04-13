@@ -155,6 +155,25 @@ func main() {
 - Swagger UI：`http://localhost:8080/docs`
 - OpenAPI JSON：`http://localhost:8080/openapi.json`
 
+## CRUD 脚手架生成器
+
+gin-ninja 现在内置了一个轻量级脚手架 CLI，可基于模型结构体生成 CRUD 接口代码骨架。
+
+```bash
+go run ./cmd/gin-ninja generate crud \
+  -model User \
+  -model-file ./examples/full/app/models.go \
+  -output ./examples/full/app/user_crud_gen.go
+```
+
+该生成器会：
+
+- 读取指定文件中的 Go 模型结构体
+- 在同一 package 下生成请求/响应结构和 CRUD handler
+- 生成 `Register<Model>CRUDRoutes(router)` 路由注册辅助函数
+
+生成结果定位为“起步骨架”。落地时仍建议根据业务继续补充校验、权限、事务、查询条件和路由组织方式。
+
 ## 核心 API
 
 ### NinjaAPI

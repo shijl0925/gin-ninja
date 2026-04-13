@@ -189,6 +189,27 @@ Visit `http://localhost:8080/docs` for the Swagger UI.
 
 ---
 
+## CRUD Scaffold Generator
+
+gin-ninja now includes a small scaffolding CLI for generating model-based CRUD boilerplate.
+
+```bash
+go run ./cmd/gin-ninja generate crud \
+  -model User \
+  -model-file ./examples/full/app/models.go \
+  -output ./examples/full/app/user_crud_gen.go
+```
+
+The generator:
+
+- reads a Go model struct from the provided file
+- creates request/response schemas and CRUD handlers in the same package
+- generates a `Register<Model>CRUDRoutes(router)` helper for route registration
+
+Generated code is intended as a starting point. Review the scaffold and adjust validation, persistence rules, permissions, and router composition for your application.
+
+---
+
 ## ModelSchema-style Responses
 
 ```go
