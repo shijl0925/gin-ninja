@@ -648,8 +648,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"resourceTreeviewBadge\"") {
 		t.Fatalf("expected AdminLTE-style sidebar badge markup in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "class=\"nav-link-suffix\"") {
-		t.Fatalf("expected AdminLTE-style sidebar chevrons in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "class=\"nav-link-suffix\"") {
+		t.Fatalf("expected dashboard and child resource sidebar chevrons to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "function filteredResources()") || !strings.Contains(adminHTML, "state.resourceSearch = els.sidebarResourceSearch.value.trim();") {
 		t.Fatalf("expected sidebar resource search filtering logic in html: %q", adminHTML)
@@ -668,6 +668,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "class=\"content-header-breadcrumb\"") || !strings.Contains(adminHTML, "AdminLTE workspace chrome") {
 		t.Fatalf("expected richer AdminLTE-style content header chrome in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"workspaceHeader\"") || !strings.Contains(adminHTML, "id=\"recordsShell\"") {
+		t.Fatalf("expected dashboard-toggleable workspace header and records shells in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "class=\"card-header section-card-header\"") || !strings.Contains(adminHTML, "class=\"card-footer section-card-footer\"") {
 		t.Fatalf("expected AdminLTE-style card header/footer treatment in html: %q", adminHTML)
@@ -802,6 +805,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "Dashboard cards") || !strings.Contains(html, "Table tools") {
 		t.Fatalf("expected richer AdminLTE-style dashboard and table section labels in html: %q", html)
+	}
+	if !strings.Contains(html, "els.workspaceHeader.hidden = true;") || !strings.Contains(html, "els.recordsShell.hidden = true;") {
+		t.Fatalf("expected dashboard state to hide workspace header and records shell in html: %q", html)
+	}
+	if !strings.Contains(html, "els.workspaceHeader.hidden = false;") || !strings.Contains(html, "els.recordsShell.hidden = false;") {
+		t.Fatalf("expected resource state to restore workspace header and records shell in html: %q", html)
 	}
 	if !strings.Contains(html, "id=\"status\" class=\"visually-hidden\" aria-live=\"polite\" aria-atomic=\"true\"") {
 		t.Fatalf("expected hidden live status region in html: %q", html)
@@ -2033,6 +2042,8 @@ func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 	waitForBrowserPath(t, ctx, "/admin")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
 	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
+	waitForBrowserCondition(t, ctx, "workspace header hidden on dashboard", `document.getElementById('workspaceHeader').hidden === true`)
+	waitForBrowserCondition(t, ctx, "records shell hidden on dashboard", `document.getElementById('recordsShell').hidden === true`)
 
 	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
 		const tiles = Array.from(document.querySelectorAll('#dashboardTiles .dashboard-tile'));
@@ -2042,11 +2053,15 @@ func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 	})()`, nil))
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserCondition(t, ctx, "workspace header visible for resource", `document.getElementById('workspaceHeader').hidden === false`)
+	waitForBrowserCondition(t, ctx, "records shell visible for resource", `document.getElementById('recordsShell').hidden === false`)
 
 	runBrowser(t, ctx, chromedp.Evaluate(`history.back()`, nil))
 	waitForBrowserPath(t, ctx, "/admin")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
 	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
+	waitForBrowserCondition(t, ctx, "workspace header hidden again on dashboard", `document.getElementById('workspaceHeader').hidden === true`)
+	waitForBrowserCondition(t, ctx, "records shell hidden again on dashboard", `document.getElementById('recordsShell').hidden === true`)
 }
 
 func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {

@@ -828,8 +828,7 @@ const adminPrototypeHTML = `<!doctype html>
       place-items:center;
       transition:transform 120ms ease, color 120ms ease;
     }
-    .nav-link-icon svg,
-    .nav-link-suffix svg {
+    .nav-link-icon svg {
       width:100%;
       height:100%;
       stroke:currentColor;
@@ -838,23 +837,11 @@ const adminPrototypeHTML = `<!doctype html>
       stroke-linecap:round;
       stroke-linejoin:round;
     }
-    .nav-link-suffix {
-      margin-left:auto;
-      width:14px;
-      height:14px;
-      display:grid;
-      place-items:center;
-      flex-shrink:0;
-      color:#cfd4da;
-      transition:transform 120ms ease, color 120ms ease;
-    }
-    .nav-link:hover .nav-link-icon,
-    .nav-link:hover .nav-link-suffix { color:#fff; }
+    .nav-link:hover .nav-link-icon { color:#fff; }
     .nav-link.active .nav-link-icon {
       color:#fff;
       transform:none;
     }
-    .nav-link.active .nav-link-suffix { color:#fff; transform:translateX(1px); }
     .nav-link-label {
       flex:1 1 auto;
       min-width:0;
@@ -1550,9 +1537,6 @@ const adminPrototypeHTML = `<!doctype html>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 12.5h11"/><path d="M4.25 11.75V8.5"/><path d="M8 11.75V4.25"/><path d="M11.75 11.75V6.5"/><path d="M8 2.25a.75.75 0 1 1 0 1.5"/></svg>
                 </span>
                 <span class="nav-link-label">Dashboard</span>
-                <span class="nav-link-suffix" aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
-                </span>
               </button>
             </li>
           </ul>
@@ -1579,7 +1563,7 @@ const adminPrototypeHTML = `<!doctype html>
         </div>
       </aside>
       <section class="workspace stack content-wrapper">
-        <section class="panel workspace-header card card-outline card-primary">
+        <section id="workspaceHeader" class="panel workspace-header card card-outline card-primary">
           <div class="workspace-header-main">
             <div class="workspace-header-copy">
               <span class="workspace-header-kicker eyebrow">Workspace</span>
@@ -1616,7 +1600,7 @@ const adminPrototypeHTML = `<!doctype html>
         </section>
         <section class="content-grid">
           <section class="stack">
-            <section class="panel section-shell card card-outline card-primary">
+            <section id="recordsShell" class="panel section-shell card card-outline card-primary">
               <div class="card-header section-card-header">
                 <div class="section-heading">
                   <h3 class="section-title">Records</h3>
@@ -1827,6 +1811,8 @@ const adminPrototypeHTML = `<!doctype html>
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search'),
       listLoading: document.getElementById('listLoading'),
+      workspaceHeader: document.getElementById('workspaceHeader'),
+      recordsShell: document.getElementById('recordsShell'),
       dashboardShell: document.getElementById('dashboardShell'),
       dashboardTiles: document.getElementById('dashboardTiles'),
       confirmModal: document.getElementById('confirmModal'),
@@ -2496,7 +2482,6 @@ const adminPrototypeHTML = `<!doctype html>
         const button = document.createElement('button');
         const icon = document.createElement('span');
         const label = document.createElement('span');
-        const suffix = document.createElement('span');
         li.className = 'nav-item';
         button.type = 'button';
         button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
@@ -2506,13 +2491,9 @@ const adminPrototypeHTML = `<!doctype html>
         icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 3.5h9v9h-9z"/><path d="M6 6h4"/><path d="M6 8h4"/><path d="M6 10h2"/></svg>';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
-        suffix.className = 'nav-link-suffix';
-        suffix.setAttribute('aria-hidden', 'true');
-        suffix.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>';
         button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
         button.appendChild(icon);
         button.appendChild(label);
-        button.appendChild(suffix);
         button.onclick = () => selectResource(resource);
         li.appendChild(button);
         els.resources.appendChild(li);
@@ -3357,6 +3338,8 @@ const adminPrototypeHTML = `<!doctype html>
       state.selected = null;
       resetQueryState();
       renderDashboard();
+      if (els.workspaceHeader) els.workspaceHeader.hidden = false;
+      if (els.recordsShell) els.recordsShell.hidden = false;
       try {
         state.meta = await request(currentBasePath() + '/meta');
         renderResources();
@@ -3466,6 +3449,8 @@ const adminPrototypeHTML = `<!doctype html>
       resetQueryState();
       renderResources();
       renderDashboard();
+      if (els.workspaceHeader) els.workspaceHeader.hidden = true;
+      if (els.recordsShell) els.recordsShell.hidden = true;
       els.resourceTitle.textContent = 'Admin dashboard';
       els.resourcePath.textContent = 'Choose a resource from the sidebar to load its workspace.';
       els.detailTitle.textContent = 'No record selected';
