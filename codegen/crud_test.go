@@ -69,7 +69,7 @@ func TestGenerateCRUDRequiresKnownModel(t *testing.T) {
 
 	dir := t.TempDir()
 	modelFile := filepath.Join(dir, "models.go")
-	if err := os.WriteFile(modelFile, []byte("package demo\n type User struct{}\n"), 0o644); err != nil {
+	if err := os.WriteFile(modelFile, []byte("package demo\ntype User struct{}\n"), 0o644); err != nil {
 		t.Fatalf("write model file: %v", err)
 	}
 

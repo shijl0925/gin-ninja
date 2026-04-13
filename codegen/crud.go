@@ -520,6 +520,13 @@ func lowerCamel(name string) string {
 			parts[i] = strings.ToLower(parts[i])
 			continue
 		}
+		if len(parts[i]) == 0 {
+			continue
+		}
+		if len(parts[i]) == 1 {
+			parts[i] = strings.ToUpper(parts[i])
+			continue
+		}
 		parts[i] = strings.ToUpper(parts[i][:1]) + strings.ToLower(parts[i][1:])
 	}
 	return strings.Join(parts, "")

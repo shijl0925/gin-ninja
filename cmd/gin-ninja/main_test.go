@@ -36,3 +36,17 @@ func TestRunGenerateCRUD(t *testing.T) {
 		t.Fatalf("stdout missing generated path: %s", stdout.String())
 	}
 }
+
+func TestRunGenerateCRUDRequiresFlags(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{"generate", "crud"})
+	if code != 2 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "-model and -model-file are required") {
+		t.Fatalf("unexpected stderr: %s", stderr.String())
+	}
+}
