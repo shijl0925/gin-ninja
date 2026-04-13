@@ -167,9 +167,14 @@ const adminPrototypeHTML = `<!doctype html>
       min-width:0;
     }
     .topbar-toggle {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:42px;
+      flex:0 0 42px;
       min-width:42px;
       min-height:42px;
-      padding:0;
+      padding:0 !important;
       border:none;
       background:transparent;
       color:#6c757d;
