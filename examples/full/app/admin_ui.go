@@ -131,7 +131,7 @@ const adminPrototypeHTML = `<!doctype html>
     [hidden] { display:none !important; }
     * { box-sizing: border-box; }
     body {
-      font-family: 'Source Sans Pro', Inter, system-ui, "Segoe UI", sans-serif;
+      font-family: Inter, system-ui, "Segoe UI", sans-serif;
       margin: 0;
       min-height: 100vh;
       background: var(--admin-body-bg);
@@ -1147,7 +1147,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
   </style>
 </head>
-<body class="hold-transition sidebar-mini layout-fixed">
+<body class="sidebar-mini layout-fixed">
   <div class="wrapper">
   <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
   <header class="topbar main-header navbar navbar-expand navbar-white navbar-light elevation-1">
@@ -2140,7 +2140,7 @@ const adminPrototypeHTML = `<!doctype html>
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '•';
+        icon.textContent = '▸';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         button.appendChild(icon);
@@ -2150,7 +2150,7 @@ const adminPrototypeHTML = `<!doctype html>
         els.resources.appendChild(li);
       });
       if (els.sidebarResourceSearchButton) {
-        els.sidebarResourceSearchButton.innerHTML = state.resourceSearch ? '&times;' : '<span aria-hidden="true">⌕</span>';
+        els.sidebarResourceSearchButton.innerHTML = state.resourceSearch ? '<span aria-hidden="true">&times;</span>' : '<span aria-hidden="true">⌕</span>';
         els.sidebarResourceSearchButton.setAttribute('aria-label', state.resourceSearch ? 'Clear sidebar search' : 'Focus sidebar search');
       }
     }
