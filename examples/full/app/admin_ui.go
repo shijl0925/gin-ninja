@@ -90,7 +90,7 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] tbody tr:hover { background: #22253a; }
     [data-theme="dark"] tbody tr.row-selected { background: #1a2e3d; }
     [data-theme="dark"] .dashboard-tile { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
-    [data-theme="dark"] .dashboard-tile:hover { border-top-color: var(--admin-primary); }
+    [data-theme="dark"] .dashboard-tile:hover { border-top-color: var(--dashboard-tile-accent); }
     [data-theme="dark"] .toast { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .login-shell,
     [data-theme="dark"] .login-card,
@@ -152,7 +152,7 @@ const adminPrototypeHTML = `<!doctype html>
       border-bottom:1px solid var(--admin-border);
       box-shadow:0 1px 3px rgba(0,0,0,.1);
     }
-    .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading, .topbar-context { display:grid; gap:6px; }
+    .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:6px; }
     .topbar-left {
       display:flex;
       align-items:center;
@@ -194,6 +194,7 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-link {
       display:inline-flex;
       align-items:center;
+      gap:8px;
       min-height:var(--admin-topbar-min-height);
       padding:0 14px;
       border-radius:0;
@@ -203,6 +204,23 @@ const adminPrototypeHTML = `<!doctype html>
       font-weight:400;
     }
     .topbar-link:hover { background:#f4f6f9; color:#212529; }
+    .topbar-link-icon {
+      display:grid;
+      place-items:center;
+      width:16px;
+      height:16px;
+      flex-shrink:0;
+      color:#6c757d;
+    }
+    .topbar-link-icon svg {
+      width:100%;
+      height:100%;
+      stroke:currentColor;
+      stroke-width:1.8;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
     .brand-mark {
       width:38px;
       height:38px;
@@ -216,13 +234,13 @@ const adminPrototypeHTML = `<!doctype html>
       letter-spacing:0.08em;
       box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     }
-    .topbar-copy h1, .sidebar-heading h2, .section-title, .topbar-context p { margin:0; }
+    .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
     .topbar-meta {
       display:flex;
       align-items:center;
       justify-content:flex-end;
-      gap:0;
+      gap:14px;
       min-width:0;
       margin-left:auto;
       flex:0 0 auto;
@@ -231,6 +249,7 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       align-items:center;
       gap:0;
+      border-left:1px solid var(--admin-border);
     }
     .topbar-action {
       position:relative;
@@ -520,11 +539,11 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       flex-direction:column;
       min-height:calc(100vh - var(--admin-topbar-height) - (var(--admin-content-gap) * 2));
-      background:var(--admin-sidebar);
+      background:#343a40;
       color:var(--admin-sidebar-text);
       border:none;
-      border-radius:0.35rem;
-      box-shadow:none;
+      border-radius:0.5rem;
+      box-shadow:0 14px 30px rgba(17, 24, 39, 0.16);
       padding:0;
       overflow:hidden;
     }
@@ -532,64 +551,63 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       grid-template-columns:auto 1fr;
       align-items:center;
-      gap:10px;
-      padding:12px 16px;
-      background:#343a40;
-      border-bottom:0.5px solid rgba(255,255,255,.1);
+      gap:14px;
+      padding:20px 18px;
+      background:transparent;
+      border-bottom:1px solid rgba(255,255,255,.1);
     }
     .sidebar-brand-mark {
-      width:33px;
-      height:33px;
+      width:48px;
+      height:48px;
       display:grid;
       place-items:center;
       border-radius:50%;
       background:#f4f6f9;
-      color:#495057;
-      font-size:16px;
+      color:#343a40;
+      font-size:23px;
       font-weight:800;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-      opacity:0.8;
+      box-shadow:0 4px 14px rgba(0,0,0,0.28);
       flex-shrink:0;
     }
     .sidebar-brand-copy { display:grid; gap:2px; min-width:0; }
     .sidebar-brand-copy strong {
-      color:#fff;
-      font-size:1.15rem;
+      color:#f8f9fa;
+      font-size:1.05rem;
       font-weight:300;
       letter-spacing:0.01em;
       white-space:nowrap;
     }
     .sidebar-brand-copy span {
-      color:rgba(255,255,255,.4);
-      font-size:11px;
+      color:rgba(255,255,255,.5);
+      font-size:12px;
       letter-spacing:0.02em;
     }
     .sidebar-user-panel {
       display:grid;
       grid-template-columns:auto 1fr;
       align-items:center;
-      gap:10px;
-      padding:10px 16px 10px 20px;
-      margin:8px 0 0;
+      gap:14px;
+      padding:20px 18px;
+      margin:0;
       border-bottom:1px solid rgba(255,255,255,.1);
     }
     .sidebar-user-avatar {
-      width:34px;
-      height:34px;
+      width:46px;
+      height:46px;
       display:grid;
       place-items:center;
       border-radius:50%;
       background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
       color:#495057;
-      font-size:12px;
+      font-size:14px;
       font-weight:700;
-      box-shadow:0 2px 4px rgba(0,0,0,0.2);
+      box-shadow:0 4px 10px rgba(0,0,0,0.24);
       flex-shrink:0;
     }
     .sidebar-user-copy { display:grid; gap:2px; min-width:0; }
     .sidebar-user-copy strong {
       color:#f8f9fa;
-      font-size:14px;
+      font-size:16px;
       font-weight:400;
       white-space:nowrap;
       overflow:hidden;
@@ -612,28 +630,28 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .sidebar-search {
       position:relative;
-      padding:14px 16px;
+      padding:18px;
       border-bottom:1px solid rgba(255,255,255,0.08);
     }
     .sidebar-search input {
       width:100%;
-      height:42px;
+      height:44px;
       padding-right:44px;
-      border-color:rgba(255,255,255,0.08);
-      background:#3f474e;
+      border-color:#56606a;
+      background:#495057;
       color:#f8f9fa;
     }
     .sidebar-search input::placeholder { color:#adb5bd; }
     .sidebar-search button {
       position:absolute;
       top:50%;
-      right:22px;
+      right:24px;
       transform:translateY(-50%);
-      width:34px;
-      height:34px;
+      width:36px;
+      height:36px;
       padding:0;
       background:#495057;
-      border:1px solid rgba(255,255,255,0.08);
+      border:1px solid #56606a;
       color:#f8f9fa;
       box-shadow:none;
     }
@@ -651,23 +669,32 @@ const adminPrototypeHTML = `<!doctype html>
     .sidebar-heading .eyebrow.subtle { background:rgba(255,255,255,0.08); }
     .sidebar-nav-shell {
       display:grid;
-      gap:12px;
+      gap:10px;
       flex:1 1 auto;
       align-content:start;
-      padding:6px 10px 18px;
+      padding:14px 14px 18px;
       overflow:auto;
+    }
+    .sidebar-section-label {
+      padding:8px 8px 2px;
+      font-size:12px;
+      line-height:1.2;
+      font-weight:700;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color:rgba(255,255,255,.58);
     }
     .sidebar-treeview { display:grid; gap:6px; }
     .sidebar-treeview-toggle {
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:flex-start;
       gap:12px;
       width:100%;
       padding:11px 14px;
       background:transparent;
       border:none;
-      border-radius:0.25rem;
+      border-radius:0.35rem;
       box-shadow:none;
       color:#c2c7d0;
       font-size:15px;
@@ -680,6 +707,7 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       gap:12px;
       min-width:0;
+      flex:1 1 auto;
     }
     .sidebar-treeview-toggle-icon,
     .sidebar-treeview-caret {
@@ -720,6 +748,19 @@ const adminPrototypeHTML = `<!doctype html>
       background:rgba(255,255,255,0.08);
       color:#fff;
     }
+    .sidebar-treeview-toggle-badge {
+      min-width:22px;
+      height:22px;
+      padding:0 7px;
+      border-radius:0.45rem;
+      display:grid;
+      place-items:center;
+      font-size:12px;
+      font-weight:700;
+      color:#fff;
+      background:#17a2b8;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.15);
+    }
     .sidebar-treeview-toggle:hover .sidebar-treeview-toggle-icon,
     .sidebar-treeview-toggle:hover .sidebar-treeview-caret,
     .sidebar-treeview.open .sidebar-treeview-toggle-icon,
@@ -744,8 +785,8 @@ const adminPrototypeHTML = `<!doctype html>
       background:transparent;
       color:var(--admin-sidebar-text);
       border:none;
-      border-radius:0.25rem;
-      padding:9px 14px 9px 18px;
+      border-radius:0.5rem;
+      padding:12px 14px;
       display:flex;
       align-items:center;
       gap:12px;
@@ -756,42 +797,35 @@ const adminPrototypeHTML = `<!doctype html>
       transition:background 120ms ease, color 120ms ease;
     }
     .nav-link:hover {
-      background:rgba(255,255,255,0.06);
+      background:rgba(255,255,255,0.08);
       color:#fff;
     }
     .nav-link.active {
-      background:rgba(255,255,255,0.12);
+      background:#007bff;
       color:#fff;
+      box-shadow:0 10px 18px rgba(0, 123, 255, 0.3);
     }
     .nav-link-icon {
-      position:relative;
       width:18px;
       height:18px;
       flex-shrink:0;
+      display:grid;
+      place-items:center;
       transition:transform 120ms ease, color 120ms ease;
     }
-    .nav-link-icon::before {
-      content:"";
-      position:absolute;
-      top:50%;
-      left:50%;
-      width:5px;
-      height:5px;
-      border-radius:999px;
-      background:currentColor;
-      transform:translate(-50%, -50%);
-      opacity:0.75;
+    .nav-link-icon svg {
+      width:100%;
+      height:100%;
+      stroke:currentColor;
+      stroke-width:1.8;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
     }
-    .nav-link:hover .nav-link-icon { color:rgba(255,255,255,0.88); }
+    .nav-link:hover .nav-link-icon { color:#fff; }
     .nav-link.active .nav-link-icon {
       color:#fff;
-      transform:scale(1.05);
-    }
-    .nav-link.active .nav-link-icon::before {
-      width:7px;
-      height:7px;
-      opacity:1;
-      box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);
+      transform:none;
     }
     .nav-link-label {
       flex:1 1 auto;
@@ -809,18 +843,27 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .workspace { min-width:0; }
     .workspace-header {
+      display:grid;
+      gap:0;
+      padding:0;
+      border-top-color:var(--admin-primary);
+      overflow:hidden;
+    }
+    .workspace-header-main {
       display:flex;
-      gap:10px 16px;
-      align-items:center;
+      gap:18px;
+      align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:14px 16px;
-      border-top-color:var(--admin-primary);
+      padding:18px 20px 14px;
+      background:linear-gradient(180deg, rgba(248,249,250,0.95) 0%, rgba(255,255,255,0.98) 100%);
+      border-bottom:1px solid rgba(0,0,0,0.06);
     }
     .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
     .workspace-header-copy p { margin:0; }
     .workspace-header-copy h2 { font-size:clamp(1.35rem, 1.8vw, 1.65rem); line-height:1.15; }
+    .workspace-header-kicker { margin-bottom:2px; }
     .workspace-path {
       display:inline-flex;
       width:max-content;
@@ -831,9 +874,90 @@ const adminPrototypeHTML = `<!doctype html>
       line-height:1.35;
       color:var(--admin-muted);
     }
+    .content-header-breadcrumb {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      list-style:none;
+      margin:0;
+      padding:0;
+      color:var(--admin-muted);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+    }
+    .content-header-breadcrumb li {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .content-header-breadcrumb li + li::before {
+      content:'/';
+      color:#adb5bd;
+      margin-right:8px;
+    }
+    .workspace-actions {
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 20px 18px;
+      background:var(--admin-surface);
+    }
+    .workspace-actions-copy {
+      display:grid;
+      gap:2px;
+      min-width:0;
+    }
+    .workspace-actions-copy strong {
+      font-size:13px;
+      color:#495057;
+    }
+    .workspace-actions-copy span {
+      font-size:12px;
+      color:var(--admin-muted);
+    }
     .content-grid { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:14px; }
     .section-heading { display:grid; gap:6px; }
+    .section-card-header,
+    .section-card-footer {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      padding:16px 18px;
+      background:linear-gradient(180deg, rgba(248,249,250,0.95) 0%, rgba(255,255,255,1) 100%);
+    }
+    .section-card-header {
+      border-bottom:1px solid rgba(0,0,0,0.06);
+      border-top-left-radius:calc(var(--admin-radius) - 1px);
+      border-top-right-radius:calc(var(--admin-radius) - 1px);
+    }
+    .section-card-body {
+      display:grid;
+      gap:14px;
+      padding:18px;
+      background:var(--admin-surface);
+    }
+    .section-card-footer {
+      align-items:center;
+      border-top:1px solid rgba(0,0,0,0.06);
+      background:#fbfcfd;
+    }
+    .section-card-tools {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-left:auto;
+    }
+    .section-card-tools .eyebrow {
+      background:rgba(0,123,255,0.08);
+    }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
     .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
@@ -911,7 +1035,6 @@ const adminPrototypeHTML = `<!doctype html>
     .pagination-info { font-size:14px; color:var(--admin-muted); }
     .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:#fff; color:var(--admin-muted); text-align:center; }
-    .workspace-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
     .workspace-actions button { padding-inline:14px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
     .modal-dialog {
@@ -1008,34 +1131,143 @@ const adminPrototypeHTML = `<!doctype html>
     .confirm-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
     .dashboard-tiles {
       display:grid;
-      gap:16px;
-      grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));
+      gap:18px;
+      grid-template-columns:repeat(auto-fill, minmax(240px, 1fr));
+      align-items:stretch;
     }
     .dashboard-tile {
+      --dashboard-tile-accent: var(--admin-primary);
       display:grid;
-      gap:8px;
-      padding:20px 20px 18px;
+      gap:14px;
+      padding:18px 18px 16px;
       border:1px solid var(--admin-border);
-      border-top:3px solid #d2d6de;
-      border-radius:var(--admin-radius);
+      border-top:3px solid var(--dashboard-tile-accent);
+      border-radius:calc(var(--admin-radius) + 2px);
       background:#fff;
       box-shadow:var(--admin-shadow);
       cursor:pointer;
       text-align:left;
       color:var(--admin-text);
-      transition:border-top-color 120ms ease, box-shadow 120ms ease;
+      transition:transform 140ms ease, border-top-color 140ms ease, box-shadow 140ms ease;
     }
-    .dashboard-tile:hover { border-top-color:var(--admin-primary); box-shadow:0 4px 12px rgba(0,0,0,0.12); }
-    .dashboard-tile-count {
-      font-size:2rem;
+    .dashboard-tile:hover,
+    .dashboard-tile:focus-visible {
+      transform:translateY(-2px);
+      border-top-color:var(--dashboard-tile-accent);
+      box-shadow:0 14px 28px rgba(31,45,61,0.14);
+    }
+    .dashboard-tile:focus-visible {
+      outline:2px solid color-mix(in srgb, var(--dashboard-tile-accent) 55%, white);
+      outline-offset:2px;
+    }
+    .dashboard-tile-header,
+    .dashboard-tile-footer {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .dashboard-tile-badge {
+      display:inline-flex;
+      align-items:center;
+      padding:5px 10px;
+      border-radius:999px;
+      background:color-mix(in srgb, var(--dashboard-tile-accent) 12%, white);
+      color:var(--dashboard-tile-accent);
+      font-size:11px;
       font-weight:700;
-      color:var(--admin-primary);
-      line-height:1;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
     }
-    .dashboard-tile-label { font-size:15px; font-weight:600; }
-    .dashboard-tile-hint { font-size:12px; color:var(--admin-muted); }
+    .dashboard-tile-icon-badge {
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      background:color-mix(in srgb, var(--dashboard-tile-accent) 14%, white);
+      color:var(--dashboard-tile-accent);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+      flex-shrink:0;
+    }
+    .dashboard-tile-icon-badge svg {
+      width:22px;
+      height:22px;
+      stroke:currentColor;
+      stroke-width:1.8;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .dashboard-tile-main {
+      display:grid;
+      gap:8px;
+      min-height:132px;
+      align-content:start;
+    }
+    .dashboard-tile-count-row {
+      display:flex;
+      align-items:flex-end;
+      gap:8px;
+    }
+    .dashboard-tile-count {
+      font-size:2.4rem;
+      font-weight:800;
+      color:var(--dashboard-tile-accent);
+      line-height:0.95;
+      letter-spacing:-0.03em;
+    }
+    .dashboard-tile-count-label {
+      font-size:12px;
+      font-weight:700;
+      color:var(--admin-muted);
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      transform:translateY(-2px);
+    }
+    .dashboard-tile-label { font-size:1.2rem; font-weight:700; line-height:1.15; }
+    .dashboard-tile-hint {
+      font-size:12px;
+      color:var(--admin-muted);
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+    }
+    .dashboard-tile-description {
+      margin:0;
+      font-size:13px;
+      line-height:1.5;
+      color:var(--admin-muted);
+    }
+    .dashboard-tile-meta {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:12px;
+      color:var(--admin-muted);
+    }
+    .dashboard-tile-meta-dot {
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--dashboard-tile-accent);
+      box-shadow:0 0 0 4px color-mix(in srgb, var(--dashboard-tile-accent) 15%, transparent);
+      flex-shrink:0;
+    }
+    .dashboard-tile-action {
+      font-size:13px;
+      font-weight:700;
+      color:var(--dashboard-tile-accent);
+    }
+    .dashboard-tile-arrow {
+      color:var(--dashboard-tile-accent);
+      font-size:18px;
+      line-height:1;
+      transition:transform 140ms ease;
+    }
+    .dashboard-tile:hover .dashboard-tile-arrow,
+    .dashboard-tile:focus-visible .dashboard-tile-arrow { transform:translateX(2px); }
     .sidebar-footer {
-      padding:10px 16px;
+      padding:14px 18px 18px;
       border-top:1px solid rgba(255,255,255,.1);
       display:flex;
       align-items:center;
@@ -1044,21 +1276,21 @@ const adminPrototypeHTML = `<!doctype html>
       flex-shrink:0;
     }
     .sidebar-footer-text {
-      font-size:11px;
-      color:rgba(255,255,255,.4);
+      font-size:12px;
+      color:rgba(255,255,255,.48);
       white-space:nowrap;
     }
     .sidebar-footer-link {
       display:inline-flex;
       align-items:center;
       gap:5px;
-      font-size:12px;
-      color:rgba(255,255,255,.55);
+      font-size:13px;
+      color:rgba(255,255,255,.68);
       background:transparent;
       border:1px solid transparent;
-      padding:4px 8px;
+      padding:6px 10px;
       cursor:pointer;
-      border-radius:0.25rem;
+      border-radius:0.35rem;
     }
     .sidebar-footer-link:hover { filter:none; color:#fff; background:rgba(255,255,255,.08); }
     .topbar-action-badge {
@@ -1096,15 +1328,51 @@ const adminPrototypeHTML = `<!doctype html>
     .session-panel.login-box { width:100%; max-width:none; }
     .panel.card,
     .detail-card.card { margin-bottom:0; }
-    .dashboard-tile.small-box { border:none; margin-bottom:0; text-align:left; cursor:pointer; }
-    .dashboard-tile.small-box .inner { display:grid; gap:4px; }
-    .dashboard-tile.small-box .icon { color:rgba(255,255,255,.24); }
+    .dashboard-tile.small-box {
+      position:relative;
+      min-height:238px;
+      margin-bottom:0;
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--dashboard-tile-accent) 14%, transparent) 0, transparent 34%),
+        linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+      box-shadow:0 10px 20px rgba(31,45,61,0.08);
+    }
     .table-shell.table-responsive { border-radius:var(--admin-radius); }
+    .section-shell .table-shell {
+      border-radius:0.35rem;
+      box-shadow:none;
+      border-color:#d8dee4;
+    }
+    .section-shell .table-shell table { min-width:760px; }
+    .section-shell .pagination-bar { margin-top:2px; }
     .btn-sidebar { background:rgba(255,255,255,.08); color:var(--admin-sidebar-text); }
     [data-theme="dark"] .main-header,
     [data-theme="dark"] .content-wrapper,
     [data-theme="dark"] .card,
     [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
+    [data-theme="dark"] .workspace-header-main,
+    [data-theme="dark"] .section-card-header,
+    [data-theme="dark"] .section-card-footer {
+      background:#1f2430;
+      border-color:var(--admin-border);
+      box-shadow:none;
+    }
+    [data-theme="dark"] .workspace-actions { background:var(--admin-surface); }
+    [data-theme="dark"] .workspace-actions-copy strong { color:var(--admin-text); }
+    [data-theme="dark"] .topbar-link-icon,
+    [data-theme="dark"] .content-header-breadcrumb { color:var(--admin-muted); }
+    [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
+    [data-theme="dark"] .dashboard-tile.small-box {
+      background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--dashboard-tile-accent) 16%, transparent) 0, transparent 34%),
+        linear-gradient(180deg, rgba(26,29,39,0.98) 0%, rgba(26,29,39,0.92) 100%);
+      box-shadow:none;
+    }
+    [data-theme="dark"] .dashboard-tile-badge,
+    [data-theme="dark"] .dashboard-tile-icon-badge { background:color-mix(in srgb, var(--dashboard-tile-accent) 20%, #1b2333); }
+    [data-theme="dark"] .dashboard-tile-description,
+    [data-theme="dark"] .dashboard-tile-count-label,
+    [data-theme="dark"] .dashboard-tile-meta { color:var(--admin-muted); }
     [data-theme="dark"] .btn-sidebar { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
@@ -1128,8 +1396,7 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .topbar { padding-top:24px; border-bottom:none; box-shadow:none; background:transparent; position:static; }
     body.standalone-login-page .topbar-nav,
     body.standalone-login-page .topbar-actions,
-    body.standalone-login-page .topbar-toggle,
-    body.standalone-login-page .topbar-context { display:none; }
+    body.standalone-login-page .topbar-toggle { display:none; }
     body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px); align-items:stretch; }
     body.standalone-login-page .login-marketing,
     body.standalone-login-page .login-lead,
@@ -1190,6 +1457,10 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar-left, .topbar-meta { width:100%; }
       .topbar-nav { flex-wrap:wrap; }
       .topbar-meta { justify-content:flex-start; margin-left:0; }
+      .workspace-header-main,
+      .workspace-actions,
+      .section-card-header,
+      .section-card-footer { padding-left:16px; padding-right:16px; }
       .table-toolbar .row-actions { flex-basis:100%; }
     }
   </style>
@@ -1201,7 +1472,12 @@ const adminPrototypeHTML = `<!doctype html>
     <div class="topbar-left">
       <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
       <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link nav-link" href="/admin">Home</a>
+        <a class="topbar-link nav-link" href="/admin">
+          <span class="topbar-link-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 7.25 8 2.75l5.5 4.5"/><path d="M4.25 6.25v6h7.5v-6"/><path d="M6.5 12.25v-3h3v3"/></svg>
+          </span>
+          <span>Home</span>
+        </a>
       </nav>
       <div class="topbar-brand brand-link">
         <span class="brand-mark">A</span>
@@ -1330,6 +1606,18 @@ const adminPrototypeHTML = `<!doctype html>
           </div>
         </div>
         <div class="sidebar-nav-shell">
+          <div class="sidebar-section-label">Overview</div>
+          <ul class="nav-list nav nav-pills nav-sidebar flex-column" role="menu">
+            <li class="nav-item">
+              <button id="sidebarDashboardLink" class="nav-link" type="button" aria-label="Open admin dashboard">
+                <span class="nav-link-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 12.5h11"/><path d="M4.25 11.75V8.5"/><path d="M8 11.75V4.25"/><path d="M11.75 11.75V6.5"/><path d="M8 2.25a.75.75 0 1 1 0 1.5"/></svg>
+                </span>
+                <span class="nav-link-label">Dashboard</span>
+              </button>
+            </li>
+          </ul>
+          <div class="sidebar-section-label">Resources</div>
           <div class="sidebar-treeview open nav nav-pills nav-sidebar flex-column" id="resourceTreeview" data-widget="treeview" role="menu">
             <button class="sidebar-treeview-toggle" id="resourceTreeviewToggle" type="button" aria-expanded="true" aria-controls="resources">
               <span class="sidebar-treeview-toggle-copy">
@@ -1338,6 +1626,7 @@ const adminPrototypeHTML = `<!doctype html>
                 </span>
                 <span class="sidebar-treeview-toggle-text">Resources</span>
               </span>
+              <span class="sidebar-treeview-toggle-badge" id="resourceTreeviewBadge">0</span>
               <span class="sidebar-treeview-caret" aria-hidden="true">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M6 3.5 10.5 8 6 12.5"/></svg>
               </span>
@@ -1351,62 +1640,91 @@ const adminPrototypeHTML = `<!doctype html>
         </div>
       </aside>
       <section class="workspace stack content-wrapper">
-        <section class="panel workspace-header card card-outline card-primary">
-          <div class="workspace-header-copy">
-            <h2 id="resourceTitle">Select a resource</h2>
-            <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
+        <section id="workspaceHeader" class="panel workspace-header card card-outline card-primary">
+          <div class="workspace-header-main">
+            <div class="workspace-header-copy">
+              <span class="workspace-header-kicker eyebrow">Workspace</span>
+              <h2 id="resourceTitle">Select a resource</h2>
+              <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
+            </div>
+            <ol class="content-header-breadcrumb" aria-label="Workspace breadcrumb">
+              <li>Home</li>
+              <li>Admin</li>
+              <li>Workspace</li>
+            </ol>
           </div>
           <div class="workspace-actions">
+            <div class="workspace-actions-copy">
+              <strong>AdminLTE workspace chrome</strong>
+              <span>Operate resources with dashboard, filters, and table controls in one place.</span>
+            </div>
             <button id="openCreateModal" class="btn btn-primary" type="button">Create record</button>
           </div>
         </section>
         <section id="dashboardShell" class="panel stack card card-outline card-info" hidden>
-          <div class="section-heading">
-            <h3 class="section-title">Resources</h3>
-            <p class="section-copy muted">Select a resource below to open its workspace.</p>
+          <div class="card-header section-card-header">
+            <div class="section-heading">
+              <h3 class="section-title">Resources</h3>
+              <p class="section-copy muted">Select a resource below to open its workspace.</p>
+            </div>
+            <div class="section-card-tools">
+              <span class="eyebrow subtle">Dashboard cards</span>
+            </div>
           </div>
-          <div id="dashboardTiles" class="dashboard-tiles"></div>
+          <div class="card-body section-card-body">
+            <div id="dashboardTiles" class="dashboard-tiles"></div>
+          </div>
         </section>
         <section class="content-grid">
           <section class="stack">
-            <section class="panel section-shell card card-outline card-primary">
-              <div class="toolbar">
+            <section id="recordsShell" class="panel section-shell card card-outline card-primary">
+              <div class="card-header section-card-header">
                 <div class="section-heading">
                   <h3 class="section-title">Records</h3>
                   <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
-                  <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
-                  <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
-                  <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                 </div>
               </div>
-              <div class="table-toolbar">
-                <div class="row-actions">
-                  <input id="search" class="form-control" placeholder="Search current resource">
-                  <select id="sort" class="custom-select"></select>
-                  <select id="pageSize" class="custom-select">
-                    <option value="5">5 / page</option>
-                    <option value="10" selected>10 / page</option>
-                    <option value="20">20 / page</option>
-                    <option value="50">50 / page</option>
-                  </select>
+              <div class="card-body section-card-body">
+                <div class="toolbar">
+                  <div class="section-heading">
+                    <span class="eyebrow subtle">Table tools</span>
+                    <p class="section-copy muted">Apply fast filters, reload data, and run bulk actions from the record list.</p>
+                  </div>
+                  <div class="row-actions">
+                    <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
+                    <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
+                    <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
+                  </div>
                 </div>
-                <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+                <div class="table-toolbar">
+                  <div class="row-actions">
+                    <input id="search" class="form-control" placeholder="Search current resource">
+                    <select id="sort" class="custom-select"></select>
+                    <select id="pageSize" class="custom-select">
+                      <option value="5">5 / page</option>
+                      <option value="10" selected>10 / page</option>
+                      <option value="20">20 / page</option>
+                      <option value="50">50 / page</option>
+                    </select>
+                  </div>
+                  <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+                </div>
+                <form id="filtersForm" class="filters"></form>
+                <div id="list"></div>
+                <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
+                  <span class="list-spinner" aria-hidden="true"></span>
+                  <span>Loading records…</span>
+                </div>
               </div>
-              <form id="filtersForm" class="filters"></form>
-              <div class="pagination-bar">
+              <div class="card-footer section-card-footer">
                 <div class="muted">Use filters to refine the current workspace.</div>
                 <div class="row-actions">
                   <button id="prevPage" class="secondary btn btn-default" type="button">Previous</button>
                   <button id="nextPage" class="secondary btn btn-default" type="button">Next</button>
                 </div>
-              </div>
-              <div id="list"></div>
-              <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
-                <span class="list-spinner" aria-hidden="true"></span>
-                <span>Loading records…</span>
               </div>
             </section>
           </section>
@@ -1535,6 +1853,8 @@ const adminPrototypeHTML = `<!doctype html>
       pageIntro: document.getElementById('pageIntro'),
       shellEyebrow: document.getElementById('shellEyebrow'),
       adminShell: document.getElementById('adminShell'),
+      sidebarDashboardLink: document.getElementById('sidebarDashboardLink'),
+      resourceTreeviewBadge: document.getElementById('resourceTreeviewBadge'),
       resources: document.getElementById('resources'),
       sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
       sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
@@ -1568,6 +1888,8 @@ const adminPrototypeHTML = `<!doctype html>
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search'),
       listLoading: document.getElementById('listLoading'),
+      workspaceHeader: document.getElementById('workspaceHeader'),
+      recordsShell: document.getElementById('recordsShell'),
       dashboardShell: document.getElementById('dashboardShell'),
       dashboardTiles: document.getElementById('dashboardTiles'),
       confirmModal: document.getElementById('confirmModal'),
@@ -1629,6 +1951,53 @@ const adminPrototypeHTML = `<!doctype html>
 
     function currentPagePath() {
       return window.location.pathname || '';
+    }
+
+    function buildNavigationState(view, resourceName) {
+      return {
+        pagePath: currentPagePath(),
+        view: view || 'dashboard',
+        resourceName: resourceName || ''
+      };
+    }
+
+    function sameNavigationState(a, b) {
+      return !!a && !!b &&
+        (a.pagePath || '') === (b.pagePath || '') &&
+        (a.view || '') === (b.view || '') &&
+        (a.resourceName || '') === (b.resourceName || '');
+    }
+
+    function updateNavigationState(mode, view, resourceName) {
+      if (!window.history) return;
+      const nextState = buildNavigationState(view, resourceName);
+      const currentState = window.history.state;
+      if (sameNavigationState(currentState, nextState)) return;
+      if (mode === 'push' && typeof window.history.pushState === 'function') {
+        window.history.pushState(nextState, '', nextState.pagePath);
+        return;
+      }
+      if (typeof window.history.replaceState === 'function') {
+        window.history.replaceState(nextState, '', nextState.pagePath);
+      }
+    }
+
+    async function restoreNavigationState(navState) {
+      if (!state.resources.length) return false;
+      try {
+        if (navState?.view === 'dashboard') {
+          showDashboard({ history: 'none' });
+          return true;
+        }
+        if (!navState?.resourceName) return false;
+        const resource = state.resources.find((item) => item.name === navState.resourceName);
+        if (!resource) return false;
+        await selectResource(resource, { history: 'none' });
+        return true;
+      } catch (error) {
+        console.error('navigation state restore failed:', error);
+        return false;
+      }
     }
 
     function applyTheme(dark) {
@@ -2171,6 +2540,11 @@ const adminPrototypeHTML = `<!doctype html>
       els.resources.innerHTML = '';
       const resourceTreeview = document.getElementById('resourceTreeview');
       if (resourceTreeview) resourceTreeview.classList.add('open');
+      if (els.resourceTreeviewBadge) els.resourceTreeviewBadge.textContent = String(state.resources.length);
+      if (els.sidebarDashboardLink) {
+        els.sidebarDashboardLink.classList.toggle('active', !state.current);
+        els.sidebarDashboardLink.setAttribute('aria-current', !state.current ? 'page' : 'false');
+      }
       const matches = filteredResources();
       if (!matches.length) {
         const li = document.createElement('li');
@@ -2191,8 +2565,10 @@ const adminPrototypeHTML = `<!doctype html>
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 3.5h9v9h-9z"/><path d="M6 6h4"/><path d="M6 8h4"/><path d="M6 10h2"/></svg>';
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
+        button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
         button.appendChild(icon);
         button.appendChild(label);
         button.onclick = () => selectResource(resource);
@@ -2379,6 +2755,39 @@ const adminPrototypeHTML = `<!doctype html>
       if (active) els.list.innerHTML = '';
     }
 
+    function dashboardTileMeta(resource, index) {
+      const palette = ['#007bff', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
+      const byName = {
+        users: {
+          badge: 'Core access',
+          description: 'Open the user workspace to review profiles, roles, and sign-in ready records.',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+        },
+        roles: {
+          badge: 'Permissions',
+          description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+        },
+        projects: {
+          badge: 'Delivery',
+          description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.',
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+        }
+      };
+      const normalizedName = String(resource?.name || '').toLowerCase();
+      const meta = byName[normalizedName] || {
+        badge: 'Workspace',
+        description: 'Open this admin resource to review records, filters, and available actions.',
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
+      };
+      return {
+        accent: palette[index % palette.length],
+        badge: meta.badge,
+        description: meta.description,
+        icon: meta.icon
+      };
+    }
+
     function renderDashboard() {
       if (!els.dashboardShell || !els.dashboardTiles) return;
       if (state.current || !state.resources.length) {
@@ -2387,17 +2796,32 @@ const adminPrototypeHTML = `<!doctype html>
       }
       els.dashboardShell.hidden = false;
       els.dashboardTiles.innerHTML = '';
-      state.resources.forEach((resource) => {
+      state.resources.forEach((resource, index) => {
+        const meta = dashboardTileMeta(resource, index);
         const tile = document.createElement('button');
         tile.type = 'button';
         tile.className = 'dashboard-tile small-box bg-info';
+        tile.style.setProperty('--dashboard-tile-accent', meta.accent);
+        tile.setAttribute('aria-label', 'Open ' + resource.label + ' workspace');
         tile.innerHTML =
-          '<div class="inner">' +
-          '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
-          '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
-          '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
+          '<div class="dashboard-tile-header">' +
+            '<span class="dashboard-tile-badge">' + escapeHTML(meta.badge) + '</span>' +
+            '<span class="dashboard-tile-icon-badge" aria-hidden="true">' + meta.icon + '</span>' +
           '</div>' +
-          '<div class="icon" aria-hidden="true">▣</div>';
+          '<div class="dashboard-tile-main">' +
+            '<div class="dashboard-tile-count-row">' +
+              '<span class="dashboard-tile-count">' + dashboardCountPlaceholder + '</span>' +
+              '<span class="dashboard-tile-count-label">records</span>' +
+            '</div>' +
+            '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
+            '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
+            '<p class="dashboard-tile-description">' + escapeHTML(meta.description) + '</p>' +
+            '<div class="dashboard-tile-meta"><span class="dashboard-tile-meta-dot" aria-hidden="true"></span><span>Connected admin workspace</span></div>' +
+          '</div>' +
+          '<div class="dashboard-tile-footer">' +
+            '<span class="dashboard-tile-action">Open workspace</span>' +
+            '<span class="dashboard-tile-arrow" aria-hidden="true">→</span>' +
+          '</div>';
         tile.onclick = () => selectResource(resource);
         els.dashboardTiles.appendChild(tile);
         // Load record count in background for each tile
@@ -3020,19 +3444,27 @@ const adminPrototypeHTML = `<!doctype html>
         renderResources();
         renderDashboard();
         setStatus('Loaded ' + state.resources.length + ' resources.');
-        if (state.resources.length) {
-          await selectResource(state.resources[0]);
+        if (await restoreNavigationState(window.history.state)) {
+          return;
         }
+        if (state.resources.length) {
+          await selectResource(state.resources[0], { history: 'replace' });
+          return;
+        }
+        updateNavigationState('replace', 'dashboard');
       } catch (error) {
         setStatus(String(error.message || error));
       }
     }
 
-    async function selectResource(resource) {
+    async function selectResource(resource, options) {
+      const navigationMode = options?.history || 'push';
       state.current = resource;
       state.selected = null;
       resetQueryState();
       renderDashboard();
+      if (els.workspaceHeader) els.workspaceHeader.hidden = false;
+      if (els.recordsShell) els.recordsShell.hidden = false;
       try {
         state.meta = await request(currentBasePath() + '/meta');
         renderResources();
@@ -3044,6 +3476,9 @@ const adminPrototypeHTML = `<!doctype html>
         renderSelectedRecord();
         syncBulkActionState();
         syncWorkspaceActionState();
+        if (navigationMode !== 'none') {
+          updateNavigationState(navigationMode, 'resource', resource.name);
+        }
         setStatus('Loaded resource ' + resource.name + '.');
       } catch (error) {
         setStatus(String(error.message || error));
@@ -3130,6 +3565,41 @@ const adminPrototypeHTML = `<!doctype html>
         }
       });
     }
+
+    function showDashboard(options) {
+      const navigationMode = options?.history || 'push';
+      state.current = null;
+      state.meta = null;
+      state.selected = null;
+      resetQueryState();
+      renderResources();
+      renderDashboard();
+      if (els.workspaceHeader) els.workspaceHeader.hidden = true;
+      if (els.recordsShell) els.recordsShell.hidden = true;
+      els.resourceTitle.textContent = 'Admin dashboard';
+      els.resourcePath.textContent = 'Choose a resource from the sidebar to load its workspace.';
+      els.detailTitle.textContent = 'No record selected';
+      els.detailObjectBadge.textContent = 'Dashboard';
+      els.detail.textContent = 'Choose a resource from the sidebar.';
+      els.detailFields.innerHTML = '<p class="muted">Select a resource to inspect records, filters, and actions.</p>';
+      els.createForm.innerHTML = '<p class="muted">Select a resource to create records.</p>';
+      els.updateForm.innerHTML = '<p class="muted">Select a resource to edit records.</p>';
+      els.editHint.textContent = 'Select a resource to open the change form.';
+      els.list.innerHTML = '<div class="empty-state">Select a resource from the sidebar to load records.</div>';
+      renderPagination();
+      syncBulkActionState();
+      syncWorkspaceActionState();
+      if (navigationMode !== 'none') {
+        updateNavigationState(navigationMode, 'dashboard');
+      }
+      setStatus('Showing Dashboard.');
+    }
+    window.addEventListener('popstate', (event) => {
+      restoreNavigationState(event.state).catch((error) => {
+        console.error('navigation state restore failed:', error);
+        setStatus(String(error.message || error));
+      });
+    });
     if (els.topbarSearchInput) {
       els.topbarSearchInput.addEventListener('input', (event) => {
         clearTimeout(globalSearchTimer);
@@ -3198,6 +3668,11 @@ const adminPrototypeHTML = `<!doctype html>
         els.sidebarResourceSearch.value = '';
         renderResources();
         els.sidebarResourceSearch.focus();
+      });
+    }
+    if (els.sidebarDashboardLink) {
+      els.sidebarDashboardLink.addEventListener('click', () => {
+        showDashboard();
       });
     }
      els.openCreateModal.onclick = () => {

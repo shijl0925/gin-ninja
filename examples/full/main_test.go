@@ -627,14 +627,38 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
 		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "class=\"topbar-link-icon\"") {
+		t.Fatalf("expected richer AdminLTE-style navbar icon chrome in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "Control panel") {
+		t.Fatalf("expected Control panel label to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "Standalone workspace") {
+		t.Fatalf("expected Standalone workspace label to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "class=\"topbar-context\"") {
+		t.Fatalf("expected topbar context container to be removed from html: %q", adminHTML)
+	}
 	if !strings.Contains(adminHTML, "aria-label=\"Search sidebar navigation\"") {
 		t.Fatalf("expected AdminLTE-style sidebar search box in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "id=\"sidebarResourceSearch\"") || !strings.Contains(adminHTML, "id=\"sidebarResourceSearchButton\"") {
 		t.Fatalf("expected searchable sidebar resource controls in html: %q", adminHTML)
 	}
+	if !strings.Contains(adminHTML, "id=\"sidebarDashboardLink\"") {
+		t.Fatalf("expected AdminLTE-style dashboard entry in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"sidebar-section-label\">Overview</div>") {
+		t.Fatalf("expected AdminLTE-style overview section label in html: %q", adminHTML)
+	}
 	if !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-copy\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-icon\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-text\">Resources</span>") {
 		t.Fatalf("expected AdminLTE-style resource treeview toggle markup in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"resourceTreeviewBadge\"") {
+		t.Fatalf("expected AdminLTE-style sidebar badge markup in html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "class=\"nav-link-suffix\"") {
+		t.Fatalf("expected dashboard and child resource sidebar chevrons to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "function filteredResources()") || !strings.Contains(adminHTML, "state.resourceSearch = els.sidebarResourceSearch.value.trim();") {
 		t.Fatalf("expected sidebar resource search filtering logic in html: %q", adminHTML)
@@ -650,6 +674,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"content-header-breadcrumb\"") || !strings.Contains(adminHTML, "AdminLTE workspace chrome") {
+		t.Fatalf("expected richer AdminLTE-style content header chrome in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "id=\"workspaceHeader\"") || !strings.Contains(adminHTML, "id=\"recordsShell\"") {
+		t.Fatalf("expected dashboard-toggleable workspace header and records shells in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"card-header section-card-header\"") || !strings.Contains(adminHTML, "class=\"card-footer section-card-footer\"") {
+		t.Fatalf("expected AdminLTE-style card header/footer treatment in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Record workspace") {
 		t.Fatalf("expected record workspace card to be removed from html: %q", adminHTML)
@@ -779,6 +812,21 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "paginationInfo") {
 		t.Fatalf("expected pagination controls in html: %q", html)
 	}
+	if !strings.Contains(html, "Dashboard cards") || !strings.Contains(html, "Table tools") {
+		t.Fatalf("expected richer AdminLTE-style dashboard and table section labels in html: %q", html)
+	}
+	if !strings.Contains(html, "dashboard-tile-description") || !strings.Contains(html, "dashboard-tile-icon-badge") || !strings.Contains(html, "Open workspace") {
+		t.Fatalf("expected upgraded dashboard resource card chrome in html: %q", html)
+	}
+	if !strings.Contains(html, "Connected admin workspace") || !strings.Contains(html, "function dashboardTileMeta(resource, index)") {
+		t.Fatalf("expected richer dashboard resource metadata helpers in html: %q", html)
+	}
+	if !strings.Contains(html, "els.workspaceHeader.hidden = true;") || !strings.Contains(html, "els.recordsShell.hidden = true;") {
+		t.Fatalf("expected dashboard state to hide workspace header and records shell in html: %q", html)
+	}
+	if !strings.Contains(html, "els.workspaceHeader.hidden = false;") || !strings.Contains(html, "els.recordsShell.hidden = false;") {
+		t.Fatalf("expected resource state to restore workspace header and records shell in html: %q", html)
+	}
 	if !strings.Contains(html, "id=\"status\" class=\"visually-hidden\" aria-live=\"polite\" aria-atomic=\"true\"") {
 		t.Fatalf("expected hidden live status region in html: %q", html)
 	}
@@ -788,7 +836,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "button.className = 'nav-link'") {
 		t.Fatalf("expected active resource navigation styling in html: %q", html)
 	}
-	if !strings.Contains(html, "sidebar-treeview.open .sidebar-treeview-toggle") || !strings.Contains(html, "box-shadow:0 0 0 3px rgba(0, 123, 255, 0.28);") {
+	if !strings.Contains(html, "sidebar-treeview-toggle-badge") || !strings.Contains(html, "box-shadow:0 10px 18px rgba(0, 123, 255, 0.3);") {
 		t.Fatalf("expected AdminLTE-style sidebar menu styling in html: %q", html)
 	}
 	if strings.Contains(html, "nav-link-caret") {
@@ -1976,6 +2024,59 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	waitForBrowserPath(t, ctx, "/admin/login")
 	waitForBrowserText(t, ctx, "#status", "Signed out of the admin console.")
 	waitForBrowserVisible(t, ctx, "#loginForm")
+}
+
+func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+
+	clickBrowser(t, ctx, "#sidebarDashboardLink")
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
+	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
+	waitForBrowserCondition(t, ctx, "workspace header hidden on dashboard", `document.getElementById('workspaceHeader').hidden === true`)
+	waitForBrowserCondition(t, ctx, "records shell hidden on dashboard", `document.getElementById('recordsShell').hidden === true`)
+
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const tiles = Array.from(document.querySelectorAll('#dashboardTiles .dashboard-tile'));
+		const tile = tiles.find((item) => String(item.textContent || '').includes('Users'));
+		if (tile) tile.click();
+		return !!tile;
+	})()`, nil))
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserCondition(t, ctx, "workspace header visible for resource", `document.getElementById('workspaceHeader').hidden === false`)
+	waitForBrowserCondition(t, ctx, "records shell visible for resource", `document.getElementById('recordsShell').hidden === false`)
+
+	runBrowser(t, ctx, chromedp.Evaluate(`history.back()`, nil))
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
+	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
+	waitForBrowserCondition(t, ctx, "workspace header hidden again on dashboard", `document.getElementById('workspaceHeader').hidden === true`)
+	waitForBrowserCondition(t, ctx, "records shell hidden again on dashboard", `document.getElementById('recordsShell').hidden === true`)
 }
 
 func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {
