@@ -1921,15 +1921,20 @@ const adminPrototypeHTML = `<!doctype html>
 
     async function restoreNavigationState(navState) {
       if (!state.resources.length) return false;
-      if (navState?.view === 'dashboard') {
-        showDashboard({ history: 'none' });
+      try {
+        if (navState?.view === 'dashboard') {
+          showDashboard({ history: 'none' });
+          return true;
+        }
+        if (!navState?.resourceName) return false;
+        const resource = state.resources.find((item) => item.name === navState.resourceName);
+        if (!resource) return false;
+        await selectResource(resource, { history: 'none' });
         return true;
+      } catch (error) {
+        console.error('navigation state restore failed:', error);
+        return false;
       }
-      if (!navState?.resourceName) return false;
-      const resource = state.resources.find((item) => item.name === navState.resourceName);
-      if (!resource) return false;
-      await selectResource(resource, { history: 'none' });
-      return true;
     }
 
     function applyTheme(dark) {
