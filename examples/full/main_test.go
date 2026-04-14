@@ -2032,6 +2032,44 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	waitForBrowserVisible(t, ctx, "#loginForm")
 }
 
+func TestFullExampleStandaloneAdminLoginShowsErrorFeedback(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "wrong-password")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserPath(t, ctx, "/admin/login")
+	waitForBrowserCondition(t, ctx, "login feedback visible", `(() => {
+		const el = document.querySelector("#loginFeedback");
+		return !!el && !el.hidden;
+	})()`)
+	waitForBrowserText(t, ctx, "#loginFeedback", "invalid email or password")
+	waitForBrowserText(t, ctx, "#status", "invalid email or password")
+	waitForBrowserCondition(t, ctx, "login error toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("invalid email or password");
+	})()`)
+}
+
 func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()

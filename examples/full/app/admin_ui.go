@@ -124,6 +124,7 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
     [data-theme="dark"] .login-credentials { background: #22253a; border-color: var(--admin-border); }
     [data-theme="dark"] .login-credentials code { background: #1a1d2e; border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .login-feedback { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35); color: #fecaca; }
     [data-theme="dark"] body.standalone-admin-page .topbar,
     [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
     [data-theme="dark"] button:hover:not(:disabled) { filter: brightness(1.15); }
@@ -502,6 +503,15 @@ const adminPrototypeHTML = `<!doctype html>
       border-radius:14px;
       background:#f8fbfd;
       border:1px solid #d8e5ec;
+    }
+    .login-feedback {
+      margin:0;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(221,75,57,.24);
+      background:rgba(221,75,57,.08);
+      color:var(--admin-danger);
+      line-height:1.5;
     }
     .login-credentials code {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1541,6 +1551,7 @@ const adminPrototypeHTML = `<!doctype html>
             <button id="loginButton" class="btn btn-primary" type="submit">Sign in</button>
           </div>
         </form>
+        <p id="loginFeedback" class="login-feedback" role="alert" hidden></p>
         <div id="manualTokenTools" class="stack">
           <label>JWT token
             <input id="token" class="form-control" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
@@ -1819,6 +1830,7 @@ const adminPrototypeHTML = `<!doctype html>
 
      const els = {
       loginForm: document.getElementById('loginForm'),
+      loginFeedback: document.getElementById('loginFeedback'),
       loginEmail: document.getElementById('loginEmail'),
       loginPassword: document.getElementById('loginPassword'),
       token: document.getElementById('token'),
@@ -1901,6 +1913,34 @@ const adminPrototypeHTML = `<!doctype html>
     function setStatus(value, tone) {
       els.status.textContent = value;
       els.status.dataset.tone = tone || inferStatusTone(value);
+    }
+
+    function extractErrorMessage(value) {
+      if (!value) return '';
+      if (typeof value === 'string') {
+        try {
+          return extractErrorMessage(JSON.parse(value));
+        } catch (_) {
+          return value;
+        }
+      }
+      if (typeof value === 'object') {
+        if (typeof value.message === 'string' && value.message.trim()) return value.message;
+        if (typeof value.error === 'string' && value.error.trim()) return value.error;
+      }
+      return String(value);
+    }
+
+    function setLoginFeedback(message) {
+      if (!els.loginFeedback) return;
+      const value = extractErrorMessage(message);
+      if (!value) {
+        els.loginFeedback.hidden = true;
+        els.loginFeedback.textContent = '';
+        return;
+      }
+      els.loginFeedback.textContent = value;
+      els.loginFeedback.hidden = false;
     }
 
     function showToast(message, tone, durationMs) {
@@ -2219,9 +2259,9 @@ const adminPrototypeHTML = `<!doctype html>
 
      function renderSignedOutState() {
        closeAllModals();
-       const standaloneAdminPage = isStandaloneAdminPage();
-      els.loginForm.hidden = false;
-      els.sessionShell.hidden = false;
+       setLoginFeedback('');
+       els.loginForm.hidden = false;
+       els.sessionShell.hidden = false;
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
@@ -2332,7 +2372,7 @@ const adminPrototypeHTML = `<!doctype html>
           logout('Session expired. Please sign in again.');
           throw new Error('Session expired. Please sign in again.');
         }
-        throw new Error(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+        throw new Error(extractErrorMessage(data) || response.statusText || ('Request failed with status ' + response.status + '.'));
       }
       return data;
     }
@@ -3492,6 +3532,7 @@ const adminPrototypeHTML = `<!doctype html>
     });
     els.loginForm.onsubmit = async (event) => {
       event.preventDefault();
+      setLoginFeedback('');
       try {
         const payload = await request('/api/v1/auth/login', {
           method: 'POST',
@@ -3520,7 +3561,10 @@ const adminPrototypeHTML = `<!doctype html>
         setStatus(successMessage);
         await loadResources();
       } catch (error) {
-        setStatus(String(error.message || error));
+        const message = extractErrorMessage(error);
+        setLoginFeedback(message);
+        showToast(message, 'danger');
+        setStatus(message, 'danger');
       }
     };
     els.clearToken.onclick = () => {
