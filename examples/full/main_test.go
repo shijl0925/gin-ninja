@@ -627,8 +627,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
 		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "class=\"topbar-link-icon\"") {
-		t.Fatalf("expected richer AdminLTE-style navbar icon chrome in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "class=\"topbar-link-icon\"") {
+		t.Fatalf("expected Home shortcut icon markup to be removed from html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Control panel") {
 		t.Fatalf("expected Control panel label to be removed from html: %q", adminHTML)
@@ -653,6 +653,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-copy\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-icon\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-text\">Resources</span>") {
 		t.Fatalf("expected AdminLTE-style resource treeview toggle markup in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "icon.innerHTML = dashboardTileMeta(resource, index).icon;") {
+		t.Fatalf("expected sidebar resource entries to reuse dashboard tile icons: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "id=\"resourceTreeviewBadge\"") {
 		t.Fatalf("expected AdminLTE-style sidebar badge markup in html: %q", adminHTML)
