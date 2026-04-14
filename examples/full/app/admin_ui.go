@@ -122,8 +122,6 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .action-menu-item.danger:hover { background: #2d0f0f; }
     [data-theme="dark"] .badge { background: #1a2a3e; color: #93b4ff; }
     [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
-    [data-theme="dark"] .login-credentials { background: #22253a; border-color: var(--admin-border); }
-    [data-theme="dark"] .login-credentials code { background: #1a1d2e; border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .login-feedback { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35); color: #fecaca; }
     [data-theme="dark"] body.standalone-admin-page .topbar,
     [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
@@ -219,7 +217,7 @@ const adminPrototypeHTML = `<!doctype html>
       box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     }
     .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
-    .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
+    .topbar-copy p, .sidebar-heading p, .section-copy, .login-lead p { margin:0; }
     .topbar-meta {
       display:flex;
       align-items:center;
@@ -478,32 +476,37 @@ const adminPrototypeHTML = `<!doctype html>
     .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0, 0, 0, 0); white-space:nowrap; border:0; }
     .login-shell { display:grid; gap:20px; }
     .session-panel { position:relative; overflow:hidden; }
-    .login-marketing, .login-lead, .login-credentials { display:none; }
+    .login-marketing, .login-lead { display:none; }
     .login-marketing {
-      align-content:start;
+      align-content:center;
+      justify-content:center;
       background:linear-gradient(160deg, var(--admin-sidebar) 0%, var(--admin-sidebar-alt) 100%);
       color:#f8fafc;
       border:1px solid rgba(255,255,255,0.06);
       border-top:3px solid var(--admin-primary);
     }
-    .login-marketing h2, .login-lead h2 { margin:0; line-height:1.15; }
-    .login-feature-list { display:grid; gap:12px; }
-    .login-feature {
+    .login-lead h2 { margin:0; line-height:1.15; }
+    .login-brand {
+      display:flex;
+      align-items:center;
+      gap:18px;
+    }
+    .login-brand-mark {
+      flex-shrink:0;
       display:grid;
-      gap:4px;
-      padding:16px 18px;
-      background:rgba(255,255,255,0.06);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:14px;
+      place-items:center;
+      width:72px;
+      height:72px;
+      border-radius:20px;
+      background:var(--admin-primary);
+      color:#fff;
+      font-size:32px;
+      font-weight:700;
+      letter-spacing:-.5px;
     }
-    .login-feature strong { font-size:15px; }
-    .login-credentials {
-      gap:8px;
-      padding:12px 14px;
-      border-radius:14px;
-      background:#f8fbfd;
-      border:1px solid #d8e5ec;
-    }
+    .login-brand-copy { display:grid; gap:4px; }
+    .login-brand-copy strong { font-size:26px; font-weight:700; color:#f8fafc; }
+    .login-brand-copy span { font-size:14px; color:rgba(248,250,252,.65); letter-spacing:.5px; text-transform:uppercase; }
     .login-feedback {
       margin:0;
       padding:12px 14px;
@@ -512,14 +515,6 @@ const adminPrototypeHTML = `<!doctype html>
       background:rgba(221,75,57,.08);
       color:var(--admin-danger);
       line-height:1.5;
-    }
-    .login-credentials code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size:13px;
-      background:#fff;
-      border:1px solid #d8e5ec;
-      border-radius:8px;
-      padding:2px 6px;
     }
     .admin-shell {
       display:grid;
@@ -1392,8 +1387,7 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .topbar-toggle { display:none; }
     body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px); align-items:stretch; }
     body.standalone-login-page .login-marketing,
-    body.standalone-login-page .login-lead,
-    body.standalone-login-page .login-credentials { display:grid; }
+    body.standalone-login-page .login-lead { display:grid; }
     body.standalone-login-page .session-panel { margin:0; padding:28px; border-top-color:var(--admin-primary); }
     body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
     body.standalone-login-page input { min-height:46px; }
@@ -1509,23 +1503,11 @@ const adminPrototypeHTML = `<!doctype html>
     <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
       <section class="panel login-marketing card card-outline card-secondary">
-        <span class="eyebrow">Admin Console</span>
-        <div class="stack">
-          <h2>An AdminLTE-inspired sign-in for the standalone admin console.</h2>
-          <p>Use a dedicated entrypoint to authenticate, then jump straight into the example back-office experience.</p>
-        </div>
-        <div class="login-feature-list">
-          <div class="login-feature">
-            <strong>Dashboard-style entrypoint</strong>
-            <span>Keep login, redirects, and restored JWT sessions separate from the prototype page.</span>
-          </div>
-          <div class="login-feature">
-            <strong>Metadata-driven operations</strong>
-            <span>Explore resources, filters, relations, and bulk actions after sign-in.</span>
-          </div>
-          <div class="login-feature">
-            <strong>Demo-friendly access</strong>
-            <span>Use the seeded example account to try the full admin flow without extra setup.</span>
+        <div class="login-brand">
+          <span class="login-brand-mark">G</span>
+          <div class="login-brand-copy">
+            <strong>Gin Ninja</strong>
+            <span>Admin Console</span>
           </div>
         </div>
       </section>
@@ -1533,12 +1515,6 @@ const adminPrototypeHTML = `<!doctype html>
         <div class="login-lead">
           <span class="eyebrow">Secure Sign In</span>
           <h2>Welcome back</h2>
-          <p class="muted">Authenticate with the seeded demo admin account to enter the standalone console.</p>
-        </div>
-        <div class="login-credentials">
-          <strong>Demo credentials</strong>
-          <div class="muted">Email: <code>alice@example.com</code></div>
-          <div class="muted">Password: <code>password123</code></div>
         </div>
         <form id="loginForm" class="two-col">
           <label>Email

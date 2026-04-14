@@ -556,11 +556,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "An AdminLTE-inspired sign-in for the standalone admin console.") {
-		t.Fatalf("expected AdminLTE-inspired login marketing copy in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "Gin Ninja") {
+		t.Fatalf("expected brand name in login marketing panel in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "Demo credentials") {
-		t.Fatalf("expected demo credentials card in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "login-brand-mark") {
+		t.Fatalf("expected login brand mark in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
 		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
@@ -2008,7 +2008,6 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 
 	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
-	waitForBrowserText(t, ctx, "body", "Demo credentials")
 
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
