@@ -1,8 +1,10 @@
 package codegen
 
 import (
+	"os/exec"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -62,6 +64,7 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
 		"func ListUsers(ctx *ninja.Context, in *ListUsersInput)",
 		"func GetUser(ctx *ninja.Context, in *GetUserInput)",
+		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"))`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize())",
 		"return toUserOut(item)",
 		"if err := repo.Insert(item); err != nil {",
@@ -183,5 +186,171 @@ type Membership struct {
 
 	if strings.Contains(generated, `updates["user_i_d"]`) || strings.Contains(generated, `updates["a_p_i_key"]`) {
 		t.Fatalf("expected acronym fields to use stable snake_case\n%s", generated)
+	}
+}
+
+func TestGenerateCRUDBuildsAndRegistersPatchRoute(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "user_crud_gen.go"), content, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "route_test.go"), []byte(`package demo
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	ninja "github.com/shijl0925/gin-ninja"
+)
+
+func TestGeneratedRoutesUsePatchForPartialUpdates(t *testing.T) {
+	api := ninja.New(ninja.Config{})
+	router := ninja.NewRouter("/users")
+	RegisterUserCRUDRoutes(router)
+	api.AddRouter(router)
+
+	putReq := httptest.NewRequest(http.MethodPut, "/users/1", strings.NewReader(`+"`{}"+`"))
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp := httptest.NewRecorder()
+	api.Handler().ServeHTTP(putResp, putReq)
+	if putResp.Code != http.StatusNotFound {
+		t.Fatalf("expected PUT update route to be absent, got %d body=%s", putResp.Code, putResp.Body.String())
+	}
+
+	patchReq := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader("{"))
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchResp := httptest.NewRecorder()
+	api.Handler().ServeHTTP(patchResp, patchReq)
+	if patchResp.Code != http.StatusBadRequest {
+		t.Fatalf("expected PATCH route to bind request before hitting persistence, got %d body=%s", patchResp.Code, patchResp.Body.String())
+	}
+}
+`), 0o644); err != nil {
+		t.Fatalf("write route test: %v", err)
+	}
+
+	runGoTest(t, dir)
+}
+
+func TestGenerateCRUDSupportsCommonNamedAndContainerTypes(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+import (
+	"database/sql"
+	"encoding/json"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+type Audit struct {
+	Source string `+"`json:\"source\"`"+`
+}
+
+type Profile struct {
+	ID         uint            `+"`json:\"id\"`"+`
+	Nickname   sql.NullString  `+"`json:\"nickname\"`"+`
+	Aliases    []sql.NullInt64 `+"`json:\"aliases\"`"+`
+	Metadata   map[string]any  `+"`json:\"metadata\"`"+`
+	Attributes json.RawMessage `+"`json:\"attributes\"`"+`
+	Audit      Audit           `+"`json:\"audit\"`"+`
+	CreatedAt  time.Time       `+"`json:\"created_at\"`"+`
+	DeletedAt  gorm.DeletedAt  `+"`json:\"deleted_at\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Profile"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "profile_crud_gen.go"), content, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "types_test.go"), []byte(`package demo
+
+import (
+	"database/sql"
+	"encoding/json"
+	"reflect"
+	"testing"
+)
+
+func TestGeneratedInputsKeepCommonTypes(t *testing.T) {
+	var create CreateProfileInput
+	create.Nickname = sql.NullString{}
+	create.Aliases = []sql.NullInt64{{}}
+	create.Metadata = map[string]any{"source": "seed"}
+	create.Attributes = json.RawMessage(`+"`{\"ok\":true}`"+`)
+	create.Audit = Audit{Source: "seed"}
+
+	var update UpdateProfileInput
+	nickname := sql.NullString{}
+	aliases := []sql.NullInt64{{}}
+	metadata := map[string]any{"source": "patch"}
+	attributes := json.RawMessage(`+"`{\"ok\":true}`"+`)
+	audit := Audit{Source: "patch"}
+	update.Nickname = &nickname
+	update.Aliases = &aliases
+	update.Metadata = &metadata
+	update.Attributes = &attributes
+	update.Audit = &audit
+
+	if got := reflect.TypeOf(update.Nickname).String(); got != "*sql.NullString" {
+		t.Fatalf("unexpected nickname update type %q", got)
+	}
+	if got := reflect.TypeOf(update.Metadata).String(); got != "*map[string]interface {}" {
+		t.Fatalf("unexpected metadata update type %q", got)
+	}
+}
+`), 0o644); err != nil {
+		t.Fatalf("write types test: %v", err)
+	}
+
+	runGoTest(t, dir)
+}
+
+func runGoTest(t *testing.T, dir string) {
+	t.Helper()
+
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve repo root")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), ".."))
+	goMod := "module demo\n\ngo 1.26\n\nrequire github.com/shijl0925/gin-ninja v0.0.0\n\nreplace github.com/shijl0925/gin-ninja => " + repoRoot + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	cmd := exec.Command("go", "test", "./...")
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go test temp module: %v\n%s", err, output)
 	}
 }

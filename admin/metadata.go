@@ -822,18 +822,25 @@ func toSnake(name string) string {
 	if name == "" {
 		return ""
 	}
-	var out []rune
-	for i, r := range name {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				out = append(out, '_')
-			}
-			out = append(out, unicode.ToLower(r))
-			continue
+	runes := []rune(name)
+	out := make([]rune, 0, len(runes)+4)
+	for i, r := range runes {
+		if shouldInsertSnakeUnderscore(runes, i, r) {
+			out = append(out, '_')
 		}
-		out = append(out, r)
+		out = append(out, unicode.ToLower(r))
 	}
 	return string(out)
+}
+
+func shouldInsertSnakeUnderscore(runes []rune, index int, current rune) bool {
+	if index == 0 || !unicode.IsUpper(current) {
+		return false
+	}
+	if unicode.IsLower(runes[index-1]) {
+		return true
+	}
+	return unicode.IsUpper(runes[index-1]) && index+1 < len(runes) && unicode.IsLower(runes[index+1])
 }
 
 func toKebab(name string) string {

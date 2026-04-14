@@ -868,6 +868,12 @@ type Person struct {
 	ID uint `gorm:"primaryKey"`
 }
 
+type adminAcronymColumns struct {
+	ID     uint   `gorm:"primaryKey"`
+	UserID uint   `json:"user_id"`
+	APIKey string `json:"api_key"`
+}
+
 func TestCollectFieldsInferAutoRelation(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -898,6 +904,20 @@ func TestCollectFieldsInferAutoRelation(t *testing.T) {
 				t.Fatalf("autoRelation = %v", got)
 			}
 		})
+	}
+}
+
+func TestCollectFieldsUsesStableSnakeCaseColumnsForAcronyms(t *testing.T) {
+	fields := collectFields(reflect.TypeOf(adminAcronymColumns{}), nil, nil)
+	columns := map[string]string{}
+	for _, field := range fields {
+		columns[field.Meta.Name] = field.Meta.Column
+	}
+	if got := columns["user_id"]; got != "user_id" {
+		t.Fatalf("expected user_id column, got %q", got)
+	}
+	if got := columns["api_key"]; got != "api_key" {
+		t.Fatalf("expected api_key column, got %q", got)
 	}
 }
 

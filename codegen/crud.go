@@ -534,18 +534,38 @@ func hasDisallowedGORMTag(tag string) bool {
 func isRenderableFieldType(expr ast.Expr, imports map[string]string) bool {
 	switch t := expr.(type) {
 	case *ast.Ident:
-		return t.Name != "interface{}" && t.Name != "any"
+		return true
 	case *ast.StarExpr:
 		return isRenderableFieldType(t.X, imports)
 	case *ast.ArrayType:
 		return isRenderableFieldType(t.Elt, imports)
+	case *ast.MapType:
+		return isRenderableFieldType(t.Key, imports) && isRenderableFieldType(t.Value, imports)
+	case *ast.StructType:
+		return true
+	case *ast.InterfaceType:
+		return len(t.Methods.List) == 0
 	case *ast.SelectorExpr:
 		ident, ok := t.X.(*ast.Ident)
 		if !ok {
 			return false
 		}
-		path := imports[ident.Name]
-		return path == "time"
+		_, ok = imports[ident.Name]
+		return ok
+	case *ast.IndexExpr:
+		return isRenderableFieldType(t.X, imports) && isRenderableFieldType(t.Index, imports)
+	case *ast.IndexListExpr:
+		if !isRenderableFieldType(t.X, imports) {
+			return false
+		}
+		for _, index := range t.Indices {
+			if !isRenderableFieldType(index, imports) {
+				return false
+			}
+		}
+		return true
+	case *ast.ParenExpr:
+		return isRenderableFieldType(t.X, imports)
 	default:
 		return false
 	}
@@ -769,7 +789,7 @@ type Create{{ .ModelName }}Input struct {
 {{ end }}
 }
 
-// Update{{ .ModelName }}Input is the generated request body for updating {{ .SingularLabel }} records.
+// Update{{ .ModelName }}Input is the generated request body for partially updating {{ .SingularLabel }} records.
 type Update{{ .ModelName }}Input struct {
 	ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
 {{ range .UpdateFields }}
@@ -787,7 +807,7 @@ func Register{{ .ModelName }}CRUDRoutes(router *ninja.Router) {
 ninja.Get(router, "/", List{{ .PluralModel }}, ninja.Summary("List {{ .PluralLabel }}"), ninja.Paginated[{{ .ModelName }}Out]())
 ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .SingularLabel }}"))
 ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"))
-ninja.Put(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Update {{ .SingularLabel }}"))
+ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"))
 ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .SingularLabel }}"))
 }
 
@@ -840,7 +860,7 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 return {{ .ToOutFuncName }}(*item)
 }
 
-// Update{{ .ModelName }} updates a {{ .SingularLabel }} record by primary key.
+// Update{{ .ModelName }} partially updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 repo := New{{ .ModelName }}Repo()
 {{ if .UseByIDMethods }}

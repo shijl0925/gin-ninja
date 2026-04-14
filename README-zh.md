@@ -171,6 +171,7 @@ go run ./cmd/gin-ninja generate crud \
 - 读取指定文件中的 Go 模型结构体
 - 在同一 package 下生成请求/响应结构和 CRUD handler
 - 生成 `Register<Model>CRUDRoutes(router)` 路由注册辅助函数
+- 对“部分更新”生成 `PATCH /:id` 路由，而不是用 `PUT` 表达部分更新语义
 
 生成结果定位为“起步骨架”。落地时仍建议根据业务继续补充校验、权限、事务、查询条件和路由组织方式。
 

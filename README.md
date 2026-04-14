@@ -205,6 +205,7 @@ The generator:
 - reads a Go model struct from the provided file
 - creates request/response schemas and CRUD handlers in the same package
 - generates a `Register<Model>CRUDRoutes(router)` helper for route registration
+- uses `PATCH /:id` for generated partial-update handlers instead of advertising partial updates as `PUT`
 
 Generated code is intended as a starting point. Review the scaffold and adjust validation, persistence rules, permissions, and router composition for your application.
 
