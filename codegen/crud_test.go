@@ -66,7 +66,9 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
 		"func ListUsers(ctx *ninja.Context, in *ListUsersInput)",
 		"func GetUser(ctx *ninja.Context, in *GetUserInput)",
-		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"))`,
+		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.WithTransaction())`,
+		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.WithTransaction())`,
+		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return toUserOut(item)",
 		"if err := repo.Insert(item); err != nil {",
@@ -398,6 +400,47 @@ type Project struct {
 		`if err := order.ApplyOrder(query, in); err != nil {`,
 		`func syncProjectTagsRelations(item *Project, ids []uint) error {`,
 		`func syncProjectTasksRelations(item *Project, ids []uint) error {`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
+	}
+}
+
+func TestGenerateCRUDDoesNotTreatHyphenatedGORMValuesAsSkippedFields(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+
+type Project struct {
+	ID      uint   `+"`json:\"id\"`"+`
+	OwnerID uint   `+"`json:\"owner_id\"`"+`
+	Slug    string `+"`json:\"slug\" gorm:\"index:idx-project-slug\"`"+`
+	Owner   User   `+"`gorm:\"foreignKey:OwnerID;comment:owner-link\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Project"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		`Slug string ` + "`json:\"slug\"`" + ``,
+		`Slug *string ` + "`json:\"slug\"`" + ``,
+		`Owner *ProjectOwnerOut ` + "`json:\"owner,omitempty\"`" + ``,
+		`query.Preload("Owner")`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {

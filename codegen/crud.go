@@ -262,6 +262,9 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		}
 		for _, spec := range genDecl.Specs {
 			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
 			candidate, ok := typeSpec.Type.(*ast.StructType)
 			if ok {
 				structTypes[typeSpec.Name.Name] = candidate
@@ -652,8 +655,7 @@ func relationTargetModel(expr ast.Expr, structTypes map[string]*ast.StructType) 
 }
 
 func shouldSkipRelationField(gormTag string) bool {
-	lower := strings.ToLower(gormTag)
-	return strings.Contains(lower, "-")
+	return hasSkippedGORMFieldTag(gormTag)
 }
 
 func looksLikeBelongsToRelation(fieldName, gormTag string, rootFieldNames map[string]struct{}) bool {
@@ -907,7 +909,7 @@ func isWritableField(name string, expr ast.Expr, gormTag string, imports map[str
 
 func shouldSkipOutputField(gormTag string) bool {
 	lower := strings.ToLower(gormTag)
-	return strings.Contains(lower, "-") ||
+	return hasSkippedGORMFieldTag(gormTag) ||
 		strings.Contains(lower, "many2many") ||
 		strings.Contains(lower, "foreignkey") ||
 		strings.Contains(lower, "references")
@@ -924,7 +926,7 @@ func isReadOnlyName(name string) bool {
 
 func hasDisallowedGORMTag(tag string) bool {
 	lower := strings.ToLower(tag)
-	return strings.Contains(lower, "-") ||
+	return hasSkippedGORMFieldTag(tag) ||
 		strings.Contains(lower, "primarykey") ||
 		strings.Contains(lower, "primary_key") ||
 		strings.Contains(lower, "autocreatetime") ||
@@ -984,6 +986,19 @@ func isEmbeddedGormModel(expr ast.Expr, imports map[string]string) bool {
 		return false
 	}
 	return sel.Sel.Name == "Model" && imports[ident.Name] == "gorm.io/gorm"
+}
+
+func hasSkippedGORMFieldTag(tag string) bool {
+	for _, part := range strings.Split(tag, ";") {
+		part = strings.TrimSpace(strings.ToLower(part))
+		if part == "" {
+			continue
+		}
+		if part == "-" || strings.HasPrefix(part, "-:") {
+			return true
+		}
+	}
+	return false
 }
 
 func optionalType(typeExpr string) string {
@@ -1304,9 +1319,9 @@ ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
 func Register{{ .ModelName }}CRUDRoutes(router *ninja.Router) {
 ninja.Get(router, "/", List{{ .PluralModel }}, ninja.Summary("List {{ .PluralLabel }}"), ninja.Paginated[{{ .ModelName }}Out]())
 ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .SingularLabel }}"))
-ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"))
-ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"))
-ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .SingularLabel }}"))
+ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"), ninja.WithTransaction())
+ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"), ninja.WithTransaction())
+ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .SingularLabel }}"), ninja.WithTransaction())
 }
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
