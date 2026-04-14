@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,30 @@ type adminProject struct {
 type autoResourceUser struct {
 	ID   uint   `gorm:"primaryKey"`
 	Name string `json:"name"`
+}
+
+type adminOwnerByID struct {
+	OwnerID uint      `json:"owner_id"`
+	Owner   adminUser `json:"-"`
+}
+
+type adminOwnerById struct {
+	OwnerId uint      `json:"owner_id"`
+	Owner   adminUser `json:"-"`
+}
+
+type adminOwnerWithoutRelation struct {
+	OwnerID uint `json:"owner_id"`
+}
+
+type adminOwnerWithScalarField struct {
+	OwnerID   uint   `json:"owner_id"`
+	OwnerName string `json:"owner_name"`
+}
+
+type adminMetrics struct {
+	ID    uint `gorm:"primaryKey"`
+	Count int  `json:"count"`
 }
 
 func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
@@ -796,6 +821,131 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 	}
 	if missingIDOptions.Total != 0 || len(missingIDOptions.Items) != 0 {
 		t.Fatalf("expected empty missing-id relation options payload: %+v", missingIDOptions)
+	}
+}
+
+func TestInferResourceName(t *testing.T) {
+	if got := inferResourceName(reflect.TypeOf(adminUser{})); got != "admin-users" {
+		t.Fatalf("inferResourceName(adminUser) = %q", got)
+	}
+	if got := inferResourceName(reflect.TypeOf(autoResourceUser{})); got != "auto-resource-users" {
+		t.Fatalf("inferResourceName(autoResourceUser) = %q", got)
+	}
+	if got := inferResourceName(reflect.TypeOf(APIKey{})); got != "api-keys" {
+		t.Fatalf("inferResourceName(APIKey) = %q", got)
+	}
+	if got := inferResourceName(reflect.TypeOf(Person{})); got != "people" {
+		t.Fatalf("inferResourceName(Person) = %q", got)
+	}
+}
+
+type APIKey struct {
+	ID uint `gorm:"primaryKey"`
+}
+
+type Person struct {
+	ID uint `gorm:"primaryKey"`
+}
+
+func TestCollectFieldsInferAutoRelation(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     any
+		fieldName string
+		want      bool
+	}{
+		{name: "owner id", model: adminOwnerByID{}, fieldName: "owner_id", want: true},
+		{name: "owner Id", model: adminOwnerById{}, fieldName: "owner_id", want: true},
+		{name: "missing relation field", model: adminOwnerWithoutRelation{}, fieldName: "owner_id", want: false},
+		{name: "scalar relation field", model: adminOwnerWithScalarField{}, fieldName: "owner_id", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fields := collectFields(reflect.TypeOf(tt.model), nil, nil)
+			var match *fieldMeta
+			for _, field := range fields {
+				if field.Meta.Name == tt.fieldName {
+					match = field
+					break
+				}
+			}
+			if match == nil {
+				t.Fatalf("field %q not found", tt.fieldName)
+			}
+			if got := match.autoRelation != nil; got != tt.want {
+				t.Fatalf("autoRelation = %v", got)
+			}
+		})
+	}
+}
+
+func TestInferRelationLabelAndSearchFields(t *testing.T) {
+	userResource := &Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+	}
+	if err := userResource.prepare(); err != nil {
+		t.Fatalf("prepare user resource: %v", err)
+	}
+	if label := inferRelationLabelField(userResource); label != "name" {
+		t.Fatalf("label field = %q", label)
+	}
+	searchFields := inferRelationSearchFields(userResource, "name")
+	if len(searchFields) != 2 || searchFields[0] != "name" || searchFields[1] != "email" {
+		t.Fatalf("search fields = %+v", searchFields)
+	}
+
+	metricsResource := &Resource{
+		Name:         "metrics",
+		Model:        adminMetrics{},
+		ListFields:   []string{"id", "count"},
+		DetailFields: []string{"id", "count"},
+	}
+	if err := metricsResource.prepare(); err != nil {
+		t.Fatalf("prepare metrics resource: %v", err)
+	}
+	if label := inferRelationLabelField(metricsResource); label != "id" {
+		t.Fatalf("metrics label field = %q", label)
+	}
+	if searchFields := inferRelationSearchFields(metricsResource, "id"); len(searchFields) != 0 {
+		t.Fatalf("metrics search fields = %+v", searchFields)
+	}
+}
+
+func TestAdminSiteAmbiguousModelDisablesAutoRelationResolution(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "staff",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "projects",
+		Model:        adminProject{},
+		ListFields:   []string{"id", "title", "owner_id"},
+		DetailFields: []string{"id", "title", "owner_id"},
+	})
+
+	project := site.byName["projects"]
+	if project == nil {
+		t.Fatalf("expected projects resource")
+	}
+	ownerField := project.fieldByName["owner_id"]
+	if ownerField == nil || ownerField.Meta.Relation == nil {
+		t.Fatalf("expected owner relation metadata")
+	}
+	if ownerField.Meta.Relation.Resource != "" {
+		t.Fatalf("expected ambiguous model to skip relation resolution, got %+v", ownerField.Meta.Relation)
 	}
 }
 
