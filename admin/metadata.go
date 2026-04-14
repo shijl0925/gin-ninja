@@ -39,6 +39,12 @@ type autoRelationMeta struct {
 	targetType reflect.Type
 }
 
+type fieldAccess struct {
+	WriteOnly  bool
+	CreateOnly bool
+	UpdateOnly bool
+}
+
 func (r *Resource) prepare() error {
 	if r.Model == nil {
 		return fmt.Errorf("admin resource model must not be nil")
@@ -168,11 +174,14 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 
 	gormTag := parseTagSettings(field.Tag.Get("gorm"))
 	adminTag := parseTagSettings(field.Tag.Get("admin"))
+	access := resolveFieldAccess(field.Tag)
 	description := strings.TrimSpace(field.Tag.Get("description"))
 	fieldType := indirectType(field.Type)
 	typeName, component := inferFieldType(field, fieldType)
 	readOnly := hiddenByJSON || isReadOnlyField(field, gormTag)
-	sensitive := isSensitiveField(field, hiddenByJSON)
+	hiddenFromRead := hiddenByJSON || access.WriteOnly
+	sensitive := isSensitiveField(field, hiddenFromRead)
+	writable := !readOnly && !hiddenByJSON && isWritableField(fieldType)
 
 	meta := &fieldMeta{
 		Meta: FieldMeta{
@@ -185,13 +194,13 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 			Required:    isRequired(field, gormTag, readOnly),
 			Unique:      hasTagFlag(gormTag, "unique") || hasTagFlag(gormTag, "uniqueindex"),
 			ReadOnly:    readOnly,
-			List:        !hiddenByJSON && !sensitive && isScalarField(fieldType),
-			Detail:      !hiddenByJSON && !sensitive,
-			Create:      !readOnly && !hiddenByJSON && isWritableField(fieldType),
-			Update:      !readOnly && !hiddenByJSON && isWritableField(fieldType),
-			Filterable:  !hiddenByJSON && !sensitive && isFilterableField(fieldType),
-			Sortable:    !hiddenByJSON && !sensitive && isSortableField(fieldType),
-			Searchable:  !hiddenByJSON && !sensitive && fieldType.Kind() == reflect.String,
+			List:        !hiddenFromRead && !sensitive && isScalarField(fieldType),
+			Detail:      !hiddenFromRead && !sensitive,
+			Create:      writable && allowCreateField(access),
+			Update:      writable && allowUpdateField(access),
+			Filterable:  !hiddenFromRead && !sensitive && isFilterableField(fieldType),
+			Sortable:    !hiddenFromRead && !sensitive && isSortableField(fieldType),
+			Searchable:  !hiddenFromRead && !sensitive && fieldType.Kind() == reflect.String,
 			Default:     strings.TrimSpace(gormTag["default"]),
 		},
 		index:             index,
@@ -213,6 +222,47 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 	applyAdminTag(meta, adminTag)
 	meta.Meta.Required = isRequired(field, gormTag, meta.Meta.ReadOnly)
 	return meta
+}
+
+func resolveFieldAccess(tag reflect.StructTag) fieldAccess {
+	var access fieldAccess
+	applyFieldAccessTag(&access, tag.Get("ninja"))
+	applyFieldAccessTag(&access, tag.Get("crud"))
+	return access
+}
+
+func applyFieldAccessTag(access *fieldAccess, raw string) {
+	for _, token := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || unicode.IsSpace(r)
+	}) {
+		switch normalizeFieldAccessToken(token) {
+		case "writeonly":
+			access.WriteOnly = true
+		case "createonly":
+			access.CreateOnly = true
+		case "updateonly":
+			access.UpdateOnly = true
+		}
+	}
+}
+
+func normalizeFieldAccessToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	token = strings.ReplaceAll(token, "-", "")
+	return token
+}
+
+func allowCreateField(access fieldAccess) bool {
+	return !hasWriteModeOverride(access) || access.CreateOnly
+}
+
+func allowUpdateField(access fieldAccess) bool {
+	return !hasWriteModeOverride(access) || access.UpdateOnly
+}
+
+func hasWriteModeOverride(access fieldAccess) bool {
+	return access.CreateOnly || access.UpdateOnly
 }
 
 func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
