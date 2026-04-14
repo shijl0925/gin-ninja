@@ -13,10 +13,7 @@ import (
 // NewAdminSite returns the example admin site mounted by the full demo app.
 func NewAdminSite() *admin.Site {
 	site := admin.NewSite(admin.WithPermissionChecker(requireAuthenticatedAdmin))
-	site.MustRegister(&admin.Resource{
-		Name:         "users",
-		Label:        "Users",
-		Path:         "/users",
+	site.MustRegisterModel(&admin.ModelResource{
 		Model:        User{},
 		ListFields:   []string{"id", "name", "email", "age", "is_admin", "createdAt", "updatedAt"},
 		DetailFields: []string{"id", "name", "email", "age", "is_admin", "role_ids", "createdAt", "updatedAt"},
@@ -82,10 +79,7 @@ func NewAdminSite() *admin.Site {
 			return nil
 		},
 	})
-	site.MustRegister(&admin.Resource{
-		Name:         "roles",
-		Label:        "Roles",
-		Path:         "/roles",
+	site.MustRegisterModel(&admin.ModelResource{
 		Model:        Role{},
 		ListFields:   []string{"id", "name", "code", "status", "createdAt", "updatedAt"},
 		DetailFields: []string{"id", "name", "code", "status", "remark", "createdAt", "updatedAt"},
@@ -95,10 +89,7 @@ func NewAdminSite() *admin.Site {
 		SortFields:   []string{"id", "name", "code", "status", "createdAt", "updatedAt"},
 		SearchFields: []string{"name", "code", "remark"},
 	})
-	site.MustRegister(&admin.Resource{
-		Name:         "projects",
-		Label:        "Projects",
-		Path:         "/projects",
+	site.MustRegisterModel(&admin.ModelResource{
 		Model:        Project{},
 		ListFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
 		DetailFields: []string{"id", "title", "summary", "owner_id", "createdAt", "updatedAt"},
@@ -107,16 +98,6 @@ func NewAdminSite() *admin.Site {
 		FilterFields: []string{"id"},
 		SearchFields: []string{"title", "summary"},
 		SortFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
-		FieldOptions: map[string]admin.FieldOptions{
-			"owner_id": {
-				Relation: &admin.RelationOptions{
-					Resource:     "users",
-					ValueField:   "id",
-					LabelField:   "name",
-					SearchFields: []string{"name", "email"},
-				},
-			},
-		},
 		RowPermissions: admin.RowPermissionFunc(func(ctx *ninja.Context, action admin.Action, resource *admin.Resource, db *gorm.DB) *gorm.DB {
 			return db.Where("owner_id = ?", ctx.GetUserID())
 		}),

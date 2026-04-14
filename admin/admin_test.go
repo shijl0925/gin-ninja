@@ -45,6 +45,11 @@ type adminProject struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
 
+type autoResourceUser struct {
+	ID   uint   `gorm:"primaryKey"`
+	Name string `json:"name"`
+}
+
 func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
 	api, _ := newAdminAPIWithDB(t, site, seed...)
 	return api
@@ -266,6 +271,26 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	deleteResp = performJSON(t, api, http.MethodDelete, "/admin/resources/users/2", nil, map[string]string{"X-User-ID": "1", "X-Admin": "true"})
 	if deleteResp.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d body=%s", deleteResp.Code, deleteResp.Body.String())
+	}
+}
+
+func TestAdminSiteInfersResourceIdentityFromModel(t *testing.T) {
+	site := NewSite()
+	site.MustRegister(&Resource{
+		Model:        autoResourceUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+
+	resource := site.byName["auto-resource-users"]
+	if resource == nil {
+		t.Fatalf("expected inferred resource to be registered")
+	}
+	if resource.Label != "Auto Resource Users" {
+		t.Fatalf("expected inferred label, got %q", resource.Label)
+	}
+	if resource.Path != "/auto-resource-users" {
+		t.Fatalf("expected inferred path, got %q", resource.Path)
 	}
 }
 
@@ -666,33 +691,23 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 		}
 		return nil
 	}))
-	site.MustRegister(&Resource{
-		Name:         "users",
-		Model:        adminUser{},
-		ListFields:   []string{"id", "name", "email"},
-		DetailFields: []string{"id", "name", "email"},
-		SearchFields: []string{"name", "email"},
-	})
-	site.MustRegister(&Resource{
+	site.MustRegisterModel(&ModelResource{
 		Name:         "projects",
 		Model:        adminProject{},
 		ListFields:   []string{"id", "title", "owner_id"},
 		DetailFields: []string{"id", "title", "owner_id", "secret"},
 		CreateFields: []string{"title", "owner_id", "secret"},
 		UpdateFields: []string{"title", "owner_id", "secret"},
-		FieldOptions: map[string]FieldOptions{
-			"owner_id": {
-				Relation: &RelationOptions{
-					Resource:     "users",
-					ValueField:   "id",
-					LabelField:   "name",
-					SearchFields: []string{"name", "email"},
-				},
-			},
-		},
 		RowPermissions: RowPermissionFunc(func(ctx *ninja.Context, action Action, resource *Resource, db *gorm.DB) *gorm.DB {
 			return db.Where("owner_id = ?", ctx.GetUserID())
 		}),
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		SearchFields: []string{"name", "email"},
 	})
 
 	api, db := newAdminAPIWithDB(t, site,
@@ -725,6 +740,9 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 	}
 	if ownerField == nil || ownerField.Component != "select" || ownerField.Relation == nil || ownerField.Relation.Resource != "users" {
 		t.Fatalf("expected relation-backed owner field metadata, got %+v", ownerField)
+	}
+	if ownerField.Relation.LabelField != "name" || !containsName(ownerField.Relation.SearchFields, "email") {
+		t.Fatalf("expected inferred relation label/search fields, got %+v", ownerField.Relation)
 	}
 
 	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects", nil, headers)
