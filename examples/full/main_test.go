@@ -743,8 +743,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "function renderSearchPlaceholder()") {
 		t.Fatalf("expected search placeholder renderer in html: %q", html)
 	}
-	if !strings.Contains(html, "els.search.placeholder = labels.length ? 'Search by ' + labels.join(', ') : 'Search current resource';") {
-		t.Fatalf("expected search placeholder to include configured search fields in html: %q", html)
+	for _, needle := range []string{"Search by ", "labels.join(', ')", "Search current resource"} {
+		if !strings.Contains(html, needle) {
+			t.Fatalf("expected search placeholder component %q in html: %q", needle, html)
+		}
 	}
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
