@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	ninja "github.com/shijl0925/gin-ninja"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -77,7 +78,8 @@ func (u *User) syncRoleIDs() {
 }
 
 func isHashedPassword(password string) bool {
-	return strings.HasPrefix(password, "$2")
+	_, err := bcrypt.Cost([]byte(password))
+	return err == nil
 }
 
 func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {

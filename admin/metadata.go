@@ -273,7 +273,7 @@ func inferAutoRelation(meta *fieldMeta, field reflect.StructField, owner reflect
 		return
 	}
 	relatedType := indirectType(relatedField.Type)
-	if relatedType.Kind() != reflect.Struct || relatedType == reflect.TypeOf(time.Time{}) || relatedType == reflect.TypeOf(gorm.DeletedAt{}) {
+	if !isRelationEligibleType(relatedType) {
 		return
 	}
 	meta.autoRelation = &autoRelationMeta{targetType: relatedType}
@@ -281,6 +281,10 @@ func inferAutoRelation(meta *fieldMeta, field reflect.StructField, owner reflect
 	if !meta.componentExplicit {
 		meta.Meta.Component = "select"
 	}
+}
+
+func isRelationEligibleType(t reflect.Type) bool {
+	return t.Kind() == reflect.Struct && t != reflect.TypeOf(time.Time{}) && t != reflect.TypeOf(gorm.DeletedAt{})
 }
 
 func relationFieldBaseName(name string) (string, bool) {
