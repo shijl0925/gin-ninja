@@ -48,6 +48,8 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 	checks := []string{
 		"type UserOut struct",
 		"ninja.ModelSchema[User] `fields:\"id,name,email,invite_code,status_note,age,is_admin,created\"`",
+		"type UserCRUDHooks interface",
+		"var userRepoHooks UserCRUDHooks = noopUserCRUDHooks{}",
 		"type IUserRepo interface",
 		"func NewUserRepo() IUserRepo",
 		"func toUserOut(item User) (*UserOut, error)",
@@ -65,10 +67,10 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"func ListUsers(ctx *ninja.Context, in *ListUsersInput)",
 		"func GetUser(ctx *ninja.Context, in *GetUserInput)",
 		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"))`,
-		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize())",
+		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return toUserOut(item)",
 		"if err := repo.Insert(item); err != nil {",
-		"item, err := repo.SelectOneById(int(in.ID))",
+		"func loadUserByID(id uint) (User, error)",
 		"if err := repo.UpdateById(int(in.ID), updates); err != nil {",
 		"if _, err := repo.SelectOneById(int(in.ID)); err != nil {",
 		"return repo.DeleteById(int(in.ID))",
@@ -134,7 +136,7 @@ type Session struct {
 	generated := string(content)
 
 	checks := []string{
-		"item, err := repo.SelectOneByOpts(gormx.Where(\"id = ?\", in.ID))",
+		"func loadSessionByID(id string) (Session, error)",
 		"Token string `json:\"token\" binding:\"required\"`",
 		"if err := repo.UpdateByOpts(updates, gormx.Where(\"id = ?\", in.ID)); err != nil {",
 		"if _, err := repo.SelectOneByOpts(gormx.Where(\"id = ?\", in.ID)); err != nil {",
@@ -332,6 +334,76 @@ func TestGeneratedInputsKeepCommonTypes(t *testing.T) {
 	}
 
 	runGoTest(t, dir)
+}
+
+func TestGenerateCRUDQueryRelationAndHookSupport(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\" crud:\"search,sort\"`"+`
+}
+
+type Tag struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+
+type Task struct {
+	ID        uint   `+"`json:\"id\"`"+`
+	Title     string `+"`json:\"title\"`"+`
+	ProjectID uint   `+"`json:\"project_id\"`"+`
+}
+
+type Project struct {
+	ID      uint   `+"`json:\"id\"`"+`
+	Name    string `+"`json:\"name\" crud:\"filter,sort,search\"`"+`
+	Status  string `+"`json:\"status\" crud:\"filter:like,sort,search\"`"+`
+	OwnerID uint   `+"`json:\"owner_id\" crud:\"filter,sort\"`"+`
+	Owner   User   `+"`gorm:\"foreignKey:OwnerID\" json:\"-\"`"+`
+	Tasks   []Task `+"`gorm:\"foreignKey:ProjectID\" json:\"-\"`"+`
+	Tags    []Tag  `+"`gorm:\"many2many:project_tags;\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Project"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		`Name    *string ` + "`form:\"name\" filter:\"name,eq\"`" + ``,
+		`Status  *string ` + "`form:\"status\" filter:\"status,like\"`" + ``,
+		`OwnerID *uint   ` + "`form:\"owner_id\" filter:\"owner_id,eq\"`" + ``,
+		`Sort    string  ` + "`form:\"sort\" order:\"name|status|owner_id\" description:\"Validated sort fields\"`" + ``,
+		`Search  string  ` + "`form:\"search\" filter:\"name|status,like\" description:\"Keyword search\"`" + ``,
+		`Owner                      *ProjectOwnerOut  ` + "`json:\"owner,omitempty\"`" + ``,
+		`Tasks                      []ProjectTasksOut ` + "`json:\"tasks,omitempty\"`" + ``,
+		`Tags                       []ProjectTagsOut  ` + "`json:\"tags,omitempty\"`" + ``,
+		`TagsIDs []uint ` + "`json:\"tags_ids\"`" + ``,
+		`TasksIDs []uint ` + "`json:\"tasks_ids\"`" + ``,
+		`type ProjectCRUDHooks interface`,
+		`func SetProjectCRUDHooks(hooks ProjectCRUDHooks)`,
+		`query.Preload("Owner")`,
+		`query.Preload("Tasks")`,
+		`query.Preload("Tags")`,
+		`filterOpts, err := filter.BuildOptions(in)`,
+		`if err := order.ApplyOrder(query, in); err != nil {`,
+		`func syncProjectTagsRelations(item *Project, ids []uint) error {`,
+		`func syncProjectTasksRelations(item *Project, ids []uint) error {`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
+	}
 }
 
 func runGoTest(t *testing.T, dir string) {

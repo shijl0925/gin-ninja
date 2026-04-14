@@ -69,8 +69,15 @@ type modelSpec struct {
 	outputFields   []string
 	createFields   []fieldSpec
 	updateFields   []fieldSpec
+	listFields     []listFieldSpec
+	sortFields     []sortFieldSpec
+	searchFields   []string
+	relations      []relationSpec
+	relationOuts   []relationOutSpec
 	imports        []importSpec
 	idTypeExpr     string
+	idField        string
+	idColumn       string
 	pluralModel    string
 	singularLabel  string
 	pluralLabel    string
@@ -101,6 +108,69 @@ type importSpec struct {
 	Path  string
 }
 
+type listFieldSpec struct {
+	Name        string
+	TypeExpr    string
+	FormName    string
+	FilterTag   string
+	Description string
+}
+
+type sortFieldSpec struct {
+	Alias  string
+	Column string
+}
+
+type relationKind string
+
+const (
+	relationBelongsTo relationKind = "belongs_to"
+	relationHasMany   relationKind = "has_many"
+	relationMany2Many relationKind = "many2many"
+)
+
+type relationSpec struct {
+	FieldName           string
+	JSONName            string
+	TargetModel         string
+	TargetOutType       string
+	TargetIDType        string
+	TargetIDField       string
+	TargetIDColumn      string
+	InputName           string
+	InputJSONName       string
+	InputType           string
+	UpdateInputType     string
+	Kind                relationKind
+	Collection          bool
+	Pointer             bool
+	Preload             string
+	ExistingInputField  bool
+	ExistingCreateField string
+	ExistingUpdateField string
+	UseAssociationInput bool
+}
+
+type relationOutSpec struct {
+	TypeName          string
+	ModelName         string
+	OutputFieldsValue string
+}
+
+type structModelSpec struct {
+	idField      string
+	idTypeExpr   string
+	idColumn     string
+	outputFields []string
+}
+
+type crudSettings struct {
+	Filter   bool
+	FilterOp string
+	Sort     bool
+	Search   bool
+}
+
 type templateData struct {
 	PackageName       string
 	Imports           []importSpec
@@ -111,8 +181,15 @@ type templateData struct {
 	PluralLabel       string
 	OutputFieldsValue string
 	IDTypeExpr        string
+	IDField           string
+	IDColumn          string
 	CreateFields      []fieldSpec
 	UpdateFields      []fieldSpec
+	ListFields        []listFieldSpec
+	SortFields        []sortFieldSpec
+	SearchFields      []string
+	RelationOuts      []relationOutSpec
+	Relations         []relationSpec
 	RepoIfaceName     string
 	RepoImplName      string
 	ToOutFuncName     string
@@ -130,8 +207,15 @@ func buildTemplateData(model modelSpec) templateData {
 		PluralLabel:       model.pluralLabel,
 		OutputFieldsValue: strings.Join(model.outputFields, ","),
 		IDTypeExpr:        model.idTypeExpr,
+		IDField:           model.idField,
+		IDColumn:          model.idColumn,
 		CreateFields:      model.createFields,
 		UpdateFields:      model.updateFields,
+		ListFields:        model.listFields,
+		SortFields:        model.sortFields,
+		SearchFields:      model.searchFields,
+		RelationOuts:      model.relationOuts,
+		Relations:         model.relations,
 		RepoIfaceName:     model.repoIfaceName,
 		RepoImplName:      model.repoImplName,
 		ToOutFuncName:     model.toOutFuncName,
@@ -170,7 +254,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		importPaths[lookup] = path
 	}
 
-	var structType *ast.StructType
+	structTypes := map[string]*ast.StructType{}
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
@@ -178,17 +262,13 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		}
 		for _, spec := range genDecl.Specs {
 			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok || typeSpec.Name.Name != cfg.Model {
-				continue
-			}
 			candidate, ok := typeSpec.Type.(*ast.StructType)
-			if !ok {
-				return modelSpec{}, fmt.Errorf("model %q is not a struct", cfg.Model)
+			if ok {
+				structTypes[typeSpec.Name.Name] = candidate
 			}
-			structType = candidate
-			break
 		}
 	}
+	structType := structTypes[cfg.Model]
 	if structType == nil {
 		return modelSpec{}, fmt.Errorf("model %q not found in %s", cfg.Model, cfg.ModelFile)
 	}
@@ -199,13 +279,30 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	}
 
 	collector := newImportCollector(importAliases)
+	rootFieldNames := map[string]struct{}{}
+	for _, field := range structType.Fields.List {
+		for _, name := range field.Names {
+			if name != nil && name.IsExported() {
+				rootFieldNames[name.Name] = struct{}{}
+			}
+		}
+	}
 	fields := make([]fieldSpec, 0, len(structType.Fields.List))
 	outputFields := []string{}
 	createFields := []fieldSpec{}
 	updateFields := []fieldSpec{}
+	listFields := []listFieldSpec{}
+	sortFields := []sortFieldSpec{}
+	searchFields := []string{}
+	relations := []relationSpec{}
+	relationOuts := []relationOutSpec{}
 	idTypeExpr := "string"
+	idField := "ID"
+	idColumn := "id"
 	idResolved := false
 	hasEmbeddedGormModel := false
+	fieldByName := map[string]fieldSpec{}
+	targetCache := map[string]structModelSpec{}
 
 	for _, field := range structType.Fields.List {
 		tags := parseTagLiteral(field.Tag)
@@ -230,11 +327,27 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				continue
 			}
 
+			if rel, ok := buildRelationSpec(fset, cfg.Model, name.Name, field, tags, gormTag, structTypes, importPaths, targetCache, rootFieldNames); ok {
+				relations = append(relations, rel)
+				if rel.TargetOutType != "" && !containsRelationOut(relationOuts, rel.TargetOutType) {
+					target := targetCache[rel.TargetModel]
+					relationOuts = append(relationOuts, relationOutSpec{
+						TypeName:          rel.TargetOutType,
+						ModelName:         rel.TargetModel,
+						OutputFieldsValue: strings.Join(target.outputFields, ","),
+					})
+				}
+				continue
+			}
+
 			typeExpr := exprString(fset, field.Type)
 			jsonName, hidden := resolveJSONName(name.Name, tags)
 			access := resolveFieldAccess(tags)
+			crudSettings := parseCRUDSettings(tags.Get("crud"))
 			if isIDField(name.Name, jsonName, gormTag) && !idResolved {
+				idField = name.Name
 				idTypeExpr = typeExpr
+				idColumn = resolveColumnName(name.Name, gormTag)
 				collector.addExpr(field.Type)
 				idResolved = true
 			}
@@ -255,6 +368,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				Description: description,
 			}
 			fields = append(fields, fieldSpec)
+			fieldByName[name.Name] = fieldSpec
 			if !hidden && !access.WriteOnly && !shouldSkipOutputField(gormTag) {
 				outputFields = append(outputFields, jsonName)
 			}
@@ -269,6 +383,23 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 					updateFields = append(updateFields, fieldSpec)
 				}
 			}
+
+			if crudSettings.Filter && isListFilterType(field.Type, importPaths) {
+				listFields = append(listFields, listFieldSpec{
+					Name:        name.Name,
+					TypeExpr:    optionalType(typeExpr),
+					FormName:    jsonName,
+					FilterTag:   fmt.Sprintf("%s,%s", fieldSpec.ColumnName, crudSettings.FilterOp),
+					Description: description,
+				})
+				collector.addExpr(field.Type)
+			}
+			if crudSettings.Sort {
+				sortFields = append(sortFields, sortFieldSpec{Alias: jsonName, Column: fieldSpec.ColumnName})
+			}
+			if crudSettings.Search {
+				searchFields = append(searchFields, fieldSpec.ColumnName)
+			}
 		}
 	}
 
@@ -276,6 +407,9 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		outputFields = append([]string{"id"}, outputFields...)
 	}
 	outputFields = uniqueStrings(outputFields)
+	searchFields = uniqueStrings(searchFields)
+	sortFields = uniqueSortFields(sortFields)
+	relations = finalizeRelationInputBindings(relations, fieldByName)
 
 	imports := []importSpec{
 		{Alias: "", Path: "errors"},
@@ -283,6 +417,15 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		{Alias: "", Path: "github.com/shijl0925/gin-ninja/pagination"},
 		{Alias: "", Path: "github.com/shijl0925/go-toolkits/gormx"},
 		{Alias: "", Path: "gorm.io/gorm"},
+	}
+	if len(listFields) > 0 || len(searchFields) > 0 {
+		imports = append(imports, importSpec{Alias: "", Path: "github.com/shijl0925/gin-ninja/filter"})
+	}
+	if len(sortFields) > 0 {
+		imports = append(imports, importSpec{Alias: "", Path: "github.com/shijl0925/gin-ninja/order"})
+	}
+	if needsFmtImport(relations) {
+		imports = append(imports, importSpec{Alias: "", Path: "fmt"})
 	}
 	imports = append(imports, collector.list()...)
 	imports = uniqueImports(imports)
@@ -301,8 +444,15 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		outputFields:   outputFields,
 		createFields:   createFields,
 		updateFields:   updateFields,
+		listFields:     listFields,
+		sortFields:     sortFields,
+		searchFields:   searchFields,
+		relations:      relations,
+		relationOuts:   relationOuts,
 		imports:        imports,
 		idTypeExpr:     idTypeExpr,
+		idField:        idField,
+		idColumn:       idColumn,
 		pluralModel:    pluralModel,
 		singularLabel:  lowerLabel(cfg.Model),
 		pluralLabel:    lowerLabel(pluralModel),
@@ -352,6 +502,258 @@ func (c *importCollector) list() []importSpec {
 		return out[i].Path < out[j].Path
 	})
 	return out
+}
+
+func parseCRUDSettings(raw string) crudSettings {
+	settings := crudSettings{FilterOp: string(defaultFilterOperator(nil))}
+	for _, token := range splitAccessTag(raw) {
+		key, value, _ := strings.Cut(strings.TrimSpace(token), ":")
+		if key == token {
+			key, value, _ = strings.Cut(strings.TrimSpace(token), "=")
+		}
+		switch normalizeAccessToken(key) {
+		case "filter":
+			settings.Filter = true
+			if strings.TrimSpace(value) != "" {
+				settings.FilterOp = strings.TrimSpace(value)
+			}
+		case "sort":
+			settings.Sort = true
+		case "search":
+			settings.Search = true
+		}
+	}
+	if settings.FilterOp == "" {
+		settings.FilterOp = string(defaultFilterOperator(nil))
+	}
+	return settings
+}
+
+func defaultFilterOperator(expr ast.Expr) string {
+	if expr == nil {
+		return "eq"
+	}
+	if isStringLikeExpr(expr) {
+		return "eq"
+	}
+	return "eq"
+}
+
+func isListFilterType(expr ast.Expr, imports map[string]string) bool {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name != "interface{}" && t.Name != "any"
+	case *ast.StarExpr:
+		return isListFilterType(t.X, imports)
+	case *ast.SelectorExpr:
+		ident, ok := t.X.(*ast.Ident)
+		return ok && imports[ident.Name] != ""
+	default:
+		return false
+	}
+}
+
+func isStringLikeExpr(expr ast.Expr) bool {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name == "string"
+	case *ast.StarExpr:
+		return isStringLikeExpr(t.X)
+	default:
+		return false
+	}
+}
+
+func buildRelationSpec(
+	fset *token.FileSet,
+	rootModel string,
+	fieldName string,
+	field *ast.Field,
+	tags reflect.StructTag,
+	gormTag string,
+	structTypes map[string]*ast.StructType,
+	imports map[string]string,
+	cache map[string]structModelSpec,
+	rootFieldNames map[string]struct{},
+) (relationSpec, bool) {
+	if shouldSkipRelationField(gormTag) {
+		return relationSpec{}, false
+	}
+
+	targetModel, collection, pointer, ok := relationTargetModel(field.Type, structTypes)
+	if !ok {
+		return relationSpec{}, false
+	}
+	if !collection && !looksLikeBelongsToRelation(fieldName, gormTag, rootFieldNames) {
+		return relationSpec{}, false
+	}
+	targetStruct := structTypes[targetModel]
+	targetSpec, ok := buildStructModelSpec(fset, targetStruct, structTypes, imports)
+	if !ok {
+		return relationSpec{}, false
+	}
+	cache[targetModel] = targetSpec
+
+	jsonName, hidden := resolveJSONName(fieldName, tags)
+	if hidden || jsonName == "" {
+		jsonName = lowerCamel(fieldName)
+	}
+
+	kind := relationBelongsTo
+	if strings.Contains(strings.ToLower(gormTag), "many2many") {
+		kind = relationMany2Many
+	} else if collection {
+		kind = relationHasMany
+	}
+
+	rel := relationSpec{
+		FieldName:      fieldName,
+		JSONName:       jsonName,
+		TargetModel:    targetModel,
+		TargetOutType:  rootModel + fieldName + "Out",
+		TargetIDType:   targetSpec.idTypeExpr,
+		TargetIDField:  targetSpec.idField,
+		TargetIDColumn: targetSpec.idColumn,
+		Kind:           kind,
+		Collection:     collection,
+		Pointer:        pointer,
+		Preload:        fieldName,
+	}
+	if !collection {
+		rel.InputName = fieldName + "ID"
+		rel.InputJSONName = toSnake(fieldName) + "_id"
+		rel.InputType = targetSpec.idTypeExpr
+		rel.UpdateInputType = optionalType(targetSpec.idTypeExpr)
+		rel.UseAssociationInput = true
+		return rel, true
+	}
+
+	rel.InputName = fieldName + "IDs"
+	rel.InputJSONName = toSnake(fieldName) + "_ids"
+	rel.InputType = "[]" + targetSpec.idTypeExpr
+	rel.UpdateInputType = "*[]" + targetSpec.idTypeExpr
+	return rel, true
+}
+
+func relationTargetModel(expr ast.Expr, structTypes map[string]*ast.StructType) (string, bool, bool, bool) {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		_, ok := structTypes[t.Name]
+		return t.Name, false, false, ok
+	case *ast.StarExpr:
+		name, collection, _, ok := relationTargetModel(t.X, structTypes)
+		return name, collection, true, ok
+	case *ast.ArrayType:
+		name, _, pointer, ok := relationTargetModel(t.Elt, structTypes)
+		return name, true, pointer, ok
+	default:
+		return "", false, false, false
+	}
+}
+
+func shouldSkipRelationField(gormTag string) bool {
+	lower := strings.ToLower(gormTag)
+	return strings.Contains(lower, "-")
+}
+
+func looksLikeBelongsToRelation(fieldName, gormTag string, rootFieldNames map[string]struct{}) bool {
+	lower := strings.ToLower(gormTag)
+	if strings.Contains(lower, "foreignkey") || strings.Contains(lower, "references") {
+		return true
+	}
+	_, ok := rootFieldNames[fieldName+"ID"]
+	return ok
+}
+
+func buildStructModelSpec(fset *token.FileSet, structType *ast.StructType, structTypes map[string]*ast.StructType, imports map[string]string) (structModelSpec, bool) {
+	if structType == nil {
+		return structModelSpec{}, false
+	}
+	spec := structModelSpec{idField: "ID", idTypeExpr: "uint", idColumn: "id"}
+	hasEmbeddedGormModel := false
+	for _, field := range structType.Fields.List {
+		tags := parseTagLiteral(field.Tag)
+		gormTag := tags.Get("gorm")
+		if len(field.Names) == 0 {
+			if isEmbeddedGormModel(field.Type, imports) {
+				hasEmbeddedGormModel = true
+			}
+			continue
+		}
+		for _, name := range field.Names {
+			if !name.IsExported() {
+				continue
+			}
+			if _, _, _, ok := relationTargetModel(field.Type, structTypes); ok {
+				continue
+			}
+			typeExpr := exprString(fset, field.Type)
+			jsonName, hidden := resolveJSONName(name.Name, tags)
+			if isIDField(name.Name, jsonName, gormTag) {
+				spec.idField = name.Name
+				spec.idTypeExpr = typeExpr
+				spec.idColumn = resolveColumnName(name.Name, gormTag)
+			}
+			if hidden || shouldSkipOutputField(gormTag) || !isRenderableFieldType(field.Type, imports) {
+				continue
+			}
+			spec.outputFields = append(spec.outputFields, jsonName)
+		}
+	}
+	if hasEmbeddedGormModel && !contains(spec.outputFields, "id") {
+		spec.outputFields = append([]string{"id"}, spec.outputFields...)
+	}
+	spec.outputFields = uniqueStrings(spec.outputFields)
+	return spec, true
+}
+
+func finalizeRelationInputBindings(relations []relationSpec, fields map[string]fieldSpec) []relationSpec {
+	out := make([]relationSpec, len(relations))
+	copy(out, relations)
+	for i := range out {
+		if out[i].Collection {
+			continue
+		}
+		if field, ok := fields[out[i].InputName]; ok {
+			out[i].ExistingInputField = true
+			out[i].ExistingCreateField = field.Name
+			out[i].ExistingUpdateField = field.Name
+			out[i].UseAssociationInput = false
+		}
+	}
+	return out
+}
+
+func uniqueSortFields(fields []sortFieldSpec) []sortFieldSpec {
+	seen := map[string]struct{}{}
+	out := make([]sortFieldSpec, 0, len(fields))
+	for _, field := range fields {
+		key := field.Alias + "|" + field.Column
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, field)
+	}
+	return out
+}
+
+func containsRelationOut(values []relationOutSpec, typeName string) bool {
+	for _, value := range values {
+		if value.TypeName == typeName {
+			return true
+		}
+	}
+	return false
+}
+
+func needsFmtImport(relations []relationSpec) bool {
+	for _, relation := range relations {
+		if relation.Collection || relation.UseAssociationInput {
+			return true
+		}
+	}
+	return false
 }
 
 func exprString(fset *token.FileSet, expr ast.Expr) string {
@@ -752,7 +1154,16 @@ import (
 // {{ .ModelName }}Out is the default public response schema generated from {{ .ModelName }}.
 type {{ .ModelName }}Out struct {
 ninja.ModelSchema[{{ .ModelName }}] ` + "`fields:\"{{ .OutputFieldsValue }}\"`" + `
+{{- range .Relations }}
+	{{ .FieldName }} {{ if .Collection }}[]{{ else }}*{{ end }}{{ .TargetOutType }} ` + "`json:\"{{ .JSONName }},omitempty\"`" + `
+{{- end }}
 }
+
+{{ range .RelationOuts }}
+type {{ .TypeName }} struct {
+	ninja.ModelSchema[{{ .ModelName }}] ` + "`fields:\"{{ .OutputFieldsValue }}\"`" + `
+}
+{{ end }}
 
 // {{ .RepoIfaceName }} exposes the generated gormx repository contract for {{ .ModelName }}.
 type {{ .RepoIfaceName }} interface {
@@ -770,12 +1181,88 @@ func New{{ .ModelName }}Repo() {{ .RepoIfaceName }} {
 
 // {{ .ToOutFuncName }} converts a {{ .SingularLabel }} model to the generated response schema.
 func {{ .ToOutFuncName }}(item {{ .ModelName }}) (*{{ .ModelName }}Out, error) {
-	return ninja.BindModelSchema[{{ .ModelName }}Out](item)
+	out, err := ninja.BindModelSchema[{{ .ModelName }}Out](item)
+	if err != nil {
+		return nil, err
+	}
+{{- range .Relations }}
+{{- if .Collection }}
+	if len(item.{{ .FieldName }}) > 0 {
+		out.{{ .FieldName }} = make([]{{ .TargetOutType }}, 0, len(item.{{ .FieldName }}))
+		for _, related := range item.{{ .FieldName }} {
+			bound, err := ninja.BindModelSchema[{{ .TargetOutType }}](related)
+			if err != nil {
+				return nil, err
+			}
+			out.{{ .FieldName }} = append(out.{{ .FieldName }}, *bound)
+		}
+	}
+{{- else if .Pointer }}
+	if item.{{ .FieldName }} != nil {
+		bound, err := ninja.BindModelSchema[{{ .TargetOutType }}](*item.{{ .FieldName }})
+		if err != nil {
+			return nil, err
+		}
+		out.{{ .FieldName }} = bound
+	}
+{{- else }}
+	{
+		var zero {{ .TargetIDType }}
+		if item.{{ .FieldName }}.{{ .TargetIDField }} != zero {
+			bound, err := ninja.BindModelSchema[{{ .TargetOutType }}](item.{{ .FieldName }})
+			if err != nil {
+				return nil, err
+			}
+			out.{{ .FieldName }} = bound
+		}
+	}
+{{- end }}
+{{- end }}
+	return out, nil
+}
+
+type {{ .ModelName }}CRUDHooks interface {
+	BeforeCreate(ctx *ninja.Context, in *Create{{ .ModelName }}Input, item *{{ .ModelName }}) error
+	BeforeUpdate(ctx *ninja.Context, in *Update{{ .ModelName }}Input, item *{{ .ModelName }}, updates map[string]interface{}) error
+	AfterLoad(ctx *ninja.Context, item *{{ .ModelName }}) error
+}
+
+type noop{{ .ModelName }}CRUDHooks struct{}
+
+func (noop{{ .ModelName }}CRUDHooks) BeforeCreate(ctx *ninja.Context, in *Create{{ .ModelName }}Input, item *{{ .ModelName }}) error {
+	return nil
+}
+
+func (noop{{ .ModelName }}CRUDHooks) BeforeUpdate(ctx *ninja.Context, in *Update{{ .ModelName }}Input, item *{{ .ModelName }}, updates map[string]interface{}) error {
+	return nil
+}
+
+func (noop{{ .ModelName }}CRUDHooks) AfterLoad(ctx *ninja.Context, item *{{ .ModelName }}) error {
+	return nil
+}
+
+var {{ .RepoImplName }}Hooks {{ .ModelName }}CRUDHooks = noop{{ .ModelName }}CRUDHooks{}
+
+func Set{{ .ModelName }}CRUDHooks(hooks {{ .ModelName }}CRUDHooks) {
+	if hooks == nil {
+		{{ .RepoImplName }}Hooks = noop{{ .ModelName }}CRUDHooks{}
+		return
+	}
+	{{ .RepoImplName }}Hooks = hooks
 }
 
 // List{{ .PluralModel }}Input is the generated list query schema.
 type List{{ .PluralModel }}Input struct {
 pagination.PageInput
+{{- range .ListFields }}
+	{{ .Name }} {{ .TypeExpr }} ` + "`form:\"{{ .FormName }}\" filter:\"{{ .FilterTag }}\"{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
+{{- end }}
+{{- if .SearchFields }}
+	Search string ` + "`form:\"search\" filter:\"{{ range $i, $field := .SearchFields }}{{ if $i }}|{{ end }}{{ $field }}{{ end }},like\" description:\"Keyword search\"`" + `
+{{- end }}
+{{- if .SortFields }}
+	Sort string ` + "`form:\"sort\" order:\"{{ range $i, $field := .SortFields }}{{ if $i }}|{{ end }}{{ if eq $field.Alias $field.Column }}{{ $field.Alias }}{{ else }}{{ $field.Alias }}:{{ $field.Column }}{{ end }}{{ end }}\" description:\"Validated sort fields\"`" + `
+{{- end }}
 }
 
 // Get{{ .ModelName }}Input identifies a single {{ .SingularLabel }} record.
@@ -788,6 +1275,11 @@ type Create{{ .ModelName }}Input struct {
 {{ range .CreateFields }}
 	{{ .Name }} {{ .TypeExpr }} ` + "`json:\"{{ .JSONName }}\"{{ if .Binding }} binding:\"{{ .Binding }}\"{{ end }}{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
 {{ end }}
+{{ range .Relations }}
+{{- if not .ExistingInputField }}
+	{{ .InputName }} {{ .InputType }} ` + "`json:\"{{ .InputJSONName }}\"`" + `
+{{- end }}
+{{ end }}
 }
 
 // Update{{ .ModelName }}Input is the generated request body for partially updating {{ .SingularLabel }} records.
@@ -795,6 +1287,11 @@ type Update{{ .ModelName }}Input struct {
 	ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
 {{ range .UpdateFields }}
 	{{ .Name }} {{ .UpdateType }} ` + "`json:\"{{ .JSONName }}\"{{ if .Binding }} binding:\"{{ .Binding }}\"{{ end }}{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
+{{ end }}
+{{ range .Relations }}
+{{- if not .ExistingInputField }}
+	{{ .InputName }} {{ .UpdateInputType }} ` + "`json:\"{{ .InputJSONName }}\"`" + `
+{{- end }}
 {{ end }}
 }
 
@@ -815,13 +1312,34 @@ ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .S
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
 func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}Out], error) {
 repo := New{{ .ModelName }}Repo()
-items, total, err := repo.SelectPage(in.GetPage(), in.GetSize())
+query, _ := gormx.NewQuery[{{ .ModelName }}]()
+{{- range .Relations }}
+query.Preload("{{ .Preload }}")
+{{- end }}
+{{- if or .ListFields .SearchFields }}
+filterOpts, err := filter.BuildOptions(in)
+if err != nil {
+return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+}
+{{- else }}
+filterOpts := []gormx.DBOption{}
+{{- end }}
+{{- if .SortFields }}
+if err := order.ApplyOrder(query, in); err != nil {
+return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+}
+{{- end }}
+opts := append(filterOpts, query.ToOptions()...)
+items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
 if err != nil {
 return nil, err
 }
 
 out := make([]{{ .ModelName }}Out, len(items))
 for i, item := range items {
+if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
+return nil, err
+}
 bound, err := {{ .ToOutFuncName }}(item)
 if err != nil {
 return nil, err
@@ -833,16 +1351,14 @@ return pagination.NewPage(out, total, in.PageInput), nil
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
 func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
-repo := New{{ .ModelName }}Repo()
-{{ if .UseByIDMethods }}
-item, err := repo.SelectOneById(int(in.ID))
-{{ else }}
-item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
-{{ end }}
+item, err := load{{ .ModelName }}ByID(in.ID)
 if err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return nil, ninja.NotFoundError()
 }
+return nil, err
+}
+if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
 return nil, err
 }
 return {{ .ToOutFuncName }}(item)
@@ -855,20 +1371,44 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 {{ range .CreateFields }}
 	item.{{ .Name }} = in.{{ .Name }}
 {{ end }}
+	if err := {{ .RepoImplName }}Hooks.BeforeCreate(ctx, in, item); err != nil {
+		return nil, err
+	}
 	if err := repo.Insert(item); err != nil {
 		return nil, err
 	}
-return {{ .ToOutFuncName }}(*item)
+{{- range .Relations }}
+{{- if .Collection }}
+	if in.{{ .InputName }} != nil {
+		if err := sync{{ $.ModelName }}{{ .FieldName }}Relations(item, in.{{ .InputName }}); err != nil {
+			return nil, err
+		}
+	}
+{{- else if .UseAssociationInput }}
+	{
+		var zero {{ .TargetIDType }}
+		if in.{{ .InputName }} != zero {
+			if err := sync{{ $.ModelName }}{{ .FieldName }}Relation(item, in.{{ .InputName }}); err != nil {
+				return nil, err
+			}
+		}
+	}
+{{- end }}
+{{- end }}
+	loaded, err := load{{ .ModelName }}ByID(item.{{ .IDField }})
+	if err != nil {
+		return nil, err
+	}
+	if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &loaded); err != nil {
+		return nil, err
+	}
+	return {{ .ToOutFuncName }}(loaded)
 }
 
 // Update{{ .ModelName }} partially updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 repo := New{{ .ModelName }}Repo()
-{{ if .UseByIDMethods }}
-item, err := repo.SelectOneById(int(in.ID))
-{{ else }}
-item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
-{{ end }}
+item, err := load{{ .ModelName }}ByID(in.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -881,26 +1421,150 @@ item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
 		updates["{{ .ColumnName }}"] = *in.{{ .Name }}
 	}
 {{ end }}
-	if len(updates) == 0 {
-		return {{ .ToOutFuncName }}(item)
-	}
-{{ if .UseByIDMethods }}
-	if err := repo.UpdateById(int(in.ID), updates); err != nil {
-{{ else }}
-	if err := repo.UpdateByOpts(updates, gormx.Where("id = ?", in.ID)); err != nil {
-{{ end }}
+	if err := {{ .RepoImplName }}Hooks.BeforeUpdate(ctx, in, &item, updates); err != nil {
 		return nil, err
 	}
+	if len(updates) > 0 {
 {{ if .UseByIDMethods }}
-	item, err = repo.SelectOneById(int(in.ID))
+		if err := repo.UpdateById(int(in.ID), updates); err != nil {
 {{ else }}
-	item, err = repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+		if err := repo.UpdateByOpts(updates, gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
 {{ end }}
+			return nil, err
+		}
+	}
+{{- range .Relations }}
+{{- if .Collection }}
+	if in.{{ .InputName }} != nil {
+		if err := sync{{ $.ModelName }}{{ .FieldName }}Relations(&item, *in.{{ .InputName }}); err != nil {
+			return nil, err
+		}
+	}
+{{- else if .UseAssociationInput }}
+	if in.{{ .InputName }} != nil {
+		if err := sync{{ $.ModelName }}{{ .FieldName }}Relation(&item, *in.{{ .InputName }}); err != nil {
+			return nil, err
+		}
+	}
+{{- end }}
+{{- end }}
+	if len(updates) == 0 {
+{{- range .Relations }}
+{{- if .Collection }}
+		if in.{{ .InputName }} != nil {
+			loaded, err := load{{ $.ModelName }}ByID(in.ID)
+			if err != nil {
+				return nil, err
+			}
+			if err := {{ $.RepoImplName }}Hooks.AfterLoad(ctx, &loaded); err != nil {
+				return nil, err
+			}
+			return {{ $.ToOutFuncName }}(loaded)
+		}
+{{- else if .UseAssociationInput }}
+		if in.{{ .InputName }} != nil {
+			loaded, err := load{{ $.ModelName }}ByID(in.ID)
+			if err != nil {
+				return nil, err
+			}
+			if err := {{ $.RepoImplName }}Hooks.AfterLoad(ctx, &loaded); err != nil {
+				return nil, err
+			}
+			return {{ $.ToOutFuncName }}(loaded)
+		}
+{{- end }}
+{{- end }}
+		if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
+			return nil, err
+		}
+		return {{ .ToOutFuncName }}(item)
+	}
+	item, err = load{{ .ModelName }}ByID(in.ID)
 	if err != nil {
+		return nil, err
+	}
+	if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
 		return nil, err
 	}
 return {{ .ToOutFuncName }}(item)
 }
+
+func load{{ .ModelName }}ByID(id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
+	repo := New{{ .ModelName }}Repo()
+	opts := []gormx.DBOption{
+		gormx.Where("{{ .IDColumn }} = ?", id),
+	}
+{{- range .Relations }}
+	opts = append(opts, func(db *gorm.DB) *gorm.DB {
+		return db.Preload("{{ .Preload }}")
+	})
+{{- end }}
+	return repo.SelectOneByOpts(opts...)
+}
+
+{{- range .Relations }}
+{{- if .Collection }}
+func sync{{ $.ModelName }}{{ .FieldName }}Relations(item *{{ $.ModelName }}, ids []{{ .TargetIDType }}) error {
+	if item == nil {
+		return nil
+	}
+	db := gormx.GetDb()
+	related, err := load{{ $.ModelName }}{{ .FieldName }}Relations(ids)
+	if err != nil {
+		return err
+	}
+	return db.Model(item).Association("{{ .FieldName }}").Replace(related)
+}
+
+func load{{ $.ModelName }}{{ .FieldName }}Relations(ids []{{ .TargetIDType }}) ([]{{ .TargetModel }}, error) {
+	if len(ids) == 0 {
+		return []{{ .TargetModel }}{}, nil
+	}
+	db := gormx.GetDb()
+	var related []{{ .TargetModel }}
+	if err := db.Where("{{ .TargetIDColumn }} IN ?", ids).Find(&related).Error; err != nil {
+		return nil, err
+	}
+	byID := make(map[{{ .TargetIDType }}]{{ .TargetModel }}, len(related))
+	for _, item := range related {
+		byID[item.{{ .TargetIDField }}] = item
+	}
+	out := make([]{{ .TargetModel }}, 0, len(ids))
+	seen := map[{{ .TargetIDType }}]struct{}{}
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		item, ok := byID[id]
+		if !ok {
+			return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("relation %q record %v not found", "{{ .FieldName }}", id))
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+{{- else if .UseAssociationInput }}
+func sync{{ $.ModelName }}{{ .FieldName }}Relation(item *{{ $.ModelName }}, id {{ .TargetIDType }}) error {
+	if item == nil {
+		return nil
+	}
+	db := gormx.GetDb()
+	var zero {{ .TargetIDType }}
+	if id == zero {
+		return db.Model(item).Association("{{ .FieldName }}").Clear()
+	}
+	var related {{ .TargetModel }}
+	if err := db.Where("{{ .TargetIDColumn }} = ?", id).First(&related).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("relation %q record %v not found", "{{ .FieldName }}", id))
+		}
+		return err
+	}
+	return db.Model(item).Association("{{ .FieldName }}").Replace(&related)
+}
+{{- end }}
+{{- end }}
 
 // Delete{{ .ModelName }} removes a {{ .SingularLabel }} record by primary key.
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
@@ -914,13 +1578,13 @@ return err
 }
 return repo.DeleteById(int(in.ID))
 {{ else }}
-if _, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID)); err != nil {
+if _, err := repo.SelectOneByOpts(gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return ninja.NotFoundError()
 }
 return err
 }
-return repo.DeleteByOpts(gormx.Where("id = ?", in.ID))
+return repo.DeleteByOpts(gormx.Where("{{ .IDColumn }} = ?", in.ID))
 {{ end }}
 }
 `))
