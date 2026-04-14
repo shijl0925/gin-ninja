@@ -426,6 +426,7 @@ func resolveColumnName(fieldName, gormTag string) string {
 			return value
 		}
 	}
+	// Fall back to GORM's default snake_case column naming when no explicit column is configured.
 	return toSnake(fieldName)
 }
 
