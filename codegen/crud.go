@@ -229,7 +229,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				idResolved = true
 			}
 
-			if hidden || shouldSkipOutputField(gormTag) || !isRenderableFieldType(field.Type, importPaths) {
+			if !isRenderableFieldType(field.Type, importPaths) {
 				continue
 			}
 
@@ -239,13 +239,15 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				Name:        name.Name,
 				TypeExpr:    typeExpr,
 				UpdateType:  optionalType(typeExpr),
-				JSONName:    jsonName,
+				JSONName:    resolveInputJSONName(name.Name, tags),
 				ColumnName:  resolveColumnName(name.Name, gormTag),
 				Binding:     binding,
 				Description: description,
 			}
 			fields = append(fields, fieldSpec)
-			outputFields = append(outputFields, jsonName)
+			if !hidden && !shouldSkipOutputField(gormTag) {
+				outputFields = append(outputFields, jsonName)
+			}
 
 			if isWritableField(name.Name, field.Type, gormTag, importPaths) {
 				createFields = append(createFields, fieldSpec)
@@ -365,6 +367,14 @@ func resolveJSONName(fieldName string, tag reflect.StructTag) (string, bool) {
 		}
 	}
 	return lowerCamel(fieldName), false
+}
+
+func resolveInputJSONName(fieldName string, tag reflect.StructTag) string {
+	jsonName, hidden := resolveJSONName(fieldName, tag)
+	if hidden {
+		return lowerCamel(fieldName)
+	}
+	return jsonName
 }
 
 func normalizeUpdateBinding(binding string) string {
@@ -748,7 +758,7 @@ return {{ .ToOutFuncName }}(*item)
 // Update{{ .ModelName }} updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 repo := New{{ .ModelName }}Repo()
-item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+item, err := repo.SelectOneById(int(in.ID))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -764,10 +774,10 @@ item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
 	if len(updates) == 0 {
 		return {{ .ToOutFuncName }}(item)
 	}
-	if err := repo.UpdateByOpts(updates, gormx.Where("id = ?", in.ID)); err != nil {
+	if err := repo.UpdateById(int(in.ID), updates); err != nil {
 		return nil, err
 	}
-	item, err = repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+	item, err = repo.SelectOneById(int(in.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -777,13 +787,6 @@ return {{ .ToOutFuncName }}(item)
 // Delete{{ .ModelName }} removes a {{ .SingularLabel }} record by primary key.
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
 repo := New{{ .ModelName }}Repo()
-_, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
-if err != nil {
-if errors.Is(err, gorm.ErrRecordNotFound) {
-return ninja.NotFoundError()
-}
-return err
-}
-return repo.DeleteByOpts(gormx.Where("id = ?", in.ID))
+return repo.DeleteById(int(in.ID))
 }
 `))

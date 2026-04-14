@@ -48,15 +48,18 @@ Roles    []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"func toUserOut(item User) (*UserOut, error)",
 		"type CreateUserInput struct",
 		"Name string `json:\"name\" binding:\"required\" description:\"Full name\"`",
+		"Password string `json:\"password\"`",
 		"Email *string `json:\"email\" binding:\"omitempty,email\"`",
+		"Password *string `json:\"password\"`",
 		"Created *time.Time `json:\"created\"`",
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
 		"func ListUsers(ctx *ninja.Context, in *ListUsersInput)",
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize())",
 		"return toUserOut(item)",
 		"if err := repo.Insert(item); err != nil {",
-		"if err := repo.UpdateByOpts(updates, gormx.Where(\"id = ?\", in.ID)); err != nil {",
-		"return repo.DeleteByOpts(gormx.Where(\"id = ?\", in.ID))",
+		"item, err := repo.SelectOneById(int(in.ID))",
+		"if err := repo.UpdateById(int(in.ID), updates); err != nil {",
+		"return repo.DeleteById(int(in.ID))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -64,8 +67,8 @@ Roles    []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		}
 	}
 
-	if strings.Contains(generated, "Password string") {
-		t.Fatalf("expected hidden fields to be excluded\n%s", generated)
+	if strings.Contains(generated, "fields:\"id,name,email,password,age,is_admin,created\"") {
+		t.Fatalf("expected hidden fields to be excluded from output schema\n%s", generated)
 	}
 	if strings.Contains(generated, "Roles []string") {
 		t.Fatalf("expected gorm ignored fields to be excluded\n%s", generated)
