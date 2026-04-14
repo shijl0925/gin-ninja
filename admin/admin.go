@@ -356,6 +356,8 @@ func (s *Site) resolveAutoRelations() {
 			}
 			target := s.byModel[field.autoRelation.targetType]
 			if target == nil {
+				resetAutoRelation(field)
+				changed = true
 				continue
 			}
 			relation := cloneRelationMeta(field.Meta.Relation)
@@ -390,6 +392,16 @@ func cloneRelationMeta(meta *RelationMeta) *RelationMeta {
 	cloned := *meta
 	cloned.SearchFields = cloneSlice(meta.SearchFields)
 	return &cloned
+}
+
+func resetAutoRelation(field *fieldMeta) {
+	if field == nil || field.autoRelation == nil {
+		return
+	}
+	field.Meta.Relation = &RelationMeta{ValueField: "id"}
+	if !field.componentExplicit {
+		field.Meta.Component = "select"
+	}
 }
 
 func (s *Site) Mount(router *ninja.Router) {

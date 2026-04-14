@@ -924,16 +924,16 @@ func TestAdminSiteAmbiguousModelDisablesAutoRelationResolution(t *testing.T) {
 		DetailFields: []string{"id", "name"},
 	})
 	site.MustRegisterModel(&ModelResource{
-		Name:         "staff",
-		Model:        adminUser{},
-		ListFields:   []string{"id", "name"},
-		DetailFields: []string{"id", "name"},
-	})
-	site.MustRegisterModel(&ModelResource{
 		Name:         "projects",
 		Model:        adminProject{},
 		ListFields:   []string{"id", "title", "owner_id"},
 		DetailFields: []string{"id", "title", "owner_id"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "staff",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
 	})
 
 	project := site.byName["projects"]

@@ -641,7 +641,11 @@ func inferResourceName(t reflect.Type) string {
 	if name == "" {
 		return ""
 	}
-	return toKebab(inflection.Plural(defaultJSONFieldName(name)))
+	jsonName := defaultJSONFieldName(name)
+	if jsonName == "" {
+		return ""
+	}
+	return toKebab(inflection.Plural(jsonName))
 }
 
 func cloneFieldOptionsMap(in map[string]FieldOptions) map[string]FieldOptions {
