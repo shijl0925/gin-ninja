@@ -90,6 +90,12 @@ type fieldSpec struct {
 	Description string
 }
 
+type fieldAccess struct {
+	WriteOnly  bool
+	CreateOnly bool
+	UpdateOnly bool
+}
+
 type importSpec struct {
 	Alias string
 	Path  string
@@ -227,6 +233,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 			typeExpr := exprString(fset, field.Type)
 			collector.addExpr(field.Type)
 			jsonName, hidden := resolveJSONName(name.Name, tags)
+			access := resolveFieldAccess(tags)
 			if isIDField(name.Name, jsonName, gormTag) && !idResolved {
 				idTypeExpr = typeExpr
 				idResolved = true
@@ -248,14 +255,18 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				Description: description,
 			}
 			fields = append(fields, fieldSpec)
-			if !hidden && !shouldSkipOutputField(gormTag) {
+			if !hidden && !access.WriteOnly && !shouldSkipOutputField(gormTag) {
 				outputFields = append(outputFields, jsonName)
 			}
 
 			if isWritableField(name.Name, field.Type, gormTag, importPaths) {
-				createFields = append(createFields, fieldSpec)
-				fieldSpec.Binding = normalizeUpdateBinding(binding)
-				updateFields = append(updateFields, fieldSpec)
+				if allowCreateField(access) {
+					createFields = append(createFields, fieldSpec)
+				}
+				if allowUpdateField(access) {
+					fieldSpec.Binding = normalizeUpdateBinding(binding)
+					updateFields = append(updateFields, fieldSpec)
+				}
 			}
 		}
 	}
@@ -401,6 +412,51 @@ func normalizeUpdateBinding(binding string) string {
 		filtered = append([]string{"omitempty"}, filtered...)
 	}
 	return strings.Join(filtered, ",")
+}
+
+func resolveFieldAccess(tag reflect.StructTag) fieldAccess {
+	var access fieldAccess
+	applyFieldAccessTag(&access, tag.Get("ninja"))
+	applyFieldAccessTag(&access, tag.Get("crud"))
+	return access
+}
+
+func applyFieldAccessTag(access *fieldAccess, raw string) {
+	for _, token := range splitAccessTag(raw) {
+		switch normalizeAccessToken(token) {
+		case "writeonly":
+			access.WriteOnly = true
+		case "createonly":
+			access.CreateOnly = true
+		case "updateonly":
+			access.UpdateOnly = true
+		}
+	}
+}
+
+func splitAccessTag(raw string) []string {
+	return strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || unicode.IsSpace(r)
+	})
+}
+
+func normalizeAccessToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	token = strings.ReplaceAll(token, "-", "")
+	return token
+}
+
+func allowCreateField(access fieldAccess) bool {
+	return !hasWriteModeOverride(access) || access.CreateOnly
+}
+
+func allowUpdateField(access fieldAccess) bool {
+	return !hasWriteModeOverride(access) || access.UpdateOnly
+}
+
+func hasWriteModeOverride(access fieldAccess) bool {
+	return access.CreateOnly || access.UpdateOnly
 }
 
 func isIDField(name, jsonName, gormTag string) bool {
