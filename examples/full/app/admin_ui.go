@@ -2733,7 +2733,7 @@ const adminPrototypeHTML = `<!doctype html>
       if (!names.length) return [];
       const labels = new Map((state.meta?.fields || []).map((field) => [field.name, field.label || field.name]));
       return names
-        .map((name) => String(labels.get(name) || name || '').trim())
+        .map((name) => String(labels.get(name) || name).trim())
         .filter(Boolean);
     }
 
