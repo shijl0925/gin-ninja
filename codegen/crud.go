@@ -77,6 +77,7 @@ type modelSpec struct {
 	repoIfaceName string
 	repoImplName  string
 	toOutFuncName string
+	useByIDMethods bool
 }
 
 type fieldSpec struct {
@@ -109,6 +110,7 @@ type templateData struct {
 	RepoIfaceName     string
 	RepoImplName      string
 	ToOutFuncName     string
+	UseByIDMethods    bool
 }
 
 func buildTemplateData(model modelSpec) templateData {
@@ -127,6 +129,7 @@ func buildTemplateData(model modelSpec) templateData {
 		RepoIfaceName:     model.repoIfaceName,
 		RepoImplName:      model.repoImplName,
 		ToOutFuncName:     model.toOutFuncName,
+		UseByIDMethods:    model.useByIDMethods,
 	}
 }
 
@@ -294,6 +297,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		repoIfaceName: "I" + cfg.Model + "Repo",
 		repoImplName:  lowerCamel(cfg.Model) + "Repo",
 		toOutFuncName: "to" + cfg.Model + "Out",
+		useByIDMethods: isIntConvertibleIDType(idTypeExpr),
 	}, nil
 }
 
@@ -423,6 +427,15 @@ func resolveColumnName(fieldName, gormTag string) string {
 		}
 	}
 	return toSnake(fieldName)
+}
+
+func isIntConvertibleIDType(typeExpr string) bool {
+	switch strings.TrimSpace(typeExpr) {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
+		return true
+	default:
+		return false
+	}
 }
 
 func isWritableField(name string, expr ast.Expr, gormTag string, imports map[string]string) bool {
@@ -758,7 +771,11 @@ return {{ .ToOutFuncName }}(*item)
 // Update{{ .ModelName }} updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 repo := New{{ .ModelName }}Repo()
+{{ if .UseByIDMethods }}
 item, err := repo.SelectOneById(int(in.ID))
+{{ else }}
+item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+{{ end }}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -774,10 +791,18 @@ item, err := repo.SelectOneById(int(in.ID))
 	if len(updates) == 0 {
 		return {{ .ToOutFuncName }}(item)
 	}
+{{ if .UseByIDMethods }}
 	if err := repo.UpdateById(int(in.ID), updates); err != nil {
+{{ else }}
+	if err := repo.UpdateByOpts(updates, gormx.Where("id = ?", in.ID)); err != nil {
+{{ end }}
 		return nil, err
 	}
+{{ if .UseByIDMethods }}
 	item, err = repo.SelectOneById(int(in.ID))
+{{ else }}
+	item, err = repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+{{ end }}
 	if err != nil {
 		return nil, err
 	}
@@ -787,6 +812,10 @@ return {{ .ToOutFuncName }}(item)
 // Delete{{ .ModelName }} removes a {{ .SingularLabel }} record by primary key.
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
 repo := New{{ .ModelName }}Repo()
+{{ if .UseByIDMethods }}
 return repo.DeleteById(int(in.ID))
+{{ else }}
+return repo.DeleteByOpts(gormx.Where("id = ?", in.ID))
+{{ end }}
 }
 `))

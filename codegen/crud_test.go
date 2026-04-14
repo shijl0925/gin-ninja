@@ -89,3 +89,41 @@ func TestGenerateCRUDRequiresKnownModel(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestGenerateCRUDStringIDFallsBackToOpts(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type Session struct {
+	ID    string `+"`json:\"id\" gorm:\"primaryKey\"`"+`
+	Token string `+"`json:\"-\" binding:\"required\"`"+`
+	Name  string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Session"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		"Token string `json:\"token\" binding:\"required\"`",
+		"if err := repo.UpdateByOpts(updates, gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"return repo.DeleteByOpts(gormx.Where(\"id = ?\", in.ID))",
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
+	}
+
+	if strings.Contains(generated, "int(in.ID)") {
+		t.Fatalf("expected non-integer IDs to avoid int conversion\n%s", generated)
+	}
+}
