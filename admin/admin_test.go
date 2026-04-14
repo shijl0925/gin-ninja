@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -43,6 +44,48 @@ type adminProject struct {
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+}
+
+type autoResourceUser struct {
+	ID   uint   `gorm:"primaryKey"`
+	Name string `json:"name"`
+}
+
+type adminOwnerByID struct {
+	OwnerID uint      `json:"owner_id"`
+	Owner   adminUser `json:"-"`
+}
+
+type adminOwnerById struct {
+	OwnerId uint      `json:"owner_id"`
+	Owner   adminUser `json:"-"`
+}
+
+type adminOwnerWithoutRelation struct {
+	OwnerID uint `json:"owner_id"`
+}
+
+type adminOwnerWithScalarField struct {
+	OwnerID   uint   `json:"owner_id"`
+	OwnerName string `json:"owner_name"`
+}
+
+type adminMetrics struct {
+	ID    uint `gorm:"primaryKey"`
+	Count int  `json:"count"`
+}
+
+type adminTaggedRole struct {
+	ID   uint   `gorm:"primaryKey"`
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
+type adminTaggedUser struct {
+	ID       uint   `gorm:"primaryKey"`
+	Name     string `json:"name"`
+	Password string `gorm:"not null" json:"-" admin:"component:password;create;update;readonly:false"`
+	RoleIDs  []uint `gorm:"-" json:"role_ids" admin:"label:Roles;relation:roles"`
 }
 
 func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
@@ -266,6 +309,26 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	deleteResp = performJSON(t, api, http.MethodDelete, "/admin/resources/users/2", nil, map[string]string{"X-User-ID": "1", "X-Admin": "true"})
 	if deleteResp.Code != http.StatusNoContent {
 		t.Fatalf("delete status = %d body=%s", deleteResp.Code, deleteResp.Body.String())
+	}
+}
+
+func TestAdminSiteInfersResourceIdentityFromModel(t *testing.T) {
+	site := NewSite()
+	site.MustRegister(&Resource{
+		Model:        autoResourceUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+
+	resource := site.byName["auto-resource-users"]
+	if resource == nil {
+		t.Fatalf("expected inferred resource to be registered")
+	}
+	if resource.Label != "Auto Resource Users" {
+		t.Fatalf("expected inferred label, got %q", resource.Label)
+	}
+	if resource.Path != "/auto-resource-users" {
+		t.Fatalf("expected inferred path, got %q", resource.Path)
 	}
 }
 
@@ -666,33 +729,23 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 		}
 		return nil
 	}))
-	site.MustRegister(&Resource{
-		Name:         "users",
-		Model:        adminUser{},
-		ListFields:   []string{"id", "name", "email"},
-		DetailFields: []string{"id", "name", "email"},
-		SearchFields: []string{"name", "email"},
-	})
-	site.MustRegister(&Resource{
+	site.MustRegisterModel(&ModelResource{
 		Name:         "projects",
 		Model:        adminProject{},
 		ListFields:   []string{"id", "title", "owner_id"},
 		DetailFields: []string{"id", "title", "owner_id", "secret"},
 		CreateFields: []string{"title", "owner_id", "secret"},
 		UpdateFields: []string{"title", "owner_id", "secret"},
-		FieldOptions: map[string]FieldOptions{
-			"owner_id": {
-				Relation: &RelationOptions{
-					Resource:     "users",
-					ValueField:   "id",
-					LabelField:   "name",
-					SearchFields: []string{"name", "email"},
-				},
-			},
-		},
 		RowPermissions: RowPermissionFunc(func(ctx *ninja.Context, action Action, resource *Resource, db *gorm.DB) *gorm.DB {
 			return db.Where("owner_id = ?", ctx.GetUserID())
 		}),
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		SearchFields: []string{"name", "email"},
 	})
 
 	api, db := newAdminAPIWithDB(t, site,
@@ -725,6 +778,9 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 	}
 	if ownerField == nil || ownerField.Component != "select" || ownerField.Relation == nil || ownerField.Relation.Resource != "users" {
 		t.Fatalf("expected relation-backed owner field metadata, got %+v", ownerField)
+	}
+	if ownerField.Relation.LabelField != "name" || !containsName(ownerField.Relation.SearchFields, "email") {
+		t.Fatalf("expected inferred relation label/search fields, got %+v", ownerField.Relation)
 	}
 
 	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects", nil, headers)
@@ -778,6 +834,169 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 	}
 	if missingIDOptions.Total != 0 || len(missingIDOptions.Items) != 0 {
 		t.Fatalf("expected empty missing-id relation options payload: %+v", missingIDOptions)
+	}
+}
+
+func TestInferResourceName(t *testing.T) {
+	if got := inferResourceName(reflect.TypeOf(adminUser{})); got != "admin-users" {
+		t.Fatalf("inferResourceName(adminUser) = %q", got)
+	}
+	if got := inferResourceName(reflect.TypeOf(autoResourceUser{})); got != "auto-resource-users" {
+		t.Fatalf("inferResourceName(autoResourceUser) = %q", got)
+	}
+	if got := inferResourceName(reflect.TypeOf(APIKey{})); got != "api-keys" {
+		t.Fatalf("inferResourceName(APIKey) = %q", got)
+	}
+	if got := inferResourceName(reflect.TypeOf(Person{})); got != "people" {
+		t.Fatalf("inferResourceName(Person) = %q", got)
+	}
+}
+
+type APIKey struct {
+	ID uint `gorm:"primaryKey"`
+}
+
+type Person struct {
+	ID uint `gorm:"primaryKey"`
+}
+
+func TestCollectFieldsInferAutoRelation(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     any
+		fieldName string
+		want      bool
+	}{
+		{name: "owner id", model: adminOwnerByID{}, fieldName: "owner_id", want: true},
+		{name: "owner Id", model: adminOwnerById{}, fieldName: "owner_id", want: true},
+		{name: "missing relation field", model: adminOwnerWithoutRelation{}, fieldName: "owner_id", want: false},
+		{name: "scalar relation field", model: adminOwnerWithScalarField{}, fieldName: "owner_id", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fields := collectFields(reflect.TypeOf(tt.model), nil, nil)
+			var match *fieldMeta
+			for _, field := range fields {
+				if field.Meta.Name == tt.fieldName {
+					match = field
+					break
+				}
+			}
+			if match == nil {
+				t.Fatalf("field %q not found", tt.fieldName)
+			}
+			if got := match.autoRelation != nil; got != tt.want {
+				t.Fatalf("autoRelation = %v", got)
+			}
+		})
+	}
+}
+
+func TestInferRelationLabelAndSearchFields(t *testing.T) {
+	userResource := &Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+	}
+	if err := userResource.prepare(); err != nil {
+		t.Fatalf("prepare user resource: %v", err)
+	}
+	if label := inferRelationLabelField(userResource); label != "name" {
+		t.Fatalf("label field = %q", label)
+	}
+	searchFields := inferRelationSearchFields(userResource, "name")
+	if len(searchFields) != 2 || searchFields[0] != "name" || searchFields[1] != "email" {
+		t.Fatalf("search fields = %+v", searchFields)
+	}
+
+	metricsResource := &Resource{
+		Name:         "metrics",
+		Model:        adminMetrics{},
+		ListFields:   []string{"id", "count"},
+		DetailFields: []string{"id", "count"},
+	}
+	if err := metricsResource.prepare(); err != nil {
+		t.Fatalf("prepare metrics resource: %v", err)
+	}
+	if label := inferRelationLabelField(metricsResource); label != "id" {
+		t.Fatalf("metrics label field = %q", label)
+	}
+	if searchFields := inferRelationSearchFields(metricsResource, "id"); len(searchFields) != 0 {
+		t.Fatalf("metrics search fields = %+v", searchFields)
+	}
+}
+
+func TestAdminTagRelationAndPasswordInference(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "roles",
+		Model:        adminTaggedRole{},
+		ListFields:   []string{"id", "name", "code"},
+		DetailFields: []string{"id", "name", "code"},
+		SearchFields: []string{"name", "code"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminTaggedUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name", "role_ids"},
+		CreateFields: []string{"name", "password", "role_ids"},
+		UpdateFields: []string{"name", "password", "role_ids"},
+	})
+
+	user := site.byName["users"]
+	if user == nil {
+		t.Fatalf("expected tagged user resource")
+	}
+	passwordField := user.fieldByName["password"]
+	if passwordField == nil || passwordField.Meta.Component != "password" || !passwordField.Meta.Create || !passwordField.Meta.Update || passwordField.Meta.Detail {
+		t.Fatalf("unexpected password field metadata: %+v", passwordField)
+	}
+	roleField := user.fieldByName["role_ids"]
+	if roleField == nil || roleField.Meta.Relation == nil {
+		t.Fatalf("expected role_ids relation metadata")
+	}
+	if roleField.Meta.Relation.Resource != "roles" || roleField.Meta.Relation.ValueField != "id" || roleField.Meta.Relation.LabelField != "name" {
+		t.Fatalf("unexpected role_ids relation: %+v", roleField.Meta.Relation)
+	}
+	if !containsName(roleField.Meta.Relation.SearchFields, "code") {
+		t.Fatalf("expected inferred relation search fields, got %+v", roleField.Meta.Relation.SearchFields)
+	}
+}
+
+func TestAdminSiteAmbiguousModelDisablesAutoRelationResolution(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "projects",
+		Model:        adminProject{},
+		ListFields:   []string{"id", "title", "owner_id"},
+		DetailFields: []string{"id", "title", "owner_id"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "staff",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+
+	project := site.byName["projects"]
+	if project == nil {
+		t.Fatalf("expected projects resource")
+	}
+	ownerField := project.fieldByName["owner_id"]
+	if ownerField == nil || ownerField.Meta.Relation == nil {
+		t.Fatalf("expected owner relation metadata")
+	}
+	if ownerField.Meta.Relation.Resource != "" {
+		t.Fatalf("expected ambiguous model to skip relation resolution, got %+v", ownerField.Meta.Relation)
 	}
 }
 

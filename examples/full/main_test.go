@@ -115,11 +115,37 @@ func newFullBrowserContext(t *testing.T) (context.Context, context.CancelFunc) {
 	)
 	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
 	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, 90*time.Second)
+	if err := chromedp.Run(timeoutCtx, chromedp.Navigate("about:blank")); err != nil {
+		cancelTimeout()
+		cancelBrowser()
+		cancelAllocator()
+		if isBrowserStartupInfraError(err) {
+			t.Skipf("skipping browser test because chromium failed to start in this environment: %v", err)
+		}
+		t.Fatalf("start chromium: %v", err)
+	}
 	return timeoutCtx, func() {
 		cancelTimeout()
 		cancelBrowser()
 		cancelAllocator()
 	}
+}
+
+func isBrowserStartupInfraError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := err.Error()
+	for _, token := range []string{
+		"chrome failed to start",
+		"ThreadCache::IsValid",
+		"scheduler_loop_quarantine_support.h",
+	} {
+		if strings.Contains(text, token) {
+			return true
+		}
+	}
+	return false
 }
 
 func runBrowser(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
