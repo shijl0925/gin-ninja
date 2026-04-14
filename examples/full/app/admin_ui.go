@@ -1927,6 +1927,7 @@ const adminPrototypeHTML = `<!doctype html>
       if (typeof value === 'object') {
         if (typeof value.message === 'string' && value.message.trim()) return value.message;
         if (typeof value.error === 'string' && value.error.trim()) return value.error;
+        if (value.error) return extractErrorMessage(value.error);
       }
       return String(value);
     }
