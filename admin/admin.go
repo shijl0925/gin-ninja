@@ -689,6 +689,9 @@ func (r *Resource) fieldValue(v reflect.Value, field *fieldMeta) (any, bool) {
 }
 
 func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return true
 	}
