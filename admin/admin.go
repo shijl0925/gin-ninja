@@ -17,6 +17,7 @@ import (
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Action string
@@ -113,9 +114,11 @@ type Resource struct {
 }
 
 type Site struct {
-	checker   PermissionChecker
-	resources []*Resource
-	byName    map[string]*Resource
+	checker         PermissionChecker
+	resources       []*Resource
+	byName          map[string]*Resource
+	byModel         map[reflect.Type]*Resource
+	ambiguousModels map[reflect.Type]struct{}
 }
 
 type Option func(*Site)
@@ -220,7 +223,11 @@ type pathIDInput struct {
 }
 
 func NewSite(opts ...Option) *Site {
-	site := &Site{byName: map[string]*Resource{}}
+	site := &Site{
+		byName:          map[string]*Resource{},
+		byModel:         map[reflect.Type]*Resource{},
+		ambiguousModels: map[reflect.Type]struct{}{},
+	}
 	for _, opt := range opts {
 		opt(site)
 	}
@@ -239,12 +246,195 @@ func (s *Site) Register(resource *Resource) error {
 	}
 	s.resources = append(s.resources, resource)
 	s.byName[resource.Name] = resource
+	s.registerModel(resource)
+	s.resolveAutoRelations()
 	return nil
 }
 
 func (s *Site) MustRegister(resource *Resource) {
 	if err := s.Register(resource); err != nil {
 		panic(err)
+	}
+}
+
+type ModelResource struct {
+	Name             string
+	Label            string
+	Path             string
+	Model            any
+	Preloads         []string
+	ListFields       []string
+	DetailFields     []string
+	CreateFields     []string
+	UpdateFields     []string
+	FilterFields     []string
+	SortFields       []string
+	SearchFields     []string
+	FieldOptions     map[string]FieldOptions
+	Permissions      PermissionChecker
+	QueryScope       QueryScope
+	RowPermissions   RowPermissionChecker
+	FieldPermissions FieldPermissionChecker
+	BeforeCreate     BeforeCreateHook
+	AfterCreate      AfterCreateHook
+	BeforeUpdate     BeforeUpdateHook
+	AfterUpdate      AfterUpdateHook
+	BeforeDelete     BeforeDeleteHook
+	AfterDelete      AfterDeleteHook
+}
+
+func (r *ModelResource) Resource() *Resource {
+	if r == nil {
+		return nil
+	}
+	queryScope := composeQueryScope(r.Preloads, r.QueryScope)
+	return &Resource{
+		Name:             r.Name,
+		Label:            r.Label,
+		Path:             r.Path,
+		Model:            r.Model,
+		QueryScope:       queryScope,
+		ListFields:       cloneSlice(r.ListFields),
+		DetailFields:     cloneSlice(r.DetailFields),
+		CreateFields:     cloneSlice(r.CreateFields),
+		UpdateFields:     cloneSlice(r.UpdateFields),
+		FilterFields:     cloneSlice(r.FilterFields),
+		SortFields:       cloneSlice(r.SortFields),
+		SearchFields:     cloneSlice(r.SearchFields),
+		FieldOptions:     cloneFieldOptionsMap(r.FieldOptions),
+		Permissions:      r.Permissions,
+		RowPermissions:   r.RowPermissions,
+		FieldPermissions: r.FieldPermissions,
+		BeforeCreate:     r.BeforeCreate,
+		AfterCreate:      r.AfterCreate,
+		BeforeUpdate:     r.BeforeUpdate,
+		AfterUpdate:      r.AfterUpdate,
+		BeforeDelete:     r.BeforeDelete,
+		AfterDelete:      r.AfterDelete,
+	}
+}
+
+func composeQueryScope(preloads []string, queryScope QueryScope) QueryScope {
+	if len(preloads) == 0 {
+		return queryScope
+	}
+	clonedPreloads := cloneSlice(preloads)
+	return func(ctx *ninja.Context, db *gorm.DB) *gorm.DB {
+		for _, preload := range clonedPreloads {
+			if strings.TrimSpace(preload) == "" {
+				continue
+			}
+			db = db.Preload(preload)
+		}
+		if queryScope != nil {
+			if scoped := queryScope(ctx, db); scoped != nil {
+				db = scoped
+			}
+		}
+		return db
+	}
+}
+
+func (s *Site) RegisterModel(resource *ModelResource) error {
+	if resource == nil {
+		return fmt.Errorf("admin model resource must not be nil")
+	}
+	return s.Register(resource.Resource())
+}
+
+func (s *Site) MustRegisterModel(resource *ModelResource) {
+	if err := s.RegisterModel(resource); err != nil {
+		panic(err)
+	}
+}
+
+func (s *Site) registerModel(resource *Resource) {
+	if s == nil || resource == nil || resource.modelType == nil {
+		return
+	}
+	modelType := resource.modelType
+	if _, ambiguous := s.ambiguousModels[modelType]; ambiguous {
+		return
+	}
+	if _, exists := s.byModel[modelType]; exists {
+		delete(s.byModel, modelType)
+		s.ambiguousModels[modelType] = struct{}{}
+		return
+	}
+	s.byModel[modelType] = resource
+}
+
+func (s *Site) resolveAutoRelations() {
+	if s == nil {
+		return
+	}
+	for _, resource := range s.resources {
+		if resource == nil {
+			continue
+		}
+		changed := false
+		for _, field := range resource.fields {
+			if field == nil || field.Meta.Relation == nil {
+				continue
+			}
+			relation := cloneRelationMeta(field.Meta.Relation)
+			var target *Resource
+			switch {
+			case field.autoRelation != nil:
+				target = s.byModel[field.autoRelation.targetType]
+				if target == nil {
+					resetAutoRelation(field)
+					changed = true
+					continue
+				}
+				if strings.TrimSpace(relation.Resource) == "" {
+					relation.Resource = target.metadata.Name
+				}
+			case strings.TrimSpace(relation.Resource) != "":
+				target = s.byName[relation.Resource]
+			}
+			if strings.TrimSpace(relation.ValueField) == "" {
+				relation.ValueField = "id"
+			}
+			if target == nil {
+				field.Meta.Relation = relation
+				changed = true
+				continue
+			}
+			if strings.TrimSpace(relation.LabelField) == "" {
+				relation.LabelField = inferRelationLabelField(target)
+			}
+			if len(relation.SearchFields) == 0 {
+				relation.SearchFields = inferRelationSearchFields(target, relation.LabelField)
+			}
+			field.Meta.Relation = relation
+			if !field.componentExplicit {
+				field.Meta.Component = "select"
+			}
+			changed = true
+		}
+		if changed {
+			resource.syncMetadataFields()
+		}
+	}
+}
+
+func cloneRelationMeta(meta *RelationMeta) *RelationMeta {
+	if meta == nil {
+		return nil
+	}
+	cloned := *meta
+	cloned.SearchFields = cloneSlice(meta.SearchFields)
+	return &cloned
+}
+
+func resetAutoRelation(field *fieldMeta) {
+	if field == nil || field.autoRelation == nil {
+		return
+	}
+	field.Meta.Relation = &RelationMeta{ValueField: "id"}
+	if !field.componentExplicit {
+		field.Meta.Component = "select"
 	}
 }
 
@@ -428,7 +618,7 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 			return nil, err
 		}
 		if err := orm.WithContext(ctx.Context).Create(model).Error; err != nil {
-			return nil, err
+			return nil, r.normalizeWriteError(ctx, ActionCreate, reflect.ValueOf(model).Elem(), nil, err)
 		}
 		if r.AfterCreate != nil {
 			if err := r.AfterCreate(ctx, model); err != nil {
@@ -462,13 +652,13 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			}
 		}
 
-		updates, err := r.updateColumnsFor(view, values)
-		if err != nil {
-			return nil, err
-		}
-		if len(updates) > 0 {
-			if err := orm.WithContext(ctx.Context).Model(model).Updates(updates).Error; err != nil {
+		if len(values) > 0 {
+			if err := r.applyValuesFor(view, reflect.ValueOf(model).Elem(), values); err != nil {
 				return nil, err
+			}
+			desired := reflect.ValueOf(model).Elem()
+			if err := orm.WithContext(ctx.Context).Save(model).Error; err != nil {
+				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), err)
 			}
 		}
 		if err := orm.WithContext(ctx.Context).First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
@@ -585,6 +775,118 @@ func (r *Resource) parsePrimaryKeyJSON(raw json.RawMessage) (any, error) {
 		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("id: %s", err.Error()))
 	}
 	return value, nil
+}
+
+func (r *Resource) normalizeWriteError(ctx *ninja.Context, action Action, desired reflect.Value, currentID any, err error) error {
+	if !isDuplicateKeyError(err) {
+		return err
+	}
+	if fields := r.softDeletedConflictFields(ctx, action, desired, currentID); len(fields) > 0 {
+		names := make([]string, 0, len(fields))
+		for _, field := range fields {
+			names = append(names, field.Meta.Name)
+		}
+		return ninja.NewErrorWithCode(http.StatusConflict, "SOFT_DELETED_CONFLICT", fmt.Sprintf("a soft-deleted record with the same value for field(s): %s already exists; restore or permanently remove it before saving", strings.Join(names, ", ")))
+	}
+	return ninja.ConflictError()
+}
+
+func (r *Resource) softDeletedConflictFields(ctx *ninja.Context, action Action, desired reflect.Value, currentID any) []*fieldMeta {
+	softDeleteField := r.softDeleteField()
+	if softDeleteField == nil || !desired.IsValid() {
+		return nil
+	}
+
+	var matches []*fieldMeta
+	for _, field := range r.fields {
+		if field == nil || !field.Meta.Unique {
+			continue
+		}
+		value, ok := r.fieldValue(desired, field)
+		if !ok {
+			continue
+		}
+		query := r.scopedDB(ctx, action, orm.WithContext(ctx.Context)).
+			Model(r.newModel()).
+			Unscoped().
+			Where(clause.Eq{Column: clause.Column{Name: field.Meta.Column}, Value: value})
+		if currentID != nil && r.primaryKey != nil {
+			query = query.Where(clause.Neq{Column: clause.Column{Name: r.primaryKey.Meta.Column}, Value: currentID})
+		}
+
+		var activeCount int64
+		if err := query.Session(&gorm.Session{}).
+			Where(clause.Eq{Column: clause.Column{Name: softDeleteField.Meta.Column}, Value: nil}).
+			Count(&activeCount).Error; err != nil {
+			// If the duplicate probe itself fails, fall back to the generic conflict.
+			return nil
+		}
+		if activeCount > 0 {
+			return nil
+		}
+
+		var deletedCount int64
+		if err := query.Session(&gorm.Session{}).
+			Where(clause.Neq{Column: clause.Column{Name: softDeleteField.Meta.Column}, Value: nil}).
+			Count(&deletedCount).Error; err != nil {
+			// If the duplicate probe itself fails, fall back to the generic conflict.
+			return nil
+		}
+		if deletedCount > 0 {
+			matches = append(matches, field)
+		}
+	}
+	return matches
+}
+
+func (r *Resource) softDeleteField() *fieldMeta {
+	for _, field := range r.fields {
+		if field == nil {
+			continue
+		}
+		if field.fieldType == reflect.TypeOf(gorm.DeletedAt{}) {
+			return field
+		}
+	}
+	return nil
+}
+
+func (r *Resource) fieldValue(v reflect.Value, field *fieldMeta) (any, bool) {
+	if field == nil || !v.IsValid() {
+		return nil, false
+	}
+	current := v
+	for _, index := range field.index {
+		if current.Kind() == reflect.Ptr {
+			if current.IsNil() {
+				return nil, true
+			}
+			current = current.Elem()
+		}
+		current = current.Field(index)
+	}
+	if current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return nil, true
+		}
+		current = current.Elem()
+	}
+	return current.Interface(), true
+}
+
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "duplicate key") ||
+		strings.Contains(message, "duplicated key") ||
+		strings.Contains(message, "duplicate entry") ||
+		strings.Contains(message, "unique constraint failed") ||
+		strings.Contains(message, "violates unique constraint")
 }
 
 func (r *Resource) newModel() any {

@@ -201,6 +201,9 @@ func (r *Resource) updateColumnsFor(view *resolvedResource, values map[string]an
 		if field == nil {
 			continue
 		}
+		if !field.persisted {
+			continue
+		}
 		updates[field.Meta.Column] = value
 	}
 	return updates, nil

@@ -122,8 +122,7 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .action-menu-item.danger:hover { background: #2d0f0f; }
     [data-theme="dark"] .badge { background: #1a2a3e; color: #93b4ff; }
     [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
-    [data-theme="dark"] .login-credentials { background: #22253a; border-color: var(--admin-border); }
-    [data-theme="dark"] .login-credentials code { background: #1a1d2e; border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .login-feedback { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35); color: #fecaca; }
     [data-theme="dark"] body.standalone-admin-page .topbar,
     [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
     [data-theme="dark"] button:hover:not(:disabled) { filter: brightness(1.15); }
@@ -204,23 +203,6 @@ const adminPrototypeHTML = `<!doctype html>
       font-weight:400;
     }
     .topbar-link:hover { background:#f4f6f9; color:#212529; }
-    .topbar-link-icon {
-      display:grid;
-      place-items:center;
-      width:16px;
-      height:16px;
-      flex-shrink:0;
-      color:#6c757d;
-    }
-    .topbar-link-icon svg {
-      width:100%;
-      height:100%;
-      stroke:currentColor;
-      stroke-width:1.8;
-      fill:none;
-      stroke-linecap:round;
-      stroke-linejoin:round;
-    }
     .brand-mark {
       width:38px;
       height:38px;
@@ -235,7 +217,7 @@ const adminPrototypeHTML = `<!doctype html>
       box-shadow: 0 2px 6px rgba(0,0,0,0.14);
     }
     .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
-    .topbar-copy p, .sidebar-heading p, .section-copy, .login-marketing p, .login-lead p { margin:0; }
+    .topbar-copy p, .sidebar-heading p, .section-copy, .login-lead p { margin:0; }
     .topbar-meta {
       display:flex;
       align-items:center;
@@ -343,12 +325,13 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-search-expand.open { display:block; }
     .topbar-search-expand input {
       width:100%;
-      border-radius:0.35rem 0.35rem 0 0;
+      border-radius:0.35rem;
       border:1px solid var(--admin-border);
       padding:8px 14px;
       font-size:14px;
       box-shadow:0 2px 8px rgba(0,0,0,0.10);
     }
+    .topbar-search-expand.has-results input { border-radius:0.35rem 0.35rem 0 0; }
     .topbar-search-results {
       display:none;
       background:var(--admin-surface);
@@ -407,7 +390,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .toast {
       display:flex;
-      align-items:flex-start;
+      align-items:center;
       gap:12px;
       min-width:280px;
       max-width:420px;
@@ -493,39 +476,45 @@ const adminPrototypeHTML = `<!doctype html>
     .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0, 0, 0, 0); white-space:nowrap; border:0; }
     .login-shell { display:grid; gap:20px; }
     .session-panel { position:relative; overflow:hidden; }
-    .login-marketing, .login-lead, .login-credentials { display:none; }
+    .login-marketing, .login-lead { display:none; }
     .login-marketing {
-      align-content:start;
+      align-content:center;
+      justify-content:center;
       background:linear-gradient(160deg, var(--admin-sidebar) 0%, var(--admin-sidebar-alt) 100%);
       color:#f8fafc;
       border:1px solid rgba(255,255,255,0.06);
       border-top:3px solid var(--admin-primary);
     }
-    .login-marketing h2, .login-lead h2 { margin:0; line-height:1.15; }
-    .login-feature-list { display:grid; gap:12px; }
-    .login-feature {
-      display:grid;
-      gap:4px;
-      padding:16px 18px;
-      background:rgba(255,255,255,0.06);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:14px;
+    .login-lead h2 { margin:0; line-height:1.15; }
+    .login-brand {
+      display:flex;
+      align-items:center;
+      gap:18px;
     }
-    .login-feature strong { font-size:15px; }
-    .login-credentials {
-      gap:8px;
+    .login-brand-mark {
+      flex-shrink:0;
+      display:grid;
+      place-items:center;
+      width:72px;
+      height:72px;
+      border-radius:20px;
+      background:var(--admin-primary);
+      color:#fff;
+      font-size:32px;
+      font-weight:700;
+      letter-spacing:-.5px;
+    }
+    .login-brand-copy { display:grid; gap:4px; }
+    .login-brand-copy strong { font-size:26px; font-weight:700; color:#f8fafc; }
+    .login-brand-copy span { font-size:14px; color:rgba(248,250,252,.65); letter-spacing:.5px; text-transform:uppercase; }
+    .login-feedback {
+      margin:0;
       padding:12px 14px;
       border-radius:14px;
-      background:#f8fbfd;
-      border:1px solid #d8e5ec;
-    }
-    .login-credentials code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size:13px;
-      background:#fff;
-      border:1px solid #d8e5ec;
-      border-radius:8px;
-      padding:2px 6px;
+      border:1px solid rgba(221,75,57,.24);
+      background:rgba(221,75,57,.08);
+      color:var(--admin-danger);
+      line-height:1.5;
     }
     .admin-shell {
       display:grid;
@@ -1359,7 +1348,6 @@ const adminPrototypeHTML = `<!doctype html>
     }
     [data-theme="dark"] .workspace-actions { background:var(--admin-surface); }
     [data-theme="dark"] .workspace-actions-copy strong { color:var(--admin-text); }
-    [data-theme="dark"] .topbar-link-icon,
     [data-theme="dark"] .content-header-breadcrumb { color:var(--admin-muted); }
     [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
     [data-theme="dark"] .dashboard-tile.small-box {
@@ -1399,8 +1387,7 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .topbar-toggle { display:none; }
     body.standalone-login-page .login-shell { gap:24px; grid-template-columns: minmax(0, 1.15fr) minmax(360px, 420px); align-items:stretch; }
     body.standalone-login-page .login-marketing,
-    body.standalone-login-page .login-lead,
-    body.standalone-login-page .login-credentials { display:grid; }
+    body.standalone-login-page .login-lead { display:grid; }
     body.standalone-login-page .session-panel { margin:0; padding:28px; border-top-color:var(--admin-primary); }
     body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
     body.standalone-login-page input { min-height:46px; }
@@ -1472,12 +1459,7 @@ const adminPrototypeHTML = `<!doctype html>
     <div class="topbar-left">
       <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
       <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link nav-link" href="/admin">
-          <span class="topbar-link-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 7.25 8 2.75l5.5 4.5"/><path d="M4.25 6.25v6h7.5v-6"/><path d="M6.5 12.25v-3h3v3"/></svg>
-          </span>
-          <span>Home</span>
-        </a>
+        <a class="topbar-link nav-link" href="/admin"><span>Home</span></a>
       </nav>
       <div class="topbar-brand brand-link">
         <span class="brand-mark">A</span>
@@ -1521,23 +1503,11 @@ const adminPrototypeHTML = `<!doctype html>
     <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
       <section class="panel login-marketing card card-outline card-secondary">
-        <span class="eyebrow">Admin Console</span>
-        <div class="stack">
-          <h2>An AdminLTE-inspired sign-in for the standalone admin console.</h2>
-          <p>Use a dedicated entrypoint to authenticate, then jump straight into the example back-office experience.</p>
-        </div>
-        <div class="login-feature-list">
-          <div class="login-feature">
-            <strong>Dashboard-style entrypoint</strong>
-            <span>Keep login, redirects, and restored JWT sessions separate from the prototype page.</span>
-          </div>
-          <div class="login-feature">
-            <strong>Metadata-driven operations</strong>
-            <span>Explore resources, filters, relations, and bulk actions after sign-in.</span>
-          </div>
-          <div class="login-feature">
-            <strong>Demo-friendly access</strong>
-            <span>Use the seeded example account to try the full admin flow without extra setup.</span>
+        <div class="login-brand">
+          <span class="login-brand-mark">G</span>
+          <div class="login-brand-copy">
+            <strong>Gin Ninja</strong>
+            <span>Admin Console</span>
           </div>
         </div>
       </section>
@@ -1545,12 +1515,6 @@ const adminPrototypeHTML = `<!doctype html>
         <div class="login-lead">
           <span class="eyebrow">Secure Sign In</span>
           <h2>Welcome back</h2>
-          <p class="muted">Authenticate with the seeded demo admin account to enter the standalone console.</p>
-        </div>
-        <div class="login-credentials">
-          <strong>Demo credentials</strong>
-          <div class="muted">Email: <code>alice@example.com</code></div>
-          <div class="muted">Password: <code>password123</code></div>
         </div>
         <form id="loginForm" class="two-col">
           <label>Email
@@ -1841,6 +1805,7 @@ const adminPrototypeHTML = `<!doctype html>
 
      const els = {
       loginForm: document.getElementById('loginForm'),
+      loginFeedback: document.getElementById('loginFeedback'),
       loginEmail: document.getElementById('loginEmail'),
       loginPassword: document.getElementById('loginPassword'),
       token: document.getElementById('token'),
@@ -1923,6 +1888,35 @@ const adminPrototypeHTML = `<!doctype html>
     function setStatus(value, tone) {
       els.status.textContent = value;
       els.status.dataset.tone = tone || inferStatusTone(value);
+    }
+
+    function extractErrorMessage(value) {
+      if (!value) return '';
+      if (typeof value === 'string') {
+        try {
+          return extractErrorMessage(JSON.parse(value));
+        } catch (_) {
+          return value;
+        }
+      }
+      if (typeof value === 'object') {
+        if (typeof value.message === 'string' && value.message.trim()) return value.message;
+        if (typeof value.error === 'string' && value.error.trim()) return value.error;
+        if (value.error) return extractErrorMessage(value.error);
+      }
+      return String(value);
+    }
+
+    function setLoginFeedback(message) {
+      if (!els.loginFeedback) return;
+      const value = extractErrorMessage(message);
+      if (!value) {
+        els.loginFeedback.hidden = true;
+        els.loginFeedback.textContent = '';
+        return;
+      }
+      els.loginFeedback.textContent = value;
+      els.loginFeedback.hidden = false;
     }
 
     function showToast(message, tone, durationMs) {
@@ -2044,6 +2038,8 @@ const adminPrototypeHTML = `<!doctype html>
     let globalSearchTimer = null;
 
     function closeGlobalSearch() {
+      const expandEl = document.getElementById('topbarSearchExpand');
+      if (expandEl) expandEl.classList.remove('has-results');
       if (els.topbarSearchResults) {
         els.topbarSearchResults.classList.remove('has-results');
         els.topbarSearchResults.innerHTML = '';
@@ -2087,6 +2083,8 @@ const adminPrototypeHTML = `<!doctype html>
       if (noResults) {
         els.topbarSearchResults.innerHTML = '<div class="search-results-empty">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
         els.topbarSearchResults.classList.add('has-results');
+        const expandEl = document.getElementById('topbarSearchExpand');
+        if (expandEl) expandEl.classList.add('has-results');
         return;
       }
 
@@ -2136,6 +2134,8 @@ const adminPrototypeHTML = `<!doctype html>
 
       if (els.topbarSearchResults.children.length) {
         els.topbarSearchResults.classList.add('has-results');
+        const expandEl = document.getElementById('topbarSearchExpand');
+        if (expandEl) expandEl.classList.add('has-results');
       }
     }
 
@@ -2235,9 +2235,9 @@ const adminPrototypeHTML = `<!doctype html>
 
      function renderSignedOutState() {
        closeAllModals();
-       const standaloneAdminPage = isStandaloneAdminPage();
-      els.loginForm.hidden = false;
-      els.sessionShell.hidden = false;
+       setLoginFeedback('');
+       els.loginForm.hidden = false;
+       els.sessionShell.hidden = false;
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
@@ -2304,6 +2304,7 @@ const adminPrototypeHTML = `<!doctype html>
       els.updateForm.innerHTML = '<p class="muted">Sign in to edit records.</p>';
       els.filtersForm.innerHTML = '';
       els.sort.innerHTML = '';
+      els.search.placeholder = 'Search current resource';
       els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
        els.editHint.textContent = 'Sign in to open the change form.';
        renderPagination();
@@ -2348,7 +2349,7 @@ const adminPrototypeHTML = `<!doctype html>
           logout('Session expired. Please sign in again.');
           throw new Error('Session expired. Please sign in again.');
         }
-        throw new Error(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+        throw new Error(extractErrorMessage(data) || response.statusText || ('Request failed with status ' + response.status + '.'));
       }
       return data;
     }
@@ -2554,7 +2555,7 @@ const adminPrototypeHTML = `<!doctype html>
           : 'No resources available.';
         els.resources.appendChild(li);
       }
-      matches.forEach((resource) => {
+      matches.forEach((resource, index) => {
         const li = document.createElement('li');
         const button = document.createElement('button');
         const icon = document.createElement('span');
@@ -2565,7 +2566,7 @@ const adminPrototypeHTML = `<!doctype html>
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 3.5h9v9h-9z"/><path d="M6 6h4"/><path d="M6 8h4"/><path d="M6 10h2"/></svg>';
+        icon.innerHTML = dashboardTileMeta(resource, index).icon;
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
@@ -2727,6 +2728,21 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
+    function searchPlaceholderLabels() {
+      const meta = state.meta || {};
+      const names = Array.isArray(meta.search_fields) ? meta.search_fields : [];
+      if (!names.length) return [];
+      const labelByFieldName = new Map((meta.fields || []).map((field) => [field.name, field.label || field.name]));
+      return names
+        .map((name) => String(labelByFieldName.get(name) || name).trim())
+        .filter(Boolean);
+    }
+
+    function renderSearchPlaceholder() {
+      const labels = searchPlaceholderLabels();
+      els.search.placeholder = labels.length ? 'Search by ' + labels.join(', ') : 'Search current resource';
+    }
+
     function applySortFromHeader(field) {
       const current = els.sort.value;
       let next;
@@ -2755,36 +2771,50 @@ const adminPrototypeHTML = `<!doctype html>
       if (active) els.list.innerHTML = '';
     }
 
+    function resourceIcon(name) {
+      const byName = {
+        users: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+        },
+        roles: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+        },
+        projects: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+        }
+      };
+      const normalizedName = String(name || '').toLowerCase();
+      return (byName[normalizedName] || {
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
+      }).icon;
+    }
+
     function dashboardTileMeta(resource, index) {
       const palette = ['#007bff', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
       const byName = {
         users: {
           badge: 'Core access',
-          description: 'Open the user workspace to review profiles, roles, and sign-in ready records.',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+          description: 'Open the user workspace to review profiles, roles, and sign-in ready records.'
         },
         roles: {
           badge: 'Permissions',
-          description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+          description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.'
         },
         projects: {
           badge: 'Delivery',
-          description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+          description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.'
         }
       };
       const normalizedName = String(resource?.name || '').toLowerCase();
       const meta = byName[normalizedName] || {
         badge: 'Workspace',
-        description: 'Open this admin resource to review records, filters, and available actions.',
-        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
+        description: 'Open this admin resource to review records, filters, and available actions.'
       };
       return {
         accent: palette[index % palette.length],
         badge: meta.badge,
         description: meta.description,
-        icon: meta.icon
+        icon: resourceIcon(resource?.name)
       };
     }
 
@@ -3470,6 +3500,7 @@ const adminPrototypeHTML = `<!doctype html>
         renderResources();
         els.resourceTitle.textContent = state.meta.label;
         renderResourceSummary();
+        renderSearchPlaceholder();
         renderSortOptions();
         renderFilterControls();
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);
@@ -3494,6 +3525,7 @@ const adminPrototypeHTML = `<!doctype html>
     });
     els.loginForm.onsubmit = async (event) => {
       event.preventDefault();
+      setLoginFeedback('');
       try {
         const payload = await request('/api/v1/auth/login', {
           method: 'POST',
@@ -3522,7 +3554,9 @@ const adminPrototypeHTML = `<!doctype html>
         setStatus(successMessage);
         await loadResources();
       } catch (error) {
-        setStatus(String(error.message || error));
+        const message = extractErrorMessage(error);
+        showToast(message, 'danger');
+        setStatus(message, 'danger');
       }
     };
     els.clearToken.onclick = () => {

@@ -115,11 +115,37 @@ func newFullBrowserContext(t *testing.T) (context.Context, context.CancelFunc) {
 	)
 	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
 	timeoutCtx, cancelTimeout := context.WithTimeout(browserCtx, 90*time.Second)
+	if err := chromedp.Run(timeoutCtx, chromedp.Navigate("about:blank")); err != nil {
+		cancelTimeout()
+		cancelBrowser()
+		cancelAllocator()
+		if isBrowserStartupInfraError(err) {
+			t.Skipf("skipping browser test because chromium failed to start in this environment: %v", err)
+		}
+		t.Fatalf("start chromium: %v", err)
+	}
 	return timeoutCtx, func() {
 		cancelTimeout()
 		cancelBrowser()
 		cancelAllocator()
 	}
+}
+
+func isBrowserStartupInfraError(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := err.Error()
+	for _, token := range []string{
+		"chrome failed to start",
+		"ThreadCache::IsValid",
+		"scheduler_loop_quarantine_support.h",
+	} {
+		if strings.Contains(text, token) {
+			return true
+		}
+	}
+	return false
 }
 
 func runBrowser(t *testing.T, ctx context.Context, actions ...chromedp.Action) {
@@ -556,11 +582,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "An AdminLTE-inspired sign-in for the standalone admin console.") {
-		t.Fatalf("expected AdminLTE-inspired login marketing copy in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "Gin Ninja") {
+		t.Fatalf("expected brand name in login marketing panel in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "Demo credentials") {
-		t.Fatalf("expected demo credentials card in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "login-brand-mark") {
+		t.Fatalf("expected login brand mark in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
 		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
@@ -627,8 +653,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "aria-label=\"Admin navigation shortcuts\"") || !strings.Contains(adminHTML, "aria-label=\"Admin quick actions\"") {
 		t.Fatalf("expected AdminLTE-style topbar navigation chrome in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "class=\"topbar-link-icon\"") {
-		t.Fatalf("expected richer AdminLTE-style navbar icon chrome in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "class=\"topbar-link-icon\"") {
+		t.Fatalf("expected Home shortcut icon markup to be removed from html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Control panel") {
 		t.Fatalf("expected Control panel label to be removed from html: %q", adminHTML)
@@ -653,6 +679,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-copy\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-icon\"") || !strings.Contains(adminHTML, "class=\"sidebar-treeview-toggle-text\">Resources</span>") {
 		t.Fatalf("expected AdminLTE-style resource treeview toggle markup in html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "icon.innerHTML = dashboardTileMeta(resource, index).icon;") {
+		t.Fatalf("expected sidebar resource entries to reuse dashboard tile icons: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "id=\"resourceTreeviewBadge\"") {
 		t.Fatalf("expected AdminLTE-style sidebar badge markup in html: %q", adminHTML)
@@ -736,6 +765,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "els.search.addEventListener('input'") {
 		t.Fatalf("expected search input to trigger live reloads in html: %q", html)
+	}
+	if !strings.Contains(html, "function renderSearchPlaceholder()") {
+		t.Fatalf("expected search placeholder renderer in html: %q", html)
+	}
+	for _, needle := range []string{"Search by ", "labels.join(', ')", "Search current resource"} {
+		if !strings.Contains(html, needle) {
+			t.Fatalf("expected search placeholder component %q in html: %q", needle, html)
+		}
 	}
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
@@ -904,6 +941,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "topbar-search-results") {
 		t.Fatalf("expected topbar-search-results CSS class in html: %q", html)
+	}
+	if !strings.Contains(html, ".topbar-search-expand.has-results input { border-radius:0.35rem 0.35rem 0 0; }") {
+		t.Fatalf("expected topbar search radius override when results are visible in html: %q", html)
 	}
 	if !strings.Contains(html, "sortable-th") {
 		t.Fatalf("expected sortable-th CSS class in html: %q", html)
@@ -2002,7 +2042,6 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 
 	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
-	waitForBrowserText(t, ctx, "body", "Demo credentials")
 
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
@@ -2024,6 +2063,39 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	waitForBrowserPath(t, ctx, "/admin/login")
 	waitForBrowserText(t, ctx, "#status", "Signed out of the admin console.")
 	waitForBrowserVisible(t, ctx, "#loginForm")
+}
+
+func TestFullExampleStandaloneAdminLoginShowsErrorFeedback(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "wrong-password")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserPath(t, ctx, "/admin/login")
+	waitForBrowserText(t, ctx, "#status", "invalid email or password")
+	waitForBrowserCondition(t, ctx, "login error toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("invalid email or password");
+	})()`)
 }
 
 func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {

@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/jinzhu/inflection"
+	"gorm.io/gorm"
 )
 
 type fieldMode string
@@ -23,18 +26,22 @@ const (
 )
 
 type fieldMeta struct {
-	Meta      FieldMeta
-	index     []int
-	fieldType reflect.Type
-	timeField bool
+	Meta              FieldMeta
+	index             []int
+	fieldType         reflect.Type
+	timeField         bool
+	persisted         bool
+	componentExplicit bool
+	autoRelation      *autoRelationMeta
+}
+
+type autoRelationMeta struct {
+	targetType reflect.Type
 }
 
 func (r *Resource) prepare() error {
-	if r.Name == "" {
-		return fmt.Errorf("admin resource name must not be empty")
-	}
 	if r.Model == nil {
-		return fmt.Errorf("admin resource %q model must not be nil", r.Name)
+		return fmt.Errorf("admin resource model must not be nil")
 	}
 
 	r.modelType = reflect.TypeOf(r.Model)
@@ -43,6 +50,10 @@ func (r *Resource) prepare() error {
 	}
 	if r.modelType.Kind() != reflect.Struct {
 		return fmt.Errorf("admin resource %q model must be a struct or pointer to struct", r.Name)
+	}
+	r.Name = firstNonEmpty(r.Name, inferResourceName(r.modelType))
+	if r.Name == "" {
+		return fmt.Errorf("admin resource name must not be empty")
 	}
 
 	r.Label = firstNonEmpty(r.Label, humanize(r.Name))
@@ -97,9 +108,7 @@ func (r *Resource) prepare() error {
 		SortFields:   visibleFields(r.fields, fieldModeSort),
 		SearchFields: visibleFields(r.fields, fieldModeSearch),
 	}
-	for _, field := range r.fields {
-		r.metadata.Fields = append(r.metadata.Fields, field.Meta)
-	}
+	r.syncMetadataFields()
 
 	actions := []Action{ActionList, ActionDetail}
 	actions = appendAction(actions, ActionCreate, anyWritable(r.fields, fieldModeCreate))
@@ -108,6 +117,16 @@ func (r *Resource) prepare() error {
 	actions = appendAction(actions, ActionBulkDelete, r.primaryKey != nil)
 	r.metadata.Actions = actions
 	return nil
+}
+
+func (r *Resource) syncMetadataFields() {
+	if r == nil {
+		return
+	}
+	r.metadata.Fields = r.metadata.Fields[:0]
+	for _, field := range r.fields {
+		r.metadata.Fields = append(r.metadata.Fields, cloneFieldMetaValue(field.Meta))
+	}
 }
 
 func collectFields(t reflect.Type, prefix []int, overrides map[string]FieldOptions) []*fieldMeta {
@@ -133,6 +152,9 @@ func collectFields(t reflect.Type, prefix []int, overrides map[string]FieldOptio
 			continue
 		}
 		applyFieldOptions(meta, overrides[meta.Meta.Name])
+		if meta.Meta.Relation == nil {
+			inferAutoRelation(meta, field, t)
+		}
 		out = append(out, meta)
 	}
 	return out
@@ -172,9 +194,11 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 			Searchable:  !hiddenByJSON && !sensitive && fieldType.Kind() == reflect.String,
 			Default:     strings.TrimSpace(gormTag["default"]),
 		},
-		index:     index,
-		fieldType: fieldType,
-		timeField: fieldType == reflect.TypeOf(time.Time{}),
+		index:             index,
+		fieldType:         fieldType,
+		timeField:         fieldType == reflect.TypeOf(time.Time{}),
+		persisted:         !hasTagFlag(gormTag, "-"),
+		componentExplicit: strings.TrimSpace(adminTag["component"]) != "",
 	}
 
 	if meta.Meta.Name == "deletedAt" {
@@ -187,6 +211,7 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 		meta.Meta.Enum = []any{true, false}
 	}
 	applyAdminTag(meta, adminTag)
+	meta.Meta.Required = isRequired(field, gormTag, meta.Meta.ReadOnly)
 	return meta
 }
 
@@ -199,6 +224,7 @@ func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
 	}
 	if opts.Component != "" {
 		meta.Meta.Component = opts.Component
+		meta.componentExplicit = true
 	}
 	if len(opts.Enum) > 0 {
 		meta.Meta.Enum = cloneSlice(opts.Enum)
@@ -234,9 +260,98 @@ func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
 	}
 }
 
+func inferAutoRelation(meta *fieldMeta, field reflect.StructField, owner reflect.Type) {
+	if meta == nil || strings.TrimSpace(field.Name) == "" {
+		return
+	}
+	baseName, ok := relationFieldBaseName(field.Name)
+	if !ok {
+		return
+	}
+	relatedField, found := owner.FieldByName(baseName)
+	if !found || relatedField.Anonymous {
+		return
+	}
+	relatedType := indirectType(relatedField.Type)
+	if !isRelationEligibleType(relatedType) {
+		return
+	}
+	meta.autoRelation = &autoRelationMeta{targetType: relatedType}
+	meta.Meta.Relation = &RelationMeta{ValueField: "id"}
+	if !meta.componentExplicit {
+		meta.Meta.Component = "select"
+	}
+}
+
+func isRelationEligibleType(t reflect.Type) bool {
+	return t.Kind() == reflect.Struct && t != reflect.TypeOf(time.Time{}) && t != reflect.TypeOf(gorm.DeletedAt{})
+}
+
+func relationFieldBaseName(name string) (string, bool) {
+	for _, suffix := range []string{"ID", "Id"} {
+		if baseName, ok := strings.CutSuffix(name, suffix); ok && strings.TrimSpace(baseName) != "" {
+			return baseName, true
+		}
+	}
+	return "", false
+}
+
+func inferRelationLabelField(resource *Resource) string {
+	if resource == nil {
+		return "id"
+	}
+	for _, name := range []string{"name", "title", "code", "email"} {
+		if field := resource.fieldByName[name]; field != nil && field.fieldType.Kind() == reflect.String {
+			return name
+		}
+	}
+	for _, field := range resource.fields {
+		if field != nil && field.fieldType.Kind() == reflect.String {
+			return field.Meta.Name
+		}
+	}
+	if resource.primaryKey != nil {
+		return resource.primaryKey.Meta.Name
+	}
+	return "id"
+}
+
+func inferRelationSearchFields(resource *Resource, labelField string) []string {
+	if resource == nil {
+		return nil
+	}
+	var names []string
+	added := map[string]struct{}{}
+	add := func(name string) {
+		if strings.TrimSpace(name) == "" {
+			return
+		}
+		field := resource.fieldByName[name]
+		if field == nil || field.fieldType.Kind() != reflect.String {
+			return
+		}
+		if _, exists := added[name]; exists {
+			return
+		}
+		added[name] = struct{}{}
+		names = append(names, name)
+	}
+	add(labelField)
+	for _, name := range []string{"name", "title", "code", "email"} {
+		add(name)
+	}
+	return names
+}
+
 func applyAdminTag(meta *fieldMeta, settings map[string]string) {
 	if meta == nil || len(settings) == 0 {
 		return
+	}
+	if relation := relationMetaFromTag(settings); relation != nil {
+		meta.Meta.Relation = relation
+		if !meta.componentExplicit {
+			meta.Meta.Component = "select"
+		}
 	}
 	if hasTagFlag(settings, "hidden") || settings["-"] != "" || hasTagFlag(settings, "omit") {
 		hidden := true
@@ -261,6 +376,41 @@ func applyAdminTag(meta *fieldMeta, settings map[string]string) {
 			*target = value != "false"
 		}
 	}
+}
+
+func relationMetaFromTag(settings map[string]string) *RelationMeta {
+	resource := strings.TrimSpace(firstNonEmpty(settings["relation"], settings["relation_resource"]))
+	if resource == "" || resource == "true" {
+		return nil
+	}
+	valueField := strings.TrimSpace(firstNonEmpty(settings["relation_value"], settings["relation_value_field"], "id"))
+	labelField := strings.TrimSpace(firstNonEmpty(settings["relation_label"], settings["relation_label_field"]))
+	return &RelationMeta{
+		Resource:     resource,
+		ValueField:   valueField,
+		LabelField:   labelField,
+		SearchFields: splitTagList(firstNonEmpty(settings["relation_search"], settings["relation_search_fields"])),
+	}
+}
+
+func splitTagList(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (f *fieldMeta) allowed(mode fieldMode) bool {
@@ -432,11 +582,14 @@ func inferFieldType(field reflect.StructField, t reflect.Type) (string, string) 
 		return "number", "number"
 	case reflect.String:
 		lower := strings.ToLower(field.Name)
+		gormType := strings.ToLower(parseTagSettings(field.Tag.Get("gorm"))["type"])
 		switch {
 		case strings.Contains(lower, "email") || strings.Contains(field.Tag.Get("binding"), "email"):
 			return "string", "email"
 		case isSensitiveField(field, false):
 			return "string", "password"
+		case strings.Contains(gormType, "text"):
+			return "string", "textarea"
 		default:
 			return "string", "text"
 		}
@@ -528,6 +681,37 @@ func normalizePath(path string) string {
 		path = "/" + path
 	}
 	return strings.TrimRight(path, "/")
+}
+
+func inferResourceName(t reflect.Type) string {
+	t = indirectType(t)
+	name := strings.TrimSpace(t.Name())
+	if name == "" {
+		return ""
+	}
+	jsonName := defaultJSONFieldName(name)
+	if jsonName == "" {
+		return ""
+	}
+	return toKebab(inflection.Plural(jsonName))
+}
+
+func cloneFieldOptionsMap(in map[string]FieldOptions) map[string]FieldOptions {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]FieldOptions, len(in))
+	for key, value := range in {
+		cloned := value
+		cloned.Enum = cloneSlice(value.Enum)
+		if value.Relation != nil {
+			relation := *value.Relation
+			relation.SearchFields = cloneSlice(value.Relation.SearchFields)
+			cloned.Relation = &relation
+		}
+		out[key] = cloned
+	}
+	return out
 }
 
 func firstNonEmpty(values ...string) string {
