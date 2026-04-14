@@ -43,12 +43,20 @@ Roles    []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 	checks := []string{
 		"type UserOut struct",
 		"ninja.ModelSchema[User] `fields:\"id,name,email,age,is_admin,created\"`",
+		"type IUserRepo interface",
+		"func NewUserRepo() IUserRepo",
+		"func toUserOut(item User) (*UserOut, error)",
 		"type CreateUserInput struct",
 		"Name string `json:\"name\" binding:\"required\" description:\"Full name\"`",
 		"Email *string `json:\"email\" binding:\"omitempty,email\"`",
 		"Created *time.Time `json:\"created\"`",
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
 		"func ListUsers(ctx *ninja.Context, in *ListUsersInput)",
+		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize())",
+		"return toUserOut(item)",
+		"if err := repo.Insert(item); err != nil {",
+		"if err := repo.UpdateByOpts(updates, gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"return repo.DeleteByOpts(gormx.Where(\"id = ?\", in.ID))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {

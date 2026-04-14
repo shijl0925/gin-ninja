@@ -74,6 +74,9 @@ type modelSpec struct {
 	pluralModel   string
 	singularLabel string
 	pluralLabel   string
+	repoIfaceName string
+	repoImplName  string
+	toOutFuncName string
 }
 
 type fieldSpec struct {
@@ -81,6 +84,7 @@ type fieldSpec struct {
 	TypeExpr    string
 	UpdateType  string
 	JSONName    string
+	ColumnName  string
 	Binding     string
 	Description string
 }
@@ -102,6 +106,9 @@ type templateData struct {
 	IDTypeExpr        string
 	CreateFields      []fieldSpec
 	UpdateFields      []fieldSpec
+	RepoIfaceName     string
+	RepoImplName      string
+	ToOutFuncName     string
 }
 
 func buildTemplateData(model modelSpec) templateData {
@@ -117,6 +124,9 @@ func buildTemplateData(model modelSpec) templateData {
 		IDTypeExpr:        model.idTypeExpr,
 		CreateFields:      model.createFields,
 		UpdateFields:      model.updateFields,
+		RepoIfaceName:     model.repoIfaceName,
+		RepoImplName:      model.repoImplName,
+		ToOutFuncName:     model.toOutFuncName,
 	}
 }
 
@@ -230,6 +240,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				TypeExpr:    typeExpr,
 				UpdateType:  optionalType(typeExpr),
 				JSONName:    jsonName,
+				ColumnName:  resolveColumnName(name.Name, gormTag),
 				Binding:     binding,
 				Description: description,
 			}
@@ -251,9 +262,9 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 
 	imports := []importSpec{
 		{Alias: "", Path: "errors"},
-		{Alias: "", Path: "github.com/shijl0925/gin-ninja/orm"},
 		{Alias: "ninja", Path: "github.com/shijl0925/gin-ninja"},
 		{Alias: "", Path: "github.com/shijl0925/gin-ninja/pagination"},
+		{Alias: "", Path: "github.com/shijl0925/go-toolkits/gormx"},
 		{Alias: "", Path: "gorm.io/gorm"},
 	}
 	imports = append(imports, collector.list()...)
@@ -278,6 +289,9 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		pluralModel:   pluralModel,
 		singularLabel: lowerLabel(cfg.Model),
 		pluralLabel:   lowerLabel(pluralModel),
+		repoIfaceName: "I" + cfg.Model + "Repo",
+		repoImplName:  lowerCamel(cfg.Model) + "Repo",
+		toOutFuncName: "to" + cfg.Model + "Out",
 	}, nil
 }
 
@@ -381,6 +395,24 @@ func isIDField(name, jsonName, gormTag string) bool {
 	}
 	lower := strings.ToLower(gormTag)
 	return strings.Contains(lower, "primarykey") || strings.Contains(lower, "primary_key")
+}
+
+func resolveColumnName(fieldName, gormTag string) string {
+	for _, part := range strings.Split(gormTag, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(part, ":")
+		if !ok || !strings.EqualFold(strings.TrimSpace(key), "column") {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return toSnake(fieldName)
 }
 
 func isWritableField(name string, expr ast.Expr, gormTag string, imports map[string]string) bool {
@@ -610,6 +642,25 @@ type {{ .ModelName }}Out struct {
 ninja.ModelSchema[{{ .ModelName }}] ` + "`fields:\"{{ .OutputFieldsValue }}\"`" + `
 }
 
+// {{ .RepoIfaceName }} exposes the generated gormx repository contract for {{ .ModelName }}.
+type {{ .RepoIfaceName }} interface {
+	gormx.IBaseRepo[{{ .ModelName }}]
+}
+
+type {{ .RepoImplName }} struct {
+	gormx.BaseRepo[{{ .ModelName }}]
+}
+
+// New{{ .ModelName }}Repo constructs the generated gormx repository for {{ .ModelName }}.
+func New{{ .ModelName }}Repo() {{ .RepoIfaceName }} {
+	return &{{ .RepoImplName }}{}
+}
+
+// {{ .ToOutFuncName }} converts a {{ .SingularLabel }} model to the generated response schema.
+func {{ .ToOutFuncName }}(item {{ .ModelName }}) (*{{ .ModelName }}Out, error) {
+	return ninja.BindModelSchema[{{ .ModelName }}Out](item)
+}
+
 // List{{ .PluralModel }}Input is the generated list query schema.
 type List{{ .PluralModel }}Input struct {
 pagination.PageInput
@@ -651,22 +702,15 @@ ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .S
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
 func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}Out], error) {
-db := orm.WithContext(ctx.Context)
-query := db.Model(&{{ .ModelName }}{})
-
-var total int64
-if err := query.Count(&total).Error; err != nil {
-return nil, err
-}
-
-var items []{{ .ModelName }}
-if err := query.Offset(in.Offset()).Limit(in.Limit()).Find(&items).Error; err != nil {
+repo := New{{ .ModelName }}Repo()
+items, total, err := repo.SelectPage(in.GetPage(), in.GetSize())
+if err != nil {
 return nil, err
 }
 
 out := make([]{{ .ModelName }}Out, len(items))
 for i, item := range items {
-bound, err := ninja.BindModelSchema[{{ .ModelName }}Out](item)
+bound, err := {{ .ToOutFuncName }}(item)
 if err != nil {
 return nil, err
 }
@@ -677,59 +721,69 @@ return pagination.NewPage(out, total, in.PageInput), nil
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
 func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
-var item {{ .ModelName }}
-if err := orm.WithContext(ctx.Context).First(&item, in.ID).Error; err != nil {
+repo := New{{ .ModelName }}Repo()
+item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+if err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return nil, ninja.NotFoundError()
 }
 return nil, err
 }
-return ninja.BindModelSchema[{{ .ModelName }}Out](item)
+return {{ .ToOutFuncName }}(item)
 }
 
 // Create{{ .ModelName }} inserts a new {{ .SingularLabel }} record.
 func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
-	item := {{ .ModelName }}{}
+	repo := New{{ .ModelName }}Repo()
+	item := &{{ .ModelName }}{}
 {{ range .CreateFields }}
 	item.{{ .Name }} = in.{{ .Name }}
 {{ end }}
-	if err := orm.WithContext(ctx.Context).Create(&item).Error; err != nil {
+	if err := repo.Insert(item); err != nil {
 		return nil, err
 	}
-return ninja.BindModelSchema[{{ .ModelName }}Out](item)
+return {{ .ToOutFuncName }}(*item)
 }
 
 // Update{{ .ModelName }} updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
-db := orm.WithContext(ctx.Context)
-var item {{ .ModelName }}
-	if err := db.First(&item, in.ID).Error; err != nil {
+repo := New{{ .ModelName }}Repo()
+item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
 		}
 		return nil, err
 	}
+	updates := map[string]interface{}{}
 {{ range .UpdateFields }}
 	if in.{{ .Name }} != nil {
-		item.{{ .Name }} = *in.{{ .Name }}
+		updates["{{ .ColumnName }}"] = *in.{{ .Name }}
 	}
 {{ end }}
-	if err := db.Save(&item).Error; err != nil {
+	if len(updates) == 0 {
+		return {{ .ToOutFuncName }}(item)
+	}
+	if err := repo.UpdateByOpts(updates, gormx.Where("id = ?", in.ID)); err != nil {
 		return nil, err
 	}
-return ninja.BindModelSchema[{{ .ModelName }}Out](item)
+	item, err = repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+	if err != nil {
+		return nil, err
+	}
+return {{ .ToOutFuncName }}(item)
 }
 
 // Delete{{ .ModelName }} removes a {{ .SingularLabel }} record by primary key.
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
-db := orm.WithContext(ctx.Context)
-var item {{ .ModelName }}
-if err := db.First(&item, in.ID).Error; err != nil {
+repo := New{{ .ModelName }}Repo()
+_, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+if err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return ninja.NotFoundError()
 }
 return err
 }
-return db.Delete(&item).Error
+return repo.DeleteByOpts(gormx.Where("id = ?", in.ID))
 }
 `))
