@@ -468,6 +468,8 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			return nil, err
 		}
 		if len(updates) > 0 {
+			// Build the candidate post-update state before issuing the write so
+			// duplicate-key normalization can inspect the values being saved.
 			desired := reflect.New(r.modelType).Elem()
 			desired.Set(reflect.ValueOf(model).Elem())
 			if err := r.applyValuesFor(view, desired, values); err != nil {
@@ -602,7 +604,7 @@ func (r *Resource) normalizeWriteError(ctx *ninja.Context, action Action, desire
 		for _, field := range fields {
 			names = append(names, field.Meta.Name)
 		}
-		return ninja.NewErrorWithCode(http.StatusConflict, "SOFT_DELETED_CONFLICT", fmt.Sprintf("a soft-deleted record with the same value for %s already exists; restore or permanently remove it before saving", strings.Join(names, ", ")))
+		return ninja.NewErrorWithCode(http.StatusConflict, "SOFT_DELETED_CONFLICT", fmt.Sprintf("a soft-deleted record with the same value for field(s): %s already exists; restore or permanently remove it before saving", strings.Join(names, ", ")))
 	}
 	return ninja.ConflictError()
 }
@@ -634,6 +636,7 @@ func (r *Resource) softDeletedConflictFields(ctx *ninja.Context, action Action, 
 		if err := query.Session(&gorm.Session{}).
 			Where(clause.Eq{Column: clause.Column{Name: softDeleteField.Meta.Column}, Value: nil}).
 			Count(&activeCount).Error; err != nil {
+			// If the duplicate probe itself fails, fall back to the generic conflict.
 			return nil
 		}
 		if activeCount > 0 {
@@ -644,6 +647,7 @@ func (r *Resource) softDeletedConflictFields(ctx *ninja.Context, action Action, 
 		if err := query.Session(&gorm.Session{}).
 			Where(clause.Neq{Column: clause.Column{Name: softDeleteField.Meta.Column}, Value: nil}).
 			Count(&deletedCount).Error; err != nil {
+			// If the duplicate probe itself fails, fall back to the generic conflict.
 			return nil
 		}
 		if deletedCount > 0 {

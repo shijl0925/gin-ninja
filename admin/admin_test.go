@@ -323,7 +323,7 @@ func TestAdminCreateReportsSoftDeletedDuplicateConflict(t *testing.T) {
 	if payload.Error.Code != "SOFT_DELETED_CONFLICT" {
 		t.Fatalf("expected SOFT_DELETED_CONFLICT, got %+v", payload.Error)
 	}
-	if payload.Error.Message != "a soft-deleted record with the same value for email already exists; restore or permanently remove it before saving" {
+	if payload.Error.Message != "a soft-deleted record with the same value for field(s): email already exists; restore or permanently remove it before saving" {
 		t.Fatalf("expected soft-delete guidance in message, got %+v", payload.Error)
 	}
 }
