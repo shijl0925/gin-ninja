@@ -51,7 +51,11 @@ func (u *User) AfterFind(*gorm.DB) error {
 func (u *User) BeforeSave(*gorm.DB) error {
 	u.Name = strings.TrimSpace(u.Name)
 	u.Email = strings.TrimSpace(strings.ToLower(u.Email))
-	if strings.TrimSpace(u.Password) == "" || isHashedPassword(u.Password) {
+	if strings.TrimSpace(u.Password) == "" {
+		u.Password = ""
+		return nil
+	}
+	if isHashedPassword(u.Password) {
 		return nil
 	}
 	if len(u.Password) < 8 {
