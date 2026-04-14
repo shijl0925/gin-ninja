@@ -326,12 +326,13 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-search-expand.open { display:block; }
     .topbar-search-expand input {
       width:100%;
-      border-radius:0.35rem 0.35rem 0 0;
+      border-radius:0.35rem;
       border:1px solid var(--admin-border);
       padding:8px 14px;
       font-size:14px;
       box-shadow:0 2px 8px rgba(0,0,0,0.10);
     }
+    .topbar-search-expand.has-results input { border-radius:0.35rem 0.35rem 0 0; }
     .topbar-search-results {
       display:none;
       background:var(--admin-surface);
@@ -2021,6 +2022,8 @@ const adminPrototypeHTML = `<!doctype html>
     let globalSearchTimer = null;
 
     function closeGlobalSearch() {
+      const expandEl = document.getElementById('topbarSearchExpand');
+      if (expandEl) expandEl.classList.remove('has-results');
       if (els.topbarSearchResults) {
         els.topbarSearchResults.classList.remove('has-results');
         els.topbarSearchResults.innerHTML = '';
@@ -2064,6 +2067,8 @@ const adminPrototypeHTML = `<!doctype html>
       if (noResults) {
         els.topbarSearchResults.innerHTML = '<div class="search-results-empty">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
         els.topbarSearchResults.classList.add('has-results');
+        const expandEl = document.getElementById('topbarSearchExpand');
+        if (expandEl) expandEl.classList.add('has-results');
         return;
       }
 
@@ -2113,6 +2118,8 @@ const adminPrototypeHTML = `<!doctype html>
 
       if (els.topbarSearchResults.children.length) {
         els.topbarSearchResults.classList.add('has-results');
+        const expandEl = document.getElementById('topbarSearchExpand');
+        if (expandEl) expandEl.classList.add('has-results');
       }
     }
 

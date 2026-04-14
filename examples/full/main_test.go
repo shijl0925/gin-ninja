@@ -908,6 +908,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "topbar-search-results") {
 		t.Fatalf("expected topbar-search-results CSS class in html: %q", html)
 	}
+	if !strings.Contains(html, ".topbar-search-expand.has-results input { border-radius:0.35rem 0.35rem 0 0; }") {
+		t.Fatalf("expected topbar search radius override when results are visible in html: %q", html)
+	}
 	if !strings.Contains(html, "sortable-th") {
 		t.Fatalf("expected sortable-th CSS class in html: %q", html)
 	}
