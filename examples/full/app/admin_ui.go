@@ -392,7 +392,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .toast {
       display:flex;
-      align-items:flex-start;
+      align-items:center;
       gap:12px;
       min-width:280px;
       max-width:420px;
@@ -1551,7 +1551,6 @@ const adminPrototypeHTML = `<!doctype html>
             <button id="loginButton" class="btn btn-primary" type="submit">Sign in</button>
           </div>
         </form>
-        <p id="loginFeedback" class="login-feedback" role="alert" hidden></p>
         <div id="manualTokenTools" class="stack">
           <label>JWT token
             <input id="token" class="form-control" placeholder="Paste a token from /api/v1/auth/login" autocomplete="off">
@@ -3563,7 +3562,6 @@ const adminPrototypeHTML = `<!doctype html>
         await loadResources();
       } catch (error) {
         const message = extractErrorMessage(error);
-        setLoginFeedback(message);
         showToast(message, 'danger');
         setStatus(message, 'danger');
       }

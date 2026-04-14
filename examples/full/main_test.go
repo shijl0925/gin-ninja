@@ -2058,11 +2058,6 @@ func TestFullExampleStandaloneAdminLoginShowsErrorFeedback(t *testing.T) {
 	clickBrowser(t, ctx, "#loginButton")
 
 	waitForBrowserPath(t, ctx, "/admin/login")
-	waitForBrowserCondition(t, ctx, "login feedback visible", `(() => {
-		const el = document.querySelector("#loginFeedback");
-		return !!el && !el.hidden;
-	})()`)
-	waitForBrowserText(t, ctx, "#loginFeedback", "invalid email or password")
 	waitForBrowserText(t, ctx, "#status", "invalid email or password")
 	waitForBrowserCondition(t, ctx, "login error toast appears", `(() => {
 		const container = document.querySelector("#toastContainer");
