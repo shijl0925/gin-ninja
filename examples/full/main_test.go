@@ -556,11 +556,11 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "An AdminLTE-inspired sign-in for the standalone admin console.") {
-		t.Fatalf("expected AdminLTE-inspired login marketing copy in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "Gin Ninja") {
+		t.Fatalf("expected brand name in login marketing panel in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "Demo credentials") {
-		t.Fatalf("expected demo credentials card in html: %q", loginHTML)
+	if !strings.Contains(loginHTML, "login-brand-mark") {
+		t.Fatalf("expected login brand mark in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
 		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
@@ -2008,7 +2008,6 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 
 	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
-	waitForBrowserText(t, ctx, "body", "Demo credentials")
 
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
@@ -2030,6 +2029,39 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	waitForBrowserPath(t, ctx, "/admin/login")
 	waitForBrowserText(t, ctx, "#status", "Signed out of the admin console.")
 	waitForBrowserVisible(t, ctx, "#loginForm")
+}
+
+func TestFullExampleStandaloneAdminLoginShowsErrorFeedback(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "wrong-password")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserPath(t, ctx, "/admin/login")
+	waitForBrowserText(t, ctx, "#status", "invalid email or password")
+	waitForBrowserCondition(t, ctx, "login error toast appears", `(() => {
+		const container = document.querySelector("#toastContainer");
+		return !!container && container.textContent.includes("invalid email or password");
+	})()`)
 }
 
 func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
