@@ -740,6 +740,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "els.search.addEventListener('input'") {
 		t.Fatalf("expected search input to trigger live reloads in html: %q", html)
 	}
+	if !strings.Contains(html, "function renderSearchPlaceholder()") {
+		t.Fatalf("expected search placeholder renderer in html: %q", html)
+	}
+	if !strings.Contains(html, "els.search.placeholder = labels.length ? 'Search by ' + labels.join(', ') : 'Search current resource';") {
+		t.Fatalf("expected search placeholder to include configured search fields in html: %q", html)
+	}
 	if !strings.Contains(html, "scheduleRelationSearch(") {
 		t.Fatalf("expected relation search flow in html: %q", html)
 	}

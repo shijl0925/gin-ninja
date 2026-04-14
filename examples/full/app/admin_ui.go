@@ -2304,6 +2304,7 @@ const adminPrototypeHTML = `<!doctype html>
       els.updateForm.innerHTML = '<p class="muted">Sign in to edit records.</p>';
       els.filtersForm.innerHTML = '';
       els.sort.innerHTML = '';
+      els.search.placeholder = 'Search current resource';
       els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
        els.editHint.textContent = 'Sign in to open the change form.';
        renderPagination();
@@ -2725,6 +2726,20 @@ const adminPrototypeHTML = `<!doctype html>
         desc.textContent = 'Sort by ' + name + ' ↓';
         els.sort.appendChild(desc);
       });
+    }
+
+    function searchPlaceholderLabels() {
+      const names = Array.isArray(state.meta?.search_fields) ? state.meta.search_fields : [];
+      if (!names.length) return [];
+      const labels = new Map((state.meta?.fields || []).map((field) => [field.name, field.label || field.name]));
+      return names
+        .map((name) => String(labels.get(name) || name || '').trim())
+        .filter(Boolean);
+    }
+
+    function renderSearchPlaceholder() {
+      const labels = searchPlaceholderLabels();
+      els.search.placeholder = labels.length ? 'Search by ' + labels.join(', ') : 'Search current resource';
     }
 
     function applySortFromHeader(field) {
@@ -3484,6 +3499,7 @@ const adminPrototypeHTML = `<!doctype html>
         renderResources();
         els.resourceTitle.textContent = state.meta.label;
         renderResourceSummary();
+        renderSearchPlaceholder();
         renderSortOptions();
         renderFilterControls();
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);
