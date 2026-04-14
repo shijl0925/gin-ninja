@@ -439,7 +439,7 @@ type Project struct {
 	checks := []string{
 		`Slug string ` + "`json:\"slug\"`" + ``,
 		`Slug *string ` + "`json:\"slug\"`" + ``,
-		`Owner *ProjectOwnerOut ` + "`json:\"owner,omitempty\"`" + ``,
+		`*ProjectOwnerOut ` + "`json:\"owner,omitempty\"`" + ``,
 		`query.Preload("Owner")`,
 	}
 	for _, check := range checks {
