@@ -62,21 +62,21 @@ func GenerateCRUD(cfg CRUDConfig) ([]byte, error) {
 }
 
 type modelSpec struct {
-	packageName   string
-	modelName     string
-	tag           string
-	fields        []fieldSpec
-	outputFields  []string
-	createFields  []fieldSpec
-	updateFields  []fieldSpec
-	imports       []importSpec
-	idTypeExpr    string
-	pluralModel   string
-	singularLabel string
-	pluralLabel   string
-	repoIfaceName string
-	repoImplName  string
-	toOutFuncName string
+	packageName    string
+	modelName      string
+	tag            string
+	fields         []fieldSpec
+	outputFields   []string
+	createFields   []fieldSpec
+	updateFields   []fieldSpec
+	imports        []importSpec
+	idTypeExpr     string
+	pluralModel    string
+	singularLabel  string
+	pluralLabel    string
+	repoIfaceName  string
+	repoImplName   string
+	toOutFuncName  string
 	useByIDMethods bool
 }
 
@@ -282,21 +282,21 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	}
 
 	return modelSpec{
-		packageName:   packageName,
-		modelName:     cfg.Model,
-		tag:           tag,
-		fields:        fields,
-		outputFields:  outputFields,
-		createFields:  createFields,
-		updateFields:  updateFields,
-		imports:       imports,
-		idTypeExpr:    idTypeExpr,
-		pluralModel:   pluralModel,
-		singularLabel: lowerLabel(cfg.Model),
-		pluralLabel:   lowerLabel(pluralModel),
-		repoIfaceName: "I" + cfg.Model + "Repo",
-		repoImplName:  lowerCamel(cfg.Model) + "Repo",
-		toOutFuncName: "to" + cfg.Model + "Out",
+		packageName:    packageName,
+		modelName:      cfg.Model,
+		tag:            tag,
+		fields:         fields,
+		outputFields:   outputFields,
+		createFields:   createFields,
+		updateFields:   updateFields,
+		imports:        imports,
+		idTypeExpr:     idTypeExpr,
+		pluralModel:    pluralModel,
+		singularLabel:  lowerLabel(cfg.Model),
+		pluralLabel:    lowerLabel(pluralModel),
+		repoIfaceName:  "I" + cfg.Model + "Repo",
+		repoImplName:   lowerCamel(cfg.Model) + "Repo",
+		toOutFuncName:  "to" + cfg.Model + "Out",
 		useByIDMethods: isIntConvertibleIDType(idTypeExpr),
 	}, nil
 }
