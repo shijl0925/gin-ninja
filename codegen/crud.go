@@ -599,9 +599,10 @@ func toSnake(input string) string {
 	if input == "" {
 		return input
 	}
-	var out []rune
-	for i, r := range input {
-		if i > 0 && unicode.IsUpper(r) {
+	runes := []rune(input)
+	out := make([]rune, 0, len(runes)+4)
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) && (unicode.IsLower(runes[i-1]) || (unicode.IsUpper(runes[i-1]) && i+1 < len(runes) && unicode.IsLower(runes[i+1]))) {
 			out = append(out, '_')
 		}
 		out = append(out, unicode.ToLower(r))
@@ -745,7 +746,11 @@ return pagination.NewPage(out, total, in.PageInput), nil
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
 func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 repo := New{{ .ModelName }}Repo()
+{{ if .UseByIDMethods }}
+item, err := repo.SelectOneById(int(in.ID))
+{{ else }}
 item, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID))
+{{ end }}
 if err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return nil, ninja.NotFoundError()
@@ -813,8 +818,20 @@ return {{ .ToOutFuncName }}(item)
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
 repo := New{{ .ModelName }}Repo()
 {{ if .UseByIDMethods }}
+if _, err := repo.SelectOneById(int(in.ID)); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ninja.NotFoundError()
+}
+return err
+}
 return repo.DeleteById(int(in.ID))
 {{ else }}
+if _, err := repo.SelectOneByOpts(gormx.Where("id = ?", in.ID)); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ninja.NotFoundError()
+}
+return err
+}
 return repo.DeleteByOpts(gormx.Where("id = ?", in.ID))
 {{ end }}
 }
