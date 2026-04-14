@@ -993,24 +993,42 @@ func TestAdminExplicitFieldAccessTagsAffectMetadata(t *testing.T) {
 	if passwordField == nil {
 		t.Fatalf("expected password field metadata")
 	}
-	if passwordField.Meta.ReadOnly || passwordField.Meta.List || passwordField.Meta.Detail || !passwordField.Meta.Create || !passwordField.Meta.Update {
-		t.Fatalf("unexpected password field metadata: %+v", passwordField.Meta)
+	if passwordField.Meta.ReadOnly {
+		t.Fatalf("expected writeOnly field to stay writable, got %+v", passwordField.Meta)
+	}
+	if passwordField.Meta.List || passwordField.Meta.Detail {
+		t.Fatalf("expected writeOnly field to be hidden from read metadata, got %+v", passwordField.Meta)
+	}
+	if !passwordField.Meta.Create || !passwordField.Meta.Update {
+		t.Fatalf("expected writeOnly field to stay writable in both create and update, got %+v", passwordField.Meta)
 	}
 	if containsName(user.metadata.ListFields, "password") || containsName(user.metadata.DetailFields, "password") {
 		t.Fatalf("expected writeOnly field to be hidden from read metadata, got %+v", user.metadata)
 	}
 
 	inviteField := user.fieldByName["invite_code"]
-	if inviteField == nil || !inviteField.Meta.Create || inviteField.Meta.Update {
-		t.Fatalf("unexpected invite_code field metadata: %+v", inviteField)
+	if inviteField == nil {
+		t.Fatalf("expected invite_code field metadata")
+	}
+	if !inviteField.Meta.Create {
+		t.Fatalf("expected createOnly field to be writable on create, got %+v", inviteField.Meta)
+	}
+	if inviteField.Meta.Update {
+		t.Fatalf("expected createOnly field to be hidden from update metadata, got %+v", inviteField.Meta)
 	}
 	if !containsName(user.metadata.CreateFields, "invite_code") || containsName(user.metadata.UpdateFields, "invite_code") {
 		t.Fatalf("expected createOnly field to only appear in create metadata, got %+v", user.metadata)
 	}
 
 	statusField := user.fieldByName["status_note"]
-	if statusField == nil || statusField.Meta.Create || !statusField.Meta.Update {
-		t.Fatalf("unexpected status_note field metadata: %+v", statusField)
+	if statusField == nil {
+		t.Fatalf("expected status_note field metadata")
+	}
+	if statusField.Meta.Create {
+		t.Fatalf("expected updateOnly field to be hidden from create metadata, got %+v", statusField.Meta)
+	}
+	if !statusField.Meta.Update {
+		t.Fatalf("expected updateOnly field to be writable on update, got %+v", statusField.Meta)
 	}
 	if containsName(user.metadata.CreateFields, "status_note") || !containsName(user.metadata.UpdateFields, "status_note") {
 		t.Fatalf("expected updateOnly field to only appear in update metadata, got %+v", user.metadata)
