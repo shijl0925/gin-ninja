@@ -340,6 +340,12 @@ func applyAdminTag(meta *fieldMeta, settings map[string]string) {
 	if meta == nil || len(settings) == 0 {
 		return
 	}
+	if relation := relationMetaFromTag(settings); relation != nil {
+		meta.Meta.Relation = relation
+		if !meta.componentExplicit {
+			meta.Meta.Component = "select"
+		}
+	}
 	if hasTagFlag(settings, "hidden") || settings["-"] != "" || hasTagFlag(settings, "omit") {
 		hidden := true
 		applyFieldOptions(meta, FieldOptions{Hidden: &hidden})
@@ -363,6 +369,41 @@ func applyAdminTag(meta *fieldMeta, settings map[string]string) {
 			*target = value != "false"
 		}
 	}
+}
+
+func relationMetaFromTag(settings map[string]string) *RelationMeta {
+	resource := strings.TrimSpace(firstNonEmpty(settings["relation"], settings["relation_resource"]))
+	if resource == "" || resource == "true" {
+		return nil
+	}
+	valueField := strings.TrimSpace(firstNonEmpty(settings["relation_value"], settings["relation_value_field"], "id"))
+	labelField := strings.TrimSpace(firstNonEmpty(settings["relation_label"], settings["relation_label_field"]))
+	return &RelationMeta{
+		Resource:     resource,
+		ValueField:   valueField,
+		LabelField:   labelField,
+		SearchFields: splitTagList(firstNonEmpty(settings["relation_search"], settings["relation_search_fields"])),
+	}
+}
+
+func splitTagList(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		out = append(out, part)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (f *fieldMeta) allowed(mode fieldMode) bool {

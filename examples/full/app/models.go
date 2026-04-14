@@ -1,17 +1,23 @@
 package app
 
-import "gorm.io/gorm"
+import (
+	"fmt"
+	"strings"
+
+	ninja "github.com/shijl0925/gin-ninja"
+	"gorm.io/gorm"
+)
 
 // User is the GORM domain model.
 type User struct {
 	gorm.Model
 	Name     string `gorm:"column:name;not null"               json:"name"`
 	Email    string `gorm:"column:email;type:varchar(255);uniqueIndex;not null" json:"email"`
-	Password string `gorm:"column:password;not null"           json:"-"` // never serialised
+	Password string `gorm:"column:password;not null"           json:"-" admin:"component:password;create;update;readonly:false"` // never serialised
 	Age      int    `gorm:"column:age"                         json:"age"`
 	IsAdmin  bool   `gorm:"column:is_admin;default:false"      json:"is_admin"`
 	Roles    []Role `gorm:"many2many:user_roles;"              json:"-"`
-	RoleIDs  []uint `gorm:"-"                                  json:"role_ids"`
+	RoleIDs  []uint `gorm:"-"                                  json:"role_ids" admin:"label:Roles;relation:roles"`
 }
 
 type Role struct {
@@ -36,6 +42,23 @@ func (u *User) AfterFind(*gorm.DB) error {
 	return nil
 }
 
+func (u *User) BeforeSave(*gorm.DB) error {
+	u.Name = strings.TrimSpace(u.Name)
+	u.Email = strings.TrimSpace(strings.ToLower(u.Email))
+	if strings.TrimSpace(u.Password) == "" || isHashedPassword(u.Password) {
+		return nil
+	}
+	if len(u.Password) < 8 {
+		return ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"password\" must be at least 8 characters")
+	}
+	u.Password = hashPassword(u.Password)
+	return nil
+}
+
+func (u *User) AfterSave(tx *gorm.DB) error {
+	return syncUserRoles(tx, u, u.RoleIDs)
+}
+
 func (u *User) syncRoleIDs() {
 	if len(u.Roles) == 0 {
 		u.RoleIDs = nil
@@ -46,4 +69,57 @@ func (u *User) syncRoleIDs() {
 		ids = append(ids, role.ID)
 	}
 	u.RoleIDs = ids
+}
+
+func isHashedPassword(password string) bool {
+	return strings.HasPrefix(password, "$2")
+}
+
+func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {
+	if user == nil {
+		return nil
+	}
+	normalized := make([]uint, 0, len(roleIDs))
+	seen := make(map[uint]struct{}, len(roleIDs))
+	for _, id := range roleIDs {
+		if id == 0 {
+			return ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must not contain zero")
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalized = append(normalized, id)
+	}
+	if len(normalized) == 0 {
+		if err := tx.Model(user).Association("Roles").Replace([]Role{}); err != nil {
+			return err
+		}
+		user.Roles = nil
+		user.RoleIDs = []uint{}
+		return nil
+	}
+
+	var roles []Role
+	if err := tx.Where("id IN ?", normalized).Find(&roles).Error; err != nil {
+		return err
+	}
+	roleByID := make(map[uint]Role, len(roles))
+	for _, role := range roles {
+		roleByID[role.ID] = role
+	}
+	orderedRoles := make([]Role, 0, len(normalized))
+	for _, id := range normalized {
+		role, ok := roleByID[id]
+		if !ok {
+			return ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("role %d does not exist", id))
+		}
+		orderedRoles = append(orderedRoles, role)
+	}
+	if err := tx.Model(user).Association("Roles").Replace(orderedRoles); err != nil {
+		return err
+	}
+	user.Roles = orderedRoles
+	user.RoleIDs = normalized
+	return nil
 }

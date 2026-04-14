@@ -262,6 +262,7 @@ type ModelResource struct {
 	Label            string
 	Path             string
 	Model            any
+	Preloads         []string
 	ListFields       []string
 	DetailFields     []string
 	CreateFields     []string
@@ -286,11 +287,13 @@ func (r *ModelResource) Resource() *Resource {
 	if r == nil {
 		return nil
 	}
+	queryScope := composeQueryScope(r.Preloads, r.QueryScope)
 	return &Resource{
 		Name:             r.Name,
 		Label:            r.Label,
 		Path:             r.Path,
 		Model:            r.Model,
+		QueryScope:       queryScope,
 		ListFields:       cloneSlice(r.ListFields),
 		DetailFields:     cloneSlice(r.DetailFields),
 		CreateFields:     cloneSlice(r.CreateFields),
@@ -300,7 +303,6 @@ func (r *ModelResource) Resource() *Resource {
 		SearchFields:     cloneSlice(r.SearchFields),
 		FieldOptions:     cloneFieldOptionsMap(r.FieldOptions),
 		Permissions:      r.Permissions,
-		QueryScope:       r.QueryScope,
 		RowPermissions:   r.RowPermissions,
 		FieldPermissions: r.FieldPermissions,
 		BeforeCreate:     r.BeforeCreate,
@@ -309,6 +311,27 @@ func (r *ModelResource) Resource() *Resource {
 		AfterUpdate:      r.AfterUpdate,
 		BeforeDelete:     r.BeforeDelete,
 		AfterDelete:      r.AfterDelete,
+	}
+}
+
+func composeQueryScope(preloads []string, queryScope QueryScope) QueryScope {
+	if len(preloads) == 0 {
+		return queryScope
+	}
+	clonedPreloads := cloneSlice(preloads)
+	return func(ctx *ninja.Context, db *gorm.DB) *gorm.DB {
+		for _, preload := range clonedPreloads {
+			if strings.TrimSpace(preload) == "" {
+				continue
+			}
+			db = db.Preload(preload)
+		}
+		if queryScope != nil {
+			if scoped := queryScope(ctx, db); scoped != nil {
+				db = scoped
+			}
+		}
+		return db
 	}
 }
 
@@ -351,21 +374,32 @@ func (s *Site) resolveAutoRelations() {
 		}
 		changed := false
 		for _, field := range resource.fields {
-			if field == nil || field.autoRelation == nil || field.Meta.Relation == nil {
-				continue
-			}
-			target := s.byModel[field.autoRelation.targetType]
-			if target == nil {
-				resetAutoRelation(field)
-				changed = true
+			if field == nil || field.Meta.Relation == nil {
 				continue
 			}
 			relation := cloneRelationMeta(field.Meta.Relation)
-			if strings.TrimSpace(relation.Resource) == "" {
-				relation.Resource = target.metadata.Name
+			var target *Resource
+			switch {
+			case field.autoRelation != nil:
+				target = s.byModel[field.autoRelation.targetType]
+				if target == nil {
+					resetAutoRelation(field)
+					changed = true
+					continue
+				}
+				if strings.TrimSpace(relation.Resource) == "" {
+					relation.Resource = target.metadata.Name
+				}
+			case strings.TrimSpace(relation.Resource) != "":
+				target = s.byName[relation.Resource]
 			}
 			if strings.TrimSpace(relation.ValueField) == "" {
 				relation.ValueField = "id"
+			}
+			if target == nil {
+				field.Meta.Relation = relation
+				changed = true
+				continue
 			}
 			if strings.TrimSpace(relation.LabelField) == "" {
 				relation.LabelField = inferRelationLabelField(target)

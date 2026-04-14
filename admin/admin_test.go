@@ -75,6 +75,19 @@ type adminMetrics struct {
 	Count int  `json:"count"`
 }
 
+type adminTaggedRole struct {
+	ID   uint   `gorm:"primaryKey"`
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
+type adminTaggedUser struct {
+	ID       uint   `gorm:"primaryKey"`
+	Name     string `json:"name"`
+	Password string `gorm:"not null" json:"-" admin:"component:password;create;update;readonly:false"`
+	RoleIDs  []uint `gorm:"-" json:"role_ids" admin:"label:Roles;relation:roles"`
+}
+
 func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
 	api, _ := newAdminAPIWithDB(t, site, seed...)
 	return api
@@ -912,6 +925,44 @@ func TestInferRelationLabelAndSearchFields(t *testing.T) {
 	}
 	if searchFields := inferRelationSearchFields(metricsResource, "id"); len(searchFields) != 0 {
 		t.Fatalf("metrics search fields = %+v", searchFields)
+	}
+}
+
+func TestAdminTagRelationAndPasswordInference(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "roles",
+		Model:        adminTaggedRole{},
+		ListFields:   []string{"id", "name", "code"},
+		DetailFields: []string{"id", "name", "code"},
+		SearchFields: []string{"name", "code"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminTaggedUser{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name", "role_ids"},
+		CreateFields: []string{"name", "password", "role_ids"},
+		UpdateFields: []string{"name", "password", "role_ids"},
+	})
+
+	user := site.byName["users"]
+	if user == nil {
+		t.Fatalf("expected tagged user resource")
+	}
+	passwordField := user.fieldByName["password"]
+	if passwordField == nil || passwordField.Meta.Component != "password" || !passwordField.Meta.Create || !passwordField.Meta.Update || passwordField.Meta.Detail {
+		t.Fatalf("unexpected password field metadata: %+v", passwordField)
+	}
+	roleField := user.fieldByName["role_ids"]
+	if roleField == nil || roleField.Meta.Relation == nil {
+		t.Fatalf("expected role_ids relation metadata")
+	}
+	if roleField.Meta.Relation.Resource != "roles" || roleField.Meta.Relation.ValueField != "id" || roleField.Meta.Relation.LabelField != "name" {
+		t.Fatalf("unexpected role_ids relation: %+v", roleField.Meta.Relation)
+	}
+	if !containsName(roleField.Meta.Relation.SearchFields, "code") {
+		t.Fatalf("expected inferred relation search fields, got %+v", roleField.Meta.Relation.SearchFields)
 	}
 }
 
