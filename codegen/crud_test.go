@@ -228,7 +228,7 @@ func TestGeneratedRoutesUsePatchForPartialUpdates(t *testing.T) {
 	RegisterUserCRUDRoutes(router)
 	api.AddRouter(router)
 
-	putReq := httptest.NewRequest(http.MethodPut, "/users/1", strings.NewReader(`+"`{}"+`"))
+	putReq := httptest.NewRequest(http.MethodPut, "/users/1", strings.NewReader("{}"))
 	putReq.Header.Set("Content-Type", "application/json")
 	putResp := httptest.NewRecorder()
 	api.Handler().ServeHTTP(putResp, putReq)

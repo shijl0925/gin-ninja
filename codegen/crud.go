@@ -231,11 +231,11 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 			}
 
 			typeExpr := exprString(fset, field.Type)
-			collector.addExpr(field.Type)
 			jsonName, hidden := resolveJSONName(name.Name, tags)
 			access := resolveFieldAccess(tags)
 			if isIDField(name.Name, jsonName, gormTag) && !idResolved {
 				idTypeExpr = typeExpr
+				collector.addExpr(field.Type)
 				idResolved = true
 			}
 
@@ -260,6 +260,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 			}
 
 			if isWritableField(name.Name, field.Type, gormTag, importPaths) {
+				collector.addExpr(field.Type)
 				if allowCreateField(access) {
 					createFields = append(createFields, fieldSpec)
 				}
