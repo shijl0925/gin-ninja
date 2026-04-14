@@ -269,6 +269,65 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	}
 }
 
+func TestAdminCreateReportsSoftDeletedDuplicateConflict(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		CreateFields: []string{"name", "email", "password"},
+		UpdateFields: []string{"name", "email", "password"},
+		FieldOptions: map[string]FieldOptions{
+			"password": {Create: boolPtr(true), Update: boolPtr(true), Component: "password"},
+		},
+	})
+
+	api, db := newAdminAPIWithDB(t, site, adminUser{
+		Name:     "Deleted Bob",
+		Email:    "bob@example.com",
+		Password: "secret123",
+	})
+
+	var deleted adminUser
+	if err := db.Unscoped().Where("email = ?", "bob@example.com").First(&deleted).Error; err != nil {
+		t.Fatalf("load seeded user: %v", err)
+	}
+	if err := db.Delete(&deleted).Error; err != nil {
+		t.Fatalf("soft delete seeded user: %v", err)
+	}
+
+	createResp := performJSON(t, api, http.MethodPost, "/admin/resources/users", map[string]any{
+		"name":     "Bob",
+		"email":    "bob@example.com",
+		"password": "secret123",
+	}, map[string]string{"X-User-ID": "1"})
+	if createResp.Code != http.StatusConflict {
+		t.Fatalf("expected conflict for soft-deleted duplicate, got %d body=%s", createResp.Code, createResp.Body.String())
+	}
+
+	var payload struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(createResp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode conflict payload: %v", err)
+	}
+	if payload.Error.Code != "SOFT_DELETED_CONFLICT" {
+		t.Fatalf("expected SOFT_DELETED_CONFLICT, got %+v", payload.Error)
+	}
+	if payload.Error.Message != "a soft-deleted record with the same value for field(s): email already exists; restore or permanently remove it before saving" {
+		t.Fatalf("expected soft-delete guidance in message, got %+v", payload.Error)
+	}
+}
+
 func TestAdminSiteBulkDeleteAndAuth(t *testing.T) {
 	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
 		if ctx.GetUserID() == 0 {

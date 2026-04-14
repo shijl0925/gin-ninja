@@ -17,6 +17,7 @@ import (
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Action string
@@ -428,7 +429,7 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 			return nil, err
 		}
 		if err := orm.WithContext(ctx.Context).Create(model).Error; err != nil {
-			return nil, err
+			return nil, r.normalizeWriteError(ctx, ActionCreate, reflect.ValueOf(model).Elem(), nil, err)
 		}
 		if r.AfterCreate != nil {
 			if err := r.AfterCreate(ctx, model); err != nil {
@@ -467,8 +468,15 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			return nil, err
 		}
 		if len(updates) > 0 {
-			if err := orm.WithContext(ctx.Context).Model(model).Updates(updates).Error; err != nil {
+			// Build the candidate post-update state before issuing the write so
+			// duplicate-key normalization can inspect the values being saved.
+			desired := reflect.New(r.modelType).Elem()
+			desired.Set(reflect.ValueOf(model).Elem())
+			if err := r.applyValuesFor(view, desired, values); err != nil {
 				return nil, err
+			}
+			if err := orm.WithContext(ctx.Context).Model(model).Updates(updates).Error; err != nil {
+				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), err)
 			}
 		}
 		if err := orm.WithContext(ctx.Context).First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
@@ -585,6 +593,118 @@ func (r *Resource) parsePrimaryKeyJSON(raw json.RawMessage) (any, error) {
 		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("id: %s", err.Error()))
 	}
 	return value, nil
+}
+
+func (r *Resource) normalizeWriteError(ctx *ninja.Context, action Action, desired reflect.Value, currentID any, err error) error {
+	if !isDuplicateKeyError(err) {
+		return err
+	}
+	if fields := r.softDeletedConflictFields(ctx, action, desired, currentID); len(fields) > 0 {
+		names := make([]string, 0, len(fields))
+		for _, field := range fields {
+			names = append(names, field.Meta.Name)
+		}
+		return ninja.NewErrorWithCode(http.StatusConflict, "SOFT_DELETED_CONFLICT", fmt.Sprintf("a soft-deleted record with the same value for field(s): %s already exists; restore or permanently remove it before saving", strings.Join(names, ", ")))
+	}
+	return ninja.ConflictError()
+}
+
+func (r *Resource) softDeletedConflictFields(ctx *ninja.Context, action Action, desired reflect.Value, currentID any) []*fieldMeta {
+	softDeleteField := r.softDeleteField()
+	if softDeleteField == nil || !desired.IsValid() {
+		return nil
+	}
+
+	var matches []*fieldMeta
+	for _, field := range r.fields {
+		if field == nil || !field.Meta.Unique {
+			continue
+		}
+		value, ok := r.fieldValue(desired, field)
+		if !ok {
+			continue
+		}
+		query := r.scopedDB(ctx, action, orm.WithContext(ctx.Context)).
+			Model(r.newModel()).
+			Unscoped().
+			Where(clause.Eq{Column: clause.Column{Name: field.Meta.Column}, Value: value})
+		if currentID != nil && r.primaryKey != nil {
+			query = query.Where(clause.Neq{Column: clause.Column{Name: r.primaryKey.Meta.Column}, Value: currentID})
+		}
+
+		var activeCount int64
+		if err := query.Session(&gorm.Session{}).
+			Where(clause.Eq{Column: clause.Column{Name: softDeleteField.Meta.Column}, Value: nil}).
+			Count(&activeCount).Error; err != nil {
+			// If the duplicate probe itself fails, fall back to the generic conflict.
+			return nil
+		}
+		if activeCount > 0 {
+			return nil
+		}
+
+		var deletedCount int64
+		if err := query.Session(&gorm.Session{}).
+			Where(clause.Neq{Column: clause.Column{Name: softDeleteField.Meta.Column}, Value: nil}).
+			Count(&deletedCount).Error; err != nil {
+			// If the duplicate probe itself fails, fall back to the generic conflict.
+			return nil
+		}
+		if deletedCount > 0 {
+			matches = append(matches, field)
+		}
+	}
+	return matches
+}
+
+func (r *Resource) softDeleteField() *fieldMeta {
+	for _, field := range r.fields {
+		if field == nil {
+			continue
+		}
+		if field.fieldType == reflect.TypeOf(gorm.DeletedAt{}) {
+			return field
+		}
+	}
+	return nil
+}
+
+func (r *Resource) fieldValue(v reflect.Value, field *fieldMeta) (any, bool) {
+	if field == nil || !v.IsValid() {
+		return nil, false
+	}
+	current := v
+	for _, index := range field.index {
+		if current.Kind() == reflect.Ptr {
+			if current.IsNil() {
+				return nil, true
+			}
+			current = current.Elem()
+		}
+		current = current.Field(index)
+	}
+	if current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return nil, true
+		}
+		current = current.Elem()
+	}
+	return current.Interface(), true
+}
+
+func isDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "duplicate key") ||
+		strings.Contains(message, "duplicated key") ||
+		strings.Contains(message, "duplicate entry") ||
+		strings.Contains(message, "unique constraint failed") ||
+		strings.Contains(message, "violates unique constraint")
 }
 
 func (r *Resource) newModel() any {
