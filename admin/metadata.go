@@ -261,8 +261,8 @@ func inferAutoRelation(meta *fieldMeta, field reflect.StructField, owner reflect
 	if meta == nil || strings.TrimSpace(field.Name) == "" {
 		return
 	}
-	baseName, ok := strings.CutSuffix(field.Name, "ID")
-	if !ok || strings.TrimSpace(baseName) == "" {
+	baseName, ok := relationFieldBaseName(field.Name)
+	if !ok {
 		return
 	}
 	relatedField, found := owner.FieldByName(baseName)
@@ -278,6 +278,15 @@ func inferAutoRelation(meta *fieldMeta, field reflect.StructField, owner reflect
 	if !meta.componentExplicit {
 		meta.Meta.Component = "select"
 	}
+}
+
+func relationFieldBaseName(name string) (string, bool) {
+	for _, suffix := range []string{"ID", "Id"} {
+		if baseName, ok := strings.CutSuffix(name, suffix); ok && strings.TrimSpace(baseName) != "" {
+			return baseName, true
+		}
+	}
+	return "", false
 }
 
 func inferRelationLabelField(resource *Resource) string {
