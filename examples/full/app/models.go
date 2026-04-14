@@ -37,6 +37,11 @@ type Project struct {
 	Owner   User   `gorm:"foreignKey:OwnerID"                  json:"-"`
 }
 
+type userRole struct {
+	UserID uint `gorm:"column:user_id"`
+	RoleID uint `gorm:"column:role_id"`
+}
+
 func (u *User) AfterFind(*gorm.DB) error {
 	u.syncRoleIDs()
 	return nil
@@ -79,6 +84,9 @@ func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {
 	if user == nil {
 		return nil
 	}
+	if roleIDs == nil {
+		return nil
+	}
 	normalized := make([]uint, 0, len(roleIDs))
 	seen := make(map[uint]struct{}, len(roleIDs))
 	for _, id := range roleIDs {
@@ -92,7 +100,7 @@ func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {
 		normalized = append(normalized, id)
 	}
 	if len(normalized) == 0 {
-		if err := tx.Model(user).Association("Roles").Replace([]Role{}); err != nil {
+		if err := tx.Where("user_id = ?", user.ID).Delete(&userRole{}).Error; err != nil {
 			return err
 		}
 		user.Roles = nil
@@ -116,7 +124,14 @@ func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {
 		}
 		orderedRoles = append(orderedRoles, role)
 	}
-	if err := tx.Model(user).Association("Roles").Replace(orderedRoles); err != nil {
+	if err := tx.Where("user_id = ?", user.ID).Delete(&userRole{}).Error; err != nil {
+		return err
+	}
+	links := make([]userRole, 0, len(normalized))
+	for _, id := range normalized {
+		links = append(links, userRole{UserID: user.ID, RoleID: id})
+	}
+	if err := tx.Create(&links).Error; err != nil {
 		return err
 	}
 	user.Roles = orderedRoles

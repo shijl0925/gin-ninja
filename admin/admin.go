@@ -652,19 +652,12 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			}
 		}
 
-		updates, err := r.updateColumnsFor(view, values)
-		if err != nil {
-			return nil, err
-		}
-		if len(updates) > 0 {
-			// Build the candidate post-update state before issuing the write so
-			// duplicate-key normalization can inspect the values being saved.
-			desired := reflect.New(r.modelType).Elem()
-			desired.Set(reflect.ValueOf(model).Elem())
-			if err := r.applyValuesFor(view, desired, values); err != nil {
+		if len(values) > 0 {
+			if err := r.applyValuesFor(view, reflect.ValueOf(model).Elem(), values); err != nil {
 				return nil, err
 			}
-			if err := orm.WithContext(ctx.Context).Model(model).Updates(updates).Error; err != nil {
+			desired := reflect.ValueOf(model).Elem()
+			if err := orm.WithContext(ctx.Context).Save(model).Error; err != nil {
 				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), err)
 			}
 		}

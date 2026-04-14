@@ -30,6 +30,7 @@ type fieldMeta struct {
 	index             []int
 	fieldType         reflect.Type
 	timeField         bool
+	persisted         bool
 	componentExplicit bool
 	autoRelation      *autoRelationMeta
 }
@@ -196,6 +197,7 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 		index:             index,
 		fieldType:         fieldType,
 		timeField:         fieldType == reflect.TypeOf(time.Time{}),
+		persisted:         !hasTagFlag(gormTag, "-"),
 		componentExplicit: strings.TrimSpace(adminTag["component"]) != "",
 	}
 
@@ -209,6 +211,7 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 		meta.Meta.Enum = []any{true, false}
 	}
 	applyAdminTag(meta, adminTag)
+	meta.Meta.Required = isRequired(field, gormTag, meta.Meta.ReadOnly)
 	return meta
 }
 
