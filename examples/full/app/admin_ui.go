@@ -2729,11 +2729,12 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function searchPlaceholderLabels() {
-      const names = Array.isArray(state.meta?.search_fields) ? state.meta.search_fields : [];
+      const meta = state.meta || {};
+      const names = Array.isArray(meta.search_fields) ? meta.search_fields : [];
       if (!names.length) return [];
-      const labels = new Map((state.meta?.fields || []).map((field) => [field.name, field.label || field.name]));
+      const labelByFieldName = new Map((meta.fields || []).map((field) => [field.name, field.label || field.name]));
       return names
-        .map((name) => String(labels.get(name) || name).trim())
+        .map((name) => String(labelByFieldName.get(name) || name).trim())
         .filter(Boolean);
     }
 
