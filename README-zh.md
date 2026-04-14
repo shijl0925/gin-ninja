@@ -172,8 +172,69 @@ go run ./cmd/gin-ninja generate crud \
 - 在同一 package 下生成请求/响应结构和 CRUD handler
 - 生成 `Register<Model>CRUDRoutes(router)` 路由注册辅助函数
 - 对“部分更新”生成 `PATCH /:id` 路由，而不是用 `PUT` 表达部分更新语义
+- 可从模型字段的 `crud:"..."` tag 自动生成列表过滤 / 排序 / 关键字搜索输入
+- 可识别同一模型文件中的 belongs-to / has-many / many2many 关系，并生成 preload、relation input、relation output 骨架
+- 为生成的 handler 暴露 `BeforeCreate`、`BeforeUpdate`、`AfterLoad` hook 扩展点
 
 生成结果定位为“起步骨架”。落地时仍建议根据业务继续补充校验、权限、事务、查询条件和路由组织方式。
+
+### CRUD 生成器 tag 规则
+
+可以在模型字段上声明 `crud:"..."`，控制生成器产出的查询输入：
+
+```go
+type Project struct {
+    ID      uint   `json:"id"`
+    Name    string `json:"name" crud:"filter,sort,search"`
+    Status  string `json:"status" crud:"filter:like,sort,search"`
+    OwnerID uint   `json:"owner_id" crud:"filter,sort"`
+    Owner   User   `gorm:"foreignKey:OwnerID" json:"-"`
+    Tasks   []Task `gorm:"foreignKey:ProjectID" json:"-"`
+    Tags    []Tag  `gorm:"many2many:project_tags;" json:"-"`
+}
+```
+
+目前支持的生成指令：
+
+- `crud:"filter"`：生成 `filter:"column,eq"` 风格的列表过滤字段
+- `crud:"filter:like"`：生成 `filter:"column,like"` 风格的模糊过滤字段
+- `crud:"sort"`：把该字段加入生成的 `Sort string \`order:"..."\`` 白名单
+- `crud:"search"`：把该字段加入生成的关键字搜索
+
+生成出来的列表 handler 会自动接入：
+
+- `filter.BuildOptions(...)`
+- `order.ApplyOrder(...)`
+
+### 生成的关系字段支持
+
+当生成器能在同一个模型文件里解析到关联模型时，会自动补充 relation-aware 的 CRUD 骨架：
+
+- `belongs to`：生成嵌套 relation output，并在需要时生成标量 relation input
+- `has many` / `many2many`：生成嵌套 relation output，以及 `...IDs` 形式的 relation input
+- 生成的列表 / 详情加载会自动带上 `Preload(...)`
+- 自动生成关系同步 helper，减少 handler 中的关联处理样板代码
+
+例如，生成结果现在可以包含：
+
+- `Owner *ProjectOwnerOut`
+- `Tasks []ProjectTasksOut`
+- `TagsIDs []uint`
+- `syncProjectTagsRelations(...)`
+
+### 生成的 hook 扩展点
+
+每个模型的 CRUD 骨架现在都会暴露一组 hook：
+
+```go
+type ProjectCRUDHooks interface {
+    BeforeCreate(ctx *ninja.Context, in *CreateProjectInput, item *Project) error
+    BeforeUpdate(ctx *ninja.Context, in *UpdateProjectInput, item *Project, updates map[string]interface{}) error
+    AfterLoad(ctx *ninja.Context, item *Project) error
+}
+```
+
+可通过 `Set<Model>CRUDHooks(...)` 替换默认 no-op hook，而不必直接改生成出来的 handler 主流程。
 
 ## 核心 API
 

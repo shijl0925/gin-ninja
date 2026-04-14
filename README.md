@@ -206,8 +206,65 @@ The generator:
 - creates request/response schemas and CRUD handlers in the same package
 - generates a `Register<Model>CRUDRoutes(router)` helper for route registration
 - uses `PATCH /:id` for generated partial-update handlers instead of advertising partial updates as `PUT`
+- can generate list filter / sort / keyword-search inputs from model `crud:"..."` tags
+- can detect same-file belongs-to / has-many / many-to-many relations and generate preload, relation input, and relation output scaffolding
+- generates `BeforeCreate`, `BeforeUpdate`, and `AfterLoad` hook extension points for the scaffolded handlers
 
 Generated code is intended as a starting point. Review the scaffold and adjust validation, persistence rules, permissions, and router composition for your application.
+
+### CRUD generator tags
+
+Use the `crud:"..."` tag on model fields to opt into generated query inputs:
+
+```go
+type Project struct {
+    ID      uint   `json:"id"`
+    Name    string `json:"name" crud:"filter,sort,search"`
+    Status  string `json:"status" crud:"filter:like,sort,search"`
+    OwnerID uint   `json:"owner_id" crud:"filter,sort"`
+    Owner   User   `gorm:"foreignKey:OwnerID" json:"-"`
+    Tasks   []Task `gorm:"foreignKey:ProjectID" json:"-"`
+    Tags    []Tag  `gorm:"many2many:project_tags;" json:"-"`
+}
+```
+
+Supported generator directives:
+
+- `crud:"filter"` → adds a generated list field with `filter:"column,eq"`
+- `crud:"filter:like"` → adds a generated list field with `filter:"column,like"`
+- `crud:"sort"` → includes the field in generated `Sort string \`order:"..."\``
+- `crud:"search"` → includes the field in generated keyword search
+
+The generated list handler wires these into `filter.BuildOptions(...)` and `order.ApplyOrder(...)` automatically.
+
+### Generated relation support
+
+When the generator can resolve related models from the same model file, it now scaffolds relation-aware CRUD output and loading:
+
+- `belongs to` → generates nested relation output plus scalar relation input when needed
+- `has many` / `many2many` → generates nested relation output plus `...IDs` input fields
+- generated list/detail loads automatically include `Preload(...)`
+- generated relation helpers keep association syncing logic out of the handler body
+
+For example, a generated scaffold can now emit:
+
+- nested response fields such as `Owner *ProjectOwnerOut`, `Tasks []ProjectTasksOut`
+- relation inputs such as `TagsIDs []uint`
+- association helpers such as `syncProjectTagsRelations(...)`
+
+### Generated hook extension points
+
+Each generated scaffold now exposes per-model hooks:
+
+```go
+type ProjectCRUDHooks interface {
+    BeforeCreate(ctx *ninja.Context, in *CreateProjectInput, item *Project) error
+    BeforeUpdate(ctx *ninja.Context, in *UpdateProjectInput, item *Project, updates map[string]interface{}) error
+    AfterLoad(ctx *ninja.Context, item *Project) error
+}
+```
+
+Use `Set<Model>CRUDHooks(...)` to replace the default no-op hooks without editing the generated handler flow directly.
 
 ---
 
