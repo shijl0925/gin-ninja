@@ -658,7 +658,7 @@ func (r *Resource) softDeleteField() *fieldMeta {
 		if field == nil {
 			continue
 		}
-		if field.Meta.Name == "deletedAt" || field.fieldType == reflect.TypeOf(gorm.DeletedAt{}) {
+		if field.fieldType == reflect.TypeOf(gorm.DeletedAt{}) {
 			return field
 		}
 	}
