@@ -204,23 +204,6 @@ const adminPrototypeHTML = `<!doctype html>
       font-weight:400;
     }
     .topbar-link:hover { background:#f4f6f9; color:#212529; }
-    .topbar-link-icon {
-      display:grid;
-      place-items:center;
-      width:16px;
-      height:16px;
-      flex-shrink:0;
-      color:#6c757d;
-    }
-    .topbar-link-icon svg {
-      width:100%;
-      height:100%;
-      stroke:currentColor;
-      stroke-width:1.8;
-      fill:none;
-      stroke-linecap:round;
-      stroke-linejoin:round;
-    }
     .brand-mark {
       width:38px;
       height:38px;
@@ -343,12 +326,13 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-search-expand.open { display:block; }
     .topbar-search-expand input {
       width:100%;
-      border-radius:0.35rem 0.35rem 0 0;
+      border-radius:0.35rem;
       border:1px solid var(--admin-border);
       padding:8px 14px;
       font-size:14px;
       box-shadow:0 2px 8px rgba(0,0,0,0.10);
     }
+    .topbar-search-expand.has-results input { border-radius:0.35rem 0.35rem 0 0; }
     .topbar-search-results {
       display:none;
       background:var(--admin-surface);
@@ -1359,7 +1343,6 @@ const adminPrototypeHTML = `<!doctype html>
     }
     [data-theme="dark"] .workspace-actions { background:var(--admin-surface); }
     [data-theme="dark"] .workspace-actions-copy strong { color:var(--admin-text); }
-    [data-theme="dark"] .topbar-link-icon,
     [data-theme="dark"] .content-header-breadcrumb { color:var(--admin-muted); }
     [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
     [data-theme="dark"] .dashboard-tile.small-box {
@@ -1472,12 +1455,7 @@ const adminPrototypeHTML = `<!doctype html>
     <div class="topbar-left">
       <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
       <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link nav-link" href="/admin">
-          <span class="topbar-link-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.5 7.25 8 2.75l5.5 4.5"/><path d="M4.25 6.25v6h7.5v-6"/><path d="M6.5 12.25v-3h3v3"/></svg>
-          </span>
-          <span>Home</span>
-        </a>
+        <a class="topbar-link nav-link" href="/admin"><span>Home</span></a>
       </nav>
       <div class="topbar-brand brand-link">
         <span class="brand-mark">A</span>
@@ -2044,6 +2022,8 @@ const adminPrototypeHTML = `<!doctype html>
     let globalSearchTimer = null;
 
     function closeGlobalSearch() {
+      const expandEl = document.getElementById('topbarSearchExpand');
+      if (expandEl) expandEl.classList.remove('has-results');
       if (els.topbarSearchResults) {
         els.topbarSearchResults.classList.remove('has-results');
         els.topbarSearchResults.innerHTML = '';
@@ -2087,6 +2067,8 @@ const adminPrototypeHTML = `<!doctype html>
       if (noResults) {
         els.topbarSearchResults.innerHTML = '<div class="search-results-empty">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
         els.topbarSearchResults.classList.add('has-results');
+        const expandEl = document.getElementById('topbarSearchExpand');
+        if (expandEl) expandEl.classList.add('has-results');
         return;
       }
 
@@ -2136,6 +2118,8 @@ const adminPrototypeHTML = `<!doctype html>
 
       if (els.topbarSearchResults.children.length) {
         els.topbarSearchResults.classList.add('has-results');
+        const expandEl = document.getElementById('topbarSearchExpand');
+        if (expandEl) expandEl.classList.add('has-results');
       }
     }
 
@@ -2554,7 +2538,7 @@ const adminPrototypeHTML = `<!doctype html>
           : 'No resources available.';
         els.resources.appendChild(li);
       }
-      matches.forEach((resource) => {
+      matches.forEach((resource, index) => {
         const li = document.createElement('li');
         const button = document.createElement('button');
         const icon = document.createElement('span');
@@ -2565,7 +2549,7 @@ const adminPrototypeHTML = `<!doctype html>
         button.classList.add('d-flex', 'align-items-center');
         icon.className = 'nav-link-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3.5 3.5h9v9h-9z"/><path d="M6 6h4"/><path d="M6 8h4"/><path d="M6 10h2"/></svg>';
+        icon.innerHTML = dashboardTileMeta(resource, index).icon;
         label.className = 'nav-link-label';
         label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
         button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
@@ -2755,36 +2739,50 @@ const adminPrototypeHTML = `<!doctype html>
       if (active) els.list.innerHTML = '';
     }
 
+    function resourceIcon(name) {
+      const byName = {
+        users: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+        },
+        roles: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+        },
+        projects: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+        }
+      };
+      const normalizedName = String(name || '').toLowerCase();
+      return (byName[normalizedName] || {
+        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
+      }).icon;
+    }
+
     function dashboardTileMeta(resource, index) {
       const palette = ['#007bff', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
       const byName = {
         users: {
           badge: 'Core access',
-          description: 'Open the user workspace to review profiles, roles, and sign-in ready records.',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+          description: 'Open the user workspace to review profiles, roles, and sign-in ready records.'
         },
         roles: {
           badge: 'Permissions',
-          description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+          description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.'
         },
         projects: {
           badge: 'Delivery',
-          description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.',
-          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+          description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.'
         }
       };
       const normalizedName = String(resource?.name || '').toLowerCase();
       const meta = byName[normalizedName] || {
         badge: 'Workspace',
-        description: 'Open this admin resource to review records, filters, and available actions.',
-        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
+        description: 'Open this admin resource to review records, filters, and available actions.'
       };
       return {
         accent: palette[index % palette.length],
         badge: meta.badge,
         description: meta.description,
-        icon: meta.icon
+        icon: resourceIcon(resource?.name)
       };
     }
 
