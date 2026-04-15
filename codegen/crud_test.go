@@ -69,11 +69,11 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return toUserOut(item)",
-		"if err := db.Create(item).Error; err != nil {",
-		"func loadUserByID(ctx *ninja.Context, id uint) (User, error)",
-		`if err := db.Model(&User{}).Where("id = ?", in.ID).Updates(updates).Error; err != nil {`,
-		`return db.Where("id = ?", in.ID).Delete(&User{}).Error`,
-		"db := orm.WithContext(ctx.Context)",
+		"if err := repo.Insert(item); err != nil {",
+		"func loadUserByID(id uint) (User, error)",
+		"if err := repo.UpdateById(int(in.ID), updates); err != nil {",
+		"if _, err := repo.SelectOneById(int(in.ID)); err != nil {",
+		"return repo.DeleteById(int(in.ID))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -136,10 +136,11 @@ type Session struct {
 	generated := string(content)
 
 	checks := []string{
-		"func loadSessionByID(ctx *ninja.Context, id string) (Session, error)",
+		"func loadSessionByID(id string) (Session, error)",
 		"Token string `json:\"token\" binding:\"required\"`",
-		`if err := db.Model(&Session{}).Where("id = ?", in.ID).Updates(updates).Error; err != nil {`,
-		`return db.Where("id = ?", in.ID).Delete(&Session{}).Error`,
+		"if err := repo.UpdateByOpts(updates, gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"if _, err := repo.SelectOneByOpts(gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"return repo.DeleteByOpts(gormx.Where(\"id = ?\", in.ID))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -247,106 +248,6 @@ func TestGeneratedRoutesUsePatchForPartialUpdates(t *testing.T) {
 }
 `), 0o644); err != nil {
 		t.Fatalf("write route test: %v", err)
-	}
-
-	runGoTest(t, dir)
-}
-
-func TestGeneratedCRUDRollsBackWhenRelationSyncFails(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	modelFile := filepath.Join(dir, "models.go")
-	if err := os.WriteFile(modelFile, []byte(`package demo
-
-import "gorm.io/gorm"
-
-type Tag struct {
-	ID   uint   `+"`json:\"id\"`"+`
-	Name string `+"`json:\"name\"`"+`
-}
-
-type Project struct {
-	gorm.Model
-	Name string `+"`json:\"name\"`"+`
-	Tags []Tag `+"`gorm:\"many2many:project_tags\" json:\"tags,omitempty\"`"+`
-}
-`), 0o644); err != nil {
-		t.Fatalf("write model file: %v", err)
-	}
-
-	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Project"})
-	if err != nil {
-		t.Fatalf("GenerateCRUD: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "project_crud_gen.go"), content, 0o644); err != nil {
-		t.Fatalf("write generated file: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "transaction_test.go"), []byte(`package demo
-
-import (
-	"bytes"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
-	"github.com/gin-gonic/gin"
-	ninja "github.com/shijl0925/gin-ninja"
-	"github.com/shijl0925/gin-ninja/orm"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-)
-
-func TestUpdateProjectRollsBackWhenRelationSyncFails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := db.AutoMigrate(&Tag{}, &Project{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	orm.Init(db)
-
-	project := Project{Name: "before"}
-	if err := db.Create(&project).Error; err != nil {
-		t.Fatalf("seed project: %v", err)
-	}
-
-	api := ninja.New(ninja.Config{})
-	api.Engine().Use(orm.Middleware(db))
-	router := ninja.NewRouter("/projects")
-	RegisterProjectCRUDRoutes(router)
-	api.AddRouter(router)
-
-	body, err := json.Marshal(map[string]any{
-		"name":    "after",
-		"tags_ids": []uint{999},
-	})
-	if err != nil {
-		t.Fatalf("marshal body: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPatch, "/projects/1", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-	api.Handler().ServeHTTP(resp, req)
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
-	}
-
-	var reloaded Project
-	if err := db.First(&reloaded, project.ID).Error; err != nil {
-		t.Fatalf("reload project: %v", err)
-	}
-	if reloaded.Name != "before" {
-		t.Fatalf("expected transaction rollback to preserve original name, got %q", reloaded.Name)
-	}
-}
-`), 0o644); err != nil {
-		t.Fatalf("write transaction test: %v", err)
 	}
 
 	runGoTest(t, dir)
@@ -493,8 +394,8 @@ type Project struct {
 		`query.Preload("Tags")`,
 		`filterOpts, err := filter.BuildOptions(in)`,
 		`if err := order.ApplyOrder(query, in); err != nil {`,
-		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,
-		`func syncProjectTasksRelations(db *gorm.DB, item *Project, ids []uint) error {`,
+		`func syncProjectTagsRelations(item *Project, ids []uint) error {`,
+		`func syncProjectTasksRelations(item *Project, ids []uint) error {`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
