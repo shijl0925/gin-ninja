@@ -90,6 +90,12 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	fs.SetOutput(stderr)
 	module := fs.String("module", "", "Go module path for the generated project")
 	output := fs.String("output", "", "Output directory (defaults to the project name)")
+	appDir := fs.String("app-dir", "", "Relative app package directory inside the generated project (default: app)")
+	templateName := fs.String("template", string(codegen.ScaffoldTemplateMinimal), "Scaffold template: minimal, standard, auth, admin")
+	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
+	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
+	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -120,8 +126,14 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	}
 
 	if err := codegen.WriteProjectScaffold(codegen.ProjectScaffoldConfig{
-		Name:   name,
-		Module: mod,
+		Name:      name,
+		Module:    mod,
+		AppDir:    strings.TrimSpace(*appDir),
+		Template:  strings.TrimSpace(*templateName),
+		WithTests: *withTests,
+		WithAuth:  *withAuth,
+		WithAdmin: *withAdmin,
+		Force:     *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
 		return 1
@@ -138,6 +150,11 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	output := fs.String("output", "", "Output directory (defaults to the app name)")
 	packageName := fs.String("package", "", "Override the generated Go package name")
 	modelName := fs.String("model", "", "Override the generated model name")
+	templateName := fs.String("template", string(codegen.ScaffoldTemplateMinimal), "Scaffold template: minimal, standard, auth, admin")
+	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
+	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
+	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -167,6 +184,11 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		Name:        name,
 		PackageName: strings.TrimSpace(*packageName),
 		ModelName:   strings.TrimSpace(*modelName),
+		Template:    strings.TrimSpace(*templateName),
+		WithTests:   *withTests,
+		WithAuth:    *withAuth,
+		WithAdmin:   *withAdmin,
+		Force:       *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
 		return 1
@@ -184,8 +206,8 @@ func consumeLeadingName(args []string) (string, []string) {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja startproject <name> [-module <module>] [-output <path>]")
-	fmt.Fprintln(w, "  gin-ninja startapp <name> [-output <path>] [-package <name>] [-model <name>]")
+	fmt.Fprintln(w, "  gin-ninja startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--force]")
+	fmt.Fprintln(w, "  gin-ninja startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--force]")
 	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>]")
 }
 

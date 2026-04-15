@@ -89,6 +89,43 @@ func TestRunStartProject(t *testing.T) {
 	}
 }
 
+func TestRunStartProjectStandardTemplate(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"mysite",
+		"-module", "github.com/acme/mysite",
+		"-output", outputDir,
+		"-template", "admin",
+		"-app-dir", "internal/app",
+		"-with-tests",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, path := range []string{
+		filepath.Join(outputDir, "cmd", "server", "main.go"),
+		filepath.Join(outputDir, "internal", "server", "server.go"),
+		filepath.Join(outputDir, "bootstrap", "db.go"),
+		filepath.Join(outputDir, "settings", "config.local.yaml.example"),
+		filepath.Join(outputDir, "internal", "app", "services.go"),
+		filepath.Join(outputDir, "internal", "app", "auth.go"),
+		filepath.Join(outputDir, "internal", "app", "admin.go"),
+		filepath.Join(outputDir, "internal", "app", "scaffold_test.go"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
+	}
+}
+
 func TestRunStartApp(t *testing.T) {
 	t.Parallel()
 
@@ -116,5 +153,41 @@ func TestRunStartApp(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), outputDir) {
 		t.Fatalf("stdout missing scaffold path: %s", stdout.String())
+	}
+}
+
+func TestRunStartAppWithForceAndTemplate(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "blog")
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, "keep.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatalf("write keep.txt: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startapp",
+		"blog",
+		"-output", outputDir,
+		"-package", "blog",
+		"-model", "Post",
+		"-template", "auth",
+		"-with-tests",
+		"-force",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, file := range []string{"services.go", "errors.go", "auth.go", "scaffold_test.go"} {
+		path := filepath.Join(outputDir, file)
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
 	}
 }

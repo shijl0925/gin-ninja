@@ -197,6 +197,14 @@ gin-ninja also includes Django-style bootstrap commands for quickly creating a r
 go run ./cmd/gin-ninja startproject mysite -module github.com/acme/mysite
 cd mysite
 go run ./cmd/gin-ninja startapp blog
+
+# richer templates / optional features
+go run ./cmd/gin-ninja startproject mysite \
+  -module github.com/acme/mysite \
+  -template admin \
+  -app-dir internal/app \
+  -with-tests
+go run ./cmd/gin-ninja startapp accounts -template auth -with-tests
 ```
 
 `startproject` creates a new directory with:
@@ -210,7 +218,40 @@ go run ./cmd/gin-ninja startapp blog
 - `app/apis.go`
 - `app/routers.go`
 
-`startapp` creates a new app package directory with the same five template files so you can quickly expand a project with consistent model / repo / schema / API / router scaffolding.
+When you opt into `-template standard`, `-template auth`, `-template admin`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
+
+- `cmd/server/main.go`
+- `internal/server/server.go`
+- `bootstrap/db.go`
+- `bootstrap/logger.go`
+- `bootstrap/cache.go`
+- `settings/config.local.yaml.example`
+- `settings/config.prod.yaml.example`
+- `.env.example`
+- `Makefile`
+- `Dockerfile`
+- `docker-compose.yml`
+- `README.md`
+- `migrations/.gitkeep`
+- `scripts/.gitkeep`
+
+`startapp` creates a new app package directory with the same core CRUD files, and richer templates can additionally generate:
+
+- `services.go`
+- `errors.go`
+- `scaffold_test.go`
+- `auth.go`
+- `admin.go`
+- `permissions.go`
+
+Useful scaffold flags:
+
+- `-template minimal|standard|auth|admin`
+- `-with-tests`
+- `-with-auth`
+- `-with-admin`
+- `-app-dir <path>` (`startproject` only)
+- `-force`
 
 The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
 
