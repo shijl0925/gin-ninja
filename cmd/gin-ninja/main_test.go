@@ -50,3 +50,71 @@ func TestRunGenerateCRUDRequiresFlags(t *testing.T) {
 		t.Fatalf("unexpected stderr: %s", stderr.String())
 	}
 }
+
+func TestRunStartProject(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"mysite",
+		"-module", "github.com/acme/mysite",
+		"-output", outputDir,
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	checks := []string{
+		filepath.Join(outputDir, "go.mod"),
+		filepath.Join(outputDir, "main.go"),
+		filepath.Join(outputDir, "config.yaml"),
+		filepath.Join(outputDir, "app", "models.go"),
+		filepath.Join(outputDir, "app", "repos.go"),
+		filepath.Join(outputDir, "app", "schemas.go"),
+		filepath.Join(outputDir, "app", "apis.go"),
+		filepath.Join(outputDir, "app", "routers.go"),
+	}
+	for _, path := range checks {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
+	}
+	if !strings.Contains(stdout.String(), outputDir) {
+		t.Fatalf("stdout missing scaffold path: %s", stdout.String())
+	}
+}
+
+func TestRunStartApp(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "blog")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startapp",
+		"blog",
+		"-output", outputDir,
+		"-package", "blog",
+		"-model", "Post",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, file := range []string{"models.go", "repos.go", "schemas.go", "apis.go", "routers.go"} {
+		path := filepath.Join(outputDir, file)
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
+	}
+	if !strings.Contains(stdout.String(), outputDir) {
+		t.Fatalf("stdout missing scaffold path: %s", stdout.String())
+	}
+}

@@ -189,6 +189,33 @@ Visit `http://localhost:8080/docs` for the Swagger UI.
 
 ---
 
+## Project / App Scaffold Commands
+
+gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
+
+```bash
+go run ./cmd/gin-ninja startproject mysite -module github.com/acme/mysite
+cd mysite
+go run ./cmd/gin-ninja startapp blog
+```
+
+`startproject` creates a new directory with:
+
+- `go.mod`
+- `main.go`
+- `config.yaml`
+- `app/models.go`
+- `app/repos.go`
+- `app/schemas.go`
+- `app/apis.go`
+- `app/routers.go`
+
+`startapp` creates a new app package directory with the same five template files so you can quickly expand a project with consistent model / repo / schema / API / router scaffolding.
+
+The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
+
+---
+
 ## CRUD Scaffold Generator
 
 gin-ninja now includes a small scaffolding CLI for generating model-based CRUD boilerplate.
