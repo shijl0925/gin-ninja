@@ -8,6 +8,7 @@ import (
 	"github.com/shijl0925/gin-ninja/filter"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/order"
+	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/go-toolkits/gormx"
 	"golang.org/x/crypto/bcrypt"
@@ -18,13 +19,21 @@ import (
 // Auth
 // ---------------------------------------------------------------------------
 
+func userDB(ctx *ninja.Context) *gorm.DB {
+	if ctx != nil && ctx.Context != nil {
+		return orm.WithContext(ctx.Context)
+	}
+	return gormx.GetDb()
+}
+
 // Login validates credentials and returns a signed JWT token.
 func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
+	db := userDB(ctx)
 	repo := NewUserRepo()
 
 	query, u := gormx.NewQuery[User]()
 	query.Eq(&u.Email, in.Email)
-	user, err := repo.SelectOneByOpts(query.ToOptions()...)
+	user, err := repo.SelectOneByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, query.ToOptions()...)...)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NewErrorWithCode(401, "INVALID_CREDENTIALS", "invalid email or password")
@@ -51,11 +60,12 @@ func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
 
 // Register creates a new user account without requiring authentication.
 func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
+	db := userDB(ctx)
 	repo := NewUserRepo()
 
 	query, u := gormx.NewQuery[User]()
 	query.Eq(&u.Email, in.Email)
-	_, err := repo.SelectOneByOpts(query.ToOptions()...)
+	_, err := repo.SelectOneByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, query.ToOptions()...)...)
 	switch {
 	case err == nil:
 		return nil, ninja.NewErrorWithCode(409, "EMAIL_ALREADY_EXISTS", "email already registered")
@@ -63,7 +73,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 		return nil, err
 	}
 
-	return createUser(repo, in.Name, in.Email, in.Password, in.Age)
+	return createUser(repo, db, in.Name, in.Email, in.Password, in.Age)
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +82,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 
 // ListUsers returns a paginated list of users.
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+	db := userDB(ctx)
 	repo := NewUserRepo()
 	query, _ := gormx.NewQuery[User]()
 
@@ -83,7 +94,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
 
-	opts := append(filterOpts, query.ToOptions()...)
+	opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)
 	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
 	if err != nil {
 		return nil, err
@@ -102,8 +113,9 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 // GetUser retrieves a single user by ID.
 func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
+	db := userDB(ctx)
 	repo := NewUserRepo()
-	u, err := repo.SelectOneById(int(in.UserID))
+	u, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -115,14 +127,16 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 
 // CreateUser creates a new user.
 func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
+	db := userDB(ctx)
 	repo := NewUserRepo()
-	return createUser(repo, in.Name, in.Email, in.Password, in.Age)
+	return createUser(repo, db, in.Name, in.Email, in.Password, in.Age)
 }
 
 // UpdateUser updates an existing user's fields.
 func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
+	db := userDB(ctx)
 	repo := NewUserRepo()
-	_, err := repo.SelectOneById(int(in.UserID))
+	_, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -141,19 +155,26 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 		updates["age"] = in.Age
 	}
 	if len(updates) > 0 {
-		if err := repo.UpdateById(int(in.UserID), updates); err != nil {
+		if err := repo.UpdateById(int(in.UserID), updates, gormx.UseDB(db)); err != nil {
 			return nil, err
 		}
 	}
 
-	u, _ := repo.SelectOneById(int(in.UserID))
+	u, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
+	}
 	return toUserOut(u)
 }
 
 // DeleteUser removes a user by ID.
 func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
+	db := userDB(ctx)
 	repo := NewUserRepo()
-	if err := repo.DeleteById(int(in.UserID)); err != nil {
+	if err := repo.DeleteById(int(in.UserID), gormx.UseDB(db)); err != nil {
 		return err
 	}
 	return nil
@@ -179,14 +200,14 @@ func checkPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-func createUser(repo IUserRepo, name, email, password string, age int) (*UserOut, error) {
+func createUser(repo IUserRepo, db *gorm.DB, name, email, password string, age int) (*UserOut, error) {
 	u := &User{
 		Name:     name,
 		Email:    email,
 		Password: hashPassword(password),
 		Age:      age,
 	}
-	if err := repo.Insert(u); err != nil {
+	if err := repo.Insert(u, gormx.UseDB(db)); err != nil {
 		return nil, err
 	}
 	return toUserOut(*u)

@@ -273,7 +273,7 @@ func addAuthRoutes(api *ninja.NinjaAPI) {
 		ninja.WithTagDescription("Auth", "Authentication endpoints for login and registration"),
 		ninja.WithVersion("v1"),
 	)
-	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"))
+	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"), ninja.WithTransaction())
 	ninja.Post(authRouter, "/login", app.Login, ninja.Summary("Login and get JWT token"))
 	api.AddRouter(authRouter)
 }
