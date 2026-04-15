@@ -24,6 +24,11 @@ type CRUDConfig struct {
 	Model       string
 	PackageName string
 	Tag         string
+	WithGormX   *bool
+}
+
+func (c CRUDConfig) useGormX() bool {
+	return c.WithGormX == nil || *c.WithGormX
 }
 
 // WriteCRUDFile generates a CRUD scaffold file for the configured model.
@@ -85,6 +90,7 @@ type modelSpec struct {
 	repoImplName   string
 	toOutFuncName  string
 	useByIDMethods bool
+	useGormX       bool
 }
 
 type fieldSpec struct {
@@ -194,6 +200,7 @@ type templateData struct {
 	RepoImplName      string
 	ToOutFuncName     string
 	UseByIDMethods    bool
+	UseGormX          bool
 }
 
 func buildTemplateData(model modelSpec) templateData {
@@ -220,6 +227,7 @@ func buildTemplateData(model modelSpec) templateData {
 		RepoImplName:      model.repoImplName,
 		ToOutFuncName:     model.toOutFuncName,
 		UseByIDMethods:    model.useByIDMethods,
+		UseGormX:          model.useGormX,
 	}
 }
 
@@ -425,13 +433,16 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		return modelSpec{}, fmt.Errorf("belongs-to relation %q on model %q requires exported foreign key field %q", relation.FieldName, cfg.Model, relation.InputName)
 	}
 
+	useGormX := cfg.useGormX()
 	imports := []importSpec{
 		{Alias: "", Path: "errors"},
 		{Alias: "ninja", Path: "github.com/shijl0925/gin-ninja"},
 		{Alias: "", Path: "github.com/shijl0925/gin-ninja/orm"},
 		{Alias: "", Path: "github.com/shijl0925/gin-ninja/pagination"},
-		{Alias: "", Path: "github.com/shijl0925/go-toolkits/gormx"},
 		{Alias: "", Path: "gorm.io/gorm"},
+	}
+	if useGormX {
+		imports = append(imports, importSpec{Alias: "", Path: "github.com/shijl0925/go-toolkits/gormx"})
 	}
 	if len(listFields) > 0 || len(searchFields) > 0 {
 		imports = append(imports, importSpec{Alias: "", Path: "github.com/shijl0925/gin-ninja/filter"})
@@ -439,7 +450,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	if len(sortFields) > 0 {
 		imports = append(imports, importSpec{Alias: "", Path: "github.com/shijl0925/gin-ninja/order"})
 	}
-	if needsFmtImport(relations) {
+	if needsFmtImport(relations, useGormX, len(listFields) > 0 || len(searchFields) > 0) {
 		imports = append(imports, importSpec{Alias: "", Path: "fmt"})
 	}
 	imports = append(imports, collector.list()...)
@@ -475,6 +486,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		repoImplName:   lowerCamel(cfg.Model) + "Repo",
 		toOutFuncName:  "to" + cfg.Model + "Out",
 		useByIDMethods: isIntConvertibleIDType(idTypeExpr),
+		useGormX:       useGormX,
 	}, nil
 }
 
@@ -760,7 +772,10 @@ func containsRelationOut(values []relationOutSpec, typeName string) bool {
 	return false
 }
 
-func needsFmtImport(relations []relationSpec) bool {
+func needsFmtImport(relations []relationSpec, useGormX bool, hasFilters bool) bool {
+	if !useGormX && hasFilters {
+		return true
+	}
 	for _, relation := range relations {
 		if relation.Collection || relation.UseAssociationInput {
 			return true
@@ -1232,6 +1247,7 @@ type {{ .TypeName }} struct {
 }
 {{ end }}
 
+{{- if .UseGormX }}
 // {{ .RepoIfaceName }} exposes the generated gormx repository contract for {{ .ModelName }}.
 type {{ .RepoIfaceName }} interface {
 	gormx.IBaseRepo[{{ .ModelName }}]
@@ -1245,6 +1261,7 @@ type {{ .RepoImplName }} struct {
 func New{{ .ModelName }}Repo() {{ .RepoIfaceName }} {
 	return &{{ .RepoImplName }}{}
 }
+{{- end }}
 
 // {{ .ToOutFuncName }} converts a {{ .SingularLabel }} model to the generated response schema.
 func {{ .ToOutFuncName }}(item {{ .ModelName }}) (*{{ .ModelName }}Out, error) {
@@ -1348,8 +1365,9 @@ ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .S
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
 func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}Out], error) {
-db := orm.WithContext(ctx.Context)
-repo := New{{ .ModelName }}Repo()
+	db := orm.WithContext(ctx.Context)
+{{- if .UseGormX }}
+	repo := New{{ .ModelName }}Repo()
 query, _ := gormx.NewQuery[{{ .ModelName }}]()
 {{- range .Relations }}
 query.Preload("{{ .Preload }}")
@@ -1372,7 +1390,33 @@ items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
 if err != nil {
 return nil, err
 }
-
+{{- else }}
+	query := db.Model(&{{ .ModelName }}{})
+{{- range .Relations }}
+	query = query.Preload("{{ .Preload }}")
+{{- end }}
+{{- if or .ListFields .SearchFields }}
+	query, err := apply{{ .ModelName }}Filters(query, in)
+	if err != nil {
+		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+	}
+{{- end }}
+	countQuery := query.Session(&gorm.Session{})
+{{- if .SortFields }}
+	query, err = apply{{ .ModelName }}Sort(query, in)
+	if err != nil {
+		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+	}
+{{- end }}
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, err
+	}
+	var items []{{ .ModelName }}
+	if err := query.Limit(in.GetSize()).Offset(in.Offset()).Find(&items).Error; err != nil {
+		return nil, err
+	}
+{{- end }}
 out := make([]{{ .ModelName }}Out, len(items))
 for i, item := range items {
 bound, err := {{ .ToOutFuncName }}(item)
@@ -1383,6 +1427,91 @@ out[i] = *bound
 }
 return pagination.NewPage(out, total, in.PageInput), nil
 }
+
+{{- if and (not .UseGormX) (or .ListFields .SearchFields) }}
+func apply{{ .ModelName }}Filters(db *gorm.DB, input any) (*gorm.DB, error) {
+	clauses, err := filter.Parse(input)
+	if err != nil {
+		return nil, err
+	}
+	for _, clause := range clauses {
+		db, err = apply{{ .ModelName }}FilterClause(db, clause)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return db, nil
+}
+
+func apply{{ .ModelName }}FilterClause(db *gorm.DB, clause filter.Clause) (*gorm.DB, error) {
+	fields := clause.Fields
+	if len(fields) == 0 && clause.Field != "" {
+		fields = []string{clause.Field}
+	}
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("filter clause is missing fields")
+	}
+	expr, args, err := {{ .RepoImplName }}FilterExpr(fields[0], clause.Op, clause.Value)
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) == 1 {
+		return db.Where(expr, args...), nil
+	}
+	if clause.Combiner != filter.CombinerOr {
+		return nil, fmt.Errorf("unsupported filter combiner %q", clause.Combiner)
+	}
+	orQuery := db.Session(&gorm.Session{NewDB: true}).Where(expr, args...)
+	for _, field := range fields[1:] {
+		expr, args, err := {{ .RepoImplName }}FilterExpr(field, clause.Op, clause.Value)
+		if err != nil {
+			return nil, err
+		}
+		orQuery = orQuery.Or(expr, args...)
+	}
+	return db.Where(orQuery), nil
+}
+
+func {{ .RepoImplName }}FilterExpr(field string, op filter.Operator, value any) (string, []any, error) {
+	switch op {
+	case filter.OpEq:
+		return field + " = ?", []any{value}, nil
+	case filter.OpNe:
+		return field + " <> ?", []any{value}, nil
+	case filter.OpGt:
+		return field + " > ?", []any{value}, nil
+	case filter.OpGe:
+		return field + " >= ?", []any{value}, nil
+	case filter.OpLt:
+		return field + " < ?", []any{value}, nil
+	case filter.OpLe:
+		return field + " <= ?", []any{value}, nil
+	case filter.OpLike:
+		return field + " LIKE ?", []any{"%" + fmt.Sprint(value) + "%"}, nil
+	case filter.OpIn:
+		return field + " IN ?", []any{value}, nil
+	default:
+		return "", nil, fmt.Errorf("unsupported filter operator %q", op)
+	}
+}
+{{- end }}
+
+{{- if and (not .UseGormX) .SortFields }}
+func apply{{ .ModelName }}Sort(db *gorm.DB, input any) (*gorm.DB, error) {
+	fields, err := order.ResolveOrder(input)
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range fields {
+		if field.Desc {
+			db = db.Order(field.Name + " DESC")
+			continue
+		}
+		db = db.Order(field.Name + " ASC")
+	}
+	return db, nil
+}
+{{- end }}
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
 func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
@@ -1399,12 +1528,18 @@ return {{ .ToOutFuncName }}(item)
 // Create{{ .ModelName }} inserts a new {{ .SingularLabel }} record.
 func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 	db := orm.WithContext(ctx.Context)
+{{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
+{{- end }}
 	item := &{{ .ModelName }}{}
 {{ range .CreateFields }}
 	item.{{ .Name }} = in.{{ .Name }}
 {{ end }}
+{{- if .UseGormX }}
 	if err := repo.Insert(item, gormx.UseDB(db)); err != nil {
+{{- else }}
+	if err := db.Create(item).Error; err != nil {
+{{- end }}
 		return nil, err
 	}
 {{- range .Relations }}
@@ -1435,7 +1570,6 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 // Update{{ .ModelName }} partially updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 db := orm.WithContext(ctx.Context)
-repo := New{{ .ModelName }}Repo()
 item, err := load{{ .ModelName }}ByID(db, in.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1450,10 +1584,15 @@ item, err := load{{ .ModelName }}ByID(db, in.ID)
 	}
 {{ end }}
 	if len(updates) > 0 {
+{{ if .UseGormX }}
+		repo := New{{ .ModelName }}Repo()
 {{ if .UseByIDMethods }}
 		if err := repo.UpdateById(int(in.ID), updates, gormx.UseDB(db)); err != nil {
 {{ else }}
 		if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
+{{ end }}
+{{ else }}
+		if err := db.Model(&{{ .ModelName }}{}).Where("{{ .IDColumn }} = ?", in.ID).Updates(updates).Error; err != nil {
 {{ end }}
 			return nil, err
 		}
@@ -1503,6 +1642,7 @@ return {{ .ToOutFuncName }}(item)
 }
 
 func load{{ .ModelName }}ByID(db *gorm.DB, id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
+{{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
 	opts := []gormx.DBOption{
 		gormx.UseDB(db),
@@ -1514,6 +1654,17 @@ func load{{ .ModelName }}ByID(db *gorm.DB, id {{ .IDTypeExpr }}) ({{ .ModelName 
 	})
 {{- end }}
 	return repo.SelectOneByOpts(opts...)
+{{- else }}
+	var item {{ .ModelName }}
+	query := db.Model(&{{ .ModelName }}{})
+{{- range .Relations }}
+	query = query.Preload("{{ .Preload }}")
+{{- end }}
+	if err := query.Where("{{ .IDColumn }} = ?", id).First(&item).Error; err != nil {
+		return {{ .ModelName }}{}, err
+	}
+	return item, nil
+{{- end }}
 }
 
 {{- range .Relations }}
@@ -1580,6 +1731,7 @@ func sync{{ $.ModelName }}{{ .FieldName }}Relation(db *gorm.DB, item *{{ $.Model
 // Delete{{ .ModelName }} removes a {{ .SingularLabel }} record by primary key.
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
 db := orm.WithContext(ctx.Context)
+{{ if .UseGormX }}
 repo := New{{ .ModelName }}Repo()
 {{ if .UseByIDMethods }}
 if _, err := repo.SelectOneById(int(in.ID), gormx.UseDB(db)); err != nil {
@@ -1597,6 +1749,15 @@ return ninja.NotFoundError()
 return err
 }
 return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where("{{ .IDColumn }} = ?", in.ID))
+{{ end }}
+{{ else }}
+if _, err := load{{ .ModelName }}ByID(db, in.ID); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ninja.NotFoundError()
+}
+return err
+}
+return db.Where("{{ .IDColumn }} = ?", in.ID).Delete(&{{ .ModelName }}{}).Error
 {{ end }}
 }
 `))

@@ -52,6 +52,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	output := fs.String("output", "", "Output file path (defaults next to the model file)")
 	packageName := fs.String("package", "", "Override generated package name")
 	tag := fs.String("tag", "", "Override generated router tag name")
+	withGormX := fs.Bool("with-gormx", true, "Generate gormx-based CRUD code (set false for native GORM)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return 2
 	}
@@ -61,6 +62,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 		Model:       strings.TrimSpace(*model),
 		PackageName: strings.TrimSpace(*packageName),
 		Tag:         strings.TrimSpace(*tag),
+		WithGormX:   withGormX,
 	}
 	if cfg.ModelFile == "" || cfg.Model == "" {
 		fmt.Fprintln(stderr, "-model and -model-file are required")
@@ -81,10 +83,10 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>]")
+	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>] [-with-gormx=false]")
 }
 
 func printGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>]")
+	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>] [-with-gormx=false]")
 }
