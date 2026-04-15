@@ -1236,36 +1236,6 @@ func {{ .ToOutFuncName }}(item {{ .ModelName }}) (*{{ .ModelName }}Out, error) {
 	return out, nil
 }
 
-type {{ .ModelName }}CRUDHooks interface {
-	BeforeCreate(ctx *ninja.Context, in *Create{{ .ModelName }}Input, item *{{ .ModelName }}) error
-	BeforeUpdate(ctx *ninja.Context, in *Update{{ .ModelName }}Input, item *{{ .ModelName }}, updates map[string]interface{}) error
-	AfterLoad(ctx *ninja.Context, item *{{ .ModelName }}) error
-}
-
-type noop{{ .ModelName }}CRUDHooks struct{}
-
-func (noop{{ .ModelName }}CRUDHooks) BeforeCreate(ctx *ninja.Context, in *Create{{ .ModelName }}Input, item *{{ .ModelName }}) error {
-	return nil
-}
-
-func (noop{{ .ModelName }}CRUDHooks) BeforeUpdate(ctx *ninja.Context, in *Update{{ .ModelName }}Input, item *{{ .ModelName }}, updates map[string]interface{}) error {
-	return nil
-}
-
-func (noop{{ .ModelName }}CRUDHooks) AfterLoad(ctx *ninja.Context, item *{{ .ModelName }}) error {
-	return nil
-}
-
-var {{ .RepoImplName }}Hooks {{ .ModelName }}CRUDHooks = noop{{ .ModelName }}CRUDHooks{}
-
-func Set{{ .ModelName }}CRUDHooks(hooks {{ .ModelName }}CRUDHooks) {
-	if hooks == nil {
-		{{ .RepoImplName }}Hooks = noop{{ .ModelName }}CRUDHooks{}
-		return
-	}
-	{{ .RepoImplName }}Hooks = hooks
-}
-
 // List{{ .PluralModel }}Input is the generated list query schema.
 type List{{ .PluralModel }}Input struct {
 pagination.PageInput
@@ -1352,9 +1322,6 @@ return nil, err
 
 out := make([]{{ .ModelName }}Out, len(items))
 for i, item := range items {
-if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
-return nil, err
-}
 bound, err := {{ .ToOutFuncName }}(item)
 if err != nil {
 return nil, err
@@ -1373,9 +1340,6 @@ return nil, ninja.NotFoundError()
 }
 return nil, err
 }
-if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
-return nil, err
-}
 return {{ .ToOutFuncName }}(item)
 }
 
@@ -1386,9 +1350,6 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 {{ range .CreateFields }}
 	item.{{ .Name }} = in.{{ .Name }}
 {{ end }}
-	if err := {{ .RepoImplName }}Hooks.BeforeCreate(ctx, in, item); err != nil {
-		return nil, err
-	}
 	if err := repo.Insert(item); err != nil {
 		return nil, err
 	}
@@ -1414,9 +1375,6 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 	if err != nil {
 		return nil, err
 	}
-	if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &loaded); err != nil {
-		return nil, err
-	}
 	return {{ .ToOutFuncName }}(loaded)
 }
 
@@ -1436,9 +1394,6 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 		updates["{{ .ColumnName }}"] = *in.{{ .Name }}
 	}
 {{ end }}
-	if err := {{ .RepoImplName }}Hooks.BeforeUpdate(ctx, in, &item, updates); err != nil {
-		return nil, err
-	}
 	if len(updates) > 0 {
 {{ if .UseByIDMethods }}
 		if err := repo.UpdateById(int(in.ID), updates); err != nil {
@@ -1471,9 +1426,6 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 			if err != nil {
 				return nil, err
 			}
-			if err := {{ $.RepoImplName }}Hooks.AfterLoad(ctx, &loaded); err != nil {
-				return nil, err
-			}
 			return {{ $.ToOutFuncName }}(loaded)
 		}
 {{- else if .UseAssociationInput }}
@@ -1482,23 +1434,14 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 			if err != nil {
 				return nil, err
 			}
-			if err := {{ $.RepoImplName }}Hooks.AfterLoad(ctx, &loaded); err != nil {
-				return nil, err
-			}
 			return {{ $.ToOutFuncName }}(loaded)
 		}
 {{- end }}
 {{- end }}
-		if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
-			return nil, err
-		}
 		return {{ .ToOutFuncName }}(item)
 	}
 	item, err = load{{ .ModelName }}ByID(in.ID)
 	if err != nil {
-		return nil, err
-	}
-	if err := {{ .RepoImplName }}Hooks.AfterLoad(ctx, &item); err != nil {
 		return nil, err
 	}
 return {{ .ToOutFuncName }}(item)

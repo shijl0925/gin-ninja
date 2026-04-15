@@ -48,8 +48,6 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 	checks := []string{
 		"type UserOut struct",
 		"ninja.ModelSchema[User] `fields:\"id,name,email,invite_code,status_note,age,is_admin,created\"`",
-		"type UserCRUDHooks interface",
-		"var userRepoHooks UserCRUDHooks = noopUserCRUDHooks{}",
 		"type IUserRepo interface",
 		"func NewUserRepo() IUserRepo",
 		"func toUserOut(item User) (*UserOut, error)",
@@ -338,7 +336,7 @@ func TestGeneratedInputsKeepCommonTypes(t *testing.T) {
 	runGoTest(t, dir)
 }
 
-func TestGenerateCRUDQueryRelationAndHookSupport(t *testing.T) {
+func TestGenerateCRUDQueryRelationSupport(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -391,8 +389,6 @@ type Project struct {
 		`Tags                       []ProjectTagsOut  ` + "`json:\"tags,omitempty\"`" + ``,
 		`TagsIDs []uint ` + "`json:\"tags_ids\"`" + ``,
 		`TasksIDs []uint ` + "`json:\"tasks_ids\"`" + ``,
-		`type ProjectCRUDHooks interface`,
-		`func SetProjectCRUDHooks(hooks ProjectCRUDHooks)`,
 		`query.Preload("Owner")`,
 		`query.Preload("Tasks")`,
 		`query.Preload("Tags")`,

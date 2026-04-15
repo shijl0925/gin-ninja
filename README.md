@@ -208,7 +208,6 @@ The generator:
 - uses `PATCH /:id` for generated partial-update handlers instead of advertising partial updates as `PUT`
 - can generate list filter / sort / keyword-search inputs from model `crud:"..."` tags
 - can detect same-file belongs-to / has-many / many-to-many relations and generate preload, relation input, and relation output scaffolding
-- generates `BeforeCreate`, `BeforeUpdate`, and `AfterLoad` hook extension points for the scaffolded handlers
 
 Generated code is intended as a starting point. Review the scaffold and adjust validation, persistence rules, permissions, and router composition for your application.
 
@@ -251,20 +250,6 @@ For example, a generated scaffold can now emit:
 - nested response fields such as `Owner *ProjectOwnerOut`, `Tasks []ProjectTasksOut`
 - relation inputs such as `TagsIDs []uint`
 - association helpers such as `syncProjectTagsRelations(...)`
-
-### Generated hook extension points
-
-Each generated scaffold now exposes per-model hooks:
-
-```go
-type ProjectCRUDHooks interface {
-    BeforeCreate(ctx *ninja.Context, in *CreateProjectInput, item *Project) error
-    BeforeUpdate(ctx *ninja.Context, in *UpdateProjectInput, item *Project, updates map[string]interface{}) error
-    AfterLoad(ctx *ninja.Context, item *Project) error
-}
-```
-
-Use `Set<Model>CRUDHooks(...)` to replace the default no-op hooks without editing the generated handler flow directly.
 
 ---
 

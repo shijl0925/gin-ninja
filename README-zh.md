@@ -174,7 +174,6 @@ go run ./cmd/gin-ninja generate crud \
 - 对“部分更新”生成 `PATCH /:id` 路由，而不是用 `PUT` 表达部分更新语义
 - 可从模型字段的 `crud:"..."` tag 自动生成列表过滤 / 排序 / 关键字搜索输入
 - 可识别同一模型文件中的 belongs-to / has-many / many2many 关系，并生成 preload、relation input、relation output 骨架
-- 为生成的 handler 暴露 `BeforeCreate`、`BeforeUpdate`、`AfterLoad` hook 扩展点
 
 生成结果定位为“起步骨架”。落地时仍建议根据业务继续补充校验、权限、事务、查询条件和路由组织方式。
 
@@ -221,20 +220,6 @@ type Project struct {
 - `Tasks []ProjectTasksOut`
 - `TagsIDs []uint`
 - `syncProjectTagsRelations(...)`
-
-### 生成的 hook 扩展点
-
-每个模型的 CRUD 骨架现在都会暴露一组 hook：
-
-```go
-type ProjectCRUDHooks interface {
-    BeforeCreate(ctx *ninja.Context, in *CreateProjectInput, item *Project) error
-    BeforeUpdate(ctx *ninja.Context, in *UpdateProjectInput, item *Project, updates map[string]interface{}) error
-    AfterLoad(ctx *ninja.Context, item *Project) error
-}
-```
-
-可通过 `Set<Model>CRUDHooks(...)` 替换默认 no-op hook，而不必直接改生成出来的 handler 主流程。
 
 ## 核心 API
 
