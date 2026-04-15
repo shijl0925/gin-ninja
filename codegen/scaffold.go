@@ -31,6 +31,7 @@ type ProjectScaffoldConfig struct {
 	WithTests bool
 	WithAuth  bool
 	WithAdmin bool
+	WithGormx *bool
 	Force     bool
 }
 
@@ -43,6 +44,7 @@ type AppScaffoldConfig struct {
 	WithTests   bool
 	WithAuth    bool
 	WithAdmin   bool
+	WithGormx   *bool
 	Force       bool
 }
 
@@ -51,6 +53,7 @@ type scaffoldOptions struct {
 	WithTests bool
 	WithAuth  bool
 	WithAdmin bool
+	WithGormx bool
 	Standard  bool
 }
 
@@ -64,7 +67,7 @@ func WriteProjectScaffold(cfg ProjectScaffoldConfig, outputDir string) error {
 		return fmt.Errorf("output directory is required")
 	}
 
-	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin)
+	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin, cfg.WithGormx)
 	if err != nil {
 		return err
 	}
@@ -123,7 +126,7 @@ func WriteAppScaffold(cfg AppScaffoldConfig, outputDir string) error {
 	if strings.TrimSpace(outputDir) == "" {
 		return fmt.Errorf("output directory is required")
 	}
-	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin)
+	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin, cfg.WithGormx)
 	if err != nil {
 		return err
 	}
@@ -169,7 +172,7 @@ type appTemplateData struct {
 	Options     scaffoldOptions
 }
 
-func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool) (scaffoldOptions, error) {
+func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool, withGormx *bool) (scaffoldOptions, error) {
 	templateName = strings.ToLower(strings.TrimSpace(templateName))
 	if templateName == "" {
 		templateName = string(ScaffoldTemplateMinimal)
@@ -187,6 +190,7 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		WithTests: withTests,
 		WithAuth:  withAuth,
 		WithAdmin: withAdmin,
+		WithGormx: boolValueOrDefault(withGormx, true),
 	}
 	if templateKind == ScaffoldTemplateAuth {
 		opts.WithAuth = true
@@ -197,6 +201,13 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 	}
 	opts.Standard = templateKind != ScaffoldTemplateMinimal || opts.WithTests || opts.WithAuth || opts.WithAdmin
 	return opts, nil
+}
+
+func boolValueOrDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 func normalizeScaffoldSubdir(value, fallback string) (string, error) {
@@ -336,16 +347,28 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 func appFiles(data appTemplateData) (map[string][]byte, error) {
 	templates := map[string]string{
 		"models.go":  appModelsTemplate,
-		"repos.go":   appReposTemplate,
 		"schemas.go": appSchemasTemplate,
 		"routers.go": appRoutersTemplate,
 	}
+	if data.Options.WithGormx {
+		templates["repos.go"] = appReposTemplate
+	} else {
+		templates["repos.go"] = appReposNativeTemplate
+	}
 	if data.Options.Standard {
-		templates["services.go"] = appServicesTemplate
+		if data.Options.WithGormx {
+			templates["services.go"] = appServicesTemplate
+		} else {
+			templates["services.go"] = appServicesNativeTemplate
+		}
 		templates["errors.go"] = appErrorsTemplate
 		templates["apis.go"] = appAPIsWithServicesTemplate
 	} else {
-		templates["apis.go"] = appAPIsTemplate
+		if data.Options.WithGormx {
+			templates["apis.go"] = appAPIsTemplate
+		} else {
+			templates["apis.go"] = appAPIsNativeTemplate
+		}
 	}
 	if data.Options.WithAuth {
 		templates["auth.go"] = appAuthTemplate
@@ -1003,6 +1026,92 @@ return &{{ .RepoName }}Impl{}
 }
 `
 
+const appReposNativeTemplate = `package {{ .PackageName }}
+
+import "gorm.io/gorm"
+
+type I{{ .RepoName }} interface {
+SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error)
+SelectOneByID(id uint, db *gorm.DB) ({{ .ModelName }}, error)
+Insert(item *{{ .ModelName }}, db *gorm.DB) error
+UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error
+DeleteByID(id uint, db *gorm.DB) error
+}
+
+type {{ .RepoName | printf "%sImpl" }} struct{}
+
+func New{{ .RepoName }}() I{{ .RepoName }} {
+return &{{ .RepoName }}Impl{}
+}
+
+func (r *{{ .RepoName }}Impl) SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error) {
+if db == nil {
+return nil, 0, gorm.ErrInvalidDB
+}
+query := db.Model(&{{ .ModelName }}{})
+if search != "" {
+query = query.Where("name LIKE ?", "%"+search+"%")
+}
+
+var total int64
+if err := query.Count(&total).Error; err != nil {
+return nil, 0, err
+}
+
+items := make([]{{ .ModelName }}, 0, size)
+if err := query.Order("id DESC").Limit(size).Offset((page - 1) * size).Find(&items).Error; err != nil {
+return nil, 0, err
+}
+return items, total, nil
+}
+
+func (r *{{ .RepoName }}Impl) SelectOneByID(id uint, db *gorm.DB) ({{ .ModelName }}, error) {
+if db == nil {
+return {{ .ModelName }}{}, gorm.ErrInvalidDB
+}
+var item {{ .ModelName }}
+if err := db.First(&item, id).Error; err != nil {
+return {{ .ModelName }}{}, err
+}
+return item, nil
+}
+
+func (r *{{ .RepoName }}Impl) Insert(item *{{ .ModelName }}, db *gorm.DB) error {
+if db == nil {
+return gorm.ErrInvalidDB
+}
+return db.Create(item).Error
+}
+
+func (r *{{ .RepoName }}Impl) UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error {
+if db == nil {
+return gorm.ErrInvalidDB
+}
+tx := db.Model(&{{ .ModelName }}{}).Where("id = ?", id).Updates(updates)
+if tx.Error != nil {
+return tx.Error
+}
+if tx.RowsAffected == 0 {
+return gorm.ErrRecordNotFound
+}
+return nil
+}
+
+func (r *{{ .RepoName }}Impl) DeleteByID(id uint, db *gorm.DB) error {
+if db == nil {
+return gorm.ErrInvalidDB
+}
+tx := db.Delete(&{{ .ModelName }}{}, id)
+if tx.Error != nil {
+return tx.Error
+}
+if tx.RowsAffected == 0 {
+return gorm.ErrRecordNotFound
+}
+return nil
+}
+`
+
 const appSchemasTemplate = `package {{ .PackageName }}
 
 import "github.com/shijl0925/gin-ninja/pagination"
@@ -1164,6 +1273,119 @@ return err
 }
 `
 
+const appServicesNativeTemplate = `package {{ .PackageName }}
+
+import (
+"errors"
+"strings"
+
+ninja "github.com/shijl0925/gin-ninja"
+"github.com/shijl0925/gin-ninja/orm"
+"github.com/shijl0925/gin-ninja/pagination"
+"gorm.io/gorm"
+)
+
+type {{ .ServiceName }} struct {
+repo I{{ .RepoName }}
+}
+
+func New{{ .ServiceName }}() *{{ .ServiceName }} {
+return &{{ .ServiceName }}{repo: New{{ .RepoName }}()}
+}
+
+func repoDB(ctx *ninja.Context) *gorm.DB {
+if ctx != nil && ctx.Context != nil {
+return orm.WithContext(ctx.Context)
+}
+return nil
+}
+
+func to{{ .ModelName }}Out(item {{ .ModelName }}) {{ .OutName }} {
+return {{ .OutName }}{
+ID:   item.ID,
+Name: item.Name,
+}
+}
+
+func (s *{{ .ServiceName }}) List(ctx *ninja.Context, in *{{ .ListName }}) (*pagination.Page[{{ .OutName }}], error) {
+items, total, err := s.repo.SelectPage(in.GetPage(), in.GetSize(), in.Search, repoDB(ctx))
+if err != nil {
+return nil, err
+}
+
+out := make([]{{ .OutName }}, len(items))
+for i, item := range items {
+out[i] = to{{ .ModelName }}Out(item)
+}
+return pagination.NewPage(out, total, in.PageInput), nil
+}
+
+func (s *{{ .ServiceName }}) Get(ctx *ninja.Context, in *{{ .GetName }}) (*{{ .OutName }}, error) {
+item, err := s.repo.SelectOneByID(in.ID, repoDB(ctx))
+if err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return nil, ninja.NotFoundError()
+}
+return nil, err
+}
+out := to{{ .ModelName }}Out(item)
+return &out, nil
+}
+
+func (s *{{ .ServiceName }}) Create(ctx *ninja.Context, in *{{ .CreateName }}) (*{{ .OutName }}, error) {
+name := strings.TrimSpace(in.Name)
+if name == "" {
+return nil, New{{ .ModelName }}NameRequiredError()
+}
+item := &{{ .ModelName }}{Name: name}
+if err := s.repo.Insert(item, repoDB(ctx)); err != nil {
+return nil, err
+}
+out := to{{ .ModelName }}Out(*item)
+return &out, nil
+}
+
+func (s *{{ .ServiceName }}) Update(ctx *ninja.Context, in *{{ .UpdateName }}) (*{{ .OutName }}, error) {
+db := repoDB(ctx)
+item, err := s.repo.SelectOneByID(in.ID, db)
+if err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return nil, ninja.NotFoundError()
+}
+return nil, err
+}
+
+updates := map[string]interface{}{}
+if in.Name != nil {
+name := strings.TrimSpace(*in.Name)
+if name == "" {
+return nil, New{{ .ModelName }}NameRequiredError()
+}
+updates["name"] = name
+item.Name = name
+}
+if len(updates) > 0 {
+if err := s.repo.UpdateByID(in.ID, updates, db); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return nil, ninja.NotFoundError()
+}
+return nil, err
+}
+}
+
+out := to{{ .ModelName }}Out(item)
+return &out, nil
+}
+
+func (s *{{ .ServiceName }}) Delete(ctx *ninja.Context, in *{{ .DeleteName }}) error {
+err := s.repo.DeleteByID(in.ID, repoDB(ctx))
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ninja.NotFoundError()
+}
+return err
+}
+`
+
 const appAPIsTemplate = `package {{ .PackageName }}
 
 import (
@@ -1263,6 +1485,112 @@ return &out, nil
 
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *{{ .DeleteName }}) error {
 err := New{{ .RepoName }}().DeleteById(int(in.ID), gormx.UseDB(repoDB(ctx)))
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return ninja.NotFoundError()
+}
+return err
+}
+`
+
+const appAPIsNativeTemplate = `package {{ .PackageName }}
+
+import (
+"errors"
+"strings"
+
+ninja "github.com/shijl0925/gin-ninja"
+"github.com/shijl0925/gin-ninja/orm"
+"github.com/shijl0925/gin-ninja/pagination"
+"gorm.io/gorm"
+)
+
+func repoDB(ctx *ninja.Context) *gorm.DB {
+if ctx != nil && ctx.Context != nil {
+return orm.WithContext(ctx.Context)
+}
+return nil
+}
+
+func to{{ .ModelName }}Out(item {{ .ModelName }}) {{ .OutName }} {
+return {{ .OutName }}{
+ID:   item.ID,
+Name: item.Name,
+}
+}
+
+func List{{ .ModelPlural }}(ctx *ninja.Context, in *{{ .ListName }}) (*pagination.Page[{{ .OutName }}], error) {
+items, total, err := New{{ .RepoName }}().SelectPage(in.GetPage(), in.GetSize(), in.Search, repoDB(ctx))
+if err != nil {
+return nil, err
+}
+
+out := make([]{{ .OutName }}, len(items))
+for i, item := range items {
+out[i] = to{{ .ModelName }}Out(item)
+}
+return pagination.NewPage(out, total, in.PageInput), nil
+}
+
+func Get{{ .ModelName }}(ctx *ninja.Context, in *{{ .GetName }}) (*{{ .OutName }}, error) {
+item, err := New{{ .RepoName }}().SelectOneByID(in.ID, repoDB(ctx))
+if err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return nil, ninja.NotFoundError()
+}
+return nil, err
+}
+out := to{{ .ModelName }}Out(item)
+return &out, nil
+}
+
+func Create{{ .ModelName }}(ctx *ninja.Context, in *{{ .CreateName }}) (*{{ .OutName }}, error) {
+name := strings.TrimSpace(in.Name)
+if name == "" {
+return nil, ninja.BadRequestError()
+}
+item := &{{ .ModelName }}{Name: name}
+if err := New{{ .RepoName }}().Insert(item, repoDB(ctx)); err != nil {
+return nil, err
+}
+out := to{{ .ModelName }}Out(*item)
+return &out, nil
+}
+
+func Update{{ .ModelName }}(ctx *ninja.Context, in *{{ .UpdateName }}) (*{{ .OutName }}, error) {
+db := repoDB(ctx)
+repo := New{{ .RepoName }}()
+item, err := repo.SelectOneByID(in.ID, db)
+if err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return nil, ninja.NotFoundError()
+}
+return nil, err
+}
+
+updates := map[string]interface{}{}
+if in.Name != nil {
+name := strings.TrimSpace(*in.Name)
+if name == "" {
+return nil, ninja.BadRequestError()
+}
+updates["name"] = name
+item.Name = name
+}
+if len(updates) > 0 {
+if err := repo.UpdateByID(in.ID, updates, db); err != nil {
+if errors.Is(err, gorm.ErrRecordNotFound) {
+return nil, ninja.NotFoundError()
+}
+return nil, err
+}
+}
+
+out := to{{ .ModelName }}Out(item)
+return &out, nil
+}
+
+func Delete{{ .ModelName }}(ctx *ninja.Context, in *{{ .DeleteName }}) error {
+err := New{{ .RepoName }}().DeleteByID(in.ID, repoDB(ctx))
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return ninja.NotFoundError()
 }

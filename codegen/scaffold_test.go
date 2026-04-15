@@ -81,6 +81,31 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 	runScaffoldGoTest(t, outputDir)
 }
 
+func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+	if err := WriteProjectScaffold(ProjectScaffoldConfig{
+		Name:      "mysite",
+		Module:    "github.com/acme/mysite",
+		Template:  "standard",
+		WithGormx: boolPtr(false),
+	}, outputDir); err != nil {
+		t.Fatalf("WriteProjectScaffold: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "app", "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected native gorm repo scaffold, got:\n%s", content)
+	}
+
+	runScaffoldGoTest(t, outputDir)
+}
+
 func TestWriteAppScaffold(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +165,40 @@ func TestWriteAppScaffoldStandardTemplate(t *testing.T) {
 	} {
 		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
 			t.Fatalf("expected %s: %v", rel, err)
+		}
+	}
+
+	runScaffoldGoTest(t, dir)
+}
+
+func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	goMod := "module demo\n\ngo 1.26\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	outputDir := filepath.Join(dir, "blog")
+	if err := WriteAppScaffold(AppScaffoldConfig{
+		Name:        "blog",
+		PackageName: "blog",
+		ModelName:   "Post",
+		Template:    "standard",
+		WithTests:   true,
+		WithGormx:   boolPtr(false),
+	}, outputDir); err != nil {
+		t.Fatalf("WriteAppScaffold: %v", err)
+	}
+
+	for _, rel := range []string{"repos.go", "services.go"} {
+		content, err := os.ReadFile(filepath.Join(outputDir, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		if strings.Contains(string(content), "gormx") {
+			t.Fatalf("expected %s to avoid gormx, got:\n%s", rel, content)
 		}
 	}
 
@@ -227,4 +286,8 @@ func runScaffoldGoTest(t *testing.T, dir string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go test scaffold: %v\n%s", err, output)
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

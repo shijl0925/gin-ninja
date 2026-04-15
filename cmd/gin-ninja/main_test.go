@@ -126,6 +126,35 @@ func TestRunStartProjectStandardTemplate(t *testing.T) {
 	}
 }
 
+func TestRunStartProjectWithoutGormxAlias(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"mysite",
+		"-module", "github.com/acme/mysite",
+		"-output", outputDir,
+		"-template", "standard",
+		"-with-gromx=false",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "app", "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected native gorm scaffold, got:\n%s", content)
+	}
+}
+
 func TestRunStartApp(t *testing.T) {
 	t.Parallel()
 
@@ -189,5 +218,35 @@ func TestRunStartAppWithForceAndTemplate(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected scaffold file %s: %v", path, err)
 		}
+	}
+}
+
+func TestRunStartAppWithoutGormx(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "blog")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startapp",
+		"blog",
+		"-output", outputDir,
+		"-package", "blog",
+		"-model", "Post",
+		"-template", "standard",
+		"-with-gormx=false",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "services.go"))
+	if err != nil {
+		t.Fatalf("read services.go: %v", err)
+	}
+	if strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected native gorm service scaffold, got:\n%s", content)
 	}
 }

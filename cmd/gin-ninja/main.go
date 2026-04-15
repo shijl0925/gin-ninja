@@ -95,6 +95,8 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
+	withGromx := fs.Bool("with-gromx", true, "Alias of -with-gormx")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -133,6 +135,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		WithTests: *withTests,
 		WithAuth:  *withAuth,
 		WithAdmin: *withAdmin,
+		WithGormx: boolPtr(*withGormx && *withGromx),
 		Force:     *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
@@ -154,6 +157,8 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
+	withGromx := fs.Bool("with-gromx", true, "Alias of -with-gormx")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -188,6 +193,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		WithTests:   *withTests,
 		WithAuth:    *withAuth,
 		WithAdmin:   *withAdmin,
+		WithGormx:   boolPtr(*withGormx && *withGromx),
 		Force:       *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
@@ -206,9 +212,13 @@ func consumeLeadingName(args []string) (string, []string) {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--force]")
-	fmt.Fprintln(w, "  gin-ninja startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--force]")
+	fmt.Fprintln(w, "  gin-ninja startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
+	fmt.Fprintln(w, "  gin-ninja startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
 	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>]")
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func printGenerateUsage(w io.Writer) {

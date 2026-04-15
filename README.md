@@ -205,6 +205,7 @@ go run ./cmd/gin-ninja startproject mysite \
   -app-dir internal/app \
   -with-tests
 go run ./cmd/gin-ninja startapp accounts -template auth -with-tests
+go run ./cmd/gin-ninja startapp accounts -template standard -with-gormx=false
 ```
 
 `startproject` creates a new directory with:
@@ -250,6 +251,7 @@ Useful scaffold flags:
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
+- `-with-gormx` / `-with-gromx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
 
