@@ -84,6 +84,8 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 }
 
 func runStartProject(stdout, stderr io.Writer, args []string) int {
+	nameArg, args := consumeLeadingName(args)
+
 	fs := flag.NewFlagSet("startproject", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	module := fs.String("module", "", "Go module path for the generated project")
@@ -91,12 +93,19 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() != 1 {
+	if nameArg == "" && fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "startproject requires exactly one project name")
 		return 2
 	}
+	if nameArg != "" && fs.NArg() != 0 {
+		fmt.Fprintln(stderr, "startproject accepts only one project name")
+		return 2
+	}
 
-	name := strings.TrimSpace(fs.Arg(0))
+	name := strings.TrimSpace(nameArg)
+	if name == "" {
+		name = strings.TrimSpace(fs.Arg(0))
+	}
 	if name == "" {
 		fmt.Fprintln(stderr, "project name must not be empty")
 		return 2
@@ -122,6 +131,8 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 }
 
 func runStartApp(stdout, stderr io.Writer, args []string) int {
+	nameArg, args := consumeLeadingName(args)
+
 	fs := flag.NewFlagSet("startapp", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	output := fs.String("output", "", "Output directory (defaults to the app name)")
@@ -130,12 +141,19 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() != 1 {
+	if nameArg == "" && fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "startapp requires exactly one app name")
 		return 2
 	}
+	if nameArg != "" && fs.NArg() != 0 {
+		fmt.Fprintln(stderr, "startapp accepts only one app name")
+		return 2
+	}
 
-	name := strings.TrimSpace(fs.Arg(0))
+	name := strings.TrimSpace(nameArg)
+	if name == "" {
+		name = strings.TrimSpace(fs.Arg(0))
+	}
 	if name == "" {
 		fmt.Fprintln(stderr, "app name must not be empty")
 		return 2
@@ -155,6 +173,13 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	}
 	fmt.Fprintf(stdout, "created app scaffold in %s\n", out)
 	return 0
+}
+
+func consumeLeadingName(args []string) (string, []string) {
+	if len(args) == 0 || strings.HasPrefix(strings.TrimSpace(args[0]), "-") {
+		return "", args
+	}
+	return args[0], args[1:]
 }
 
 func printUsage(w io.Writer) {

@@ -43,9 +43,9 @@ func WriteProjectScaffold(cfg ProjectScaffoldConfig, outputDir string) error {
 	if projectName == "" {
 		projectName = filepath.Base(outputDir)
 	}
-	words := splitWords(projectName)
+	words := scaffoldSplitWords(projectName)
 	if len(words) == 0 {
-		words = splitWords(filepath.Base(module))
+		words = scaffoldSplitWords(filepath.Base(module))
 	}
 	if len(words) == 0 {
 		words = []string{"app"}
@@ -62,8 +62,8 @@ func WriteProjectScaffold(cfg ProjectScaffoldConfig, outputDir string) error {
 
 	data := projectTemplateData{
 		Module:       module,
-		AppName:      joinTitle(words),
-		DatabaseFile: toSeparated(words, "_", true) + ".db",
+		AppName:      scaffoldJoinTitle(words),
+		DatabaseFile: scaffoldToSeparated(words, "_", true) + ".db",
 		App:          appData,
 	}
 	if data.DatabaseFile == ".db" {
@@ -123,25 +123,25 @@ func buildAppTemplateData(cfg AppScaffoldConfig) (appTemplateData, error) {
 	if name == "" {
 		return appTemplateData{}, fmt.Errorf("name is required")
 	}
-	words := splitWords(name)
+	words := scaffoldSplitWords(name)
 	if len(words) == 0 {
 		return appTemplateData{}, fmt.Errorf("name %q does not contain any valid letters or digits", name)
 	}
 
 	packageName := strings.TrimSpace(cfg.PackageName)
 	if packageName == "" {
-		packageName = toSeparated(words, "_", true)
+		packageName = scaffoldToSeparated(words, "_", true)
 	}
-	packageName = normalizePackageName(packageName)
+	packageName = scaffoldNormalizePackageName(packageName)
 
 	modelName := strings.TrimSpace(cfg.ModelName)
 	if modelName == "" {
-		modelName = toExported(words)
+		modelName = scaffoldToExported(words)
 	}
-	modelName = normalizeExportedName(modelName)
+	modelName = scaffoldNormalizeExportedName(modelName)
 
 	modelPlural := inflection.Plural(modelName)
-	pluralWords := splitWords(modelPlural)
+	pluralWords := scaffoldSplitWords(modelPlural)
 	if len(pluralWords) == 0 {
 		pluralWords = append([]string(nil), words...)
 		pluralWords = append(pluralWords, "items")
@@ -158,8 +158,8 @@ func buildAppTemplateData(cfg AppScaffoldConfig) (appTemplateData, error) {
 		CreateName:  "Create" + modelName + "Input",
 		UpdateName:  "Update" + modelName + "Input",
 		DeleteName:  "Delete" + modelName + "Input",
-		RouteBase:   toSeparated(pluralWords, "-", true),
-		RouteTag:    joinTitle(pluralWords),
+		RouteBase:   scaffoldToSeparated(pluralWords, "-", true),
+		RouteTag:    scaffoldJoinTitle(pluralWords),
 	}, nil
 }
 
@@ -262,7 +262,7 @@ func executeTextTemplate(source string, data any) string {
 	return buf.String()
 }
 
-func splitWords(input string) []string {
+func scaffoldSplitWords(input string) []string {
 	var words []string
 	var current []rune
 	var prev rune
@@ -323,7 +323,7 @@ func peekRune(input string, index int) rune {
 	return 0
 }
 
-func toSeparated(words []string, sep string, lower bool) string {
+func scaffoldToSeparated(words []string, sep string, lower bool) string {
 	if len(words) == 0 {
 		return ""
 	}
@@ -341,7 +341,7 @@ func toSeparated(words []string, sep string, lower bool) string {
 	return strings.Join(out, sep)
 }
 
-func joinTitle(words []string) string {
+func scaffoldJoinTitle(words []string) string {
 	if len(words) == 0 {
 		return ""
 	}
@@ -350,23 +350,18 @@ func joinTitle(words []string) string {
 		if word == "" {
 			continue
 		}
-		lower := strings.ToLower(word)
-		out = append(out, strings.ToUpper(lower[:1])+lower[1:])
+		out = append(out, scaffoldCapitalizeFirst(word))
 	}
 	return strings.Join(out, " ")
 }
 
-func toExported(words []string) string {
+func scaffoldToExported(words []string) string {
 	var b strings.Builder
 	for _, word := range words {
 		if word == "" {
 			continue
 		}
-		lower := strings.ToLower(word)
-		b.WriteString(strings.ToUpper(lower[:1]))
-		if len(lower) > 1 {
-			b.WriteString(lower[1:])
-		}
+		b.WriteString(scaffoldCapitalizeFirst(word))
 	}
 	name := b.String()
 	if name == "" {
@@ -378,9 +373,9 @@ func toExported(words []string) string {
 	return name
 }
 
-func normalizePackageName(name string) string {
-	words := splitWords(name)
-	normalized := toSeparated(words, "_", true)
+func scaffoldNormalizePackageName(name string) string {
+	words := scaffoldSplitWords(name)
+	normalized := scaffoldToSeparated(words, "_", true)
 	if normalized == "" {
 		return "app"
 	}
@@ -390,12 +385,20 @@ func normalizePackageName(name string) string {
 	return normalized
 }
 
-func normalizeExportedName(name string) string {
-	out := toExported(splitWords(name))
+func scaffoldNormalizeExportedName(name string) string {
+	out := scaffoldToExported(scaffoldSplitWords(name))
 	if out == "" {
 		return "App"
 	}
 	return out
+}
+
+func scaffoldCapitalizeFirst(word string) string {
+	if word == "" {
+		return ""
+	}
+	lower := strings.ToLower(word)
+	return strings.ToUpper(lower[:1]) + lower[1:]
 }
 
 const projectMainTemplate = `package main
