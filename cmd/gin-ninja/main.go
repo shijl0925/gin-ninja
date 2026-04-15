@@ -96,7 +96,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
 	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
-	withGromx := fs.Bool("with-gromx", true, "Alias of -with-gormx")
+	withGormxAlias := fs.Bool("with-gromx", true, "Alias of -with-gormx")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -135,7 +135,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		WithTests: *withTests,
 		WithAuth:  *withAuth,
 		WithAdmin: *withAdmin,
-		WithGormx: boolPtr(*withGormx && *withGromx),
+		WithGormx: boolPtr(*withGormx && *withGormxAlias),
 		Force:     *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
@@ -158,7 +158,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
 	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
-	withGromx := fs.Bool("with-gromx", true, "Alias of -with-gormx")
+	withGormxAlias := fs.Bool("with-gromx", true, "Alias of -with-gormx")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -193,7 +193,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		WithTests:   *withTests,
 		WithAuth:    *withAuth,
 		WithAdmin:   *withAdmin,
-		WithGormx:   boolPtr(*withGormx && *withGromx),
+		WithGormx:   boolPtr(*withGormx && *withGormxAlias),
 		Force:       *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
