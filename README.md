@@ -114,7 +114,7 @@ gin-ninja/
 ├── pagination/       ← pagination types
 │   └── pagination.go ← PageInput, Page[T]
 │
-└── examples/         ← runnable basic and full applications
+└── examples/         ← runnable basic, users, features, admin, and full applications
 ```
 
 Core module responsibilities:
@@ -1179,7 +1179,14 @@ OpenAPI documents the route as a `101 Switching Protocols` response so the upgra
 
 ## Full Example
 
-See [examples/full](./examples/full/) for a complete application with:
+Split examples are available by feature:
+
+- [examples/users](./examples/users/) — auth register/login plus JWT-protected users CRUD and the cached v2 users API
+- [examples/features](./examples/features/) — request metadata, cache / ETag, rate limit, timeout, versioned routing, SSE, WebSocket, upload, and download demos
+- [examples/admin](./examples/admin/) — JWT-protected admin resource APIs plus the standalone admin pages
+- [examples/full](./examples/full/) — the combined application with every feature above in one app
+
+The combined [examples/full](./examples/full/) application includes:
 - Settings from `config.yaml`
 - Bootstrap (DB + logger initialisation)
 - JWT-protected user CRUD endpoints
