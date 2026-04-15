@@ -128,7 +128,7 @@ type User struct {
 		`if err := db.Create(item).Error; err != nil {`,
 		`if err := db.Model(&User{}).Where("id = ?", in.ID).Updates(updates).Error; err != nil {`,
 		`if err := query.Where("id = ?", id).First(&item).Error; err != nil {`,
-		`return db.Where("id = ?", in.ID).Delete(&User{}).Error`,
+		`return db.Model(&User{}).Where("id = ?", in.ID).Delete(&User{}).Error`,
 		`func applyUserFilters(db *gorm.DB, input any) (*gorm.DB, error) {`,
 		`func applyUserSort(db *gorm.DB, input any) (*gorm.DB, error) {`,
 	}

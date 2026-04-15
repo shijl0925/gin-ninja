@@ -1757,7 +1757,7 @@ return ninja.NotFoundError()
 }
 return err
 }
-return db.Where("{{ .IDColumn }} = ?", in.ID).Delete(&{{ .ModelName }}{}).Error
+return db.Model(&{{ .ModelName }}{}).Where("{{ .IDColumn }} = ?", in.ID).Delete(&{{ .ModelName }}{}).Error
 {{ end }}
 }
 `))
