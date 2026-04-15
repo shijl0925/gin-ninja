@@ -417,6 +417,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	imports := []importSpec{
 		{Alias: "", Path: "errors"},
 		{Alias: "ninja", Path: "github.com/shijl0925/gin-ninja"},
+		{Alias: "", Path: "github.com/shijl0925/gin-ninja/orm"},
 		{Alias: "", Path: "github.com/shijl0925/gin-ninja/pagination"},
 		{Alias: "", Path: "github.com/shijl0925/go-toolkits/gormx"},
 		{Alias: "", Path: "gorm.io/gorm"},
@@ -1296,6 +1297,7 @@ ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .S
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
 func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}Out], error) {
+db := orm.WithContext(ctx.Context)
 repo := New{{ .ModelName }}Repo()
 query, _ := gormx.NewQuery[{{ .ModelName }}]()
 {{- range .Relations }}
@@ -1314,7 +1316,7 @@ if err := order.ApplyOrder(query, in); err != nil {
 return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 }
 {{- end }}
-opts := append(filterOpts, query.ToOptions()...)
+opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)
 items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
 if err != nil {
 return nil, err
@@ -1333,7 +1335,7 @@ return pagination.NewPage(out, total, in.PageInput), nil
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
 func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
-item, err := load{{ .ModelName }}ByID(in.ID)
+item, err := load{{ .ModelName }}ByID(orm.WithContext(ctx.Context), in.ID)
 if err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return nil, ninja.NotFoundError()
@@ -1345,18 +1347,19 @@ return {{ .ToOutFuncName }}(item)
 
 // Create{{ .ModelName }} inserts a new {{ .SingularLabel }} record.
 func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
+	db := orm.WithContext(ctx.Context)
 	repo := New{{ .ModelName }}Repo()
 	item := &{{ .ModelName }}{}
 {{ range .CreateFields }}
 	item.{{ .Name }} = in.{{ .Name }}
 {{ end }}
-	if err := repo.Insert(item); err != nil {
+	if err := repo.Insert(item, gormx.UseDB(db)); err != nil {
 		return nil, err
 	}
 {{- range .Relations }}
 {{- if .Collection }}
 	if in.{{ .InputName }} != nil {
-		if err := sync{{ $.ModelName }}{{ .FieldName }}Relations(item, in.{{ .InputName }}); err != nil {
+		if err := sync{{ $.ModelName }}{{ .FieldName }}Relations(db, item, in.{{ .InputName }}); err != nil {
 			return nil, err
 		}
 	}
@@ -1364,14 +1367,14 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 	{
 		var zero {{ .TargetIDType }}
 		if in.{{ .InputName }} != zero {
-			if err := sync{{ $.ModelName }}{{ .FieldName }}Relation(item, in.{{ .InputName }}); err != nil {
+			if err := sync{{ $.ModelName }}{{ .FieldName }}Relation(db, item, in.{{ .InputName }}); err != nil {
 				return nil, err
 			}
 		}
 	}
 {{- end }}
 {{- end }}
-	loaded, err := load{{ .ModelName }}ByID(item.{{ .IDField }})
+	loaded, err := load{{ .ModelName }}ByID(db, item.{{ .IDField }})
 	if err != nil {
 		return nil, err
 	}
@@ -1380,8 +1383,9 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 
 // Update{{ .ModelName }} partially updates a {{ .SingularLabel }} record by primary key.
 func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
+db := orm.WithContext(ctx.Context)
 repo := New{{ .ModelName }}Repo()
-item, err := load{{ .ModelName }}ByID(in.ID)
+item, err := load{{ .ModelName }}ByID(db, in.ID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -1396,9 +1400,9 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 {{ end }}
 	if len(updates) > 0 {
 {{ if .UseByIDMethods }}
-		if err := repo.UpdateById(int(in.ID), updates); err != nil {
+		if err := repo.UpdateById(int(in.ID), updates, gormx.UseDB(db)); err != nil {
 {{ else }}
-		if err := repo.UpdateByOpts(updates, gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
+		if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
 {{ end }}
 			return nil, err
 		}
@@ -1406,13 +1410,13 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 {{- range .Relations }}
 {{- if .Collection }}
 	if in.{{ .InputName }} != nil {
-		if err := sync{{ $.ModelName }}{{ .FieldName }}Relations(&item, *in.{{ .InputName }}); err != nil {
+		if err := sync{{ $.ModelName }}{{ .FieldName }}Relations(db, &item, *in.{{ .InputName }}); err != nil {
 			return nil, err
 		}
 	}
 {{- else if .UseAssociationInput }}
 	if in.{{ .InputName }} != nil {
-		if err := sync{{ $.ModelName }}{{ .FieldName }}Relation(&item, *in.{{ .InputName }}); err != nil {
+		if err := sync{{ $.ModelName }}{{ .FieldName }}Relation(db, &item, *in.{{ .InputName }}); err != nil {
 			return nil, err
 		}
 	}
@@ -1422,7 +1426,7 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 {{- range .Relations }}
 {{- if .Collection }}
 		if in.{{ .InputName }} != nil {
-			loaded, err := load{{ $.ModelName }}ByID(in.ID)
+			loaded, err := load{{ $.ModelName }}ByID(db, in.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -1430,7 +1434,7 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 		}
 {{- else if .UseAssociationInput }}
 		if in.{{ .InputName }} != nil {
-			loaded, err := load{{ $.ModelName }}ByID(in.ID)
+			loaded, err := load{{ $.ModelName }}ByID(db, in.ID)
 			if err != nil {
 				return nil, err
 			}
@@ -1440,16 +1444,17 @@ item, err := load{{ .ModelName }}ByID(in.ID)
 {{- end }}
 		return {{ .ToOutFuncName }}(item)
 	}
-	item, err = load{{ .ModelName }}ByID(in.ID)
+	item, err = load{{ .ModelName }}ByID(db, in.ID)
 	if err != nil {
 		return nil, err
 	}
 return {{ .ToOutFuncName }}(item)
 }
 
-func load{{ .ModelName }}ByID(id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
+func load{{ .ModelName }}ByID(db *gorm.DB, id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
 	repo := New{{ .ModelName }}Repo()
 	opts := []gormx.DBOption{
+		gormx.UseDB(db),
 		gormx.Where("{{ .IDColumn }} = ?", id),
 	}
 {{- range .Relations }}
@@ -1462,23 +1467,21 @@ func load{{ .ModelName }}ByID(id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
 
 {{- range .Relations }}
 {{- if .Collection }}
-func sync{{ $.ModelName }}{{ .FieldName }}Relations(item *{{ $.ModelName }}, ids []{{ .TargetIDType }}) error {
+func sync{{ $.ModelName }}{{ .FieldName }}Relations(db *gorm.DB, item *{{ $.ModelName }}, ids []{{ .TargetIDType }}) error {
 	if item == nil {
 		return nil
 	}
-	db := gormx.GetDb()
-	related, err := load{{ $.ModelName }}{{ .FieldName }}Relations(ids)
+	related, err := load{{ $.ModelName }}{{ .FieldName }}Relations(db, ids)
 	if err != nil {
 		return err
 	}
 	return db.Model(item).Association("{{ .FieldName }}").Replace(related)
 }
 
-func load{{ $.ModelName }}{{ .FieldName }}Relations(ids []{{ .TargetIDType }}) ([]{{ .TargetModel }}, error) {
+func load{{ $.ModelName }}{{ .FieldName }}Relations(db *gorm.DB, ids []{{ .TargetIDType }}) ([]{{ .TargetModel }}, error) {
 	if len(ids) == 0 {
 		return []{{ .TargetModel }}{}, nil
 	}
-	db := gormx.GetDb()
 	var related []{{ .TargetModel }}
 	if err := db.Where("{{ .TargetIDColumn }} IN ?", ids).Find(&related).Error; err != nil {
 		return nil, err
@@ -1503,11 +1506,10 @@ func load{{ $.ModelName }}{{ .FieldName }}Relations(ids []{{ .TargetIDType }}) (
 	return out, nil
 }
 {{- else if .UseAssociationInput }}
-func sync{{ $.ModelName }}{{ .FieldName }}Relation(item *{{ $.ModelName }}, id {{ .TargetIDType }}) error {
+func sync{{ $.ModelName }}{{ .FieldName }}Relation(db *gorm.DB, item *{{ $.ModelName }}, id {{ .TargetIDType }}) error {
 	if item == nil {
 		return nil
 	}
-	db := gormx.GetDb()
 	var zero {{ .TargetIDType }}
 	if id == zero {
 		return db.Model(item).Association("{{ .FieldName }}").Clear()
@@ -1526,23 +1528,24 @@ func sync{{ $.ModelName }}{{ .FieldName }}Relation(item *{{ $.ModelName }}, id {
 
 // Delete{{ .ModelName }} removes a {{ .SingularLabel }} record by primary key.
 func Delete{{ .ModelName }}(ctx *ninja.Context, in *Delete{{ .ModelName }}Input) error {
+db := orm.WithContext(ctx.Context)
 repo := New{{ .ModelName }}Repo()
 {{ if .UseByIDMethods }}
-if _, err := repo.SelectOneById(int(in.ID)); err != nil {
+if _, err := repo.SelectOneById(int(in.ID), gormx.UseDB(db)); err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return ninja.NotFoundError()
 }
 return err
 }
-return repo.DeleteById(int(in.ID))
+return repo.DeleteById(int(in.ID), gormx.UseDB(db))
 {{ else }}
-if _, err := repo.SelectOneByOpts(gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
+if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where("{{ .IDColumn }} = ?", in.ID)); err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
 return ninja.NotFoundError()
 }
 return err
 }
-return repo.DeleteByOpts(gormx.Where("{{ .IDColumn }} = ?", in.ID))
+return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where("{{ .IDColumn }} = ?", in.ID))
 {{ end }}
 }
 `))

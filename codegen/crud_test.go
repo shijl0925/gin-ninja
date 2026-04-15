@@ -69,11 +69,11 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return toUserOut(item)",
-		"if err := repo.Insert(item); err != nil {",
-		"func loadUserByID(id uint) (User, error)",
-		"if err := repo.UpdateById(int(in.ID), updates); err != nil {",
-		"if _, err := repo.SelectOneById(int(in.ID)); err != nil {",
-		"return repo.DeleteById(int(in.ID))",
+		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
+		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
+		"if err := repo.UpdateById(int(in.ID), updates, gormx.UseDB(db)); err != nil {",
+		"if _, err := repo.SelectOneById(int(in.ID), gormx.UseDB(db)); err != nil {",
+		"return repo.DeleteById(int(in.ID), gormx.UseDB(db))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -136,11 +136,11 @@ type Session struct {
 	generated := string(content)
 
 	checks := []string{
-		"func loadSessionByID(id string) (Session, error)",
+		"func loadSessionByID(db *gorm.DB, id string) (Session, error)",
 		"Token string `json:\"token\" binding:\"required\"`",
-		"if err := repo.UpdateByOpts(updates, gormx.Where(\"id = ?\", in.ID)); err != nil {",
-		"if _, err := repo.SelectOneByOpts(gormx.Where(\"id = ?\", in.ID)); err != nil {",
-		"return repo.DeleteByOpts(gormx.Where(\"id = ?\", in.ID))",
+		"if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -394,8 +394,8 @@ type Project struct {
 		`query.Preload("Tags")`,
 		`filterOpts, err := filter.BuildOptions(in)`,
 		`if err := order.ApplyOrder(query, in); err != nil {`,
-		`func syncProjectTagsRelations(item *Project, ids []uint) error {`,
-		`func syncProjectTasksRelations(item *Project, ids []uint) error {`,
+		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,
+		`func syncProjectTasksRelations(db *gorm.DB, item *Project, ids []uint) error {`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
