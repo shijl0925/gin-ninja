@@ -772,8 +772,8 @@ func containsRelationOut(values []relationOutSpec, typeName string) bool {
 	return false
 }
 
-func needsFmtImport(relations []relationSpec, useGormX bool, hasFilters bool) bool {
-	if !useGormX && hasFilters {
+func needsFmtImport(relations []relationSpec, useGormX bool, hasListOrSearchFields bool) bool {
+	if !useGormX && hasListOrSearchFields {
 		return true
 	}
 	for _, relation := range relations {
@@ -1451,7 +1451,7 @@ func apply{{ .ModelName }}FilterClause(db *gorm.DB, clause filter.Clause) (*gorm
 	if len(fields) == 0 {
 		return nil, fmt.Errorf("filter clause is missing fields")
 	}
-	expr, args, err := {{ .RepoImplName }}FilterExpr(fields[0], clause.Op, clause.Value)
+	expr, args, err := build{{ .ModelName }}FilterExpr(fields[0], clause.Op, clause.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -1463,7 +1463,7 @@ func apply{{ .ModelName }}FilterClause(db *gorm.DB, clause filter.Clause) (*gorm
 	}
 	orQuery := db.Session(&gorm.Session{NewDB: true}).Where(expr, args...)
 	for _, field := range fields[1:] {
-		expr, args, err := {{ .RepoImplName }}FilterExpr(field, clause.Op, clause.Value)
+		expr, args, err := build{{ .ModelName }}FilterExpr(field, clause.Op, clause.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -1472,7 +1472,7 @@ func apply{{ .ModelName }}FilterClause(db *gorm.DB, clause filter.Clause) (*gorm
 	return db.Where(orQuery), nil
 }
 
-func {{ .RepoImplName }}FilterExpr(field string, op filter.Operator, value any) (string, []any, error) {
+func build{{ .ModelName }}FilterExpr(field string, op filter.Operator, value any) (string, []any, error) {
 	switch op {
 	case filter.OpEq:
 		return field + " = ?", []any{value}, nil

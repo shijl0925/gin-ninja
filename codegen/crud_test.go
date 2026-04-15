@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func TestGenerateCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -676,8 +680,4 @@ func runGoTest(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatalf("go test temp module: %v\n%s", err, output)
 	}
-}
-
-func boolPtr(v bool) *bool {
-	return &v
 }
