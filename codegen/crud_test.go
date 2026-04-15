@@ -71,9 +71,9 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"return toUserOut(item)",
 		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
-		"if err := repo.UpdateById(int(in.ID), updates, gormx.UseDB(db)); err != nil {",
-		"if _, err := repo.SelectOneById(int(in.ID), gormx.UseDB(db)); err != nil {",
-		"return repo.DeleteById(int(in.ID), gormx.UseDB(db))",
+		"if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID))",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -149,7 +149,40 @@ type Session struct {
 	}
 
 	if strings.Contains(generated, "int(in.ID)") {
-		t.Fatalf("expected non-integer IDs to avoid int conversion\n%s", generated)
+		t.Fatalf("expected generated content to avoid int conversion for non-int IDs\n%s", generated)
+	}
+}
+
+func TestGenerateCRUDStringPrimaryKeyAllowsCreateInputID(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type Session struct {
+	ID   string `+"`json:\"id\" gorm:\"primaryKey\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Session"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		"ID string `json:\"id\"`",
+		"item.ID = in.ID",
+		"loaded, err := loadSessionByID(db, item.ID)",
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
 	}
 }
 
@@ -442,6 +475,66 @@ type Project struct {
 		if !strings.Contains(generated, check) {
 			t.Fatalf("generated content missing %q\n%s", check, generated)
 		}
+	}
+}
+
+func TestGenerateCRUDUsesExplicitForeignKeyFieldName(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+
+type Project struct {
+	ID       uint `+"`json:\"id\"`"+`
+	OwnerKey uint `+"`json:\"owner_key\"`"+`
+	Owner    User `+"`gorm:\"foreignKey:OwnerKey\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Project"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	if !strings.Contains(generated, "OwnerKey uint `json:\"owner_key\"`") {
+		t.Fatalf("expected create input to reuse explicit foreign key field\n%s", generated)
+	}
+	if strings.Contains(generated, "OwnerID uint `json:\"owner_id\"`") || strings.Contains(generated, "syncProjectOwnerRelation") {
+		t.Fatalf("expected explicit foreign key field to avoid synthetic owner_id association input\n%s", generated)
+	}
+}
+
+func TestGenerateCRUDRejectsBelongsToWithoutForeignKeyField(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID uint `+"`json:\"id\"`"+`
+}
+
+type Project struct {
+	ID    uint `+"`json:\"id\"`"+`
+	Owner User `+"`gorm:\"foreignKey:OwnerID\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	_, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Project"})
+	if err == nil || !strings.Contains(err.Error(), `requires exported foreign key field "OwnerID"`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

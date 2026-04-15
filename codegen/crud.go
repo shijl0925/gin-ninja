@@ -376,14 +376,19 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				outputFields = append(outputFields, jsonName)
 			}
 
-			if isWritableField(name.Name, field.Type, gormTag, importPaths) {
-				collector.addExpr(field.Type)
-				if allowCreateField(access) {
+			if isWritableField(field.Type, gormTag, importPaths) {
+				usedInIO := false
+				if allowCreateField(access) && allowCreateWritableField(name.Name, jsonName, typeExpr, gormTag) {
 					createFields = append(createFields, fieldSpec)
+					usedInIO = true
 				}
-				if allowUpdateField(access) {
+				if allowUpdateField(access) && allowUpdateWritableField(name.Name, jsonName, gormTag) {
 					fieldSpec.Binding = normalizeUpdateBinding(binding)
 					updateFields = append(updateFields, fieldSpec)
+					usedInIO = true
+				}
+				if usedInIO {
+					collector.addExpr(field.Type)
 				}
 			}
 
@@ -413,6 +418,12 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	searchFields = uniqueStrings(searchFields)
 	sortFields = uniqueSortFields(sortFields)
 	relations = finalizeRelationInputBindings(relations, fieldByName)
+	for _, relation := range relations {
+		if relation.Collection || !relation.UseAssociationInput {
+			continue
+		}
+		return modelSpec{}, fmt.Errorf("belongs-to relation %q on model %q requires exported foreign key field %q", relation.FieldName, cfg.Model, relation.InputName)
+	}
 
 	imports := []importSpec{
 		{Alias: "", Path: "errors"},
@@ -624,8 +635,8 @@ func buildRelationSpec(
 		Preload:        fieldName,
 	}
 	if !collection {
-		rel.InputName = fieldName + "ID"
-		rel.InputJSONName = toSnake(fieldName) + "_id"
+		rel.InputName = resolveBelongsToForeignKey(fieldName, gormTag)
+		rel.InputJSONName = toSnake(rel.InputName)
 		rel.InputType = targetSpec.idTypeExpr
 		rel.UpdateInputType = optionalType(targetSpec.idTypeExpr)
 		rel.UseAssociationInput = true
@@ -660,8 +671,7 @@ func shouldSkipRelationField(gormTag string) bool {
 }
 
 func looksLikeBelongsToRelation(fieldName, gormTag string, rootFieldNames map[string]struct{}) bool {
-	lower := strings.ToLower(gormTag)
-	if strings.Contains(lower, "foreignkey") || strings.Contains(lower, "references") {
+	if parseGORMSetting(gormTag, "foreignKey") != "" || parseGORMSetting(gormTag, "references") != "" {
 		return true
 	}
 	_, ok := rootFieldNames[fieldName+"ID"]
@@ -893,16 +903,11 @@ func resolveColumnName(fieldName, gormTag string) string {
 }
 
 func isIntConvertibleIDType(typeExpr string) bool {
-	switch strings.TrimSpace(typeExpr) {
-	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		return true
-	default:
-		return false
-	}
+	return strings.TrimSpace(typeExpr) == "int"
 }
 
-func isWritableField(name string, expr ast.Expr, gormTag string, imports map[string]string) bool {
-	if isReadOnlyName(name) || hasDisallowedGORMTag(gormTag) {
+func isWritableField(expr ast.Expr, gormTag string, imports map[string]string) bool {
+	if hasNonWritableGORMTag(gormTag) {
 		return false
 	}
 	return isRenderableFieldType(expr, imports)
@@ -916,20 +921,66 @@ func shouldSkipOutputField(gormTag string) bool {
 		strings.Contains(lower, "references")
 }
 
-func isReadOnlyName(name string) bool {
+func allowCreateWritableField(name, jsonName, typeExpr, gormTag string) bool {
 	switch name {
-	case "ID", "CreatedAt", "UpdatedAt", "DeletedAt":
+	case "CreatedAt", "UpdatedAt", "DeletedAt":
+		return false
+	}
+	if !isIDField(name, jsonName, gormTag) {
+		return true
+	}
+	if strings.Contains(strings.ToLower(gormTag), "autoincrement:false") {
+		return true
+	}
+	return !isIntegerIDType(typeExpr)
+}
+
+func allowUpdateWritableField(name, jsonName, gormTag string) bool {
+	switch name {
+	case "CreatedAt", "UpdatedAt", "DeletedAt":
+		return false
+	default:
+		return !isIDField(name, jsonName, gormTag)
+	}
+}
+
+func isIntegerIDType(typeExpr string) bool {
+	switch strings.TrimSpace(typeExpr) {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
 		return true
 	default:
 		return false
 	}
 }
 
-func hasDisallowedGORMTag(tag string) bool {
+func resolveBelongsToForeignKey(fieldName, gormTag string) string {
+	if value := parseGORMSetting(gormTag, "foreignKey"); value != "" {
+		return value
+	}
+	return fieldName + "ID"
+}
+
+func parseGORMSetting(gormTag, key string) string {
+	for _, part := range strings.Split(gormTag, ";") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		k, value, ok := strings.Cut(part, ":")
+		if !ok || !strings.EqualFold(strings.TrimSpace(k), key) {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func hasNonWritableGORMTag(tag string) bool {
 	lower := strings.ToLower(tag)
 	return hasSkippedGORMFieldTag(tag) ||
-		strings.Contains(lower, "primarykey") ||
-		strings.Contains(lower, "primary_key") ||
 		strings.Contains(lower, "autocreatetime") ||
 		strings.Contains(lower, "autoupdatetime") ||
 		strings.Contains(lower, "many2many") ||
