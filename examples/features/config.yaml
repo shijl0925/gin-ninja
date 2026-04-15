@@ -1,0 +1,35 @@
+app:
+  name: "Gin Ninja Features Example"
+  env: "development"
+  debug: true
+  version: "1.0.0"
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 60
+  write_timeout: 60
+
+database:
+  driver: "sqlite"
+  dsn: "features_example.db"
+  max_idle_conns: 5
+  max_open_conns: 10
+
+redis:
+  enabled: false
+  addr: "127.0.0.1:6379"
+  username: ""
+  password: ""
+  db: 0
+  prefix: "gin-ninja:features:"
+
+jwt:
+  secret: "change-me-in-production-please"
+  expire_hours: 24
+  issuer: "gin-ninja-features-example"
+
+log:
+  level: "info"
+  format: "console"
+  output: "stdout"

@@ -83,7 +83,7 @@ gin-ninja/
 ├── pagination/       # 分页类型
 ├── pkg/              # i18n / logger / response 辅助包
 ├── settings/         # 基于 Viper 的配置加载
-└── examples/         # basic 与 full 示例
+└── examples/         # basic、users、features、admin 与 full 示例
 ```
 
 模块职责概览：
@@ -712,7 +712,14 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 
 ## 完整示例
 
-查看 [examples/full](./examples/full/)：
+按功能拆分后的示例：
+
+- [examples/users](./examples/users/)：登录 / 注册、JWT 保护的 users CRUD，以及带缓存失效演示的 v2 users API
+- [examples/features](./examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、SSE、WebSocket、上传、下载等能力演示
+- [examples/admin](./examples/admin/)：JWT 保护的 admin 资源 API 与独立 admin 页面
+- [examples/full](./examples/full/)：把以上能力组合到一个完整应用中
+
+完整应用可查看 [examples/full](./examples/full/)：
 
 - 基于 `config.yaml` 的配置加载
 - 日志与数据库初始化
