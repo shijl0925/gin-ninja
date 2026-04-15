@@ -13,7 +13,7 @@ require (
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/redis/go-redis/v9 v9.18.0
-	github.com/shijl0925/go-toolkits v0.2.2
+	github.com/shijl0925/go-toolkits v0.2.3
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.49.0
