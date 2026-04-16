@@ -287,7 +287,3 @@ func runScaffoldGoTest(t *testing.T, dir string) {
 		t.Fatalf("go test scaffold: %v\n%s", err, output)
 	}
 }
-
-func boolPtr(v bool) *bool {
-	return &v
-}
