@@ -51,6 +51,12 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 
 	fs := flag.NewFlagSet("crud", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage:")
+		fmt.Fprintln(stderr, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]")
+		fmt.Fprintln(stderr, "\nFlags:")
+		fs.PrintDefaults()
+	}
 	model := fs.String("model", "", "Go struct name to scaffold")
 	modelFile := fs.String("model-file", "", "Go source file containing the model struct")
 	output := fs.String("output", "", "Output file path (defaults next to the model file)")
@@ -58,6 +64,9 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	tag := fs.String("tag", "", "Override generated router tag name")
 	withGormX := fs.Bool("with-gormx", true, "Generate gormx-based CRUD code (set false for native GORM)")
 	if err := fs.Parse(args[1:]); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 
@@ -90,6 +99,12 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 
 	fs := flag.NewFlagSet("startproject", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage:")
+		fmt.Fprintln(stderr, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [-with-tests] [-with-auth] [-with-admin] [-with-gormx] [-force]")
+		fmt.Fprintln(stderr, "\nFlags:")
+		fs.PrintDefaults()
+	}
 	module := fs.String("module", "", "Go module path for the generated project")
 	output := fs.String("output", "", "Output directory (defaults to the project name)")
 	appDir := fs.String("app-dir", "", "Relative app package directory inside the generated project (default: app)")
@@ -98,9 +113,11 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
 	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
-	withGormxAlias := fs.Bool("with-gromx", true, "Alias of -with-gormx")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if nameArg == "" && fs.NArg() != 1 {
@@ -137,7 +154,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		WithTests: *withTests,
 		WithAuth:  *withAuth,
 		WithAdmin: *withAdmin,
-		WithGormx: boolPtr(*withGormx && *withGormxAlias),
+		WithGormx: boolPtr(*withGormx),
 		Force:     *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
@@ -152,6 +169,12 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 
 	fs := flag.NewFlagSet("startapp", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage:")
+		fmt.Fprintln(stderr, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [-with-tests] [-with-auth] [-with-admin] [-with-gormx] [-force]")
+		fmt.Fprintln(stderr, "\nFlags:")
+		fs.PrintDefaults()
+	}
 	output := fs.String("output", "", "Output directory (defaults to the app name)")
 	packageName := fs.String("package", "", "Override the generated Go package name")
 	modelName := fs.String("model", "", "Override the generated model name")
@@ -160,9 +183,11 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
 	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
-	withGormxAlias := fs.Bool("with-gromx", true, "Alias of -with-gormx")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return 0
+		}
 		return 2
 	}
 	if nameArg == "" && fs.NArg() != 1 {
@@ -195,7 +220,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		WithTests:   *withTests,
 		WithAuth:    *withAuth,
 		WithAdmin:   *withAdmin,
-		WithGormx:   boolPtr(*withGormx && *withGormxAlias),
+		WithGormx:   boolPtr(*withGormx),
 		Force:       *force,
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
@@ -214,9 +239,9 @@ func consumeLeadingName(args []string) (string, []string) {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
-	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>]")
+	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [-with-tests] [-with-auth] [-with-admin] [-with-gormx] [-force]")
+	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [-with-tests] [-with-auth] [-with-admin] [-with-gormx] [-force]")
+	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]")
 }
 
 func boolPtr(v bool) *bool {
@@ -225,5 +250,5 @@ func boolPtr(v bool) *bool {
 
 func printGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>]")
+	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]")
 }

@@ -193,9 +193,19 @@ Visit `http://localhost:8080/docs` for the Swagger UI.
 
 gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
 
+Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
+
 ```bash
 make install-cli
 
+# or build only (binary placed at ./bin/gin-ninja-cli)
+make build-cli
+./bin/gin-ninja-cli --help
+```
+
+> **Note:** `go install github.com/shijl0925/gin-ninja/cmd/gin-ninja@latest` will produce a binary named `gin-ninja`, not `gin-ninja-cli`. Use `make install-cli` to get the correctly renamed binary.
+
+```bash
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli startapp blog
@@ -208,16 +218,6 @@ gin-ninja-cli startproject mysite \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
 gin-ninja-cli startapp accounts -template standard -with-gormx=false
-```
-
-Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
-
-```bash
-make install-cli
-
-# or build only
-make build-cli
-./bin/gin-ninja-cli --help
 ```
 
 `startproject` creates a new directory with:
@@ -263,7 +263,7 @@ Useful scaffold flags:
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
-- `-with-gormx` / `-with-gromx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
+- `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
 

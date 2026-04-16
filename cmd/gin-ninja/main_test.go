@@ -158,7 +158,7 @@ func TestRunStartProjectStandardTemplate(t *testing.T) {
 	}
 }
 
-func TestRunStartProjectWithoutGormxAlias(t *testing.T) {
+func TestRunStartProjectWithoutGormx(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -172,7 +172,7 @@ func TestRunStartProjectWithoutGormxAlias(t *testing.T) {
 		"-module", "github.com/acme/mysite",
 		"-output", outputDir,
 		"-template", "standard",
-		"-with-gromx=false",
+		"-with-gormx=false",
 	})
 	if code != 0 {
 		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())

@@ -159,9 +159,19 @@ func main() {
 
 gin-ninja 也提供了类似 Django 的脚手架命令，可快速创建可运行的项目骨架和新的 app 包。
 
+CLI 会安装到 Go 的可执行目录（优先使用 `$GOBIN`，未设置时使用 `$GOPATH/bin`）：
+
 ```bash
 make install-cli
 
+# 或者只在仓库本地构建（产物位于 ./bin/gin-ninja-cli）
+make build-cli
+./bin/gin-ninja-cli --help
+```
+
+> **注意：** `go install github.com/shijl0925/gin-ninja/cmd/gin-ninja@latest` 生成的二进制文件名为 `gin-ninja`，而非 `gin-ninja-cli`。请使用 `make install-cli` 来获得重命名后的正确二进制文件。
+
+```bash
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli startapp blog
@@ -174,16 +184,6 @@ gin-ninja-cli startproject mysite \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
 gin-ninja-cli startapp accounts -template standard -with-gormx=false
-```
-
-CLI 会安装到 Go 的可执行目录（优先使用 `$GOBIN`，未设置时使用 `$GOPATH/bin`）：
-
-```bash
-make install-cli
-
-# 或者只在仓库本地构建
-make build-cli
-./bin/gin-ninja-cli --help
 ```
 
 `startproject` 会创建一个新目录，包含：
@@ -229,7 +229,7 @@ make build-cli
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
-- `-with-gormx` / `-with-gromx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
+- `-with-gormx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
 
