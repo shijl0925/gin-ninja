@@ -154,6 +154,39 @@ type User struct {
 	}
 }
 
+func TestGenerateCRUDNativeGORMNoFilterOrSort(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type Widget struct {
+	ID    uint   `+"`json:\"id\"`"+`
+	Name  string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Widget", WithGormX: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	// Generated code must compile: no orphan `var err error` when no filter/sort fields
+	if strings.Contains(generated, "var err error") {
+		t.Fatalf("generated code must not declare unused 'var err error' when no filter or sort fields:\n%s", generated)
+	}
+	if strings.Contains(generated, "filter.ApplyDB") {
+		t.Fatalf("generated code must not call filter.ApplyDB when no filter fields:\n%s", generated)
+	}
+	if strings.Contains(generated, "order.ApplyDB") {
+		t.Fatalf("generated code must not call order.ApplyDB when no sort fields:\n%s", generated)
+	}
+}
+
 func TestGenerateCRUDRequiresKnownModel(t *testing.T) {
 	t.Parallel()
 

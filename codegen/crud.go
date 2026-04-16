@@ -1389,7 +1389,9 @@ return nil, err
 }
 {{- else }}
 	query := db.Model(&{{ .ModelName }}{})
+{{- if or .ListFields .SearchFields .SortFields }}
 	var err error
+{{- end }}
 {{- range .Relations }}
 	query = query.Preload("{{ .Preload }}")
 {{- end }}
