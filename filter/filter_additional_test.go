@@ -45,3 +45,19 @@ func TestApplyAndBuildOptionEdgeCases(t *testing.T) {
 		t.Fatal("expected non-empty map to be detected")
 	}
 }
+
+func TestApplyDBEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	if _, err := applyDBClause(nil, Clause{}); err == nil || !strings.Contains(err.Error(), "missing fields") {
+		t.Fatalf("expected missing field error, got %v", err)
+	}
+	if _, err := applyDBClause(nil, Clause{
+		Fields:   []string{"name", "email"},
+		Op:       OpLike,
+		Value:    "alice",
+		Combiner: "and",
+	}); err == nil || !strings.Contains(err.Error(), "unsupported filter combiner") {
+		t.Fatalf("expected unsupported combiner error, got %v", err)
+	}
+}

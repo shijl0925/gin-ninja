@@ -450,7 +450,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	if len(sortFields) > 0 {
 		imports = append(imports, importSpec{Alias: "", Path: "github.com/shijl0925/gin-ninja/order"})
 	}
-	if needsFmtImport(relations, useGormX, len(listFields) > 0 || len(searchFields) > 0) {
+	if needsFmtImport(relations) {
 		imports = append(imports, importSpec{Alias: "", Path: "fmt"})
 	}
 	imports = append(imports, collector.list()...)
@@ -772,10 +772,7 @@ func containsRelationOut(values []relationOutSpec, typeName string) bool {
 	return false
 }
 
-func needsFmtImport(relations []relationSpec, useGormX bool, hasListOrSearchFields bool) bool {
-	if !useGormX && hasListOrSearchFields {
-		return true
-	}
+func needsFmtImport(relations []relationSpec) bool {
 	for _, relation := range relations {
 		if relation.Collection || relation.UseAssociationInput {
 			return true
@@ -1396,14 +1393,14 @@ return nil, err
 	query = query.Preload("{{ .Preload }}")
 {{- end }}
 {{- if or .ListFields .SearchFields }}
-	query, err := apply{{ .ModelName }}Filters(query, in)
+	query, err := filter.ApplyDB(query, in)
 	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
 	}
 {{- end }}
 	countQuery := query.Session(&gorm.Session{})
 {{- if .SortFields }}
-	query, err = apply{{ .ModelName }}Sort(query, in)
+	query, err = order.ApplyDB(query, in)
 	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
 	}
@@ -1427,91 +1424,6 @@ out[i] = *bound
 }
 return pagination.NewPage(out, total, in.PageInput), nil
 }
-
-{{- if and (not .UseGormX) (or .ListFields .SearchFields) }}
-func apply{{ .ModelName }}Filters(db *gorm.DB, input any) (*gorm.DB, error) {
-	clauses, err := filter.Parse(input)
-	if err != nil {
-		return nil, err
-	}
-	for _, clause := range clauses {
-		db, err = apply{{ .ModelName }}FilterClause(db, clause)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return db, nil
-}
-
-func apply{{ .ModelName }}FilterClause(db *gorm.DB, clause filter.Clause) (*gorm.DB, error) {
-	fields := clause.Fields
-	if len(fields) == 0 && clause.Field != "" {
-		fields = []string{clause.Field}
-	}
-	if len(fields) == 0 {
-		return nil, fmt.Errorf("filter clause is missing fields")
-	}
-	expr, args, err := build{{ .ModelName }}FilterExpr(fields[0], clause.Op, clause.Value)
-	if err != nil {
-		return nil, err
-	}
-	if len(fields) == 1 {
-		return db.Where(expr, args...), nil
-	}
-	if clause.Combiner != filter.CombinerOr {
-		return nil, fmt.Errorf("unsupported filter combiner %q", clause.Combiner)
-	}
-	orQuery := db.Session(&gorm.Session{NewDB: true}).Where(expr, args...)
-	for _, field := range fields[1:] {
-		expr, args, err := build{{ .ModelName }}FilterExpr(field, clause.Op, clause.Value)
-		if err != nil {
-			return nil, err
-		}
-		orQuery = orQuery.Or(expr, args...)
-	}
-	return db.Where(orQuery), nil
-}
-
-func build{{ .ModelName }}FilterExpr(field string, op filter.Operator, value any) (string, []any, error) {
-	switch op {
-	case filter.OpEq:
-		return field + " = ?", []any{value}, nil
-	case filter.OpNe:
-		return field + " <> ?", []any{value}, nil
-	case filter.OpGt:
-		return field + " > ?", []any{value}, nil
-	case filter.OpGe:
-		return field + " >= ?", []any{value}, nil
-	case filter.OpLt:
-		return field + " < ?", []any{value}, nil
-	case filter.OpLe:
-		return field + " <= ?", []any{value}, nil
-	case filter.OpLike:
-		return field + " LIKE ?", []any{"%" + fmt.Sprint(value) + "%"}, nil
-	case filter.OpIn:
-		return field + " IN ?", []any{value}, nil
-	default:
-		return "", nil, fmt.Errorf("unsupported filter operator %q", op)
-	}
-}
-{{- end }}
-
-{{- if and (not .UseGormX) .SortFields }}
-func apply{{ .ModelName }}Sort(db *gorm.DB, input any) (*gorm.DB, error) {
-	fields, err := order.ResolveOrder(input)
-	if err != nil {
-		return nil, err
-	}
-	for _, field := range fields {
-		if field.Desc {
-			db = db.Order(field.Name + " DESC")
-			continue
-		}
-		db = db.Order(field.Name + " ASC")
-	}
-	return db, nil
-}
-{{- end }}
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
 func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {

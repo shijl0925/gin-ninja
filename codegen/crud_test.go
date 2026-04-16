@@ -126,15 +126,13 @@ type User struct {
 
 	checks := []string{
 		`query := db.Model(&User{})`,
-		`query, err := applyUserFilters(query, in)`,
+		`query, err := filter.ApplyDB(query, in)`,
 		`countQuery := query.Session(&gorm.Session{})`,
-		`query, err = applyUserSort(query, in)`,
+		`query, err = order.ApplyDB(query, in)`,
 		`if err := db.Create(item).Error; err != nil {`,
 		`if err := db.Model(&User{}).Where("id = ?", in.ID).Updates(updates).Error; err != nil {`,
 		`if err := query.Where("id = ?", id).First(&item).Error; err != nil {`,
 		`return db.Model(&User{}).Where("id = ?", in.ID).Delete(&User{}).Error`,
-		`func applyUserFilters(db *gorm.DB, input any) (*gorm.DB, error) {`,
-		`func applyUserSort(db *gorm.DB, input any) (*gorm.DB, error) {`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -146,6 +144,9 @@ type User struct {
 		`gormx.`,
 		`type IUserRepo interface`,
 		`func NewUserRepo()`,
+		`func applyUserFilters(`,
+		`func applyUserSort(`,
+		`func buildUserFilterExpr(`,
 	} {
 		if strings.Contains(generated, unexpected) {
 			t.Fatalf("generated content unexpectedly contained %q\n%s", unexpected, generated)
