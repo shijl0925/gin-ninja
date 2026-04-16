@@ -266,10 +266,11 @@ func newOperation[TIn any, TOut any](
 			return err
 		}
 		if op.withTransaction {
-			if contextWithTx == nil {
+			_, _, _, withTransaction := transactionHandlers()
+			if withTransaction == nil {
 				err = errTransactionUnavailable()
 			} else {
-				err = contextWithTx(c, invoke)
+				err = withTransaction(c, invoke)
 			}
 		} else {
 			err = invoke()
@@ -332,10 +333,11 @@ func newVoidOperation[TIn any](
 		}
 		var err error
 		if op.withTransaction {
-			if contextWithTx == nil {
+			_, _, _, withTransaction := transactionHandlers()
+			if withTransaction == nil {
 				err = errTransactionUnavailable()
 			} else {
-				err = contextWithTx(c, invoke)
+				err = withTransaction(c, invoke)
 			}
 		} else {
 			err = invoke()

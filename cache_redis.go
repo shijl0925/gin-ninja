@@ -81,16 +81,23 @@ func (s *RedisCacheStore) Ping(ctx context.Context) error {
 }
 
 func (s *RedisCacheStore) Get(key string) (*CachedResponse, bool) {
+	return s.GetContext(context.Background(), key)
+}
+
+func (s *RedisCacheStore) GetContext(ctx context.Context, key string) (*CachedResponse, bool) {
 	if s == nil || s.client == nil || strings.TrimSpace(key) == "" {
 		return nil, false
 	}
-	payload, err := s.client.Get(context.Background(), s.cacheKey(key)).Bytes()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	payload, err := s.client.Get(ctx, s.cacheKey(key)).Bytes()
 	if err != nil {
 		return nil, false
 	}
 	var cached CachedResponse
 	if err := json.Unmarshal(payload, &cached); err != nil {
-		_ = s.client.Del(context.Background(), s.cacheKey(key)).Err()
+		_ = s.client.Del(ctx, s.cacheKey(key)).Err()
 		return nil, false
 	}
 	if !cached.Expires.IsZero() && time.Now().After(cached.Expires) {
@@ -101,8 +108,15 @@ func (s *RedisCacheStore) Get(key string) (*CachedResponse, bool) {
 }
 
 func (s *RedisCacheStore) Set(key string, value *CachedResponse) {
+	s.SetContext(context.Background(), key, value)
+}
+
+func (s *RedisCacheStore) SetContext(ctx context.Context, key string, value *CachedResponse) {
 	if s == nil || s.client == nil || value == nil || strings.TrimSpace(key) == "" {
 		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 	payload, err := json.Marshal(value)
 	if err != nil {
@@ -116,7 +130,7 @@ func (s *RedisCacheStore) Set(key string, value *CachedResponse) {
 			return
 		}
 	}
-	_ = s.client.Set(context.Background(), s.cacheKey(key), payload, ttl).Err()
+	_ = s.client.Set(ctx, s.cacheKey(key), payload, ttl).Err()
 }
 
 func (s *RedisCacheStore) Delete(key string) {

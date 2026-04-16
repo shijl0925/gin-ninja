@@ -641,6 +641,9 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 		if err != nil {
 			return nil, err
 		}
+		desired := reflect.ValueOf(model).Elem()
+		original := reflect.New(desired.Type()).Elem()
+		original.Set(desired)
 
 		values, err := r.decodeWritePayloadFor(view, ctx, fieldModeUpdate)
 		if err != nil {
@@ -653,16 +656,35 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 		}
 
 		if len(values) > 0 {
-			if err := r.applyValuesFor(view, reflect.ValueOf(model).Elem(), values); err != nil {
+			if err := r.applyValuesFor(view, desired, values); err != nil {
 				return nil, err
 			}
-			desired := reflect.ValueOf(model).Elem()
-			if err := orm.WithContext(ctx.Context).Save(model).Error; err != nil {
-				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), err)
-			}
 		}
-		if err := orm.WithContext(ctx.Context).First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
+		columns, err := r.updateColumnsFor(view, original, desired)
+		if err != nil {
 			return nil, err
+		}
+		if len(columns) == 0 && len(values) > 0 && r.hasNonPersistedValues(view, values) {
+			columns = r.persistedColumnsFor(view)
+		}
+		if len(columns) > 0 {
+			probe := r.newModel()
+			if err := scopedDB.Select(queryColumn(r.primaryKey)).First(probe, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, ninja.NotFoundError()
+				}
+				return nil, err
+			}
+			saveErr := orm.WithContext(ctx.Context).Model(model).Select(columns).Updates(model).Error
+			if saveErr != nil {
+				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), saveErr)
+			}
+			if err := scopedDB.First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, ninja.NotFoundError()
+				}
+				return nil, err
+			}
 		}
 		if r.AfterUpdate != nil {
 			if err := r.AfterUpdate(ctx, model); err != nil {
@@ -673,28 +695,58 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 	}
 }
 
+func (r *Resource) deleteModelWithHooks(ctx *ninja.Context, scopedDB *gorm.DB, model any) (bool, error) {
+	if model == nil {
+		return false, nil
+	}
+	currentID := r.primaryKeyValue(reflect.ValueOf(model).Elem())
+	if r.BeforeDelete != nil {
+		if err := r.BeforeDelete(ctx, model); err != nil {
+			return false, err
+		}
+	}
+	probe := r.newModel()
+	if err := scopedDB.Select(queryColumn(r.primaryKey)).First(probe, currentID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	result := orm.WithContext(ctx.Context).Where(clause.Eq{
+		Column: clause.Column{Name: queryColumn(r.primaryKey)},
+		Value:  currentID,
+	}).Delete(model)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+	if r.AfterDelete != nil {
+		if err := r.AfterDelete(ctx, model); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
 func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) error {
 	return func(ctx *ninja.Context, in *pathIDInput) error {
 		if err := site.authorize(ctx, ActionDelete, r); err != nil {
 			return err
 		}
 
-		model, err := r.findByID(r.scopedDB(ctx, ActionDelete, orm.WithContext(ctx.Context)), in.ID)
+		scopedDB := r.scopedDB(ctx, ActionDelete, orm.WithContext(ctx.Context))
+		model, err := r.findByID(scopedDB, in.ID)
 		if err != nil {
 			return err
 		}
-		if r.BeforeDelete != nil {
-			if err := r.BeforeDelete(ctx, model); err != nil {
-				return err
-			}
-		}
-		if err := orm.WithContext(ctx.Context).Delete(model).Error; err != nil {
+		deleted, err := r.deleteModelWithHooks(ctx, scopedDB, model)
+		if err != nil {
 			return err
 		}
-		if r.AfterDelete != nil {
-			if err := r.AfterDelete(ctx, model); err != nil {
-				return err
-			}
+		if !deleted {
+			return ninja.NotFoundError()
 		}
 		return nil
 	}
@@ -731,26 +783,24 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			ids = append(ids, value)
 		}
 
-		allowedIDs := make([]any, 0, len(ids))
-		for _, id := range ids {
-			model := r.newModel()
-			if err := r.scopedDB(ctx, ActionBulkDelete, orm.WithContext(ctx.Context)).First(model, id).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					continue
-				}
-				return nil, err
-			}
-			allowedIDs = append(allowedIDs, id)
-		}
-		if len(allowedIDs) == 0 {
-			return &BulkDeleteOutput{Deleted: 0}, nil
+		scopedDB := r.scopedDB(ctx, ActionBulkDelete, orm.WithContext(ctx.Context))
+		itemsPtr := reflect.New(reflect.SliceOf(r.modelType))
+		if err := scopedDB.Where(clause.IN{Column: clause.Column{Name: queryColumn(r.primaryKey)}, Values: ids}).Find(itemsPtr.Interface()).Error; err != nil {
+			return nil, err
 		}
 
-		result := orm.WithContext(ctx.Context).Delete(r.newModel(), allowedIDs)
-		if result.Error != nil {
-			return nil, result.Error
+		var deleted int64
+		for i := 0; i < itemsPtr.Elem().Len(); i++ {
+			model := itemsPtr.Elem().Index(i).Addr().Interface()
+			removed, err := r.deleteModelWithHooks(ctx, scopedDB, model)
+			if err != nil {
+				return nil, err
+			}
+			if removed {
+				deleted++
+			}
 		}
-		return &BulkDeleteOutput{Deleted: result.RowsAffected}, nil
+		return &BulkDeleteOutput{Deleted: deleted}, nil
 	}
 }
 

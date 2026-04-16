@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +74,11 @@ type adminOwnerWithScalarField struct {
 type adminMetrics struct {
 	ID    uint `gorm:"primaryKey"`
 	Count int  `json:"count"`
+}
+
+type adminWeirdPrimary struct {
+	UUID   string `gorm:"primaryKey" json:"uuid"`
+	Liquid string `json:"liquid" admin:"readonly"`
 }
 
 type adminTaggedRole struct {
@@ -340,6 +346,23 @@ func TestAdminSiteInfersResourceIdentityFromModel(t *testing.T) {
 	}
 }
 
+func TestResourcePreparePrefersActualPrimaryKeyOverReadonlyIDSubstring(t *testing.T) {
+	resource := &Resource{
+		Name:  "weird",
+		Model: adminWeirdPrimary{},
+	}
+
+	if err := resource.prepare(); err != nil {
+		t.Fatalf("prepare() error = %v", err)
+	}
+	if resource.primaryKey == nil {
+		t.Fatal("expected primary key to be detected")
+	}
+	if resource.primaryKey.Meta.Name != "uuid" {
+		t.Fatalf("primary key = %q, want %q", resource.primaryKey.Meta.Name, "uuid")
+	}
+}
+
 func TestAdminCreateReportsSoftDeletedDuplicateConflict(t *testing.T) {
 	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
 		if ctx.GetUserID() == 0 {
@@ -529,6 +552,91 @@ func TestAdminSiteQueryScopeAppliesToItemAccessAndBulkDelete(t *testing.T) {
 	}
 	if strings.Contains(listAfterDelete.Body.String(), "Cara") || strings.Contains(listAfterDelete.Body.String(), "Alice") || !strings.Contains(listAfterDelete.Body.String(), "Bobby") {
 		t.Fatalf("unexpected scoped list after delete: %s", listAfterDelete.Body.String())
+	}
+}
+
+func TestAdminSiteUpdatePersistsHookMutationsOutsidePayload(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		UpdateFields: []string{"name"},
+		BeforeUpdate: func(ctx *ninja.Context, model any, values map[string]any) error {
+			model.(*adminUser).Email = "bob+hook@example.com"
+			return nil
+		},
+	})
+
+	api, db := newAdminAPIWithDB(t, site,
+		adminUser{Name: "Bob", Email: "bob@example.com", Password: "p2", IsAdmin: false},
+	)
+
+	headers := map[string]string{"X-User-ID": "1"}
+
+	updateResp := performJSON(t, api, http.MethodPut, "/admin/resources/users/1", map[string]any{"name": "Bobby"}, headers)
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("expected update success, got %d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+	var bob adminUser
+	if err := db.First(&bob, 1).Error; err != nil {
+		t.Fatalf("expected bob to remain, got %v", err)
+	}
+	if bob.Name != "Bobby" || bob.Email != "bob+hook@example.com" {
+		t.Fatalf("expected hook-mutated persisted fields to be saved, got %+v", bob)
+	}
+}
+
+func TestAdminSiteBulkDeleteRunsDeleteHooks(t *testing.T) {
+	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
+		if ctx.GetUserID() == 0 {
+			return ninja.UnauthorizedError()
+		}
+		return nil
+	}))
+	var beforeIDs, afterIDs []uint
+	site.MustRegister(&Resource{
+		Name:         "users",
+		Model:        adminUser{},
+		ListFields:   []string{"id", "name", "email"},
+		DetailFields: []string{"id", "name", "email"},
+		BeforeDelete: func(ctx *ninja.Context, model any) error {
+			beforeIDs = append(beforeIDs, model.(*adminUser).ID)
+			return nil
+		},
+		AfterDelete: func(ctx *ninja.Context, model any) error {
+			afterIDs = append(afterIDs, model.(*adminUser).ID)
+			return nil
+		},
+	})
+
+	api := newAdminAPI(t, site,
+		adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"},
+		adminUser{Name: "Bob", Email: "bob@example.com", Password: "p2"},
+		adminUser{Name: "Cara", Email: "cara@example.com", Password: "p3"},
+	)
+
+	bulkDelete := performJSON(t, api, http.MethodPost, "/admin/resources/users/bulk-delete", map[string]any{
+		"ids": []uint{1, 2},
+	}, map[string]string{"X-User-ID": "1"})
+	if bulkDelete.Code != http.StatusCreated {
+		t.Fatalf("bulk delete status = %d body=%s", bulkDelete.Code, bulkDelete.Body.String())
+	}
+
+	sort.Slice(beforeIDs, func(i, j int) bool { return beforeIDs[i] < beforeIDs[j] })
+	sort.Slice(afterIDs, func(i, j int) bool { return afterIDs[i] < afterIDs[j] })
+	want := []uint{1, 2}
+	if !reflect.DeepEqual(beforeIDs, want) {
+		t.Fatalf("expected before delete hooks for %v, got %v", want, beforeIDs)
+	}
+	if !reflect.DeepEqual(afterIDs, want) {
+		t.Fatalf("expected after delete hooks for %v, got %v", want, afterIDs)
 	}
 }
 
