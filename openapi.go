@@ -506,6 +506,289 @@ window.onload = function() {
 </html>`, title, openapiURL)
 }
 
+// homepageHTML returns the HTML for the Gin Ninja welcome homepage.
+// docsURL and adminURL may be empty strings to hide the respective buttons.
+func homepageHTML(title, docsURL, adminURL string) string {
+	docsButton := ""
+	if docsURL != "" {
+		docsButton = fmt.Sprintf(`
+        <a href="%s" class="btn btn-docs">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          API Docs
+        </a>`, docsURL)
+	}
+	adminButton := ""
+	if adminURL != "" {
+		adminButton = fmt.Sprintf(`
+        <a href="%s" class="btn btn-admin">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Admin
+        </a>`, adminURL)
+	}
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%s</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+
+    /* Floating particles */
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%%;
+      opacity: 0.15;
+      animation: float linear infinite;
+    }
+    @keyframes float {
+      0%%   { transform: translateY(110vh) rotate(0deg);   opacity: 0;    }
+      10%%  {                                               opacity: 0.15; }
+      90%%  {                                               opacity: 0.15; }
+      100%% { transform: translateY(-10vh) rotate(720deg); opacity: 0;    }
+    }
+
+    /* Card */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px;
+      padding: 56px 64px;
+      max-width: 560px;
+      width: 90%%;
+      text-align: center;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 32px 80px rgba(0,0,0,0.5);
+      animation: card-in 0.8s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes card-in {
+      from { opacity: 0; transform: translateY(40px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);     }
+    }
+
+    /* Logo / ninja icon */
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+    .logo-ring {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%%;
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 0 rgba(124,58,237,0.5);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%%,100%% { box-shadow: 0 0 0 0   rgba(124,58,237,0.5); }
+      50%%      { box-shadow: 0 0 0 20px rgba(124,58,237,0);   }
+    }
+    .logo-svg {
+      width: 52px;
+      height: 52px;
+      fill: #fff;
+      animation: spin-slow 8s linear infinite;
+    }
+    @keyframes spin-slow {
+      from { transform: rotate(0deg);   }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Title */
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      animation: fade-up 0.9s 0.2s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    .tagline {
+      font-size: 1rem;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 36px;
+      animation: fade-up 0.9s 0.35s cubic-bezier(0.22,1,0.36,1) both;
+    }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+
+    /* Status badge */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 999px;
+      padding: 6px 18px;
+      font-size: 0.82rem;
+      color: #4ade80;
+      margin-bottom: 40px;
+      animation: fade-up 0.9s 0.5s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%%;
+      background: #4ade80;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%%,100%% { opacity: 1; }
+      50%%      { opacity: 0.3; }
+    }
+
+    /* Buttons */
+    .buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fade-up 0.9s 0.65s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 28px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.18s, box-shadow 0.18s, filter 0.18s;
+    }
+    .btn:hover {
+      transform: translateY(-3px);
+      filter: brightness(1.15);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .btn-docs {
+      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      color: #fff;
+    }
+    .btn-admin {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: #e0e0e0;
+    }
+    .btn-admin:hover {
+      background: rgba(255,255,255,0.14);
+    }
+    .btn-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 44px;
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.25);
+      animation: fade-up 0.9s 0.8s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    .footer a {
+      color: rgba(255,255,255,0.4);
+      text-decoration: none;
+    }
+    .footer a:hover { color: rgba(255,255,255,0.7); }
+  </style>
+</head>
+<body>
+
+<!-- Floating background particles -->
+<div class="particles" id="particles"></div>
+
+<div class="card">
+  <div class="logo-wrap">
+    <div class="logo-ring">
+      <!-- Shuriken / ninja star SVG -->
+      <svg class="logo-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <path d="M32 4 L40 28 L64 32 L40 36 L32 60 L24 36 L0 32 L24 28 Z"/>
+      </svg>
+    </div>
+  </div>
+
+  <h1>%s</h1>
+  <p class="tagline">A fast, typed REST framework powered by Gin &amp; Go generics</p>
+
+  <div class="status">
+    <span class="status-dot"></span>
+    Server is running
+  </div>
+
+  <div class="buttons">%s%s
+  </div>
+
+  <div class="footer">
+    Powered by <a href="https://github.com/shijl0925/gin-ninja" target="_blank" rel="noopener">gin-ninja</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var p = document.getElementById('particles');
+  var colors = ['#7c3aed','#2563eb','#4ade80','#f472b6','#facc15'];
+  for (var i = 0; i < 30; i++) {
+    var el = document.createElement('div');
+    el.className = 'particle';
+    var size = (Math.random() * 14 + 4) + 'px';
+    el.style.cssText = [
+      'width:'  + size,
+      'height:' + size,
+      'left:'   + (Math.random() * 100) + '%%',
+      'background:' + colors[Math.floor(Math.random() * colors.length)],
+      'animation-duration:' + (Math.random() * 18 + 10) + 's',
+      'animation-delay:'    + (Math.random() * -25) + 's'
+    ].join(';');
+    p.appendChild(el);
+  }
+})();
+</script>
+</body>
+</html>`, title, title, docsButton, adminButton)
+}
+
 // ginPathToOpenAPI converts a gin-style path ("/users/:id") to an OpenAPI
 // path ("/users/{id}").
 func ginPathToOpenAPI(ginPath string) string {

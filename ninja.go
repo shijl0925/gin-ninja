@@ -33,6 +33,12 @@ type Config struct {
 	Prefix string
 	// Versions configures named API version namespaces and version-scoped docs.
 	Versions map[string]VersionConfig
+	// HomepageURL is the path at which the welcome homepage is served (default: "/").
+	// Set to an empty string to disable the homepage.
+	HomepageURL string
+	// AdminURL is the path used for the "Admin" shortcut button on the homepage.
+	// Leave empty to hide the Admin button (the framework does not mount admin itself).
+	AdminURL string
 	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
 	// bearer authentication shown by Swagger UI's "Authorize" button.
 	SecuritySchemes map[string]SecurityScheme
@@ -89,6 +95,9 @@ func New(config Config) *NinjaAPI {
 	}
 	if config.DocsURL == "" {
 		config.DocsURL = "/docs"
+	}
+	if config.HomepageURL == "" {
+		config.HomepageURL = "/"
 	}
 	if config.OpenAPIURL == "" {
 		config.OpenAPIURL = "/openapi.json"
@@ -266,6 +275,17 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 
 // setupInternalRoutes adds the OpenAPI JSON and Swagger UI routes.
 func (api *NinjaAPI) setupInternalRoutes() {
+	if api.config.HomepageURL != "" {
+		homepageURL := api.config.HomepageURL
+		docsURL := api.config.DocsURL
+		adminURL := api.config.AdminURL
+		title := api.config.Title
+		api.engine.GET(homepageURL, func(c *gin.Context) {
+			c.Data(http.StatusOK, "text/html; charset=utf-8",
+				[]byte(homepageHTML(title, docsURL, adminURL)))
+		})
+	}
+
 	if api.config.OpenAPIURL != "" {
 		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
 			data, err := api.openAPIBytes()
