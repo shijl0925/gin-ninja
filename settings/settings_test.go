@@ -182,6 +182,18 @@ func TestServerConfig_TimeoutDurations(t *testing.T) {
 	}
 }
 
+func TestServerConfig_ProxyPortWarning(t *testing.T) {
+	if got := (settings.ServerConfig{Port: 18080}).ProxyPortWarning(); got != "" {
+		t.Fatalf("expected no warning for non-proxy port, got %q", got)
+	}
+	if got := (settings.ServerConfig{Port: 8080}).ProxyPortWarning(); got == "" {
+		t.Fatal("expected warning for common proxy port 8080")
+	}
+	if got := (settings.ServerConfig{}).ProxyPortWarning(); got == "" {
+		t.Fatal("expected warning for default port 8080")
+	}
+}
+
 func TestJWTConfig_ExpireDuration(t *testing.T) {
 	if got := (settings.JWTConfig{}).ExpireDuration(); got != 24*time.Hour {
 		t.Fatalf("expected default jwt ttl, got %v", got)

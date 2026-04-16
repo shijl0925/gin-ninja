@@ -304,7 +304,7 @@ app:
 
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 18080
 
 database:
   driver: "sqlite"
@@ -319,6 +319,8 @@ log:
   format: "json"
   output: "stdout"
 ```
+
+`8080` is still supported, but `18080` is a safer default for local examples because `8080` is commonly reused by HTTP/SOCKS proxies. If a browser later reports `ERR_PROXY_CONNECTION_FAILED` after you stop the app, inspect your OS proxy settings.
 
 MySQL / PostgreSQL can use the same `database` block:
 
@@ -1284,7 +1286,7 @@ Suggested manual flow:
    cd examples/full
    go run .
    ```
-2. Open `http://localhost:8080/admin/login`
+2. Open `http://localhost:18080/admin/login`
 3. Sign in with the demo credentials shown on the page
 4. After redirecting to `/admin`, pick a resource from the left sidebar
 5. Use the workspace to:
@@ -1305,7 +1307,7 @@ Useful routes:
 ```bash
 cd examples/full
 go run .
-# Open http://localhost:8080/docs
+# Open http://localhost:18080/docs
 ```
 
 ---

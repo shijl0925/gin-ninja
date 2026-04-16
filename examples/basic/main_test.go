@@ -168,7 +168,7 @@ func TestBasicMainUsesInjectedRunner(t *testing.T) {
 
 	called := false
 	runBasicMain = func(dsn, addr string) error {
-		called = dsn == "users.db" && addr == ":8080"
+		called = dsn == "users.db" && addr == ":18080"
 		return nil
 	}
 	main()

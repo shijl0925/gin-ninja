@@ -343,7 +343,7 @@ app:
 
 server:
   host: "0.0.0.0"
-  port: 8080
+  port: 18080
 
 database:
   driver: "sqlite"
@@ -358,6 +358,8 @@ log:
   format: "json"
   output: "stdout"
 ```
+
+`8080` 仍然可用，但本地示例更建议使用 `18080`，因为 `8080` 经常被 HTTP/SOCKS 代理复用。若停止应用后浏览器出现 `ERR_PROXY_CONNECTION_FAILED`，请优先检查系统代理设置。
 
 补充说明：
 
@@ -754,7 +756,7 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
    cd examples/full
    go run .
    ```
-2. 打开 `http://localhost:8080/admin/login`
+2. 打开 `http://localhost:18080/admin/login`
 3. 使用页面展示的演示账号登录
 4. 跳转到 `/admin` 后，从左侧选择资源
 5. 在工作台中体验：
@@ -781,10 +783,10 @@ go run .
 
 常用访问地址：
 
-- `http://localhost:8080/docs`
-- `http://localhost:8080/docs/v2`
-- `http://localhost:8080/openapi.json`
-- `http://localhost:8080/openapi/v2.json`
+- `http://localhost:18080/docs`
+- `http://localhost:18080/docs/v2`
+- `http://localhost:18080/openapi.json`
+- `http://localhost:18080/openapi/v2.json`
 
 ## License
 

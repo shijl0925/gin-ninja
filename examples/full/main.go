@@ -5,17 +5,17 @@
 //	go run ./examples/full
 //
 // Then visit:
-//   - http://localhost:8080/docs
-//   - http://localhost:8080/docs/v2
-//   - http://localhost:8080/docs/v1
-//   - http://localhost:8080/docs/v0
-//   - http://localhost:8080/openapi.json
-//   - http://localhost:8080/openapi/v2.json
-//   - http://localhost:8080/openapi/v1.json
-//   - http://localhost:8080/openapi/v0.json
-//   - http://localhost:8080/admin/login
-//   - http://localhost:8080/admin
-//   - http://localhost:8080/admin-prototype
+//   - http://localhost:18080/docs
+//   - http://localhost:18080/docs/v2
+//   - http://localhost:18080/docs/v1
+//   - http://localhost:18080/docs/v0
+//   - http://localhost:18080/openapi.json
+//   - http://localhost:18080/openapi/v2.json
+//   - http://localhost:18080/openapi/v1.json
+//   - http://localhost:18080/openapi/v0.json
+//   - http://localhost:18080/admin/login
+//   - http://localhost:18080/admin
+//   - http://localhost:18080/admin-prototype
 package main
 
 import (
