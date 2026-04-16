@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/shijl0925/go-toolkits/gormx"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -84,6 +85,24 @@ func BuildOptions(input any) ([]gormx.DBOption, error) {
 		opts = append(opts, opt)
 	}
 	return opts, nil
+}
+
+// ApplyDB resolves tagged filter clauses and applies them to a native GORM query.
+func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
+	if db == nil {
+		return nil, nil
+	}
+	clauses, err := Parse(input)
+	if err != nil {
+		return nil, err
+	}
+	for _, clause := range clauses {
+		db, err = applyDBClause(db, clause)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return db, nil
 }
 
 func parseInto(value reflect.Value, clauses *Set) error {
@@ -215,6 +234,38 @@ func buildOption(filterClause Clause) (gormx.DBOption, error) {
 		exprs = append(exprs, expr)
 	}
 	return gormx.Where(clause.Or(exprs...)), nil
+}
+
+func applyDBClause(db *gorm.DB, filterClause Clause) (*gorm.DB, error) {
+	fields := filterClause.Fields
+	if len(fields) == 0 && filterClause.Field != "" {
+		fields = []string{filterClause.Field}
+	}
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("filter clause is missing fields")
+	}
+
+	if len(fields) == 1 {
+		expr, err := buildExpression(fields[0], filterClause.Op, filterClause.Value)
+		if err != nil {
+			return nil, err
+		}
+		return db.Where(expr), nil
+	}
+
+	if filterClause.Combiner != CombinerOr {
+		return nil, fmt.Errorf("unsupported filter combiner %q", filterClause.Combiner)
+	}
+
+	exprs := make([]clause.Expression, 0, len(fields))
+	for _, field := range fields {
+		expr, err := buildExpression(field, filterClause.Op, filterClause.Value)
+		if err != nil {
+			return nil, err
+		}
+		exprs = append(exprs, expr)
+	}
+	return db.Where(clause.Or(exprs...)), nil
 }
 
 func parseTag(tag string, field reflect.StructField) ([]string, Operator, Combiner, error) {

@@ -72,3 +72,15 @@ func TestApplySortAndApplyOrderExecuteBranches(t *testing.T) {
 		t.Fatalf("ResolveOrder(nil pointer) = (%+v, %v)", fields, err)
 	}
 }
+
+func TestApplyDBNilQueryReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	db, err := ApplyDB(nil, &taggedSortInput{Sort: "name"})
+	if err != nil {
+		t.Fatalf("ApplyDB(nil) error = %v", err)
+	}
+	if db != nil {
+		t.Fatalf("expected nil db, got %#v", db)
+	}
+}

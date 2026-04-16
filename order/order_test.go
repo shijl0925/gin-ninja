@@ -1,6 +1,11 @@
 package order
 
-import "testing"
+import (
+	"testing"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
 
 type taggedSortInput struct {
 	Sort string `form:"sort" order:"name|created:created_at|score"`
@@ -173,5 +178,21 @@ func TestApplySortAndApplyOrderNilQuery(t *testing.T) {
 	}
 	if err := ApplyOrder[struct{}](nil, &taggedSortInput{Sort: "name"}); err != nil {
 		t.Fatalf("ApplyOrder(nil) error = %v", err)
+	}
+}
+
+func TestApplyDB(t *testing.T) {
+	t.Parallel()
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	query, err := ApplyDB(db.Model(&struct{}{}), &taggedSortInput{Sort: "name,-created"})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+	if query == nil {
+		t.Fatal("expected query to be returned")
 	}
 }

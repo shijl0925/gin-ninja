@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+func boolPtr(v bool) *bool {
+	return &v
+}
+
 func TestGenerateCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +99,91 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 	}
 	if strings.Contains(generated, "Roles []string") {
 		t.Fatalf("expected gorm ignored fields to be excluded\n%s", generated)
+	}
+}
+
+func TestGenerateCRUDWithNativeGORM(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID    uint   `+"`json:\"id\"`"+`
+	Name  string `+"`json:\"name\" crud:\"filter,sort,search\"`"+`
+	Email string `+"`json:\"email\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		`query := db.Model(&User{})`,
+		`query, err = filter.ApplyDB(query, in)`,
+		`countQuery := query.Session(&gorm.Session{})`,
+		`query, err = order.ApplyDB(query, in)`,
+		`if err := db.Create(item).Error; err != nil {`,
+		`if err := db.Model(&User{}).Where("id = ?", in.ID).Updates(updates).Error; err != nil {`,
+		`if err := query.Where("id = ?", id).First(&item).Error; err != nil {`,
+		`return db.Model(&User{}).Where("id = ?", in.ID).Delete(&User{}).Error`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
+	}
+
+	for _, unexpected := range []string{
+		`gormx.`,
+		`type IUserRepo interface`,
+		`func NewUserRepo()`,
+		`func applyUserFilters(`,
+		`func applyUserSort(`,
+		`func buildUserFilterExpr(`,
+	} {
+		if strings.Contains(generated, unexpected) {
+			t.Fatalf("generated content unexpectedly contained %q\n%s", unexpected, generated)
+		}
+	}
+}
+
+func TestGenerateCRUDNativeGORMNoFilterOrSort(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type Widget struct {
+	ID    uint   `+"`json:\"id\"`"+`
+	Name  string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Widget", WithGormX: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	// Generated code must compile: no orphan `var err error` when no filter/sort fields
+	if strings.Contains(generated, "var err error") {
+		t.Fatalf("generated code must not declare unused 'var err error' when no filter or sort fields:\n%s", generated)
+	}
+	if strings.Contains(generated, "filter.ApplyDB") {
+		t.Fatalf("generated code must not call filter.ApplyDB when no filter fields:\n%s", generated)
+	}
+	if strings.Contains(generated, "order.ApplyDB") {
+		t.Fatalf("generated code must not call order.ApplyDB when no sort fields:\n%s", generated)
 	}
 }
 
@@ -258,6 +347,68 @@ import (
 )
 
 func TestGeneratedRoutesUsePatchForPartialUpdates(t *testing.T) {
+	api := ninja.New(ninja.Config{})
+	router := ninja.NewRouter("/users")
+	RegisterUserCRUDRoutes(router)
+	api.AddRouter(router)
+
+	putReq := httptest.NewRequest(http.MethodPut, "/users/1", strings.NewReader("{}"))
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp := httptest.NewRecorder()
+	api.Handler().ServeHTTP(putResp, putReq)
+	if putResp.Code != http.StatusNotFound {
+		t.Fatalf("expected PUT update route to be absent, got %d body=%s", putResp.Code, putResp.Body.String())
+	}
+
+	patchReq := httptest.NewRequest(http.MethodPatch, "/users/1", strings.NewReader("{"))
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchResp := httptest.NewRecorder()
+	api.Handler().ServeHTTP(patchResp, patchReq)
+	if patchResp.Code != http.StatusBadRequest {
+		t.Fatalf("expected PATCH route to bind request before hitting persistence, got %d body=%s", patchResp.Code, patchResp.Body.String())
+	}
+}
+`), 0o644); err != nil {
+		t.Fatalf("write route test: %v", err)
+	}
+
+	runGoTest(t, dir)
+}
+
+func TestGenerateCRUDBuildsWithNativeGORM(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\" crud:\"filter,sort,search\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "user_crud_gen.go"), content, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "route_test.go"), []byte(`package demo
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	ninja "github.com/shijl0925/gin-ninja"
+)
+
+func TestGeneratedNativeGORMRoutesUsePatchForPartialUpdates(t *testing.T) {
 	api := ninja.New(ninja.Config{})
 	router := ninja.NewRouter("/users")
 	RegisterUserCRUDRoutes(router)
