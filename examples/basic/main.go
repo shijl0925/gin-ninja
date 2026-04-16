@@ -234,17 +234,18 @@ func run(dsn, addr string) error {
 	api := buildAPI(db)
 
 	port := portFromAddr(addr)
-	if msg := (settings.ServerConfig{Port: port}).ProxyPortWarning(); msg != "" {
-		log.Printf("warning: %s", msg)
+	if port > 0 {
+		if msg := (settings.ServerConfig{Port: port}).ProxyPortWarning(); msg != "" {
+			log.Printf("warning: %s", msg)
+		}
+		log.Printf("Docs: http://localhost:%d/docs", port)
+	} else {
+		log.Printf("Docs: %s/docs", addr)
 	}
-	log.Printf("Docs: http://localhost:%d/docs", port)
 	return api.Run(addr)
 }
 
 func portFromAddr(addr string) int {
-	if addr == "" {
-		return 18080
-	}
 	_, rawPort, err := net.SplitHostPort(addr)
 	if err != nil {
 		return 0
@@ -252,9 +253,6 @@ func portFromAddr(addr string) int {
 	var port int
 	if _, err := fmt.Sscanf(rawPort, "%d", &port); err != nil {
 		return 0
-	}
-	if port == 0 {
-		return 18080
 	}
 	return port
 }
