@@ -111,7 +111,7 @@ func TestNew_HomepageIncludesAdminShortcutWhenConfigured(t *testing.T) {
 		t.Fatalf("expected 200 got %d", w.Code)
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, `href="/admin"`) || !strings.Contains(body, ">Admin<") {
+	if !strings.Contains(body, `href="/admin"`) || !strings.Contains(body, `class="btn btn-admin"`) {
 		t.Fatalf("expected admin shortcut in body: %q", body)
 	}
 }
