@@ -152,8 +152,11 @@ func main() {
 
 启动后可访问：
 
+- 首页：`http://localhost:8080/`
 - Swagger UI：`http://localhost:8080/docs`
 - OpenAPI JSON：`http://localhost:8080/openapi.json`
+
+如果你希望首页展示后台入口按钮，可以在 `ninja.Config` 中设置 `AdminURL`。
 
 ## CRUD 脚手架生成器
 

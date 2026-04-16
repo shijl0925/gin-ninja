@@ -79,6 +79,62 @@ func TestNew_DocsRouteExists(t *testing.T) {
 	}
 }
 
+func TestNew_HomepageRouteExists(t *testing.T) {
+	api := newTestAPI()
+	w := doRequest(api, http.MethodGet, "/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+		t.Fatalf("expected HTML content-type, got %s", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "Test") || !strings.Contains(body, "Server is running") {
+		t.Fatalf("expected homepage title and status in body: %q", body)
+	}
+	if !strings.Contains(body, `href="/docs"`) || !strings.Contains(body, "API Docs") {
+		t.Fatalf("expected docs shortcut in body: %q", body)
+	}
+	if strings.Contains(body, ">Admin<") {
+		t.Fatalf("expected admin shortcut to be hidden by default: %q", body)
+	}
+}
+
+func TestNew_HomepageIncludesAdminShortcutWhenConfigured(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:    "Admin Home",
+		Version:  "0.0.1",
+		AdminURL: "/admin",
+	})
+	w := doRequest(api, http.MethodGet, "/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `href="/admin"`) || !strings.Contains(body, ">Admin<") {
+		t.Fatalf("expected admin shortcut in body: %q", body)
+	}
+}
+
+func TestNew_HomepageCanMoveToCustomURL(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:       "Custom Home",
+		Version:     "0.0.1",
+		HomepageURL: "/welcome",
+	})
+	root := doRequest(api, http.MethodGet, "/", nil)
+	if root.Code != http.StatusNotFound {
+		t.Fatalf("expected root to be unregistered, got %d", root.Code)
+	}
+	custom := doRequest(api, http.MethodGet, "/welcome", nil)
+	if custom.Code != http.StatusOK {
+		t.Fatalf("expected custom homepage route to return 200 got %d", custom.Code)
+	}
+	if !strings.Contains(custom.Body.String(), "Custom Home") {
+		t.Fatalf("expected custom homepage title in body: %q", custom.Body.String())
+	}
+}
+
 func TestNew_OpenAPIRouteExists(t *testing.T) {
 	api := newTestAPI()
 	w := doRequest(api, http.MethodGet, "/openapi.json", nil)

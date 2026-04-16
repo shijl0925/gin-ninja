@@ -185,7 +185,13 @@ func main() {
 }
 ```
 
-Visit `http://localhost:8080/docs` for the Swagger UI.
+After startup you can visit:
+
+- `http://localhost:8080/` for the default welcome homepage
+- `http://localhost:8080/docs` for the Swagger UI
+- `http://localhost:8080/openapi.json` for the raw OpenAPI document
+
+If you want the homepage to include a shortcut to your admin backend, set `AdminURL` in `ninja.Config`.
 
 ---
 
