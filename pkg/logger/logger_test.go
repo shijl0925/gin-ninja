@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/settings"
@@ -50,9 +51,13 @@ func TestBuildEncoder(t *testing.T) {
 }
 
 func TestBuildSinkAndHelpers(t *testing.T) {
+	globalMu.RLock()
 	oldGlobal := global
+	globalMu.RUnlock()
 	t.Cleanup(func() {
+		globalMu.Lock()
 		global = oldGlobal
+		globalMu.Unlock()
 		if oldGlobal != nil {
 			zap.ReplaceGlobals(oldGlobal)
 		}
@@ -105,4 +110,39 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 	if sink := buildSink("stderr"); sink == nil {
 		t.Fatal("expected stderr sink")
 	}
+}
+
+func TestSetGlobalNilFallsBackAndIsConcurrentSafe(t *testing.T) {
+	globalMu.RLock()
+	oldGlobal := global
+	globalMu.RUnlock()
+	t.Cleanup(func() {
+		globalMu.Lock()
+		global = oldGlobal
+		globalMu.Unlock()
+		if oldGlobal != nil {
+			zap.ReplaceGlobals(oldGlobal)
+		}
+	})
+
+	SetGlobal(nil)
+	if Global() == nil {
+		t.Fatal("expected fallback logger when setting nil global")
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			if i%2 == 0 {
+				SetGlobal(zap.NewNop())
+				return
+			}
+			if Global() == nil {
+				t.Error("expected non-nil logger during concurrent access")
+			}
+		}(i)
+	}
+	wg.Wait()
 }

@@ -15,6 +15,7 @@ package logger
 
 import (
 	"os"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -22,7 +23,12 @@ import (
 	"github.com/shijl0925/gin-ninja/settings"
 )
 
-var global *zap.Logger
+var (
+	globalMu          sync.RWMutex
+	global            *zap.Logger
+	defaultLoggerOnce sync.Once
+	defaultLogger     *zap.Logger
+)
 
 // New creates a new *zap.Logger configured from the supplied LogConfig.
 func New(cfg settings.LogConfig) *zap.Logger {
@@ -37,18 +43,25 @@ func New(cfg settings.LogConfig) *zap.Logger {
 // SetGlobal replaces the package-level logger that is used by the top-level
 // helper functions (Info, Warn, Error, etc.).
 func SetGlobal(l *zap.Logger) {
+	if l == nil {
+		l = fallbackLogger()
+	}
+	globalMu.Lock()
 	global = l
+	globalMu.Unlock()
 	zap.ReplaceGlobals(l)
 }
 
 // Global returns the package-level *zap.Logger.  If SetGlobal has not been
 // called, a default production logger is returned.
 func Global() *zap.Logger {
-	if global == nil {
-		l, _ := zap.NewProduction()
+	globalMu.RLock()
+	l := global
+	globalMu.RUnlock()
+	if l != nil {
 		return l
 	}
-	return global
+	return fallbackLogger()
 }
 
 // Named returns a child logger with the given name.
@@ -125,4 +138,14 @@ func buildSink(output string) zapcore.WriteSyncer {
 		}
 		return zapcore.AddSync(f)
 	}
+}
+
+func fallbackLogger() *zap.Logger {
+	defaultLoggerOnce.Do(func() {
+		defaultLogger, _ = zap.NewProduction()
+		if defaultLogger == nil {
+			defaultLogger = zap.NewNop()
+		}
+	})
+	return defaultLogger
 }

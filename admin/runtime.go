@@ -194,19 +194,27 @@ func (r *Resource) applyValuesFor(view *resolvedResource, target reflect.Value, 
 	return nil
 }
 
-func (r *Resource) updateColumnsFor(view *resolvedResource, values map[string]any) (map[string]any, error) {
-	updates := make(map[string]any, len(values))
-	for name, value := range values {
-		field := view.fieldByName[name]
-		if field == nil {
+func (r *Resource) updateColumnsFor(view *resolvedResource, before, after reflect.Value) ([]string, error) {
+	columns := make([]string, 0, len(view.fields))
+	seen := make(map[string]struct{}, len(view.fields))
+	for _, field := range view.fields {
+		if field == nil || !field.persisted || field.primaryKey {
 			continue
 		}
-		if !field.persisted {
+		column := strings.TrimSpace(field.Meta.Column)
+		if column == "" {
 			continue
 		}
-		updates[field.Meta.Column] = value
+		if reflect.DeepEqual(field.value(before), field.value(after)) {
+			continue
+		}
+		if _, ok := seen[column]; ok {
+			continue
+		}
+		seen[column] = struct{}{}
+		columns = append(columns, column)
 	}
-	return updates, nil
+	return columns, nil
 }
 
 func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query url.Values, in *listInput) (*gorm.DB, error) {
