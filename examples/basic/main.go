@@ -5,13 +5,15 @@
 //	go run ./examples/basic
 //
 // Then visit:
-//   - http://localhost:8080/docs
-//   - http://localhost:8080/openapi.json
+//   - http://localhost:18080/docs
+//   - http://localhost:18080/openapi.json
 package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 
 	ginpkg "github.com/gin-gonic/gin"
@@ -19,6 +21,7 @@ import (
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"github.com/shijl0925/gin-ninja/settings"
 	"github.com/shijl0925/go-toolkits/gormx"
 	gormdriver "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -230,8 +233,28 @@ func run(dsn, addr string) error {
 	}
 	api := buildAPI(db)
 
-	log.Println("Docs: http://localhost:8080/docs")
+	port := portFromAddr(addr)
+	if port > 0 {
+		if msg := (settings.ServerConfig{Port: port}).ProxyPortWarning(); msg != "" {
+			log.Printf("warning: %s", msg)
+		}
+		log.Printf("Docs: http://localhost:%d/docs", port)
+	} else {
+		log.Printf("Docs: %s/docs", addr)
+	}
 	return api.Run(addr)
+}
+
+func portFromAddr(addr string) int {
+	_, rawPort, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	var port int
+	if _, err := fmt.Sscanf(rawPort, "%d", &port); err != nil {
+		return 0
+	}
+	return port
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +262,7 @@ func run(dsn, addr string) error {
 // ---------------------------------------------------------------------------
 
 func main() {
-	if err := runBasicMain("users.db", ":8080"); err != nil {
+	if err := runBasicMain("users.db", ":18080"); err != nil {
 		fatalBasic(err)
 	}
 }

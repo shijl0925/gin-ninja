@@ -37,6 +37,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -77,6 +79,15 @@ type ServerConfig struct {
 	WriteTimeout int `mapstructure:"write_timeout"`
 }
 
+var commonProxyPorts = map[int]struct{}{
+	1080: {},
+	3128: {},
+	7890: {},
+	7891: {},
+	8080: {},
+	8888: {},
+}
+
 // Addr returns the host:port string, e.g. "0.0.0.0:8080".
 func (s ServerConfig) Addr() string {
 	host := s.Host
@@ -88,6 +99,31 @@ func (s ServerConfig) Addr() string {
 		port = 8080
 	}
 	return fmt.Sprintf("%s:%d", host, port)
+}
+
+// ProxyPortWarning reports when the configured listen port overlaps a common
+// local HTTP/SOCKS proxy port, which can make an existing OS proxy setting look
+// like a framework issue when the application stops.
+func (s ServerConfig) ProxyPortWarning() string {
+	port := s.Port
+	if port == 0 {
+		port = 8080
+	}
+	if _, ok := commonProxyPorts[port]; !ok {
+		return ""
+	}
+
+	ports := make([]string, 0, len(commonProxyPorts))
+	for candidate := range commonProxyPorts {
+		ports = append(ports, strconv.Itoa(candidate))
+	}
+	sort.Strings(ports)
+
+	return fmt.Sprintf(
+		"server port %d is a common local HTTP/SOCKS proxy port. If your browser later shows ERR_PROXY_CONNECTION_FAILED after stopping the app, check your OS proxy settings or switch to another port such as 18080 (common proxy ports: %s)",
+		port,
+		strings.Join(ports, ", "),
+	)
 }
 
 // ReadTimeoutDuration returns the read timeout as a time.Duration.

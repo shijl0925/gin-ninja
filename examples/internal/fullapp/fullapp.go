@@ -250,6 +250,9 @@ func Run(cfg settings.Config, log_ *zap.Logger, opts Options) error {
 
 	api := BuildAPI(cfg, db, log_, opts)
 	addr := cfg.Server.Addr()
+	if warning := cfg.Server.ProxyPortWarning(); warning != "" {
+		log.Printf("warning: %s", warning)
+	}
 	log.Printf("Starting %s v%s on http://%s", cfg.App.Name, cfg.App.Version, addr)
 	log.Printf("Swagger UI: http://%s/docs", addr)
 	return api.Run(addr)
