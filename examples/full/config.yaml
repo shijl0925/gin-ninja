@@ -12,7 +12,7 @@ server:
 
 database:
   driver: "sqlite"
-  dsn: "examples/full/full_example.db"
+  dsn: "full_example.db"
   # 切换到 MySQL:
   # driver: "mysql"
   # dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"

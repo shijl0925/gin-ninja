@@ -93,6 +93,14 @@ type adminTaggedUser struct {
 	RoleIDs  []uint `gorm:"-" json:"role_ids" admin:"label:Roles;relation:roles"`
 }
 
+type adminExplicitAccessUser struct {
+	ID         uint   `gorm:"primaryKey"`
+	Name       string `json:"name"`
+	Password   string `gorm:"not null" json:"password" ninja:"writeOnly"`
+	InviteCode string `json:"invite_code" ninja:"createOnly"`
+	StatusNote string `json:"status_note" crud:"updateOnly"`
+}
+
 func newAdminAPI(t *testing.T, site *Site, seed ...adminUser) *ninja.NinjaAPI {
 	api, _ := newAdminAPIWithDB(t, site, seed...)
 	return api
@@ -882,6 +890,12 @@ type Person struct {
 	ID uint `gorm:"primaryKey"`
 }
 
+type adminAcronymColumns struct {
+	ID     uint   `gorm:"primaryKey"`
+	UserID uint   `json:"user_id"`
+	APIKey string `json:"api_key"`
+}
+
 func TestCollectFieldsInferAutoRelation(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -912,6 +926,20 @@ func TestCollectFieldsInferAutoRelation(t *testing.T) {
 				t.Fatalf("autoRelation = %v", got)
 			}
 		})
+	}
+}
+
+func TestCollectFieldsUsesStableSnakeCaseColumnsForAcronyms(t *testing.T) {
+	fields := collectFields(reflect.TypeOf(adminAcronymColumns{}), nil, nil)
+	columns := map[string]string{}
+	for _, field := range fields {
+		columns[field.Meta.Name] = field.Meta.Column
+	}
+	if got := columns["user_id"]; got != "user_id" {
+		t.Fatalf("expected user_id column, got %q", got)
+	}
+	if got := columns["api_key"]; got != "api_key" {
+		t.Fatalf("expected api_key column, got %q", got)
 	}
 }
 
@@ -985,6 +1013,70 @@ func TestAdminTagRelationAndPasswordInference(t *testing.T) {
 	}
 	if !containsName(roleField.Meta.Relation.SearchFields, "code") {
 		t.Fatalf("expected inferred relation search fields, got %+v", roleField.Meta.Relation.SearchFields)
+	}
+}
+
+func TestAdminExplicitFieldAccessTagsAffectMetadata(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminExplicitAccessUser{},
+		ListFields:   []string{"id", "name", "invite_code", "status_note"},
+		DetailFields: []string{"id", "name", "invite_code", "status_note"},
+		CreateFields: []string{"name", "password", "invite_code"},
+		UpdateFields: []string{"name", "password", "status_note"},
+	})
+
+	user := site.byName["users"]
+	if user == nil {
+		t.Fatalf("expected explicit access user resource")
+	}
+	passwordField := user.fieldByName["password"]
+	if passwordField == nil {
+		t.Fatalf("expected password field metadata")
+	}
+	if passwordField.Meta.ReadOnly {
+		t.Fatalf("expected writeOnly field to stay writable, got %+v", passwordField.Meta)
+	}
+	if passwordField.Meta.List || passwordField.Meta.Detail {
+		t.Fatalf("expected writeOnly field to be hidden from read metadata, got %+v", passwordField.Meta)
+	}
+	if !passwordField.Meta.Create || !passwordField.Meta.Update {
+		t.Fatalf("expected writeOnly field to stay writable in both create and update, got %+v", passwordField.Meta)
+	}
+	if containsName(user.metadata.ListFields, "password") || containsName(user.metadata.DetailFields, "password") {
+		t.Fatalf("expected writeOnly field to be hidden from read metadata, got %+v", user.metadata)
+	}
+
+	inviteField := user.fieldByName["invite_code"]
+	if inviteField == nil {
+		t.Fatalf("expected invite_code field metadata")
+	}
+	if !inviteField.Meta.Create {
+		t.Fatalf("expected createOnly field to be writable on create, got %+v", inviteField.Meta)
+	}
+	if inviteField.Meta.Update {
+		t.Fatalf("expected createOnly field to be hidden from update metadata, got %+v", inviteField.Meta)
+	}
+	if !containsName(user.metadata.CreateFields, "invite_code") || containsName(user.metadata.UpdateFields, "invite_code") {
+		t.Fatalf("expected createOnly field to only appear in create metadata, got %+v", user.metadata)
+	}
+
+	statusField := user.fieldByName["status_note"]
+	if statusField == nil {
+		t.Fatalf("expected status_note field metadata")
+	}
+	if statusField.Meta.Create {
+		t.Fatalf("expected updateOnly field to be hidden from create metadata, got %+v", statusField.Meta)
+	}
+	if !statusField.Meta.Update {
+		t.Fatalf("expected updateOnly field to be writable on update, got %+v", statusField.Meta)
+	}
+	if containsName(user.metadata.CreateFields, "status_note") || !containsName(user.metadata.UpdateFields, "status_note") {
+		t.Fatalf("expected updateOnly field to only appear in update metadata, got %+v", user.metadata)
+	}
+	if !containsName(user.metadata.ListFields, "invite_code") || !containsName(user.metadata.DetailFields, "status_note") {
+		t.Fatalf("expected non-writeOnly access-tagged fields to remain readable, got %+v", user.metadata)
 	}
 }
 

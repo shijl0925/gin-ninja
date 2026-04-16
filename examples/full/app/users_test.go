@@ -382,7 +382,7 @@ func TestUserDirectHelpers(t *testing.T) {
 	setupAppTestDB(t)
 
 	repo := NewUserRepo()
-	created, err := createUser(repo, "Alice", "alice@example.com", "password123", 18)
+	created, err := createUser(repo, userDB(nil), "Alice", "alice@example.com", "password123", 18)
 	if err != nil {
 		t.Fatalf("createUser helper: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestUserDirectHelpers(t *testing.T) {
 		t.Fatalf("DeleteUser helper: %v", err)
 	}
 
-	if _, err := createUser(repo, "Alice", "alice@example.com", "password123", 18); err == nil {
+	if _, err := createUser(repo, userDB(nil), "Alice", "alice@example.com", "password123", 18); err == nil {
 		t.Fatal("expected duplicate helper create to fail")
 	}
 

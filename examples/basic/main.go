@@ -90,7 +90,15 @@ func newUserRepo() IUserRepo { return &userRepo{} }
 
 func toOut(u User) UserOut { return UserOut{u.ID, u.Name, u.Email, u.Age} }
 
+func userDB(ctx *ninja.Context) *gorm.DB {
+	if ctx != nil && ctx.Context != nil {
+		return orm.WithContext(ctx.Context)
+	}
+	return gormx.GetDb()
+}
+
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+	db := userDB(ctx)
 	r := newUserRepo()
 	q, u := gormx.NewQuery[User]()
 	cq, cu := gormx.NewQuery[User]()
@@ -99,8 +107,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 		cq.Like(&cu.Name, in.Search)
 	}
 	q.Limit(in.GetSize()).Offset(in.Offset())
-	items, _ := r.SelectListByOpts(q.ToOptions()...)
-	total, _ := r.SelectCount(cq.ToOptions()...)
+	items, _ := r.SelectListByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, q.ToOptions()...)...)
+	total, _ := r.SelectCount(append([]gormx.DBOption{gormx.UseDB(db)}, cq.ToOptions()...)...)
 	out := make([]UserOut, len(items))
 	for i, v := range items {
 		out[i] = toOut(v)
@@ -109,7 +117,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 }
 
 func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
-	u, err := newUserRepo().SelectOneById(int(in.UserID))
+	db := userDB(ctx)
+	u, err := newUserRepo().SelectOneById(int(in.UserID), gormx.UseDB(db))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -121,8 +130,9 @@ func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 }
 
 func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
+	db := userDB(ctx)
 	u := &User{Name: in.Name, Email: in.Email, Age: in.Age}
-	if err := newUserRepo().Insert(u); err != nil {
+	if err := newUserRepo().Insert(u, gormx.UseDB(db)); err != nil {
 		return nil, err
 	}
 	out := toOut(*u)
@@ -130,8 +140,9 @@ func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
 }
 
 func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
+	db := userDB(ctx)
 	r := newUserRepo()
-	if _, err := r.SelectOneById(int(in.UserID)); err != nil {
+	if _, err := r.SelectOneById(int(in.UserID), gormx.UseDB(db)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
 		}
@@ -148,15 +159,24 @@ func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 		upd["age"] = in.Age
 	}
 	if len(upd) > 0 {
-		r.UpdateById(int(in.UserID), upd) //nolint:errcheck
+		if err := r.UpdateById(int(in.UserID), upd, gormx.UseDB(db)); err != nil {
+			return nil, err
+		}
 	}
-	u, _ := r.SelectOneById(int(in.UserID))
+	u, err := r.SelectOneById(int(in.UserID), gormx.UseDB(db))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
+	}
 	out := toOut(u)
 	return &out, nil
 }
 
 func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
-	return newUserRepo().DeleteById(int(in.UserID))
+	db := userDB(ctx)
+	return newUserRepo().DeleteById(int(in.UserID), gormx.UseDB(db))
 }
 
 func initDB(dsn string) (*gorm.DB, error) {
@@ -191,9 +211,9 @@ func buildAPI(db *gorm.DB) *ninja.NinjaAPI {
 	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
 	ninja.Get(r, "/", listUsers, ninja.Summary("List users"))
 	ninja.Get(r, "/:id", getUser, ninja.Summary("Get user"))
-	ninja.Post(r, "/", createUser, ninja.Summary("Create user"))
-	ninja.Put(r, "/:id", updateUser, ninja.Summary("Update user"))
-	ninja.Delete(r, "/:id", deleteUser, ninja.Summary("Delete user"))
+	ninja.Post(r, "/", createUser, ninja.Summary("Create user"), ninja.WithTransaction())
+	ninja.Put(r, "/:id", updateUser, ninja.Summary("Update user"), ninja.WithTransaction())
+	ninja.Delete(r, "/:id", deleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())
 	api.AddRouter(r)
 
 	api.Engine().GET("/health", func(c *ginpkg.Context) {

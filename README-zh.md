@@ -83,7 +83,7 @@ gin-ninja/
 ├── pagination/       # 分页类型
 ├── pkg/              # i18n / logger / response 辅助包
 ├── settings/         # 基于 Viper 的配置加载
-└── examples/         # basic 与 full 示例
+└── examples/         # basic、users、features、admin 与 full 示例
 ```
 
 模块职责概览：
@@ -154,6 +154,72 @@ func main() {
 
 - Swagger UI：`http://localhost:8080/docs`
 - OpenAPI JSON：`http://localhost:8080/openapi.json`
+
+## CRUD 脚手架生成器
+
+gin-ninja 现在内置了一个轻量级脚手架 CLI，可基于模型结构体生成 CRUD 接口代码骨架。
+
+```bash
+go run ./cmd/gin-ninja generate crud \
+  -model User \
+  -model-file ./examples/full/app/models.go \
+  -output ./examples/full/app/user_crud_gen.go
+```
+
+该生成器会：
+
+- 读取指定文件中的 Go 模型结构体
+- 在同一 package 下生成请求/响应结构和 CRUD handler
+- 生成 `Register<Model>CRUDRoutes(router)` 路由注册辅助函数
+- 对“部分更新”生成 `PATCH /:id` 路由，而不是用 `PUT` 表达部分更新语义
+- 可从模型字段的 `crud:"..."` tag 自动生成列表过滤 / 排序 / 关键字搜索输入
+- 可识别同一模型文件中的 belongs-to / has-many / many2many 关系，并生成 preload、relation input、relation output 骨架
+
+生成结果定位为“起步骨架”。落地时仍建议根据业务继续补充校验、权限、事务、查询条件和路由组织方式。
+
+### CRUD 生成器 tag 规则
+
+可以在模型字段上声明 `crud:"..."`，控制生成器产出的查询输入：
+
+```go
+type Project struct {
+    ID      uint   `json:"id"`
+    Name    string `json:"name" crud:"filter,sort,search"`
+    Status  string `json:"status" crud:"filter:like,sort,search"`
+    OwnerID uint   `json:"owner_id" crud:"filter,sort"`
+    Owner   User   `gorm:"foreignKey:OwnerID" json:"-"`
+    Tasks   []Task `gorm:"foreignKey:ProjectID" json:"-"`
+    Tags    []Tag  `gorm:"many2many:project_tags;" json:"-"`
+}
+```
+
+目前支持的生成指令：
+
+- `crud:"filter"`：生成 `filter:"column,eq"` 风格的列表过滤字段
+- `crud:"filter:like"`：生成 `filter:"column,like"` 风格的模糊过滤字段
+- `crud:"sort"`：把该字段加入生成的 `Sort string \`order:"..."\`` 白名单
+- `crud:"search"`：把该字段加入生成的关键字搜索
+
+生成出来的列表 handler 会自动接入：
+
+- `filter.BuildOptions(...)`
+- `order.ApplyOrder(...)`
+
+### 生成的关系字段支持
+
+当生成器能在同一个模型文件里解析到关联模型时，会自动补充 relation-aware 的 CRUD 骨架：
+
+- `belongs to`：生成嵌套 relation output，并在需要时生成标量 relation input
+- `has many` / `many2many`：生成嵌套 relation output，以及 `...IDs` 形式的 relation input
+- 生成的列表 / 详情加载会自动带上 `Preload(...)`
+- 自动生成关系同步 helper，减少 handler 中的关联处理样板代码
+
+例如，生成结果现在可以包含：
+
+- `Owner *ProjectOwnerOut`
+- `Tasks []ProjectTasksOut`
+- `TagsIDs []uint`
+- `syncProjectTagsRelations(...)`
 
 ## 核心 API
 
@@ -646,7 +712,14 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 
 ## 完整示例
 
-查看 [examples/full](./examples/full/)：
+按功能拆分后的示例：
+
+- [examples/users](./examples/users/)：登录 / 注册、JWT 保护的 users CRUD，以及带缓存失效演示的 v2 users API
+- [examples/features](./examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、SSE、WebSocket、上传、下载等能力演示
+- [examples/admin](./examples/admin/)：JWT 保护的 admin 资源 API 与独立 admin 页面
+- [examples/full](./examples/full/)：把以上能力组合到一个完整应用中
+
+完整应用可查看 [examples/full](./examples/full/)：
 
 - 基于 `config.yaml` 的配置加载
 - 日志与数据库初始化

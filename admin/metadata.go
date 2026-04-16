@@ -40,6 +40,12 @@ type autoRelationMeta struct {
 	targetType reflect.Type
 }
 
+type fieldAccess struct {
+	WriteOnly  bool
+	CreateOnly bool
+	UpdateOnly bool
+}
+
 func (r *Resource) prepare() error {
 	if r.Model == nil {
 		return fmt.Errorf("admin resource model must not be nil")
@@ -169,11 +175,14 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 
 	gormTag := parseTagSettings(field.Tag.Get("gorm"))
 	adminTag := parseTagSettings(field.Tag.Get("admin"))
+	access := resolveFieldAccess(field.Tag)
 	description := strings.TrimSpace(field.Tag.Get("description"))
 	fieldType := indirectType(field.Type)
 	typeName, component := inferFieldType(field, fieldType)
 	readOnly := hiddenByJSON || isReadOnlyField(field, gormTag)
-	sensitive := isSensitiveField(field, hiddenByJSON)
+	hiddenFromRead := hiddenByJSON || access.WriteOnly
+	sensitive := isSensitiveField(field, hiddenFromRead)
+	writable := !readOnly && !hiddenByJSON && isWritableField(fieldType)
 
 	meta := &fieldMeta{
 		Meta: FieldMeta{
@@ -186,13 +195,13 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 			Required:    isRequired(field, gormTag, readOnly),
 			Unique:      hasTagFlag(gormTag, "unique") || hasTagFlag(gormTag, "uniqueindex"),
 			ReadOnly:    readOnly,
-			List:        !hiddenByJSON && !sensitive && isScalarField(fieldType),
-			Detail:      !hiddenByJSON && !sensitive,
-			Create:      !readOnly && !hiddenByJSON && isWritableField(fieldType),
-			Update:      !readOnly && !hiddenByJSON && isWritableField(fieldType),
-			Filterable:  !hiddenByJSON && !sensitive && isFilterableField(fieldType),
-			Sortable:    !hiddenByJSON && !sensitive && isSortableField(fieldType),
-			Searchable:  !hiddenByJSON && !sensitive && fieldType.Kind() == reflect.String,
+			List:        !hiddenFromRead && !sensitive && isScalarField(fieldType),
+			Detail:      !hiddenFromRead && !sensitive,
+			Create:      writable && allowCreateField(access),
+			Update:      writable && allowUpdateField(access),
+			Filterable:  !hiddenFromRead && !sensitive && isFilterableField(fieldType),
+			Sortable:    !hiddenFromRead && !sensitive && isSortableField(fieldType),
+			Searchable:  !hiddenFromRead && !sensitive && fieldType.Kind() == reflect.String,
 			Default:     strings.TrimSpace(gormTag["default"]),
 		},
 		index:             index,
@@ -225,6 +234,47 @@ func isPrimaryKeyField(field *fieldMeta) bool {
 		return true
 	}
 	return field.Meta.ReadOnly && (field.Meta.Name == "id" || strings.EqualFold(field.Meta.Column, "id"))
+}
+
+func resolveFieldAccess(tag reflect.StructTag) fieldAccess {
+	var access fieldAccess
+	applyFieldAccessTag(&access, tag.Get("ninja"))
+	applyFieldAccessTag(&access, tag.Get("crud"))
+	return access
+}
+
+func applyFieldAccessTag(access *fieldAccess, raw string) {
+	for _, token := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || unicode.IsSpace(r)
+	}) {
+		switch normalizeFieldAccessToken(token) {
+		case "writeonly":
+			access.WriteOnly = true
+		case "createonly":
+			access.CreateOnly = true
+		case "updateonly":
+			access.UpdateOnly = true
+		}
+	}
+}
+
+func normalizeFieldAccessToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	token = strings.ReplaceAll(token, "-", "")
+	return token
+}
+
+func allowCreateField(access fieldAccess) bool {
+	return !hasWriteModeOverride(access) || access.CreateOnly
+}
+
+func allowUpdateField(access fieldAccess) bool {
+	return !hasWriteModeOverride(access) || access.UpdateOnly
+}
+
+func hasWriteModeOverride(access fieldAccess) bool {
+	return access.CreateOnly || access.UpdateOnly
 }
 
 func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
@@ -784,18 +834,25 @@ func toSnake(name string) string {
 	if name == "" {
 		return ""
 	}
-	var out []rune
-	for i, r := range name {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				out = append(out, '_')
-			}
-			out = append(out, unicode.ToLower(r))
-			continue
+	runes := []rune(name)
+	out := make([]rune, 0, len(runes)+4)
+	for i, r := range runes {
+		if shouldInsertSnakeUnderscore(runes, i, r) {
+			out = append(out, '_')
 		}
-		out = append(out, r)
+		out = append(out, unicode.ToLower(r))
 	}
 	return string(out)
+}
+
+func shouldInsertSnakeUnderscore(runes []rune, index int, current rune) bool {
+	if index == 0 || !unicode.IsUpper(current) {
+		return false
+	}
+	if unicode.IsLower(runes[index-1]) {
+		return true
+	}
+	return unicode.IsUpper(runes[index-1]) && index+1 < len(runes) && unicode.IsLower(runes[index+1])
 }
 
 func toKebab(name string) string {
