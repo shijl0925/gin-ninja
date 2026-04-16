@@ -214,13 +214,9 @@ func consumeLeadingName(args []string) (string, []string) {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-<<<<<<< copilot/add-initialization-command-for-django-project
 	fmt.Fprintln(w, "  gin-ninja startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
 	fmt.Fprintln(w, "  gin-ninja startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
-	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>]")
-=======
 	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>] [-with-gormx=false]")
->>>>>>> main
 }
 
 func boolPtr(v bool) *bool {
