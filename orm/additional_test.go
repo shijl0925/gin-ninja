@@ -70,6 +70,9 @@ func TestTransactionEdgeCases(t *testing.T) {
 	if err := Rollback(c); err != nil {
 		t.Fatalf("Rollback without tx: %v", err)
 	}
+	if err := rollbackTxFromGinContext(c); err != nil {
+		t.Fatalf("rollbackTxFromGinContext without tx: %v", err)
+	}
 
 	tx, err := Begin(c)
 	if err != nil {
@@ -103,6 +106,9 @@ func TestTransactionEdgeCases(t *testing.T) {
 
 	if err := Rollback(c); err != nil {
 		t.Fatalf("Rollback existing tx: %v", err)
+	}
+	if err := rollbackTxFromGinContext(c); err != nil {
+		t.Fatalf("rollbackTxFromGinContext after rollback: %v", err)
 	}
 	if err := WithTransaction(c, func() error { return nil }); err != nil {
 		t.Fatalf("WithTransaction(nil error): %v", err)

@@ -140,6 +140,18 @@ func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 	}
 }
 
+func TestDemoEndpoints_HiddenRouteRemainsReachable(t *testing.T) {
+	api := newDemoAPI()
+
+	w := doDemoRequest(api, http.MethodGet, "/api/v1/examples/hidden", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "hidden route is reachable") {
+		t.Fatalf("unexpected hidden route response: %s", w.Body.String())
+	}
+}
+
 func TestDemoEndpoints_PaginatedCacheRateLimitedAndTimeout(t *testing.T) {
 	api := newDemoAPI()
 

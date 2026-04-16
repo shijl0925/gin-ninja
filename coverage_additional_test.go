@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
+	"github.com/shijl0925/gin-ninja/pkg/i18n"
 )
 
 type readErrorBody struct{}
@@ -513,6 +515,40 @@ func TestNinjaAdditionalBranches(t *testing.T) {
 	}
 }
 
+func TestContextAndErrorMapperFallbackCoverage(t *testing.T) {
+	t.Parallel()
+
+	c, _ := newTestContext(http.MethodGet, "/", "")
+	ctx := newContext(c)
+
+	if got := ctx.RequestID(); got != "" {
+		t.Fatalf("expected empty request id without middleware, got %q", got)
+	}
+	c.Set(requestIDContextKey, 123)
+	if got := ctx.RequestID(); got != "" {
+		t.Fatalf("expected non-string request id to be ignored, got %q", got)
+	}
+
+	if got := ctx.GetUserID(); got != 0 {
+		t.Fatalf("expected empty user id without claims, got %d", got)
+	}
+	c.Set(contextkeys.JWTClaims, "wrong")
+	if got := ctx.GetUserID(); got != 0 {
+		t.Fatalf("expected invalid claims type to be ignored, got %d", got)
+	}
+
+	c.Set(contextkeys.Locale, "")
+	if got := ctx.Locale(); got != i18n.Default {
+		t.Fatalf("expected empty locale to fall back to default, got %q", got)
+	}
+
+	mapped := mapErrorWithMappers(context.DeadlineExceeded, defaultErrorMappers())
+	apiErr, ok := mapped.(*Error)
+	if !ok || apiErr.Status != http.StatusRequestTimeout || apiErr.Code != "REQUEST_TIMEOUT" {
+		t.Fatalf("expected deadline error to map to timeout error, got %#v", mapped)
+	}
+}
+
 func TestRunHandlesInterruptSignal(t *testing.T) {
 	api := New(Config{Title: "signal", Version: "1"})
 	done := make(chan error, 1)
@@ -561,5 +597,56 @@ func TestCaptureResponseWriterAndMultipartHelpers(t *testing.T) {
 	}
 	if !strings.HasPrefix(mw.FormDataContentType(), "multipart/form-data") {
 		t.Fatal("expected multipart content type")
+	}
+}
+
+func TestCacheUtilityAndOperationOptionCoverage(t *testing.T) {
+	t.Parallel()
+
+	dst := http.Header{
+		"Old": []string{"stale"},
+	}
+	src := http.Header{
+		"Fresh": []string{"value"},
+	}
+	copyHeader(dst, src)
+	if len(dst) != 1 || dst.Get("Old") != "" || dst.Get("Fresh") != "value" {
+		t.Fatalf("unexpected copied headers: %+v", dst)
+	}
+	src.Set("Fresh", "mutated")
+	if dst.Get("Fresh") != "value" {
+		t.Fatalf("expected copied headers to be independent, got %+v", dst)
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	writer := newCaptureResponseWriter(c.Writer)
+	writer.Flush()
+	if writer.Written() {
+		t.Fatal("expected fresh capture writer to report no writes")
+	}
+	if n, err := writer.Write([]byte("ok")); err != nil || n != 2 {
+		t.Fatalf("Write() = (%d, %v), want (2, nil)", n, err)
+	}
+	if writer.Status() != http.StatusOK || writer.Size() != 2 || !writer.Written() {
+		t.Fatalf("unexpected capture writer state: status=%d size=%d written=%v", writer.Status(), writer.Size(), writer.Written())
+	}
+
+	if supportsHijacker(struct{}{}) {
+		t.Fatal("expected plain struct not to support hijacking")
+	}
+	if isGinResponseWriter(nil) || isGinResponseWriter(struct{}{}) {
+		t.Fatal("expected nil/plain writers not to look like gin response writers")
+	}
+
+	if got := defaultCacheControl(-time.Second); got != "public, max-age=0" {
+		t.Fatalf("expected negative ttl cache-control fallback, got %q", got)
+	}
+
+	op := &operation{}
+	RateLimit(0)(op)
+	if op.rateLimit != nil {
+		t.Fatal("expected non-positive rate limit to disable limiter")
 	}
 }
