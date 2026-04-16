@@ -235,6 +235,45 @@ func TestApplyNilQueryReturnsNil(t *testing.T) {
 	}
 }
 
+func TestApplyDB(t *testing.T) {
+	setupFilterTestDB(t)
+
+	if err := gormx.GetDb().Create([]userRecord{
+		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
+		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
+		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
+	}).Error; err != nil {
+		t.Fatalf("seed db: %v", err)
+	}
+
+	admin := true
+	db, err := ApplyDB(gormx.GetDb().Model(&userRecord{}), &listInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+		Search:         "example.com",
+	})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+
+	var got []userRecord
+	if err := db.Find(&got).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 1 || got[0].Email != "bob@example.com" {
+		t.Fatalf("unexpected filtered users: %+v", got)
+	}
+}
+
+func TestApplyDBNilQueryReturnsNil(t *testing.T) {
+	db, err := ApplyDB(nil, &embeddedFilter{})
+	if err != nil {
+		t.Fatalf("ApplyDB(nil) error = %v", err)
+	}
+	if db != nil {
+		t.Fatalf("expected nil db, got %#v", db)
+	}
+}
+
 func TestBuildOptionAndHelperEdges(t *testing.T) {
 	t.Run("unsupported combiner", func(t *testing.T) {
 		_, err := buildOption(Clause{

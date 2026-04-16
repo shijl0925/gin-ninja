@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/shijl0925/go-toolkits/gormx"
+	"gorm.io/gorm"
 )
 
 // SortField is a single parsed sort field.
@@ -148,6 +149,25 @@ func ApplyOrder[T any](query *gormx.Query[T], input any) error {
 		query.OrderAsc(field.Name)
 	}
 	return nil
+}
+
+// ApplyDB validates and applies declarative sorting to a native GORM query.
+func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
+	if db == nil {
+		return nil, nil
+	}
+	fields, err := ResolveOrder(input)
+	if err != nil {
+		return nil, err
+	}
+	for _, field := range fields {
+		direction := " ASC"
+		if field.Desc {
+			direction = " DESC"
+		}
+		db = db.Order(field.Name + direction)
+	}
+	return db, nil
 }
 
 func resolveOrderInto(value reflect.Value, resolved *[]SortField) error {
