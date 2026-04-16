@@ -243,7 +243,7 @@ func run(dsn, addr string) error {
 
 func portFromAddr(addr string) int {
 	if addr == "" {
-		return 8080
+		return 18080
 	}
 	_, rawPort, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -254,7 +254,7 @@ func portFromAddr(addr string) int {
 		return 0
 	}
 	if port == 0 {
-		return 8080
+		return 18080
 	}
 	return port
 }
