@@ -277,10 +277,18 @@ func buildAppTemplateData(cfg AppScaffoldConfig, opts scaffoldOptions) (appTempl
 }
 
 func projectFiles(data projectTemplateData) (map[string][]byte, error) {
+	configYaml, err := executeTextTemplate(projectConfigTemplate, data)
+	if err != nil {
+		return nil, err
+	}
+	gitignore, err := executeTextTemplate(projectGitignoreTemplate, data)
+	if err != nil {
+		return nil, err
+	}
 	files := map[string][]byte{
 		"go.mod":      []byte(fmt.Sprintf("module %s\n\ngo 1.26\n", data.Module)),
-		"config.yaml": []byte(executeTextTemplate(projectConfigTemplate, data)),
-		".gitignore":  []byte(executeTextTemplate(projectGitignoreTemplate, data)),
+		"config.yaml": []byte(configYaml),
+		".gitignore":  []byte(gitignore),
 	}
 
 	if data.Options.Standard {
@@ -324,7 +332,11 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 				files[name] = content
 				continue
 			}
-			files[name] = []byte(executeTextTemplate(tpl, data))
+			rendered, err := executeTextTemplate(tpl, data)
+			if err != nil {
+				return nil, err
+			}
+			files[name] = []byte(rendered)
 		}
 	} else {
 		mainGo, err := executeGoTemplate("main.go", projectMainTemplate, data)
@@ -432,7 +444,10 @@ func writeScaffoldFiles(root string, files map[string][]byte) error {
 }
 
 func executeGoTemplate(name, source string, data any) ([]byte, error) {
-	rendered := executeTextTemplate(source, data)
+	rendered, err := executeTextTemplate(source, data)
+	if err != nil {
+		return nil, err
+	}
 	formatted, err := format.Source([]byte(rendered))
 	if err != nil {
 		return nil, fmt.Errorf("format %s: %w", name, err)
@@ -440,16 +455,19 @@ func executeGoTemplate(name, source string, data any) ([]byte, error) {
 	return formatted, nil
 }
 
-func executeTextTemplate(source string, data any) string {
-	tpl := template.Must(template.New("scaffold").Funcs(template.FuncMap{
+func executeTextTemplate(source string, data any) (string, error) {
+	tpl, err := template.New("scaffold").Funcs(template.FuncMap{
 		"bt":    func() string { return "`" },
 		"lower": strings.ToLower,
-	}).Parse(source))
+	}).Parse(source)
+	if err != nil {
+		return "", fmt.Errorf("parse template: %w", err)
+	}
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, data); err != nil {
-		panic(err)
+		return "", fmt.Errorf("execute template: %w", err)
 	}
-	return buf.String()
+	return buf.String(), nil
 }
 
 func scaffoldSplitWords(input string) []string {
@@ -597,8 +615,6 @@ import (
 "fmt"
 "log"
 "net/http"
-"path/filepath"
-"runtime"
 
 ginpkg "github.com/gin-gonic/gin"
 ninja "github.com/shijl0925/gin-ninja"
@@ -663,12 +679,7 @@ return api.Run(cfg.Server.Addr())
 }
 
 func main() {
-_, file, _, ok := runtime.Caller(0)
-if !ok {
-fatalMain("resolve config path")
-}
-
-cfg := settings.MustLoad(filepath.Join(filepath.Dir(file), "config.yaml"))
+cfg := settings.MustLoad("config.yaml")
 log_ := ginbootstrap.InitLogger(&cfg.Log)
 defer logger.Sync()
 
@@ -703,7 +714,6 @@ import (
 "log"
 "net/http"
 "path/filepath"
-"runtime"
 
 ginpkg "github.com/gin-gonic/gin"
 projectbootstrap "{{ .Module }}/bootstrap"
@@ -779,19 +789,10 @@ log.Printf("Swagger UI: http://%s/docs", cfg.Server.Addr())
 return api.Run(cfg.Server.Addr())
 }
 
-func projectRoot() string {
-_, file, _, ok := runtime.Caller(0)
-if !ok {
-fatalMain("resolve config path")
-}
-return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-}
-
 func Main() {
-root := projectRoot()
 cfg := settings.MustLoadWithOverrides(
-filepath.Join(root, "config.yaml"),
-filepath.Join(root, "settings", "config.local.yaml"),
+"config.yaml",
+filepath.Join("settings", "config.local.yaml"),
 )
 log_ := projectbootstrap.InitLogger(&cfg.Log)
 defer logger.Sync()
@@ -1390,6 +1391,7 @@ const appAPIsTemplate = `package {{ .PackageName }}
 
 import (
 "errors"
+"strings"
 
 ninja "github.com/shijl0925/gin-ninja"
 "github.com/shijl0925/gin-ninja/orm"
@@ -1447,8 +1449,12 @@ return &out, nil
 
 func Create{{ .ModelName }}(ctx *ninja.Context, in *{{ .CreateName }}) (*{{ .OutName }}, error) {
 repo := New{{ .RepoName }}()
+name := strings.TrimSpace(in.Name)
+if name == "" {
+return nil, ninja.BadRequestError()
+}
 item := &{{ .ModelName }}{
-Name: in.Name,
+Name: name,
 }
 if err := repo.Insert(item, gormx.UseDB(repoDB(ctx))); err != nil {
 return nil, err
@@ -1470,8 +1476,12 @@ return nil, err
 
 updates := map[string]interface{}{}
 if in.Name != nil {
-updates["name"] = *in.Name
-item.Name = *in.Name
+name := strings.TrimSpace(*in.Name)
+if name == "" {
+return nil, ninja.BadRequestError()
+}
+updates["name"] = name
+item.Name = name
 }
 if len(updates) > 0 {
 if err := repo.UpdateById(int(in.ID), updates, gormx.UseDB(db)); err != nil {
