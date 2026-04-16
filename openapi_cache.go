@@ -49,7 +49,7 @@ func (api *NinjaAPI) versionOpenAPIBytes(version string) ([]byte, bool, error) {
 	}
 	api.openAPICache.mu.RUnlock()
 
-	spec, ok := api.versionSpecs[version]
+	spec, ok := api.lookupVersionSpec(version)
 	if !ok {
 		return nil, false, nil
 	}

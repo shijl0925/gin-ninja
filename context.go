@@ -148,28 +148,31 @@ func (c *Context) Unauthorized(message string) {
 //
 // Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.BeginTx instead.
 func (c *Context) BeginTx() error {
-	if contextBeginTx == nil {
+	begin, _, _, _ := transactionHandlers()
+	if begin == nil {
 		return errTransactionUnavailable()
 	}
-	return contextBeginTx(c.Context)
+	return begin(c.Context)
 }
 
 // CommitTx commits the active request-scoped transaction.
 //
 // Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.CommitTx instead.
 func (c *Context) CommitTx() error {
-	if contextCommitTx == nil {
+	_, commit, _, _ := transactionHandlers()
+	if commit == nil {
 		return errTransactionUnavailable()
 	}
-	return contextCommitTx(c.Context)
+	return commit(c.Context)
 }
 
 // RollbackTx rolls back the active request-scoped transaction.
 //
 // Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.RollbackTx instead.
 func (c *Context) RollbackTx() error {
-	if contextRollbackTx == nil {
+	_, _, rollback, _ := transactionHandlers()
+	if rollback == nil {
 		return errTransactionUnavailable()
 	}
-	return contextRollbackTx(c.Context)
+	return rollback(c.Context)
 }

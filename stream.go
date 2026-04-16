@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -83,7 +84,7 @@ func (s *SSEStream) Send(event SSEEvent) error {
 	return nil
 }
 
-// WebSocketConn is a small convenience wrapper over x/net/websocket.
+// WebSocketConn is a small convenience wrapper over gorilla/websocket.
 type WebSocketConn struct {
 	*websocket.Conn
 }
@@ -92,30 +93,29 @@ func (c *WebSocketConn) SendJSON(v any) error {
 	if c == nil || c.Conn == nil {
 		return InternalError()
 	}
-	return websocket.JSON.Send(c.Conn, v)
+	return c.Conn.WriteJSON(v)
 }
 
 func (c *WebSocketConn) ReceiveJSON(v any) error {
 	if c == nil || c.Conn == nil {
 		return InternalError()
 	}
-	return websocket.JSON.Receive(c.Conn, v)
+	return c.Conn.ReadJSON(v)
 }
 
 func (c *WebSocketConn) SendText(value string) error {
 	if c == nil || c.Conn == nil {
 		return InternalError()
 	}
-	return websocket.Message.Send(c.Conn, value)
+	return c.Conn.WriteMessage(websocket.TextMessage, []byte(value))
 }
 
 func (c *WebSocketConn) ReceiveText() (string, error) {
 	if c == nil || c.Conn == nil {
 		return "", InternalError()
 	}
-	var value string
-	err := websocket.Message.Receive(c.Conn, &value)
-	return value, err
+	_, data, err := c.Conn.ReadMessage()
+	return string(data), err
 }
 
 // SSE registers a GET endpoint that streams server-sent events.
@@ -193,17 +193,34 @@ func newWebSocketOperation[TIn any](path string, handler func(*Context, *TIn, *W
 			return
 		}
 
-		websocket.Handler(func(conn *websocket.Conn) {
-			defer conn.Close()
-			if err := handler(ctx, input, &WebSocketConn{Conn: conn}); err != nil {
-				// Record the failure for Gin middleware/logging without echoing raw
-				// internal error details back to the WebSocket client.
-				_ = ctx.Error(err)
-			}
-		}).ServeHTTP(c.Writer, c.Request)
+		conn, err := defaultWebSocketUpgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			_ = ctx.Error(err)
+			return
+		}
+		defer conn.Close()
+		if err := handler(ctx, input, &WebSocketConn{Conn: conn}); err != nil {
+			// Record the failure for Gin middleware/logging without echoing raw
+			// internal error details back to the WebSocket client.
+			_ = ctx.Error(err)
+		}
 	}
 
 	return op
+}
+
+var defaultWebSocketUpgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		return strings.EqualFold(u.Host, r.Host)
+	},
 }
 
 func sseData(value any) string {

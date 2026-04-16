@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -500,6 +502,81 @@ func TestOperationLimitAdditionalCoverage(t *testing.T) {
 	})
 }
 
+// TestWrapTimeoutGoroutineExitsAfterTimeout verifies that the handler goroutine
+// spawned by wrapTimeout exits after the timeout fires, once the handler
+// honours context cancellation. This guards against goroutines that run
+// indefinitely after the HTTP response has already been sent.
+func TestWrapTimeoutGoroutineExitsAfterTimeout(t *testing.T) {
+	t.Parallel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	router := gin.New()
+	router.GET("/ctx-aware", wrapTimeout(10*time.Millisecond, func(c *gin.Context) {
+		defer wg.Done()
+		// Simulate a context-aware handler: block until context is cancelled.
+		<-c.Request.Context().Done()
+	}))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/ctx-aware", nil))
+	if w.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected 408, got %d", w.Code)
+	}
+
+	// The goroutine must exit within a generous grace period after the timeout.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		// goroutine exited as expected
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("handler goroutine did not exit within 500ms after timeout")
+	}
+}
+
+// TestWrapTimeoutContextCancelledInHandler verifies that the context passed to
+// the handler is already cancelled when the timeout fires, so the handler can
+// detect it and stop early.
+func TestWrapTimeoutContextCancelledInHandler(t *testing.T) {
+	t.Parallel()
+
+	var capturedCtx context.Context
+	var mu sync.Mutex
+
+	router := gin.New()
+	router.GET("/capture", wrapTimeout(10*time.Millisecond, func(c *gin.Context) {
+		mu.Lock()
+		capturedCtx = c.Request.Context()
+		mu.Unlock()
+		time.Sleep(30 * time.Millisecond)
+	}))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/capture", nil))
+	if w.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected 408, got %d", w.Code)
+	}
+
+	// Allow the background goroutine to complete so capturedCtx is set.
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	ctx := capturedCtx
+	mu.Unlock()
+
+	if ctx == nil {
+		t.Fatal("expected handler to capture context, got nil")
+	}
+	if ctx.Err() == nil {
+		t.Fatal("expected handler context to be cancelled after timeout, but Err() is nil")
+	}
+}
+
 func TestNinjaAdditionalBranches(t *testing.T) {
 	t.Parallel()
 
@@ -510,6 +587,31 @@ func TestNinjaAdditionalBranches(t *testing.T) {
 	}
 	if got := api.lookupVersion("v2"); got.Prefix != "/v2" {
 		t.Fatalf("expected default version prefix, got %+v", got)
+	}
+}
+
+func TestAPIMergesCurrentGlobalErrorMappers(t *testing.T) {
+	errorMappersMu.Lock()
+	original := append([]ErrorMapper(nil), errorMappers...)
+	errorMappers = defaultErrorMappers()
+	errorMappersMu.Unlock()
+	defer func() {
+		errorMappersMu.Lock()
+		errorMappers = original
+		errorMappersMu.Unlock()
+	}()
+
+	api := New(Config{Title: "branches", Version: "1"})
+	RegisterErrorMapper(func(err error) error {
+		if errors.Is(err, errBadRequest) {
+			return NewError(http.StatusTeapot, "late global mapper")
+		}
+		return nil
+	})
+
+	mapped := api.mapError(errBadRequest)
+	if !errors.Is(mapped, NewError(http.StatusTeapot, "late global mapper")) {
+		t.Fatalf("expected late global mapper to apply, got %v", mapped)
 	}
 }
 

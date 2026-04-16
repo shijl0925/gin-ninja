@@ -66,6 +66,7 @@ type NinjaAPI struct {
 	config         Config
 	openAPI        *openAPISpec
 	openAPICache   openAPICacheState
+	versionSpecsMu sync.RWMutex
 	versionSpecs   map[string]*openAPISpec
 	routers        []*Router
 	errorMappersMu sync.RWMutex
@@ -118,7 +119,6 @@ func New(config Config) *NinjaAPI {
 		openAPI:      newOpenAPISpec(config),
 		openAPICache: openAPICacheState{versions: map[string][]byte{}},
 		versionSpecs: map[string]*openAPISpec{},
-		errorMappers: errorMappersSnapshot(),
 	}
 
 	api.engine.Use(api.attachContext())
@@ -308,7 +308,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		title := api.config.Title
 		api.engine.GET(pattern, func(c *gin.Context) {
 			version := requestVersion(c)
-			if _, ok := api.versionSpecs[version]; !ok {
+			if _, ok := api.lookupVersionSpec(version); !ok {
 				versionNotFound(c)
 				return
 			}
@@ -331,8 +331,9 @@ func (api *NinjaAPI) mapError(err error) error {
 	if err == nil {
 		return nil
 	}
+	mappers := errorMappersSnapshot()
 	api.errorMappersMu.RLock()
-	mappers := append([]ErrorMapper(nil), api.errorMappers...)
+	mappers = append(mappers, api.errorMappers...)
 	api.errorMappersMu.RUnlock()
 	return mapErrorWithMappers(err, mappers)
 }
@@ -364,6 +365,15 @@ func (api *NinjaAPI) lookupVersion(name string) VersionConfig {
 }
 
 func (api *NinjaAPI) versionSpec(name string) *openAPISpec {
+	api.versionSpecsMu.RLock()
+	if spec, ok := api.versionSpecs[name]; ok {
+		api.versionSpecsMu.RUnlock()
+		return spec
+	}
+	api.versionSpecsMu.RUnlock()
+
+	api.versionSpecsMu.Lock()
+	defer api.versionSpecsMu.Unlock()
 	if spec, ok := api.versionSpecs[name]; ok {
 		return spec
 	}
@@ -371,4 +381,11 @@ func (api *NinjaAPI) versionSpec(name string) *openAPISpec {
 	spec := newOpenAPISpec(cfg)
 	api.versionSpecs[name] = spec
 	return spec
+}
+
+func (api *NinjaAPI) lookupVersionSpec(name string) (*openAPISpec, bool) {
+	api.versionSpecsMu.RLock()
+	defer api.versionSpecsMu.RUnlock()
+	spec, ok := api.versionSpecs[name]
+	return spec, ok
 }
