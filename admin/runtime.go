@@ -217,6 +217,36 @@ func (r *Resource) updateColumnsFor(view *resolvedResource, before, after reflec
 	return columns, nil
 }
 
+func (r *Resource) persistedColumnsFor(view *resolvedResource) []string {
+	columns := make([]string, 0, len(view.fields))
+	seen := make(map[string]struct{}, len(view.fields))
+	for _, field := range view.fields {
+		if field == nil || !field.persisted || field.primaryKey {
+			continue
+		}
+		column := strings.TrimSpace(field.Meta.Column)
+		if column == "" {
+			continue
+		}
+		if _, ok := seen[column]; ok {
+			continue
+		}
+		seen[column] = struct{}{}
+		columns = append(columns, column)
+	}
+	return columns
+}
+
+func (r *Resource) hasNonPersistedValues(view *resolvedResource, values map[string]any) bool {
+	for name := range values {
+		field := view.fieldByName[name]
+		if field != nil && !field.persisted {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query url.Values, in *listInput) (*gorm.DB, error) {
 	if term := strings.TrimSpace(in.Search); term != "" {
 		if len(view.metadata.SearchFields) == 0 {

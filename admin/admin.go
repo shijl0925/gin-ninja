@@ -664,6 +664,9 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 		if err != nil {
 			return nil, err
 		}
+		if len(columns) == 0 && len(values) > 0 && r.hasNonPersistedValues(view, values) {
+			columns = r.persistedColumnsFor(view)
+		}
 		if len(columns) > 0 {
 			probe := r.newModel()
 			if err := scopedDB.Select(queryColumn(r.primaryKey)).First(probe, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {

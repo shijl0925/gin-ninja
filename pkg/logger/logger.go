@@ -57,10 +57,11 @@ func SetGlobal(l *zap.Logger) {
 func Global() *zap.Logger {
 	globalMu.RLock()
 	l := global
-	globalMu.RUnlock()
 	if l != nil {
+		globalMu.RUnlock()
 		return l
 	}
+	globalMu.RUnlock()
 	return fallbackLogger()
 }
 
