@@ -126,7 +126,7 @@ type User struct {
 
 	checks := []string{
 		`query := db.Model(&User{})`,
-		`query, err := filter.ApplyDB(query, in)`,
+		`query, err = filter.ApplyDB(query, in)`,
 		`countQuery := query.Session(&gorm.Session{})`,
 		`query, err = order.ApplyDB(query, in)`,
 		`if err := db.Create(item).Error; err != nil {`,

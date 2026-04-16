@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/shijl0925/go-toolkits/gormx"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestParseNilInput(t *testing.T) {
@@ -59,5 +61,13 @@ func TestApplyDBEdgeCases(t *testing.T) {
 		Combiner: "and",
 	}); err == nil || !strings.Contains(err.Error(), "unsupported filter combiner") {
 		t.Fatalf("expected unsupported combiner error, got %v", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if _, err := applyDBClause(db.Model(&userRecord{}), Clause{}); err == nil || !strings.Contains(err.Error(), "missing fields") {
+		t.Fatalf("expected missing field error with db, got %v", err)
 	}
 }

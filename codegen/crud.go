@@ -1389,11 +1389,12 @@ return nil, err
 }
 {{- else }}
 	query := db.Model(&{{ .ModelName }}{})
+	var err error
 {{- range .Relations }}
 	query = query.Preload("{{ .Preload }}")
 {{- end }}
 {{- if or .ListFields .SearchFields }}
-	query, err := filter.ApplyDB(query, in)
+	query, err = filter.ApplyDB(query, in)
 	if err != nil {
 		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
 	}
