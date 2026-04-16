@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
-	"golang.org/x/net/websocket"
 )
 
 func newDemoAPI() *ninja.NinjaAPI {
@@ -299,19 +299,20 @@ func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/examples/ws?name=bot"
-	conn, err := websocket.Dial(wsURL, "", server.URL)
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial websocket: %v", err)
 	}
 	defer conn.Close()
 
-	if err := websocket.Message.Send(conn, "ping"); err != nil {
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
 		t.Fatalf("send websocket message: %v", err)
 	}
-	var message string
-	if err := websocket.Message.Receive(conn, &message); err != nil {
+	_, payload, err := conn.ReadMessage()
+	if err != nil {
 		t.Fatalf("receive websocket message: %v", err)
 	}
+	message := string(payload)
 	if message != "bot:ping" {
 		t.Fatalf("unexpected websocket message %q", message)
 	}

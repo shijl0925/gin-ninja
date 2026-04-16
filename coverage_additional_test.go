@@ -513,6 +513,31 @@ func TestNinjaAdditionalBranches(t *testing.T) {
 	}
 }
 
+func TestAPIMergesCurrentGlobalErrorMappers(t *testing.T) {
+	errorMappersMu.Lock()
+	original := append([]ErrorMapper(nil), errorMappers...)
+	errorMappers = defaultErrorMappers()
+	errorMappersMu.Unlock()
+	defer func() {
+		errorMappersMu.Lock()
+		errorMappers = original
+		errorMappersMu.Unlock()
+	}()
+
+	api := New(Config{Title: "branches", Version: "1"})
+	RegisterErrorMapper(func(err error) error {
+		if errors.Is(err, errBadRequest) {
+			return NewError(http.StatusTeapot, "late global mapper")
+		}
+		return nil
+	})
+
+	mapped := api.mapError(errBadRequest)
+	if !errors.Is(mapped, NewError(http.StatusTeapot, "late global mapper")) {
+		t.Fatalf("expected late global mapper to apply, got %v", mapped)
+	}
+}
+
 func TestRunHandlesInterruptSignal(t *testing.T) {
 	api := New(Config{Title: "signal", Version: "1"})
 	done := make(chan error, 1)

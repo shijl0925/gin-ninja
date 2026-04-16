@@ -31,6 +31,7 @@ type fieldMeta struct {
 	fieldType         reflect.Type
 	timeField         bool
 	persisted         bool
+	primaryKey        bool
 	componentExplicit bool
 	autoRelation      *autoRelationMeta
 }
@@ -65,7 +66,7 @@ func (r *Resource) prepare() error {
 	r.fieldByName = map[string]*fieldMeta{}
 	for _, field := range r.fields {
 		r.fieldByName[field.Meta.Name] = field
-		if r.primaryKey == nil && (field.Meta.Name == "id" || strings.Contains(field.Meta.Column, "id") && field.Meta.ReadOnly) {
+		if r.primaryKey == nil && isPrimaryKeyField(field) {
 			r.primaryKey = field
 		}
 	}
@@ -198,6 +199,7 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 		fieldType:         fieldType,
 		timeField:         fieldType == reflect.TypeOf(time.Time{}),
 		persisted:         !hasTagFlag(gormTag, "-"),
+		primaryKey:        hasTagFlag(gormTag, "primarykey") || field.Name == "ID",
 		componentExplicit: strings.TrimSpace(adminTag["component"]) != "",
 	}
 
@@ -213,6 +215,16 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 	applyAdminTag(meta, adminTag)
 	meta.Meta.Required = isRequired(field, gormTag, meta.Meta.ReadOnly)
 	return meta
+}
+
+func isPrimaryKeyField(field *fieldMeta) bool {
+	if field == nil {
+		return false
+	}
+	if field.primaryKey {
+		return true
+	}
+	return field.Meta.ReadOnly && (field.Meta.Name == "id" || strings.EqualFold(field.Meta.Column, "id"))
 }
 
 func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {

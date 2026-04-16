@@ -75,6 +75,11 @@ type adminMetrics struct {
 	Count int  `json:"count"`
 }
 
+type adminWeirdPrimary struct {
+	UUID   string `gorm:"primaryKey" json:"uuid"`
+	Liquid string `json:"liquid" admin:"readonly"`
+}
+
 type adminTaggedRole struct {
 	ID   uint   `gorm:"primaryKey"`
 	Name string `json:"name"`
@@ -329,6 +334,23 @@ func TestAdminSiteInfersResourceIdentityFromModel(t *testing.T) {
 	}
 	if resource.Path != "/auto-resource-users" {
 		t.Fatalf("expected inferred path, got %q", resource.Path)
+	}
+}
+
+func TestResourcePreparePrefersActualPrimaryKeyOverReadonlyIDSubstring(t *testing.T) {
+	resource := &Resource{
+		Name:  "weird",
+		Model: adminWeirdPrimary{},
+	}
+
+	if err := resource.prepare(); err != nil {
+		t.Fatalf("prepare() error = %v", err)
+	}
+	if resource.primaryKey == nil {
+		t.Fatal("expected primary key to be detected")
+	}
+	if resource.primaryKey.Meta.Name != "uuid" {
+		t.Fatalf("primary key = %q, want %q", resource.primaryKey.Meta.Name, "uuid")
 	}
 }
 

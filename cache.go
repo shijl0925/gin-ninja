@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -24,6 +25,13 @@ type CacheOption func(*routeCacheConfig)
 type ResponseCacheStore interface {
 	Get(key string) (*CachedResponse, bool)
 	Set(key string, value *CachedResponse)
+}
+
+// ResponseCacheContextStore optionally supports request-scoped cache I/O.
+// Implementations should honor cancellation and deadlines carried by ctx.
+type ResponseCacheContextStore interface {
+	GetContext(ctx context.Context, key string) (*CachedResponse, bool)
+	SetContext(ctx context.Context, key string, value *CachedResponse)
 }
 
 // ResponseCacheDeleteStore optionally supports cache-key invalidation.
@@ -353,7 +361,7 @@ func (s *MemoryCacheStore) evictOldestLocked() {
 		key := s.order[0]
 		s.order = s.order[1:]
 		if _, ok := s.items[key]; ok {
-			delete(s.items, key)
+			s.deleteKeyLocked(key)
 			return
 		}
 	}
@@ -396,7 +404,7 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		ctx := newContext(c)
 		cacheKey, cacheStore := cacheLookup(op, ctx)
 		if cacheStore != nil && cacheKey != "" {
-			if cached, ok := cacheStore.Get(cacheKey); ok {
+			if cached, ok := cacheStoreGet(ctx, cacheStore, cacheKey); ok {
 				if !isExpiredCachedResponse(cached, time.Now()) {
 					writeCachedResponse(c, cached, op.cacheControl)
 					return
@@ -436,7 +444,7 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		}
 
 		if cacheStore != nil && cacheKey != "" && op.cache != nil && recorder.status >= 200 && recorder.status < 300 {
-			cacheStore.Set(cacheKey, &CachedResponse{
+			cacheStoreSet(ctx, cacheStore, cacheKey, &CachedResponse{
 				Status:  recorder.status,
 				Header:  cloneHeader(recorder.header),
 				Body:    append([]byte(nil), recorder.body...),
@@ -459,6 +467,35 @@ func cacheLookup(op *operation, ctx *Context) (string, ResponseCacheStore) {
 		keyFn = defaultCacheKey
 	}
 	return keyFn(ctx), op.cache.store
+}
+
+func cacheStoreGet(ctx *Context, store ResponseCacheStore, key string) (*CachedResponse, bool) {
+	if store == nil {
+		return nil, false
+	}
+	if contextual, ok := store.(ResponseCacheContextStore); ok {
+		stdctx := context.Background()
+		if ctx != nil && ctx.Request != nil {
+			stdctx = ctx.Request.Context()
+		}
+		return contextual.GetContext(stdctx, key)
+	}
+	return store.Get(key)
+}
+
+func cacheStoreSet(ctx *Context, store ResponseCacheStore, key string, value *CachedResponse) {
+	if store == nil {
+		return
+	}
+	if contextual, ok := store.(ResponseCacheContextStore); ok {
+		stdctx := context.Background()
+		if ctx != nil && ctx.Request != nil {
+			stdctx = ctx.Request.Context()
+		}
+		contextual.SetContext(stdctx, key, value)
+		return
+	}
+	store.Set(key, value)
 }
 
 func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl string) {

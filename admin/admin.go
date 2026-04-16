@@ -653,16 +653,31 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 		}
 
 		if len(values) > 0 {
-			if err := r.applyValuesFor(view, reflect.ValueOf(model).Elem(), values); err != nil {
+			desired := reflect.ValueOf(model).Elem()
+			if err := r.applyValuesFor(view, desired, values); err != nil {
 				return nil, err
 			}
-			desired := reflect.ValueOf(model).Elem()
-			if err := orm.WithContext(ctx.Context).Save(model).Error; err != nil {
-				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), err)
+			updates, err := r.updateColumnsFor(view, values)
+			if err != nil {
+				return nil, err
 			}
-		}
-		if err := orm.WithContext(ctx.Context).First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
-			return nil, err
+			updateDB := orm.WithContext(ctx.Context).Model(model)
+			var saveErr error
+			if len(updates) == 0 {
+				saveErr = updateDB.Save(model).Error
+			} else {
+				columns := make([]string, 0, len(updates))
+				for column := range updates {
+					columns = append(columns, column)
+				}
+				saveErr = updateDB.Select(columns).Updates(model).Error
+			}
+			if saveErr != nil {
+				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), saveErr)
+			}
+			if err := scopedDB.First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
+				return nil, err
+			}
 		}
 		if r.AfterUpdate != nil {
 			if err := r.AfterUpdate(ctx, model); err != nil {
@@ -731,16 +746,15 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			ids = append(ids, value)
 		}
 
-		allowedIDs := make([]any, 0, len(ids))
-		for _, id := range ids {
-			model := r.newModel()
-			if err := r.scopedDB(ctx, ActionBulkDelete, orm.WithContext(ctx.Context)).First(model, id).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					continue
-				}
-				return nil, err
-			}
-			allowedIDs = append(allowedIDs, id)
+		scopedDB := r.scopedDB(ctx, ActionBulkDelete, orm.WithContext(ctx.Context))
+		itemsPtr := reflect.New(reflect.SliceOf(r.modelType))
+		if err := scopedDB.Where(clause.IN{Column: clause.Column{Name: queryColumn(r.primaryKey)}, Values: ids}).Find(itemsPtr.Interface()).Error; err != nil {
+			return nil, err
+		}
+
+		allowedIDs := make([]any, 0, itemsPtr.Elem().Len())
+		for i := 0; i < itemsPtr.Elem().Len(); i++ {
+			allowedIDs = append(allowedIDs, r.primaryKeyValue(itemsPtr.Elem().Index(i)))
 		}
 		if len(allowedIDs) == 0 {
 			return &BulkDeleteOutput{Deleted: 0}, nil

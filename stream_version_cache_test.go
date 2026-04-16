@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/net/websocket"
+	"github.com/gorilla/websocket"
 )
 
 type sseStringer string
@@ -59,7 +60,12 @@ func TestWebSocketConnNilHelpersReturnInternalError(t *testing.T) {
 }
 
 func TestWebSocketConnJSONHelpers(t *testing.T) {
-	server := httptest.NewServer(websocket.Handler(func(conn *websocket.Conn) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := defaultWebSocketUpgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("Upgrade() error = %v", err)
+			return
+		}
 		defer conn.Close()
 
 		wrapped := &WebSocketConn{Conn: conn}
@@ -75,7 +81,7 @@ func TestWebSocketConnJSONHelpers(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	conn, err := websocket.Dial(wsURL, "", server.URL)
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("Dial() error = %v", err)
 	}
@@ -480,6 +486,66 @@ func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
 	}
 	if value.Status != http.StatusCreated || string(value.Body) != "second" {
 		t.Fatalf("unexpected updated cache value: %+v", value)
+	}
+}
+
+func TestMemoryCacheStoreEvictionCleansTagIndexes(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStoreWithLimit(1)
+	store.Set("old", &CachedResponse{Status: http.StatusOK})
+	store.AddTags("old", "users")
+	store.Set("new", &CachedResponse{Status: http.StatusCreated})
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	if _, ok := store.items["old"]; ok {
+		t.Fatal("expected old cache entry to be evicted")
+	}
+	if _, ok := store.keyTags["old"]; ok {
+		t.Fatal("expected evicted key tags to be removed")
+	}
+	if len(store.tags["users"]) != 0 {
+		t.Fatalf("expected evicted tag index to be empty, got %+v", store.tags["users"])
+	}
+}
+
+type contextAwareStore struct {
+	ctx      context.Context
+	response *CachedResponse
+}
+
+func (s *contextAwareStore) Get(key string) (*CachedResponse, bool) { return nil, false }
+func (s *contextAwareStore) Set(key string, value *CachedResponse)  {}
+func (s *contextAwareStore) GetContext(ctx context.Context, key string) (*CachedResponse, bool) {
+	s.ctx = ctx
+	return s.response, s.response != nil
+}
+func (s *contextAwareStore) SetContext(ctx context.Context, key string, value *CachedResponse) {
+	s.ctx = ctx
+	s.response = value
+}
+
+func TestCacheStoreHelpersPreferRequestContext(t *testing.T) {
+	t.Parallel()
+
+	c, _ := newTestContext(http.MethodGet, "/cache", "")
+	reqCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	c.Request = c.Request.WithContext(reqCtx)
+	ctx := newContext(c)
+
+	store := &contextAwareStore{response: &CachedResponse{Status: http.StatusAccepted}}
+	if cached, ok := cacheStoreGet(ctx, store, "users:1"); !ok || cached.Status != http.StatusAccepted {
+		t.Fatalf("cacheStoreGet() = (%+v, %v)", cached, ok)
+	}
+	if store.ctx != reqCtx {
+		t.Fatal("expected cacheStoreGet to receive request context")
+	}
+
+	cacheStoreSet(ctx, store, "users:1", &CachedResponse{Status: http.StatusCreated})
+	if store.ctx != reqCtx || store.response == nil || store.response.Status != http.StatusCreated {
+		t.Fatalf("expected cacheStoreSet to receive request context and value, got ctx=%v response=%+v", store.ctx, store.response)
 	}
 }
 
