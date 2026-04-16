@@ -214,9 +214,9 @@ func consumeLeadingName(args []string) (string, []string) {
 
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
-	fmt.Fprintln(w, "  gin-ninja startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
-	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>] [-with-gormx=false]")
+	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
+	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [--with-tests] [--with-auth] [--with-admin] [--with-gormx] [--force]")
+	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>]")
 }
 
 func boolPtr(v bool) *bool {
@@ -225,5 +225,5 @@ func boolPtr(v bool) *bool {
 
 func printGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja generate crud -model <Name> -model-file <path> [-output <path>] [-with-gormx=false]")
+	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>]")
 }

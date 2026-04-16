@@ -155,12 +155,92 @@ func main() {
 - Swagger UI：`http://localhost:8080/docs`
 - OpenAPI JSON：`http://localhost:8080/openapi.json`
 
+## 项目 / 应用脚手架命令
+
+gin-ninja 也提供了类似 Django 的脚手架命令，可快速创建可运行的项目骨架和新的 app 包。
+
+```bash
+make install-cli
+
+gin-ninja-cli startproject mysite -module github.com/acme/mysite
+cd mysite
+gin-ninja-cli startapp blog
+
+# 更丰富的模板 / 可选功能
+gin-ninja-cli startproject mysite \
+  -module github.com/acme/mysite \
+  -template admin \
+  -app-dir internal/app \
+  -with-tests
+gin-ninja-cli startapp accounts -template auth -with-tests
+gin-ninja-cli startapp accounts -template standard -with-gormx=false
+```
+
+CLI 会安装到 Go 的可执行目录（优先使用 `$GOBIN`，未设置时使用 `$GOPATH/bin`）：
+
+```bash
+make install-cli
+
+# 或者只在仓库本地构建
+make build-cli
+./bin/gin-ninja-cli --help
+```
+
+`startproject` 会创建一个新目录，包含：
+
+- `go.mod`
+- `main.go`
+- `config.yaml`
+- `app/models.go`
+- `app/repos.go`
+- `app/schemas.go`
+- `app/apis.go`
+- `app/routers.go`
+
+当你启用 `-template standard`、`-template auth`、`-template admin`，或 `-with-tests` 等功能开关时，脚手架还会额外生成更完整的起步文件，例如：
+
+- `cmd/server/main.go`
+- `internal/server/server.go`
+- `bootstrap/db.go`
+- `bootstrap/logger.go`
+- `bootstrap/cache.go`
+- `settings/config.local.yaml.example`
+- `settings/config.prod.yaml.example`
+- `.env.example`
+- `Makefile`
+- `Dockerfile`
+- `docker-compose.yml`
+- `README.md`
+- `migrations/.gitkeep`
+- `scripts/.gitkeep`
+
+`startapp` 会在新的 app package 目录中生成相同的核心 CRUD 文件；更丰富的模板还会额外生成：
+
+- `services.go`
+- `errors.go`
+- `scaffold_test.go`
+- `auth.go`
+- `admin.go`
+- `permissions.go`
+
+常用脚手架参数：
+
+- `-template minimal|standard|auth|admin`
+- `-with-tests`
+- `-with-auth`
+- `-with-admin`
+- `-with-gormx` / `-with-gromx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
+- `-app-dir <path>`（仅 `startproject` 支持）
+- `-force`
+
+生成的代码定位为起步骨架，能够作为最小 CRUD 风格模板直接编译；后续你仍可按业务需要继续补充模型、校验、中间件、路由和业务逻辑。
+
 ## CRUD 脚手架生成器
 
 gin-ninja 现在内置了一个轻量级脚手架 CLI，可基于模型结构体生成 CRUD 接口代码骨架。
 
 ```bash
-go run ./cmd/gin-ninja generate crud \
+gin-ninja-cli generate crud \
   -model User \
   -model-file ./examples/full/app/models.go \
   -output ./examples/full/app/user_crud_gen.go

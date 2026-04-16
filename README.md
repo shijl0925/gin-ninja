@@ -194,18 +194,30 @@ Visit `http://localhost:8080/docs` for the Swagger UI.
 gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
 
 ```bash
-go run ./cmd/gin-ninja startproject mysite -module github.com/acme/mysite
+make install-cli
+
+gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
-go run ./cmd/gin-ninja startapp blog
+gin-ninja-cli startapp blog
 
 # richer templates / optional features
-go run ./cmd/gin-ninja startproject mysite \
+gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
   -app-dir internal/app \
   -with-tests
-go run ./cmd/gin-ninja startapp accounts -template auth -with-tests
-go run ./cmd/gin-ninja startapp accounts -template standard -with-gormx=false
+gin-ninja-cli startapp accounts -template auth -with-tests
+gin-ninja-cli startapp accounts -template standard -with-gormx=false
+```
+
+Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
+
+```bash
+make install-cli
+
+# or build only
+make build-cli
+./bin/gin-ninja-cli --help
 ```
 
 `startproject` creates a new directory with:
@@ -264,7 +276,7 @@ The generated code is intended as a starting point and compiles as a minimal CRU
 gin-ninja now includes a small scaffolding CLI for generating model-based CRUD boilerplate.
 
 ```bash
-go run ./cmd/gin-ninja generate crud \
+gin-ninja-cli generate crud \
   -model User \
   -model-file ./examples/full/app/models.go \
   -output ./examples/full/app/user_crud_gen.go
