@@ -951,19 +951,19 @@ install-air:
 	go install github.com/air-verse/air@latest
 
 run:
-go run .
+	go run .
 
 build:
-go build ./...
+	go build ./...
 
 test:
-go test ./...
+	go test ./...
 
 lint:
-go vet ./...
+	go vet ./...
 
 tidy:
-go mod tidy
+	go mod tidy
 `
 
 const projectDockerfileTemplate = `FROM golang:1.26 AS build

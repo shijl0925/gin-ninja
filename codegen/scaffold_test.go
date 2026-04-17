@@ -3,6 +3,7 @@ package codegen
 import (
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -102,6 +103,7 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		!strings.Contains(makeText, "go install github.com/air-verse/air@latest") {
 		t.Fatalf("expected Makefile hot reload targets, got:\n%s", makefile)
 	}
+	assertGeneratedMakefileParses(t, outputDir)
 
 	runScaffoldGoTest(t, outputDir)
 }
@@ -310,5 +312,21 @@ func runScaffoldGoTest(t *testing.T, dir string) {
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go test scaffold: %v\n%s", err, output)
+	}
+}
+
+func assertGeneratedMakefileParses(t *testing.T, dir string) {
+	t.Helper()
+
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is not available")
+	}
+
+	for _, target := range []string{"install-air", "run", "build", "test", "lint", "tidy"} {
+		cmd := exec.Command("make", "-n", target)
+		cmd.Dir = dir
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("make -n %s in %s: %v\n%s", target, path.Base(dir), err, output)
+		}
 	}
 }
