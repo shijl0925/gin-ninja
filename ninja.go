@@ -27,6 +27,9 @@ type Config struct {
 	// DocsURL is the path at which the Swagger UI is served (default: "/docs").
 	// Set to an empty string to disable the UI.
 	DocsURL string
+	// HideDocsShortcut hides the "API Docs" shortcut on the homepage while
+	// leaving the Swagger UI route configured by DocsURL unchanged.
+	HideDocsShortcut bool
 	// OpenAPIURL is the path at which the raw OpenAPI JSON is served (default: "/openapi.json").
 	OpenAPIURL string
 	// Prefix is a global path prefix prepended to every route (default: "").
@@ -278,6 +281,9 @@ func (api *NinjaAPI) setupInternalRoutes() {
 	if api.config.HomepageURL != "" {
 		homepageURL := api.config.HomepageURL
 		docsURL := api.config.DocsURL
+		if api.config.HideDocsShortcut {
+			docsURL = ""
+		}
 		adminURL := api.config.AdminURL
 		title := api.config.Title
 		api.engine.GET(homepageURL, func(c *gin.Context) {

@@ -192,6 +192,7 @@ After startup you can visit:
 - `http://localhost:8080/openapi.json` for the raw OpenAPI document
 
 If you want the homepage to include a shortcut to your admin backend, set `AdminURL` in `ninja.Config`.
+If you want to keep Swagger UI enabled but hide the homepage shortcut in production, set `HideDocsShortcut: true`.
 
 ---
 

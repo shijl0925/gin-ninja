@@ -531,7 +531,20 @@ func homepageHTML(title, docsURL, adminURL string) string {
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
           Admin
-        </a>`, adminURL)
+         </a>`, adminURL)
+	}
+	metaBandClass := "meta-band"
+	quicklinksPanel := fmt.Sprintf(`
+    <section class="quicklinks-panel" aria-label="Quick links">
+      <div class="meta-label">Quick links</div>
+      <p class="quicklinks-copy">Open the interactive docs and jump into the default API workspace.</p>
+      <div class="buttons">%s
+%s
+      </div>
+    </section>`, docsButton, adminButton)
+	if docsButton == "" && adminButton == "" {
+		metaBandClass = "meta-band meta-band-single"
+		quicklinksPanel = ""
 	}
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
@@ -662,24 +675,30 @@ func homepageHTML(title, docsURL, adminURL string) string {
       line-height: 1.72;
       color: var(--muted);
     }
-    .meta-band {
-      margin-top: 36px;
-      display: grid;
-      grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.85fr);
+     .meta-band {
+       margin-top: 36px;
+       display: grid;
+       grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.85fr);
       border-radius: 24px;
       border: 1px solid rgba(15, 23, 42, 0.08);
       background: rgba(255,255,255,0.66);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
-      overflow: hidden;
-    }
-    .status-panel,
-    .quicklinks-panel {
-      padding: 24px 24px 22px;
-      min-width: 0;
-    }
-    .quicklinks-panel {
-      display: flex;
-      flex-direction: column;
+       box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+       overflow: hidden;
+     }
+     .meta-band-single {
+       grid-template-columns: minmax(0, 1fr);
+     }
+     .status-panel,
+     .quicklinks-panel {
+       padding: 24px 24px 22px;
+       min-width: 0;
+     }
+     .meta-band-single .status-panel {
+       padding-right: 28px;
+     }
+     .quicklinks-panel {
+       display: flex;
+       flex-direction: column;
       justify-content: center;
       border-left: 1px solid rgba(15, 23, 42, 0.08);
       background: linear-gradient(180deg, rgba(255,255,255,0.52), rgba(248,250,252,0.78));
@@ -729,16 +748,19 @@ func homepageHTML(title, docsURL, adminURL string) string {
       background: currentColor;
       box-shadow: 0 0 0 6px var(--success-soft);
     }
-    .meta-copy {
-      margin-top: 12px;
-      max-width: 46ch;
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.65;
-    }
-    .quicklinks-copy {
-      margin-top: 10px;
-      max-width: 28ch;
+     .meta-copy {
+       margin-top: 12px;
+       max-width: 46ch;
+       color: var(--muted);
+       font-size: 0.92rem;
+       line-height: 1.65;
+     }
+     .meta-band-single .meta-copy {
+       max-width: none;
+     }
+     .quicklinks-copy {
+       margin-top: 10px;
+       max-width: 28ch;
       color: var(--muted);
       font-size: 0.9rem;
       line-height: 1.6;
@@ -856,7 +878,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
     </div>
   </div>
 
-  <div class="meta-band">
+  <div class="%s">
     <section class="status-panel" aria-label="Server status">
       <div class="meta-label">Status</div>
       <div class="status-row">
@@ -868,22 +890,16 @@ func homepageHTML(title, docsURL, adminURL string) string {
       </div>
       <p class="meta-copy">Ready to serve requests and expose typed API routes with a clean default setup.</p>
     </section>
-    <section class="quicklinks-panel" aria-label="Quick links">
-      <div class="meta-label">Quick links</div>
-      <p class="quicklinks-copy">Open the interactive docs and jump into the default API workspace.</p>
-      <div class="buttons">%s
 %s
-      </div>
-    </section>
   </div>
- 
+  
   <div class="footer">
     Powered by <a href="https://github.com/shijl0925/gin-ninja" target="_blank" rel="noopener">gin-ninja</a>
   </div>
 </div>
 </main>
 </body>
-</html>`, title, title, docsButton, adminButton)
+</html>`, title, title, metaBandClass, quicklinksPanel)
 }
 
 // ginPathToOpenAPI converts a gin-style path ("/users/:id") to an OpenAPI

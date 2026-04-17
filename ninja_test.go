@@ -119,6 +119,53 @@ func TestNew_HomepageIncludesAdminShortcutWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestNew_HomepageCanHideDocsShortcutWithoutDisablingDocsRoute(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:            "Hidden Docs Shortcut",
+		Version:          "0.0.1",
+		HideDocsShortcut: true,
+	})
+	home := doRequest(api, http.MethodGet, "/", nil)
+	if home.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", home.Code)
+	}
+	body := home.Body.String()
+	if strings.Contains(body, "API Docs") || strings.Contains(body, `href="/docs"`) {
+		t.Fatalf("expected docs shortcut to be hidden: %q", body)
+	}
+	if !strings.Contains(body, `class="meta-band meta-band-single"`) {
+		t.Fatalf("expected single-panel homepage layout when quick links are hidden: %q", body)
+	}
+	if strings.Contains(body, `class="quicklinks-panel"`) {
+		t.Fatalf("expected quick links panel to be removed when no links are available: %q", body)
+	}
+
+	docs := doRequest(api, http.MethodGet, "/docs", nil)
+	if docs.Code != http.StatusOK {
+		t.Fatalf("expected docs route to remain available, got %d", docs.Code)
+	}
+}
+
+func TestNew_HomepageHidesQuickLinksPanelWhenNoShortcutsExist(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:            "No Shortcuts",
+		Version:          "0.0.1",
+		HideDocsShortcut: true,
+		AdminURL:         "",
+	})
+	w := doRequest(api, http.MethodGet, "/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `class="meta-band meta-band-single"`) {
+		t.Fatalf("expected single-panel layout in body: %q", body)
+	}
+	if strings.Contains(body, `class="quicklinks-panel"`) {
+		t.Fatalf("expected quick links panel to be hidden in body: %q", body)
+	}
+}
+
 func TestNew_HomepageCanMoveToCustomURL(t *testing.T) {
 	api := ninja.New(ninja.Config{
 		Title:       "Custom Home",
