@@ -123,3 +123,67 @@ func TestFilterHelperSuccessBranches(t *testing.T) {
 		t.Fatalf("expected too-many-parts tag error, got fields=%v op=%v combiner=%v", fields, op, combiner)
 	}
 }
+
+func TestFilterSwitchCoverage(t *testing.T) {
+	t.Parallel()
+
+	query, _ := gormx.NewQuery[userRecord]()
+	for _, op := range []Operator{OpEq, OpNe, OpGt, OpGe, OpLt, OpLe, OpLike, OpIn} {
+		value := any(1)
+		if op == OpLike {
+			value = "alice"
+		}
+		if op == OpIn {
+			value = []int{1, 2}
+		}
+		if err := applySingleClause(query, Clause{Field: "id", Op: op, Value: value}); err != nil {
+			t.Fatalf("applySingleClause(%s): %v", op, err)
+		}
+		if _, err := buildOption(Clause{Field: "id", Op: op, Value: value}); err != nil {
+			t.Fatalf("buildOption(%s): %v", op, err)
+		}
+	}
+
+	if _, err := buildExpression("name", OpLike, 123); err == nil || !strings.Contains(err.Error(), "requires a string value") {
+		t.Fatalf("expected like type error, got %v", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	for _, clause := range []Clause{
+		{Field: "id", Op: OpEq, Value: 1},
+		{Field: "id", Op: OpNe, Value: 2},
+		{Field: "id", Op: OpGt, Value: 0},
+		{Field: "id", Op: OpGe, Value: 0},
+		{Field: "id", Op: OpLt, Value: 10},
+		{Field: "id", Op: OpLe, Value: 10},
+		{Field: "name", Op: OpLike, Value: "ali"},
+		{Field: "id", Op: OpIn, Value: []int{1, 2}},
+		{Fields: []string{"name", "email"}, Op: OpLike, Value: "ali", Combiner: CombinerOr},
+	} {
+		if _, err := applyDBClause(db, clause); err != nil {
+			t.Fatalf("applyDBClause(%+v): %v", clause, err)
+		}
+	}
+
+	cases := []reflect.Value{
+		reflect.ValueOf(""),
+		reflect.ValueOf("value"),
+		reflect.ValueOf([]int{}),
+		reflect.ValueOf([]int{1}),
+		reflect.ValueOf(0),
+		reflect.ValueOf(2),
+		reflect.ValueOf(0.0),
+		reflect.ValueOf(1.5),
+		reflect.ValueOf(struct{ Name string }{}),
+		reflect.ValueOf(struct{ Name string }{Name: "alice"}),
+	}
+	results := []bool{true, false, true, false, true, false, true, false, true, false}
+	for i, value := range cases {
+		if got := isEmptyValue(value); got != results[i] {
+			t.Fatalf("isEmptyValue(%v) = %v, want %v", value.Interface(), got, results[i])
+		}
+	}
+}

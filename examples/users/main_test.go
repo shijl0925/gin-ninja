@@ -7,6 +7,7 @@ func TestUsersMainUsesFatalOnRunError(t *testing.T) {
 	t.Cleanup(func() { fatalUsers = originalFatal })
 
 	t.Setenv("SERVER__PORT", "-1")
+	t.Setenv("DATABASE__DSN", "file:users-main-test?mode=memory&cache=shared")
 
 	called := false
 	fatalUsers = func(v ...any) { called = true }

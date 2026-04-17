@@ -10,6 +10,10 @@ import (
 func TestSQLiteAndPostgresHelpers(t *testing.T) {
 	t.Parallel()
 
+	if _, err := sqliteDialector(""); err == nil || !strings.Contains(err.Error(), "must not be empty") {
+		t.Fatalf("expected sqlite DSN validation error, got %v", err)
+	}
+
 	if loc := timeLocation(""); loc == nil {
 		t.Fatal("expected default location")
 	}
@@ -101,5 +105,27 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 	}
 	if _, err := postgresDialector(pgRaw); err != nil {
 		t.Fatalf("postgresDialector raw: %v", err)
+	}
+
+	pgStructured := settings.DatabaseConfig{
+		Postgres: settings.PostgresConfig{
+			Host:     "127.0.0.1",
+			Port:     5433,
+			User:     "postgres",
+			Password: "se cret",
+			Name:     "gin_ninja",
+			SSLMode:  "disable",
+			TimeZone: "Asia/Shanghai",
+			Params:   map[string]string{"application_name": "gin ninja", "search_path": "public"},
+		},
+	}
+	pgDSN, err := postgresDSN(pgStructured)
+	if err != nil {
+		t.Fatalf("postgresDSN structured: %v", err)
+	}
+	for _, want := range []string{"host=127.0.0.1", "port=5433", "user=postgres", "dbname=gin_ninja", "sslmode=disable", "TimeZone=Asia/Shanghai", "application_name='gin ninja'"} {
+		if !strings.Contains(pgDSN, want) {
+			t.Fatalf("expected postgres DSN to contain %q, got %q", want, pgDSN)
+		}
 	}
 }
