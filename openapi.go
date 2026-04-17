@@ -769,7 +769,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
 </div>
 </main>
 </body>
-</html>`, title, title, docsButton, adminButton)
+</html>`, title, docsButton, adminButton)
 }
 
 // ginPathToOpenAPI converts a gin-style path ("/users/:id") to an OpenAPI
