@@ -360,7 +360,7 @@ func TestOpenAPICacheConcurrentAccess(t *testing.T) {
 	errs := make(chan error, workers*2)
 	var wg sync.WaitGroup
 
-	for range workers {
+	for i := 0; i < workers; i++ {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
@@ -432,7 +432,7 @@ func TestMemoryCacheStoreConcurrentLockingAndBoundaryInputs(t *testing.T) {
 	var wins int32
 	unlocks := make(chan func(), contenders)
 
-	for range contenders {
+	for i := 0; i < contenders; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
