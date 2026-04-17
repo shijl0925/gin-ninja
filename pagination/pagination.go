@@ -58,7 +58,18 @@ func (p PageInput) GetSize() int {
 
 // Offset computes the SQL OFFSET value from Page and Size.
 func (p PageInput) Offset() int {
-	return (p.GetPage() - 1) * p.GetSize()
+	page := p.GetPage()
+	if page <= 1 {
+		return 0
+	}
+
+	size := p.GetSize()
+	maxInt := int(^uint(0) >> 1)
+	offset := page - 1
+	if offset > maxInt/size {
+		return maxInt
+	}
+	return offset * size
 }
 
 // Limit returns the SQL LIMIT value (identical to GetSize).

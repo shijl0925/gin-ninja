@@ -67,6 +67,17 @@ func TestPageInputDefaultsAndBounds(t *testing.T) {
 	}
 }
 
+func TestPageInputOffsetSaturatesOnOverflow(t *testing.T) {
+	t.Parallel()
+
+	maxInt := int(^uint(0) >> 1)
+	input := PageInput{Page: maxInt, Size: MaxSize}
+
+	if got := input.Offset(); got != maxInt {
+		t.Fatalf("Offset() = %d, want %d", got, maxInt)
+	}
+}
+
 func TestNewPageZeroTotalHasZeroPages(t *testing.T) {
 	t.Parallel()
 

@@ -101,13 +101,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			// promptly; handlers that do not check the context will run to completion
 			// on their own — Go's cooperative concurrency model does not allow
 			// forceful goroutine termination.
-			//
-			// resultCh has capacity 1, so the goroutine can always write to it
-			// without blocking and will be eligible for GC as soon as it returns.
-			// The background drain below makes that contract explicit and avoids
-			// any confusion if the channel capacity is ever changed.
 			cancel()
-			go func() { <-resultCh }()
 			if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
 				writeError(c, &Error{
 					Status:  http.StatusRequestTimeout,
