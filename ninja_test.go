@@ -98,7 +98,7 @@ func TestNew_HomepageRouteExists(t *testing.T) {
 	if !strings.Contains(body, `href="/docs"`) || !strings.Contains(body, "API Docs") {
 		t.Fatalf("expected docs shortcut in body: %q", body)
 	}
-	if strings.Contains(body, ">Admin<") {
+	if strings.Contains(body, `class="btn btn-admin"`) || strings.Contains(body, `href="/admin"`) {
 		t.Fatalf("expected admin shortcut to be hidden by default: %q", body)
 	}
 }
