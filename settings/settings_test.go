@@ -216,6 +216,42 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	}
 }
 
+func TestLoad_ExplicitMissingAndMalformedConfig(t *testing.T) {
+	if _, err := settings.Load(filepath.Join(t.TempDir(), "missing.yaml")); err == nil {
+		t.Fatal("expected missing explicit config error")
+	}
+
+	bad := writeTempConfig(t, "server: [broken")
+	if _, err := settings.Load(bad); err == nil {
+		t.Fatal("expected malformed config error")
+	}
+}
+
+func TestLoad_SearchesDefaultConfigPaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("server:\n  port: 9191\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	cfg, err := settings.Load("")
+	if err != nil {
+		t.Fatalf("Load default search: %v", err)
+	}
+	if cfg.Server.Port != 9191 {
+		t.Fatalf("expected discovered config port 9191, got %d", cfg.Server.Port)
+	}
+}
+
 func TestMustLoadPanicsOnError(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -223,6 +259,31 @@ func TestMustLoadPanicsOnError(t *testing.T) {
 		}
 	}()
 	settings.MustLoad(filepath.Join(t.TempDir(), "missing.yaml"))
+}
+
+func TestMustLoadSuccessBranches(t *testing.T) {
+	base := writeTempConfig(t, "server:\n  port: 8088\n")
+	if cfg := settings.MustLoad(base); cfg.Server.Port != 8088 {
+		t.Fatalf("expected MustLoad success port 8088, got %d", cfg.Server.Port)
+	}
+
+	override := writeTempConfig(t, "server:\n  port: 8089\n")
+	if cfg := settings.MustLoadWithOverrides(base, override); cfg.Server.Port != 8089 {
+		t.Fatalf("expected MustLoadWithOverrides success port 8089, got %d", cfg.Server.Port)
+	}
+
+	dir := t.TempDir()
+	envBase := filepath.Join(dir, "config.yaml")
+	envOverride := filepath.Join(dir, "config.testing.yaml")
+	if err := os.WriteFile(envBase, []byte("app:\n  env: testing\nserver:\n  port: 7000\n"), 0o644); err != nil {
+		t.Fatalf("write env base: %v", err)
+	}
+	if err := os.WriteFile(envOverride, []byte("server:\n  port: 7001\n"), 0o644); err != nil {
+		t.Fatalf("write env override: %v", err)
+	}
+	if cfg := settings.MustLoadForEnv(envBase); cfg.Server.Port != 7001 {
+		t.Fatalf("expected MustLoadForEnv success port 7001, got %d", cfg.Server.Port)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +437,32 @@ server:
 	}
 }
 
+func TestLoadForEnv_EnvironmentVariableOverridesAppEnv(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "config.yaml")
+	override := filepath.Join(dir, "config.staging.yaml")
+	if err := os.WriteFile(base, []byte(`
+app:
+  env: "production"
+server:
+  port: 8080
+`), 0o644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+	if err := os.WriteFile(override, []byte("server:\n  port: 8181\n"), 0o644); err != nil {
+		t.Fatalf("write override: %v", err)
+	}
+
+	t.Setenv("APP__ENV", "staging")
+	cfg, err := settings.LoadForEnv(base)
+	if err != nil {
+		t.Fatalf("LoadForEnv: %v", err)
+	}
+	if cfg.Server.Port != 8181 {
+		t.Fatalf("expected staging override port 8181, got %d", cfg.Server.Port)
+	}
+}
+
 func TestMustLoadWithOverridesPanicsOnError(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -406,5 +493,12 @@ func TestLoadWithOverrides_MalformedOverrideReturnsError(t *testing.T) {
 
 	if _, err := settings.LoadWithOverrides(base, bad); err == nil {
 		t.Fatal("expected error for malformed override YAML, got nil")
+	}
+}
+
+func TestLoadWithOverrides_MalformedBaseReturnsError(t *testing.T) {
+	base := writeTempConfig(t, "server: [broken")
+	if _, err := settings.LoadWithOverrides(base); err == nil {
+		t.Fatal("expected malformed base config error")
 	}
 }

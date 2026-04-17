@@ -318,6 +318,34 @@ func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
 	}
 }
 
+func TestDemoDirectHelpers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ginCtx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	ctx := &ninja.Context{Context: ginCtx}
+
+	hidden, err := HiddenOperation(ctx, &struct{}{})
+	if err != nil {
+		t.Fatalf("HiddenOperation(): %v", err)
+	}
+	if hidden.Status != "hidden route is reachable" {
+		t.Fatalf("unexpected hidden response: %+v", hidden)
+	}
+
+	started := time.Now()
+	slow, err := SlowOperation(ctx, &struct{}{})
+	if err != nil {
+		t.Fatalf("SlowOperation(): %v", err)
+	}
+	if slow.Status != "completed" {
+		t.Fatalf("unexpected slow response: %+v", slow)
+	}
+	if time.Since(started) < 500*time.Millisecond {
+		t.Fatal("expected slow operation success path to wait for completion")
+	}
+}
+
 func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) {
 	api := newDemoAPI()
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
@@ -376,6 +377,61 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if payload["id"] != float64(7) {
 		t.Fatalf("expected id to remain, got %+v", payload)
 	}
+}
+
+func TestUsersV2CacheHelperCoverage(t *testing.T) {
+	store := ninja.NewMemoryCacheStore()
+
+	usersV2Cache.mu.RLock()
+	original := usersV2Cache.invalidator
+	usersV2Cache.mu.RUnlock()
+	t.Cleanup(func() {
+		usersV2Cache.mu.Lock()
+		usersV2Cache.invalidator = original
+		usersV2Cache.mu.Unlock()
+	})
+
+	ConfigureUsersV2Cache(store)
+
+	if key := UsersV2DetailCacheKey(nil); key != "" {
+		t.Fatalf("UsersV2DetailCacheKey(nil) = %q", key)
+	}
+	if tags := UsersV2DetailCacheTags(nil); !reflect.DeepEqual(tags, []string{usersV2CacheNamespace}) {
+		t.Fatalf("UsersV2DetailCacheTags(nil) = %v", tags)
+	}
+
+	gin.SetMode(gin.TestMode)
+	ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ginCtx.Request = httptest.NewRequest(http.MethodGet, "/users/7", nil)
+	ginCtx.Params = gin.Params{{Key: "id", Value: "7"}}
+	ctx := &ninja.Context{Context: ginCtx}
+
+	if key := UsersV2DetailCacheKey(ctx); key != usersV2DetailCacheKeyByID("7") {
+		t.Fatalf("unexpected detail cache key %q", key)
+	}
+	if tags := UsersV2DetailCacheTags(ctx); !reflect.DeepEqual(tags, []string{usersV2CacheNamespace, usersV2DetailCacheTagByID("7")}) {
+		t.Fatalf("unexpected detail cache tags %v", tags)
+	}
+
+	store.Set("list-cache", &ninja.CachedResponse{Status: http.StatusOK, Body: []byte("list")})
+	store.AddTags("list-cache", usersV2ListCacheTag)
+	store.Set(usersV2DetailCacheKeyByID(7), &ninja.CachedResponse{Status: http.StatusOK, Body: []byte("detail")})
+	store.AddTags(usersV2DetailCacheKeyByID(7), usersV2ListCacheTag, usersV2DetailCacheTagByID(7))
+
+	invalidateUsersV2ListCache()
+	if _, ok := store.Get("list-cache"); ok {
+		t.Fatal("expected list cache to be invalidated")
+	}
+	invalidateUsersV2UserCache(7)
+	if _, ok := store.Get(usersV2DetailCacheKeyByID(7)); ok {
+		t.Fatal("expected detail cache to be invalidated")
+	}
+
+	usersV2Cache.mu.Lock()
+	usersV2Cache.invalidator = nil
+	usersV2Cache.mu.Unlock()
+	invalidateUsersV2ListCache()
+	invalidateUsersV2UserCache(7)
 }
 
 func TestUserDirectHelpers(t *testing.T) {

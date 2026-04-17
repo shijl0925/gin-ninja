@@ -3499,6 +3499,9 @@ const adminPrototypeHTML = `<!doctype html>
       renderDashboard();
       if (els.workspaceHeader) els.workspaceHeader.hidden = false;
       if (els.recordsShell) els.recordsShell.hidden = false;
+      if (navigationMode !== 'none') {
+        updateNavigationState(navigationMode, 'resource', resource.name);
+      }
       try {
         state.meta = await request(currentBasePath() + '/meta');
         renderResources();
@@ -3511,9 +3514,6 @@ const adminPrototypeHTML = `<!doctype html>
         renderSelectedRecord();
         syncBulkActionState();
         syncWorkspaceActionState();
-        if (navigationMode !== 'none') {
-          updateNavigationState(navigationMode, 'resource', resource.name);
-        }
         setStatus('Loaded resource ' + resource.name + '.');
       } catch (error) {
         setStatus(String(error.message || error));
