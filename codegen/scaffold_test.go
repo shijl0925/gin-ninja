@@ -83,18 +83,23 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read .air.toml: %v", err)
 	}
-	if !strings.Contains(string(airConfig), `cmd = "go build -o ./bin/app ."`) {
-		t.Fatalf("expected .air.toml to build the project root, got:\n%s", airConfig)
+	airText := string(airConfig)
+	if !strings.Contains(airText, "go build -o ./bin/app .") ||
+		!strings.Contains(airText, `bin = "./bin/app"`) ||
+		!strings.Contains(airText, `root = "."`) {
+		t.Fatalf("expected .air.toml to define the hot reload build, got:\n%s", airConfig)
 	}
 
 	makefile, err := os.ReadFile(filepath.Join(outputDir, "Makefile"))
 	if err != nil {
 		t.Fatalf("read Makefile: %v", err)
 	}
-	if !strings.Contains(string(makefile), "make install-air") ||
-		!strings.Contains(string(makefile), "\ndev:\n") ||
-		!strings.Contains(string(makefile), "\n\tair\n") ||
-		!strings.Contains(string(makefile), "go install github.com/air-verse/air@latest") {
+	makeText := string(makefile)
+	if !strings.Contains(makeText, "dev:") ||
+		!strings.Contains(makeText, "install-air:") ||
+		!strings.Contains(makeText, "command -v air") ||
+		!strings.Contains(makeText, "make install-air") ||
+		!strings.Contains(makeText, "go install github.com/air-verse/air@latest") {
 		t.Fatalf("expected Makefile hot reload targets, got:\n%s", makefile)
 	}
 
