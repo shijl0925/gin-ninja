@@ -5,6 +5,7 @@
 //	go run ./examples/basic
 //
 // Then visit:
+//   - http://localhost:8080/
 //   - http://localhost:8080/docs
 //   - http://localhost:8080/openapi.json
 package main
