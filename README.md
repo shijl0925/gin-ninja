@@ -203,14 +203,15 @@ gin-ninja also includes Django-style bootstrap commands for quickly creating a r
 Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
 
 ```bash
+go install github.com/shijl0925/gin-ninja/cmd/gin-ninja-cli@latest
+
+# or install from the cloned repository with Make
 make install-cli
 
 # or build only (binary placed at ./bin/gin-ninja-cli)
 make build-cli
 ./bin/gin-ninja-cli --help
 ```
-
-> **Note:** `go install github.com/shijl0925/gin-ninja/cmd/gin-ninja@latest` will produce a binary named `gin-ninja`, not `gin-ninja-cli`. Use `make install-cli` to get the correctly renamed binary.
 
 ```bash
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
