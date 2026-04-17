@@ -877,7 +877,7 @@ const adminPrototypeHTML = `<!doctype html>
     .nav-link.active {
       background:linear-gradient(135deg, var(--admin-primary) 0%, #3b82f6 100%);
       color:#fff;
-      box-shadow:0 14px 26px rgba(99, 91, 255, 0.28);
+      box-shadow:0 10px 18px rgba(0, 123, 255, 0.3);
     }
     .nav-link-icon {
       width:18px;
@@ -1595,7 +1595,7 @@ const adminPrototypeHTML = `<!doctype html>
     <div id="status" class="visually-hidden" aria-live="polite" aria-atomic="true">Ready.</div>
     <section id="sessionShell" class="login-shell">
       <section class="panel login-marketing card card-outline card-secondary">
-        <span class="eyebrow">Admin Workspace</span>
+        <span class="eyebrow">Secure Admin</span>
         <div class="login-brand">
           <span class="login-brand-mark">G</span>
           <div class="login-brand-copy">
