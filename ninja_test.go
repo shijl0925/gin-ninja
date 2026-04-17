@@ -92,7 +92,7 @@ func TestNew_HomepageRouteExists(t *testing.T) {
 	if !strings.Contains(body, "Test") || !strings.Contains(body, "Server is running") {
 		t.Fatalf("expected homepage title and status in body: %q", body)
 	}
-	if !strings.Contains(body, `class="meta-grid"`) || strings.Count(body, `class="meta-card"`) != 2 {
+	if !strings.Contains(body, `class="meta-band"`) || !strings.Contains(body, `class="status-panel"`) || !strings.Contains(body, `class="quicklinks-panel"`) {
 		t.Fatalf("expected balanced homepage meta layout in body: %q", body)
 	}
 	if !strings.Contains(body, `href="/docs"`) || !strings.Contains(body, "API Docs") {

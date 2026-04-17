@@ -662,20 +662,27 @@ func homepageHTML(title, docsURL, adminURL string) string {
       line-height: 1.72;
       color: var(--muted);
     }
-    .meta-grid {
+    .meta-band {
       margin-top: 36px;
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
-      gap: 16px;
-      align-items: stretch;
-    }
-    .meta-card {
-      padding: 22px 22px 20px;
-      border-radius: 20px;
+      grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.85fr);
+      border-radius: 24px;
       border: 1px solid rgba(15, 23, 42, 0.08);
-      background: rgba(255,255,255,0.64);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      background: rgba(255,255,255,0.66);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
+      overflow: hidden;
+    }
+    .status-panel,
+    .quicklinks-panel {
+      padding: 24px 24px 22px;
       min-width: 0;
+    }
+    .quicklinks-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-left: 1px solid rgba(15, 23, 42, 0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.52), rgba(248,250,252,0.78));
     }
     .meta-label {
       font-size: 0.72rem;
@@ -684,17 +691,35 @@ func homepageHTML(title, docsURL, adminURL string) string {
       text-transform: uppercase;
       color: var(--subtle);
     }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
     .status {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      margin-top: 14px;
       padding: 0;
       border: 0;
       background: transparent;
       color: var(--success);
       font-size: 1.02rem;
       font-weight: 650;
+      letter-spacing: 0.01em;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      background: rgba(255,255,255,0.72);
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
       letter-spacing: 0.01em;
     }
     .status-dot {
@@ -706,21 +731,29 @@ func homepageHTML(title, docsURL, adminURL string) string {
     }
     .meta-copy {
       margin-top: 12px;
-      max-width: 34ch;
+      max-width: 46ch;
       color: var(--muted);
       font-size: 0.92rem;
       line-height: 1.65;
     }
+    .quicklinks-copy {
+      margin-top: 10px;
+      max-width: 28ch;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
     .buttons {
       display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-      margin-top: 14px;
+      gap: 12px;
+      flex-direction: column;
+      margin-top: 18px;
     }
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      justify-content: space-between;
+      gap: 12px;
       min-height: 46px;
       padding: 0 18px;
       border-radius: 14px;
@@ -730,6 +763,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
       font-weight: 600;
       transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
       box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      width: 100%%;
     }
     .btn:hover {
       transform: translateY(-1px);
@@ -790,15 +824,18 @@ func homepageHTML(title, docsURL, adminURL string) string {
       h1 {
         font-size: 2rem;
       }
-      .meta-grid {
+      .meta-band {
         grid-template-columns: 1fr;
+      }
+      .quicklinks-panel {
+        border-left: 0;
+        border-top: 1px solid rgba(15, 23, 42, 0.08);
       }
       .buttons {
         flex-direction: column;
       }
       .btn {
         width: 100%%;
-        justify-content: center;
       }
     }
   </style>
@@ -819,18 +856,23 @@ func homepageHTML(title, docsURL, adminURL string) string {
     </div>
   </div>
 
-  <div class="meta-grid">
-    <section class="meta-card" aria-label="Server status">
+  <div class="meta-band">
+    <section class="status-panel" aria-label="Server status">
       <div class="meta-label">Status</div>
-      <div class="status">
-        <span class="status-dot"></span>
-        Server is running
+      <div class="status-row">
+        <div class="status">
+          <span class="status-dot"></span>
+          Server is running
+        </div>
+        <div class="status-pill">Ready for requests</div>
       </div>
       <p class="meta-copy">Ready to serve requests and expose typed API routes with a clean default setup.</p>
     </section>
-    <section class="meta-card" aria-label="Quick links">
+    <section class="quicklinks-panel" aria-label="Quick links">
       <div class="meta-label">Quick links</div>
-      <div class="buttons">%s%s
+      <p class="quicklinks-copy">Open the interactive docs and jump into the default API workspace.</p>
+      <div class="buttons">%s
+%s
       </div>
     </section>
   </div>
