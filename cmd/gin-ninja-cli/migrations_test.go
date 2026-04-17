@@ -2,20 +2,44 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
-	"gorm.io/driver/sqlite"
+	ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
+	"github.com/shijl0925/gin-ninja/settings"
 	"gorm.io/gorm"
 )
+
+type migrationTestBackend struct {
+	name           string
+	driver         string
+	databaseConfig func() string
+}
+
+type externalMigrationEnv struct {
+	driver    string
+	dsn       string
+	host      string
+	port      int
+	user      string
+	password  string
+	database  string
+	charset   string
+	parseTime bool
+	loc       string
+	sslMode   string
+	timeZone  string
+}
 
 func TestRunMigrationCommands(t *testing.T) {
 	t.Parallel()
 
-	_, configPath, dbPath := writeMigrationTestProject(t)
+	_, configPath := writeMigrationTestProject(t, sqliteMigrationTestBackend())
 	migrationID := makeMigration(t, configPath)
 
 	var stdout, stderr bytes.Buffer
@@ -47,13 +71,9 @@ func TestRunMigrationCommands(t *testing.T) {
 		t.Fatalf("expected applied migration output, got %q", stdout.String())
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite db: %v", err)
-	}
-	if !db.Migrator().HasTable("users") {
-		t.Fatal("expected users table after migrate")
-	}
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
+		assertTableExists(t, db, "users", true)
+	})
 
 	stdout.Reset()
 	stderr.Reset()
@@ -84,15 +104,15 @@ func TestRunMigrationCommands(t *testing.T) {
 	if !strings.Contains(stdout.String(), "rolled back "+migrationID+".sql") {
 		t.Fatalf("expected rollback output, got %q", stdout.String())
 	}
-	if db.Migrator().HasTable("users") {
-		t.Fatal("expected users table to be removed after rollback")
-	}
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
+		assertTableExists(t, db, "users", false)
+	})
 }
 
 func TestRunMakeMigrations(t *testing.T) {
 	t.Parallel()
 
-	_, configPath, _ := writeMigrationTestProject(t)
+	_, configPath := writeMigrationTestProject(t, sqliteMigrationTestBackend())
 	migrationID := makeMigration(t, configPath)
 	migrationFile := filepath.Join(filepath.Dir(configPath), "migrations", migrationID+".sql")
 	content, err := os.ReadFile(migrationFile)
@@ -113,8 +133,175 @@ func TestRunMakeMigrations(t *testing.T) {
 
 func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	t.Parallel()
+	runMigrationSchemaEvolutionScenario(t, sqliteMigrationTestBackend())
+}
 
-	projectDir, configPath, dbPath := writeMigrationTestProject(t)
+func TestRunMigrationCommandsHandleMultiStepSchemaEvolutionMySQL(t *testing.T) {
+	runMigrationSchemaEvolutionScenario(t, mysqlMigrationTestBackend(t))
+}
+
+func TestRunMigrationCommandsHandleMultiStepSchemaEvolutionPostgres(t *testing.T) {
+	runMigrationSchemaEvolutionScenario(t, postgresMigrationTestBackend(t))
+}
+
+func TestMigrationDialectSpecificHelpers(t *testing.T) {
+	t.Parallel()
+
+	if got := normalizeDialect("postgresql"); got != "postgres" {
+		t.Fatalf("normalizeDialect(postgresql) = %q, want postgres", got)
+	}
+	if got := normalizeDialect("sqlite3"); got != "sqlite" {
+		t.Fatalf("normalizeDialect(sqlite3) = %q, want sqlite", got)
+	}
+	if got := bindVar("postgres", 2); got != "$2" {
+		t.Fatalf("bindVar(postgres, 2) = %q, want $2", got)
+	}
+	if got := bindVar("mysql", 2); got != "?" {
+		t.Fatalf("bindVar(mysql, 2) = %q, want ?", got)
+	}
+
+	stmt, ok := reverseMigrationStatement("mysql", "CREATE INDEX `idx_users_email` ON `users` (`email`)")
+	if !ok {
+		t.Fatal("expected mysql index statement to be reversible")
+	}
+	if stmt != "DROP INDEX `idx_users_email` ON `users`" {
+		t.Fatalf("mysql reverse index = %q", stmt)
+	}
+
+	stmt, ok = reverseMigrationStatement("mysql", "ALTER TABLE `audit_logs` ADD CONSTRAINT `fk_audit_logs_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)")
+	if !ok {
+		t.Fatal("expected mysql foreign key statement to be reversible")
+	}
+	if stmt != "ALTER TABLE `audit_logs` DROP FOREIGN KEY `fk_audit_logs_user`" {
+		t.Fatalf("mysql reverse foreign key = %q", stmt)
+	}
+
+	stmt, ok = reverseMigrationStatement("postgres", "CREATE INDEX \"idx_users_email\" ON \"users\" (\"email\")")
+	if !ok {
+		t.Fatal("expected postgres index statement to be reversible")
+	}
+	if stmt != "DROP INDEX IF EXISTS \"idx_users_email\"" {
+		t.Fatalf("postgres reverse index = %q", stmt)
+	}
+}
+
+func TestRunMigrationCommandFailurePaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("invalid target", func(t *testing.T) {
+		t.Parallel()
+
+		_, configPath := writeMigrationTestProject(t, sqliteMigrationTestBackend())
+		makeMigration(t, configPath)
+
+		_, stderr, code := runCommand(t, "migrate", "missing-version", "-config", configPath)
+		if code != 1 {
+			t.Fatalf("migrate missing target code = %d stderr=%s", code, stderr)
+		}
+		if !strings.Contains(stderr, `resolve migration target: migration "missing-version" not found`) {
+			t.Fatalf("expected missing target error, got %q", stderr)
+		}
+	})
+
+	t.Run("irreversible rollback", func(t *testing.T) {
+		t.Parallel()
+
+		projectDir, configPath := writeMigrationTestProject(t, sqliteMigrationTestBackend())
+		migrationID := "20260101010101_irreversible"
+		content := buildMigrationFile(migrationID+".sql", "CREATE TABLE `users` (`id` integer primary key);", migrationIrreversible+"\n")
+		if err := os.WriteFile(filepath.Join(projectDir, "migrations", migrationID+".sql"), []byte(content), 0o644); err != nil {
+			t.Fatalf("write irreversible migration: %v", err)
+		}
+
+		stdout, stderr, code := runCommand(t, "migrate", "-config", configPath)
+		if code != 0 {
+			t.Fatalf("apply irreversible migration code = %d stderr=%s", code, stderr)
+		}
+		if !strings.Contains(stdout, "applied "+migrationID+".sql") {
+			t.Fatalf("expected irreversible migration to apply, got %q", stdout)
+		}
+
+		_, stderr, code = runCommand(t, "migrate", "zero", "-config", configPath)
+		if code != 1 {
+			t.Fatalf("rollback irreversible migration code = %d stderr=%s", code, stderr)
+		}
+		if !strings.Contains(stderr, "rollback migration "+migrationID+".sql: migration is irreversible") {
+			t.Fatalf("expected irreversible rollback error, got %q", stderr)
+		}
+	})
+
+	t.Run("migration table creation failure", func(t *testing.T) {
+		t.Parallel()
+
+		projectDir, configPath := writeMigrationTestProject(t, sqliteMigrationTestBackend())
+		dbPath := filepath.Join(projectDir, "app.db")
+		if err := os.WriteFile(dbPath, nil, 0o444); err != nil {
+			t.Fatalf("seed readonly sqlite db: %v", err)
+		}
+
+		_, stderr, code := runCommand(t, "showmigrations", "-config", configPath)
+		if code != 1 {
+			t.Fatalf("showmigrations with conflicting view code = %d stderr=%s", code, stderr)
+		}
+		if !strings.Contains(stderr, "ensure migration table") {
+			t.Fatalf("expected ensure migration table error, got %q", stderr)
+		}
+	})
+
+	t.Run("mysql connection failure", func(t *testing.T) {
+		t.Parallel()
+
+		_, configPath := writeMigrationTestProject(t, migrationTestBackend{
+			name:   "mysql-bad-connection",
+			driver: "mysql",
+			databaseConfig: func() string {
+				return strings.TrimSpace(`database:
+  driver: "mysql"
+  dsn: "root:secret@tcp(127.0.0.1:1)/gin_ninja?parseTime=true"
+`)
+			},
+		})
+
+		_, stderr, code := runCommand(t, "showmigrations", "-config", configPath)
+		if code != 1 {
+			t.Fatalf("mysql showmigrations bad connection code = %d stderr=%s", code, stderr)
+		}
+		if !strings.Contains(stderr, "open database") {
+			t.Fatalf("expected open database error, got %q", stderr)
+		}
+	})
+
+	t.Run("postgres connection failure", func(t *testing.T) {
+		t.Parallel()
+
+		_, configPath := writeMigrationTestProject(t, migrationTestBackend{
+			name:   "postgres-bad-connection",
+			driver: "postgresql",
+			databaseConfig: func() string {
+				return strings.TrimSpace(`database:
+  driver: "postgresql"
+  dsn: "host=127.0.0.1 port=1 user=postgres dbname=gin_ninja sslmode=disable connect_timeout=1"
+`)
+			},
+		})
+
+		_, stderr, code := runCommand(t, "showmigrations", "-config", configPath)
+		if code != 1 {
+			t.Fatalf("postgres showmigrations bad connection code = %d stderr=%s", code, stderr)
+		}
+		if !strings.Contains(stderr, "open database") {
+			t.Fatalf("expected open database error, got %q", stderr)
+		}
+	})
+}
+
+func runMigrationSchemaEvolutionScenario(t *testing.T, backend migrationTestBackend) {
+	projectDir, configPath := writeMigrationTestProject(t, backend)
+	resetMigrationTestDatabase(t, configPath)
+	t.Cleanup(func() {
+		resetMigrationTestDatabase(t, configPath)
+	})
+
 	initialID := makeMigration(t, configPath)
 
 	stdout, stderr, code := runCommand(t, "migrate", "-config", configPath)
@@ -125,8 +312,8 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 		t.Fatalf("expected initial migration to apply, got %q", stdout)
 	}
 
-	insertUserRecord(t, dbPath, "alice")
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	insertUserRecord(t, configPath, "alice")
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", false)
 		assertTableRowCount(t, db, "users", 1)
@@ -150,7 +337,7 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	if !strings.Contains(stdout, "applied "+addColumnID+".sql") {
 		t.Fatalf("expected add-column migration to apply, got %q", stdout)
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", true)
 		assertTableRowCount(t, db, "users", 1)
@@ -189,7 +376,7 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 			t.Fatalf("expected %q in showmigrations output, got %q", marker, stdout)
 		}
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", true)
 		assertTableExists(t, db, "audit_logs", true)
@@ -203,7 +390,7 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	if !strings.Contains(stdout, "rolled back "+addTableID+".sql") {
 		t.Fatalf("expected add-table rollback output, got %q", stdout)
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", true)
 		assertTableExists(t, db, "audit_logs", false)
@@ -231,7 +418,7 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	if !strings.Contains(stdout, "rolled back "+addColumnID+".sql") {
 		t.Fatalf("expected add-column rollback output, got %q", stdout)
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", false)
 		assertTableExists(t, db, "audit_logs", false)
@@ -245,7 +432,7 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	if !strings.Contains(stdout, "rolled back "+initialID+".sql") {
 		t.Fatalf("expected initial rollback output, got %q", stdout)
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", false)
 		assertTableExists(t, db, "audit_logs", false)
 	})
@@ -257,7 +444,7 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	if !strings.Contains(stdout, "applied "+initialID+".sql") || !strings.Contains(stdout, "applied "+addColumnID+".sql") {
 		t.Fatalf("expected initial and add-column migrations to apply, got %q", stdout)
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", true)
 		assertTableExists(t, db, "audit_logs", false)
@@ -279,11 +466,21 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	if !strings.Contains(stdout, "applied "+addTableID+".sql") {
 		t.Fatalf("expected add-table migration to reapply, got %q", stdout)
 	}
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", true)
 		assertColumnExists(t, db, "users", "email", true)
 		assertTableExists(t, db, "audit_logs", true)
 	})
+
+	if backend.driver == "postgres" {
+		project, err := loadMigrationProject(configPath, "", defaultMigrationsDir, false)
+		if err != nil {
+			t.Fatalf("load postgres migration project: %v", err)
+		}
+		if project.dialect != "postgres" {
+			t.Fatalf("project.dialect = %q, want postgres", project.dialect)
+		}
+	}
 }
 
 func makeMigration(t *testing.T, configPath string) string {
@@ -300,11 +497,10 @@ func makeMigration(t *testing.T, configPath string) string {
 	return strings.TrimSuffix(filepath.Base(createdPath), ".sql")
 }
 
-func writeMigrationTestProject(t *testing.T) (string, string, string) {
+func writeMigrationTestProject(t *testing.T, backend migrationTestBackend) (string, string) {
 	t.Helper()
 	projectDir := t.TempDir()
 	repoRoot := repoRootForTests(t)
-	dbPath := filepath.Join(projectDir, "app.db")
 	goMod := "module example.com/migrationtest\n\ngo 1.26\n\nrequire github.com/shijl0925/gin-ninja v0.0.0\n\nreplace github.com/shijl0925/gin-ninja => " + repoRoot + "\n"
 	if err := os.WriteFile(filepath.Join(projectDir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
@@ -318,8 +514,8 @@ func writeMigrationTestProject(t *testing.T) (string, string, string) {
 	keepDeps := `package migrationtest
 
 import (
-	_ "github.com/shijl0925/gin-ninja/bootstrap"
-	_ "github.com/shijl0925/gin-ninja/settings"
+_ "github.com/shijl0925/gin-ninja/bootstrap"
+_ "github.com/shijl0925/gin-ninja/settings"
 )
 `
 	if err := os.WriteFile(filepath.Join(projectDir, "deps.go"), []byte(keepDeps), 0o644); err != nil {
@@ -327,9 +523,8 @@ import (
 	}
 	writeMigrationModels(t, projectDir, migrationTestBaseModels())
 	writeMigrationRegistry(t, projectDir, migrationTestBaseRegistry())
-	config := "app:\n  name: \"Migration Test\"\nserver:\n  port: 8080\ndatabase:\n  driver: \"sqlite\"\n  dsn: \"app.db\"\nlog:\n  level: \"info\"\n  format: \"console\"\n  output: \"stdout\"\n"
 	configPath := filepath.Join(projectDir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+	if err := os.WriteFile(configPath, []byte(buildMigrationTestConfig(backend)), 0o644); err != nil {
 		t.Fatalf("write config.yaml: %v", err)
 	}
 	cmd := exec.Command("go", "mod", "tidy")
@@ -337,7 +532,168 @@ import (
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go mod tidy: %v\n%s", err, output)
 	}
-	return projectDir, configPath, dbPath
+	return projectDir, configPath
+}
+
+func buildMigrationTestConfig(backend migrationTestBackend) string {
+	return strings.Join([]string{
+		"app:",
+		"  name: \"Migration Test\"",
+		"server:",
+		"  port: 8080",
+		backend.databaseConfig(),
+		"log:",
+		"  level: \"info\"",
+		"  format: \"console\"",
+		"  output: \"stdout\"",
+		"",
+	}, "\n")
+}
+
+func sqliteMigrationTestBackend() migrationTestBackend {
+	return migrationTestBackend{
+		name:   "sqlite",
+		driver: "sqlite",
+		databaseConfig: func() string {
+			return strings.TrimSpace(`database:
+  driver: "sqlite"
+  dsn: "app.db"
+`)
+		},
+	}
+}
+
+func mysqlMigrationTestBackend(t *testing.T) migrationTestBackend {
+	t.Helper()
+	cfg, ok := loadExternalMigrationEnv("GIN_NINJA_TEST_MYSQL")
+	if !ok {
+		t.Skip("set GIN_NINJA_TEST_MYSQL_DSN or GIN_NINJA_TEST_MYSQL_HOST/GIN_NINJA_TEST_MYSQL_DB to run MySQL migration integration tests")
+	}
+	cfg.driver = "mysql"
+	if cfg.charset == "" {
+		cfg.charset = "utf8mb4"
+	}
+	if cfg.loc == "" {
+		cfg.loc = "UTC"
+	}
+	cfg.parseTime = true
+	return migrationTestBackend{
+		name:   "mysql",
+		driver: "mysql",
+		databaseConfig: func() string {
+			return renderMySQLDatabaseConfig(cfg)
+		},
+	}
+}
+
+func postgresMigrationTestBackend(t *testing.T) migrationTestBackend {
+	t.Helper()
+	cfg, ok := loadExternalMigrationEnv("GIN_NINJA_TEST_POSTGRES")
+	if !ok {
+		t.Skip("set GIN_NINJA_TEST_POSTGRES_DSN or GIN_NINJA_TEST_POSTGRES_HOST/GIN_NINJA_TEST_POSTGRES_DB to run PostgreSQL migration integration tests")
+	}
+	if strings.TrimSpace(cfg.driver) == "" {
+		cfg.driver = "postgresql"
+	}
+	if cfg.sslMode == "" {
+		cfg.sslMode = "disable"
+	}
+	if cfg.timeZone == "" {
+		cfg.timeZone = "UTC"
+	}
+	return migrationTestBackend{
+		name:   "postgres",
+		driver: "postgres",
+		databaseConfig: func() string {
+			return renderPostgresDatabaseConfig(cfg)
+		},
+	}
+}
+
+func loadExternalMigrationEnv(prefix string) (externalMigrationEnv, bool) {
+	cfg := externalMigrationEnv{
+		driver:   lookupEnvTrim(prefix + "_DRIVER"),
+		dsn:      lookupEnvTrim(prefix + "_DSN"),
+		host:     lookupEnvTrim(prefix + "_HOST"),
+		port:     lookupEnvInt(prefix+"_PORT", 0),
+		user:     lookupEnvTrim(prefix + "_USER"),
+		password: os.Getenv(prefix + "_PASSWORD"),
+		database: lookupEnvTrim(prefix + "_DB"),
+		charset:  lookupEnvTrim(prefix + "_CHARSET"),
+		loc:      lookupEnvTrim(prefix + "_LOC"),
+		sslMode:  lookupEnvTrim(prefix + "_SSLMODE"),
+		timeZone: lookupEnvTrim(prefix + "_TIME_ZONE"),
+	}
+	if cfg.dsn != "" {
+		return cfg, true
+	}
+	if cfg.host != "" && cfg.database != "" {
+		return cfg, true
+	}
+	return externalMigrationEnv{}, false
+}
+
+func renderMySQLDatabaseConfig(cfg externalMigrationEnv) string {
+	if cfg.dsn != "" {
+		return strings.TrimSpace(fmt.Sprintf("database:\n  driver: %s\n  dsn: %s\n", yamlString(cfg.driver), yamlString(cfg.dsn)))
+	}
+	port := cfg.port
+	if port == 0 {
+		port = 3306
+	}
+	return strings.TrimSpace(fmt.Sprintf(`database:
+  driver: %s
+  mysql:
+    host: %s
+    port: %d
+    user: %s
+    password: %s
+    name: %s
+    charset: %s
+    parse_time: true
+    loc: %s
+`, yamlString(cfg.driver), yamlString(cfg.host), port, yamlString(cfg.user), yamlString(cfg.password), yamlString(cfg.database), yamlString(cfg.charset), yamlString(cfg.loc)))
+}
+
+func renderPostgresDatabaseConfig(cfg externalMigrationEnv) string {
+	if cfg.dsn != "" {
+		return strings.TrimSpace(fmt.Sprintf("database:\n  driver: %s\n  dsn: %s\n", yamlString(cfg.driver), yamlString(cfg.dsn)))
+	}
+	port := cfg.port
+	if port == 0 {
+		port = 5432
+	}
+	return strings.TrimSpace(fmt.Sprintf(`database:
+  driver: %s
+  postgres:
+    host: %s
+    port: %d
+    user: %s
+    password: %s
+    name: %s
+    sslmode: %s
+    time_zone: %s
+`, yamlString(cfg.driver), yamlString(cfg.host), port, yamlString(cfg.user), yamlString(cfg.password), yamlString(cfg.database), yamlString(cfg.sslMode), yamlString(cfg.timeZone)))
+}
+
+func yamlString(value string) string {
+	return strconv.Quote(value)
+}
+
+func lookupEnvTrim(key string) string {
+	return strings.TrimSpace(os.Getenv(key))
+}
+
+func lookupEnvInt(key string, fallback int) int {
+	value := lookupEnvTrim(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func writeMigrationModels(t *testing.T, projectDir, models string) {
@@ -360,8 +716,8 @@ func migrationTestBaseModels() string {
 import "gorm.io/gorm"
 
 type User struct {
-	gorm.Model
-	Name string ` + "`gorm:\"column:name;not null;uniqueIndex\" json:\"name\"`" + `
+gorm.Model
+Name string ` + "`gorm:\"column:name;not null;uniqueIndex\" json:\"name\"`" + `
 }
 `
 }
@@ -370,7 +726,7 @@ func migrationTestBaseRegistry() string {
 	return `package app
 
 func MigrationModels() []any {
-	return []any{&User{}}
+return []any{&User{}}
 }
 `
 }
@@ -381,9 +737,9 @@ func migrationTestModelsWithEmail() string {
 import "gorm.io/gorm"
 
 type User struct {
-	gorm.Model
-	Name  string ` + "`gorm:\"column:name;not null;uniqueIndex\" json:\"name\"`" + `
-	Email string ` + "`gorm:\"column:email;default:''\" json:\"email\"`" + `
+gorm.Model
+Name  string ` + "`gorm:\"column:name;not null;uniqueIndex\" json:\"name\"`" + `
+Email string ` + "`gorm:\"column:email;default:''\" json:\"email\"`" + `
 }
 `
 }
@@ -394,14 +750,14 @@ func migrationTestModelsWithAuditLog() string {
 import "gorm.io/gorm"
 
 type User struct {
-	gorm.Model
-	Name  string ` + "`gorm:\"column:name;not null;uniqueIndex\" json:\"name\"`" + `
-	Email string ` + "`gorm:\"column:email;default:''\" json:\"email\"`" + `
+gorm.Model
+Name  string ` + "`gorm:\"column:name;not null;uniqueIndex\" json:\"name\"`" + `
+Email string ` + "`gorm:\"column:email;default:''\" json:\"email\"`" + `
 }
 
 type AuditLog struct {
-	gorm.Model
-	Action string ` + "`gorm:\"column:action;not null\" json:\"action\"`" + `
+gorm.Model
+Action string ` + "`gorm:\"column:action;not null\" json:\"action\"`" + `
 }
 `
 }
@@ -410,7 +766,7 @@ func migrationTestRegistryWithAuditLog() string {
 	return `package app
 
 func MigrationModels() []any {
-	return []any{&User{}, &AuditLog{}}
+return []any{&User{}, &AuditLog{}}
 }
 `
 }
@@ -422,27 +778,41 @@ func runCommand(t *testing.T, args ...string) (string, string, int) {
 	return stdout.String(), stderr.String(), code
 }
 
-func insertUserRecord(t *testing.T, dbPath, name string) {
+func insertUserRecord(t *testing.T, configPath, name string) {
 	t.Helper()
-	assertSQLiteState(t, dbPath, func(db *gorm.DB) {
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		if err := db.Exec(`INSERT INTO users (name, created_at, updated_at) VALUES (?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, name).Error; err != nil {
 			t.Fatalf("insert user: %v", err)
 		}
 	})
 }
 
-func assertSQLiteState(t *testing.T, dbPath string, check func(*gorm.DB)) {
+func assertDatabaseState(t *testing.T, configPath string, check func(*gorm.DB)) {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	cfg, err := settings.Load(configPath)
 	if err != nil {
-		t.Fatalf("open sqlite db: %v", err)
+		t.Fatalf("load config: %v", err)
+	}
+	normalizeMigrationConfigPaths(configPath, cfg)
+	db, err := ginbootstrap.InitDB(&cfg.Database)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		t.Fatalf("open raw sqlite db: %v", err)
+		t.Fatalf("open raw db: %v", err)
 	}
 	defer sqlDB.Close()
 	check(db)
+}
+
+func resetMigrationTestDatabase(t *testing.T, configPath string) {
+	t.Helper()
+	assertDatabaseState(t, configPath, func(db *gorm.DB) {
+		if err := db.Migrator().DropTable("audit_logs", "users", migrationTableName); err != nil {
+			t.Fatalf("drop migration test tables: %v", err)
+		}
+	})
 }
 
 func assertTableExists(t *testing.T, db *gorm.DB, table string, want bool) {
