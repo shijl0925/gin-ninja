@@ -618,7 +618,7 @@ func scaffoldCapitalizeFirst(word string) string {
 func projectGoMod(module string) string {
 	return fmt.Sprintf(`module %s
 
-go 1.20
+go 1.21
 
 require (
 	github.com/gin-gonic/gin %s
@@ -956,7 +956,7 @@ tidy:
 go mod tidy
 `
 
-const projectDockerfileTemplate = `FROM golang:1.20 AS build
+const projectDockerfileTemplate = `FROM golang:1.21 AS build
 WORKDIR /src
 COPY . .
 RUN go mod download && go build -o /out/app .
