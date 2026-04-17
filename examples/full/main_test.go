@@ -2040,7 +2040,8 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
+	waitForBrowserPath(t, ctx, "/admin/login")
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
