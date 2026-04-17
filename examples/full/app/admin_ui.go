@@ -34,6 +34,7 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-warning: #f39c12;
       --admin-shadow: 0 18px 50px rgba(15, 23, 42, 0.09);
       --admin-radius: 1rem;
+      --admin-grid-size: 48px;
       --admin-topbar-min-height: 64px;
       --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
       --admin-content-gap: 18px;
@@ -135,12 +136,12 @@ const adminPrototypeHTML = `<!doctype html>
       margin: 0;
       min-height: 100vh;
       background:
-        linear-gradient(to right, transparent 0, transparent 47px, var(--admin-grid) 48px),
-        linear-gradient(to bottom, transparent 0, transparent 47px, var(--admin-grid) 48px),
+        linear-gradient(to right, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
+        linear-gradient(to bottom, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
         radial-gradient(circle at top left, rgba(99, 91, 255, 0.12), transparent 34%),
         radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.08), transparent 30%),
         var(--admin-body-bg);
-      background-size: 48px 48px, 48px 48px, auto, auto, auto;
+      background-size: var(--admin-grid-size) var(--admin-grid-size), var(--admin-grid-size) var(--admin-grid-size), auto, auto, auto;
       color: var(--admin-text);
     }
     a { color: inherit; }
@@ -1463,12 +1464,12 @@ const adminPrototypeHTML = `<!doctype html>
     }
     body.standalone-login-page {
       background:
-        linear-gradient(to right, transparent 0, transparent 47px, var(--admin-grid) 48px),
-        linear-gradient(to bottom, transparent 0, transparent 47px, var(--admin-grid) 48px),
+        linear-gradient(to right, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
+        linear-gradient(to bottom, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
         radial-gradient(circle at top, rgba(99, 91, 255, 0.15), transparent 30%),
         radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.10), transparent 28%),
         linear-gradient(180deg, #f7f8fb 0%, #eef2ff 52%, #f8fafc 100%);
-      background-size: 48px 48px, 48px 48px, auto, auto, auto;
+      background-size: var(--admin-grid-size) var(--admin-grid-size), var(--admin-grid-size) var(--admin-grid-size), auto, auto, auto;
     }
     body.standalone-login-page .topbar,
     body.standalone-login-page .app-main { max-width:1200px; margin:0 auto; width:100%; }
