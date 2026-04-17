@@ -1,9 +1,13 @@
 package codegen
 
 import (
+	"errors"
 	"go/ast"
+	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -135,4 +139,108 @@ func TestScaffoldNamingHelperCoverage(t *testing.T) {
 	if scaffoldCapitalizeFirst("hELLO") != "Hello" {
 		t.Fatal("unexpected scaffoldCapitalizeFirst result")
 	}
+}
+
+func TestCRUDAndScaffoldErrorCoverage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("write crud file and scaffold validation errors", func(t *testing.T) {
+		dir := t.TempDir()
+		modelFile := filepath.Join(dir, "models.go")
+		if err := os.WriteFile(modelFile, []byte("package demo\ntype User struct{ ID uint }\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+
+		blocker := filepath.Join(dir, "blocker")
+		if err := os.WriteFile(blocker, []byte("busy"), 0o644); err != nil {
+			t.Fatalf("WriteFile(blocker): %v", err)
+		}
+		if err := WriteCRUDFile(CRUDConfig{ModelFile: modelFile, Model: "User"}, filepath.Join(blocker, "user_crud.go")); err == nil || !strings.Contains(err.Error(), "create output dir") {
+			t.Fatalf("expected create output dir error, got %v", err)
+		}
+
+		if _, err := resolveScaffoldOptions("unknown", false, false, false, nil); err == nil {
+			t.Fatal("expected unknown scaffold template error")
+		}
+		for _, tc := range []struct {
+			value string
+		}{
+			{value: "."},
+			{value: "/absolute"},
+			{value: "../escape"},
+		} {
+			if _, err := normalizeScaffoldSubdir(tc.value, "app"); err == nil {
+				t.Fatalf("expected normalizeScaffoldSubdir(%q) to fail", tc.value)
+			}
+		}
+		if _, err := buildAppTemplateData(AppScaffoldConfig{Name: "!!!"}, scaffoldOptions{}); err == nil {
+			t.Fatal("expected invalid app name error")
+		}
+		if err := ensureScaffoldDir(blocker, false); err == nil || !strings.Contains(err.Error(), "not a directory") {
+			t.Fatalf("expected non-directory scaffold error, got %v", err)
+		}
+	})
+
+	t.Run("template execution errors", func(t *testing.T) {
+		if _, err := executeTextTemplate("{{", nil); err == nil || !strings.Contains(err.Error(), "parse template") {
+			t.Fatalf("expected template parse error, got %v", err)
+		}
+		if _, err := executeGoTemplate("broken.go", "package demo\nfunc {", nil); err == nil || !strings.Contains(err.Error(), "format broken.go") {
+			t.Fatalf("expected go format error, got %v", err)
+		}
+	})
+
+	t.Run("ast helper edge branches", func(t *testing.T) {
+		imports := map[string]string{"gorm": "gorm.io/gorm", "time": "time"}
+		structTypes := map[string]*ast.StructType{
+			"User": {Fields: &ast.FieldList{}},
+		}
+		if name, collection, pointer, ok := relationTargetModel(&ast.StarExpr{X: &ast.ArrayType{Elt: &ast.Ident{Name: "User"}}}, structTypes); !ok || name != "User" || !collection || !pointer {
+			t.Fatalf("unexpected relationTargetModel result: %q %v %v %v", name, collection, pointer, ok)
+		}
+		if _, _, _, ok := relationTargetModel(&ast.MapType{}, structTypes); ok {
+			t.Fatal("expected unsupported relation target model")
+		}
+		if got := resolveBelongsToForeignKey("Owner", "foreignKey:AccountID"); got != "AccountID" {
+			t.Fatalf("resolveBelongsToForeignKey() = %q", got)
+		}
+		if got := resolveColumnName("OwnerID", "column: owner_id "); got != "owner_id" {
+			t.Fatalf("resolveColumnName() = %q", got)
+		}
+		if !allowCreateWritableField("ID", "id", "string", "") {
+			t.Fatal("expected string id field to be creatable")
+		}
+		if allowCreateWritableField("ID", "id", "uint", "") {
+			t.Fatal("expected integer id field to be skipped for create")
+		}
+		if !allowCreateWritableField("ID", "id", "uint", "autoincrement:false") {
+			t.Fatal("expected explicit non-autoincrement id to be creatable")
+		}
+		if !allowUpdateWritableField("Name", "name", "") || allowUpdateWritableField("ID", "id", "") {
+			t.Fatal("unexpected update writable field behavior")
+		}
+		if !isRenderableFieldType(&ast.ParenExpr{X: &ast.Ident{Name: "string"}}, imports) {
+			t.Fatal("expected paren expr to be renderable")
+		}
+		if isRenderableFieldType(&ast.InterfaceType{Methods: &ast.FieldList{List: []*ast.Field{{Names: []*ast.Ident{{Name: "Read"}}}}}}, imports) {
+			t.Fatal("expected non-empty interface to be rejected")
+		}
+		if isEmbeddedGormModel(&ast.Ident{Name: "Model"}, imports) {
+			t.Fatal("expected non-selector embedded model to be rejected")
+		}
+
+		spec, ok := buildStructModelSpec(token.NewFileSet(), nil, structTypes, imports)
+		if ok || !reflect.DeepEqual(spec, structModelSpec{}) {
+			t.Fatalf("expected nil struct spec to fail, got %+v ok=%v", spec, ok)
+		}
+	})
+
+	t.Run("execute text template propagates execution error", func(t *testing.T) {
+		_, err := executeTextTemplate(`{{if call .Broken}}ok{{end}}`, struct{ Broken func() (bool, error) }{
+			Broken: func() (bool, error) { return false, errors.New("boom") },
+		})
+		if err == nil || !strings.Contains(err.Error(), "execute template") {
+			t.Fatalf("expected execute template error, got %v", err)
+		}
+	})
 }

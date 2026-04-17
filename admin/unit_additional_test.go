@@ -2,13 +2,19 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/orm"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -195,6 +201,181 @@ func TestAdminSiteRegistrationCoverage(t *testing.T) {
 		}()
 		NewSite().MustRegisterModel(nil)
 	}()
+}
+
+func TestAdminMetadataEdgeHelpers(t *testing.T) {
+	t.Run("field options cloning and metadata helpers", func(t *testing.T) {
+		hidden := true
+		create := true
+		meta := &fieldMeta{
+			Meta: FieldMeta{
+				Name:       "role_ids",
+				Column:     "role_ids",
+				List:       true,
+				Detail:     true,
+				Create:     false,
+				Update:     true,
+				Filterable: true,
+				Sortable:   true,
+				Searchable: true,
+			},
+		}
+		applyFieldOptions(meta, FieldOptions{
+			Label:  "Roles",
+			Enum:   []any{"admin", "editor"},
+			Hidden: &hidden,
+			Create: &create,
+			Relation: &RelationOptions{
+				Resource:     "roles",
+				SearchFields: []string{"name"},
+			},
+		})
+		if meta.Meta.Label != "Roles" || meta.Meta.Component != "select" {
+			t.Fatalf("unexpected field options result: %+v", meta.Meta)
+		}
+		if meta.Meta.List || meta.Meta.Detail || meta.Meta.Update || meta.Meta.Filterable || meta.Meta.Sortable || meta.Meta.Searchable {
+			t.Fatalf("expected hidden option to disable metadata flags: %+v", meta.Meta)
+		}
+		if meta.Meta.Create {
+			t.Fatalf("expected hidden option to override create visibility: %+v", meta.Meta)
+		}
+		normalizeResolvedField(&meta.Meta)
+		if includeFieldInMetadata(meta) {
+			t.Fatal("expected fully hidden field to be omitted from metadata")
+		}
+		if isPrimaryKeyField(nil) {
+			t.Fatal("expected nil field to not be primary key")
+		}
+		if !isPrimaryKeyField(&fieldMeta{Meta: FieldMeta{Name: "id", Column: "id", ReadOnly: true}}) {
+			t.Fatal("expected readonly id field to count as primary key")
+		}
+
+		cloned := cloneFieldOptionsMap(map[string]FieldOptions{
+			"role_ids": {
+				Enum: []any{"admin"},
+				Relation: &RelationOptions{
+					Resource:     "roles",
+					SearchFields: []string{"name"},
+				},
+			},
+		})
+		cloned["role_ids"].Enum[0] = "mutated"
+		clonedRelation := cloned["role_ids"].Relation
+		clonedRelation.SearchFields[0] = "email"
+		original := cloneFieldOptionsMap(map[string]FieldOptions{
+			"role_ids": {
+				Enum: []any{"admin"},
+				Relation: &RelationOptions{
+					Resource:     "roles",
+					SearchFields: []string{"name"},
+				},
+			},
+		})
+		if original["role_ids"].Enum[0] != "admin" || original["role_ids"].Relation.SearchFields[0] != "name" {
+			t.Fatalf("expected cloned options to deep copy nested slices: %+v", original["role_ids"])
+		}
+
+		resource := &Resource{
+			fieldByName: map[string]*fieldMeta{
+				"name":  {Meta: FieldMeta{Name: "name"}, fieldType: reflect.TypeOf("")},
+				"email": {Meta: FieldMeta{Name: "email"}, fieldType: reflect.TypeOf("")},
+			},
+			fields: []*fieldMeta{
+				{Meta: FieldMeta{Name: "name"}, fieldType: reflect.TypeOf("")},
+				{Meta: FieldMeta{Name: "email"}, fieldType: reflect.TypeOf("")},
+			},
+			primaryKey: &fieldMeta{Meta: FieldMeta{Name: "uuid"}},
+		}
+		if got := inferRelationLabelField(nil); got != "id" {
+			t.Fatalf("inferRelationLabelField(nil) = %q", got)
+		}
+		if got := inferRelationLabelField(resource); got != "name" {
+			t.Fatalf("inferRelationLabelField(resource) = %q", got)
+		}
+		searchFields := inferRelationSearchFields(resource, "email")
+		if !reflect.DeepEqual(searchFields, []string{"email", "name"}) {
+			t.Fatalf("unexpected inferred relation search fields: %v", searchFields)
+		}
+		if !isWritableField(reflect.TypeOf("")) {
+			t.Fatal("expected string field to be writable")
+		}
+		for _, typ := range []reflect.Type{
+			reflect.TypeOf(time.Time{}),
+			reflect.TypeOf(struct{}{}),
+			reflect.TypeOf(map[string]string{}),
+			reflect.TypeOf((*interface{})(nil)).Elem(),
+			reflect.TypeOf(func() {}),
+		} {
+			if isWritableField(typ) {
+				t.Fatalf("expected %v to be non-writable", typ)
+			}
+		}
+	})
+
+	t.Run("delete helpers and duplicate detection", func(t *testing.T) {
+		gin.SetMode(gin.TestMode)
+
+		db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+		if err != nil {
+			t.Fatalf("gorm.Open: %v", err)
+		}
+		if err := db.AutoMigrate(&adminUser{}); err != nil {
+			t.Fatalf("AutoMigrate: %v", err)
+		}
+		orm.Init(db)
+
+		resource := &Resource{Name: "users", Model: adminUser{}}
+		if err := resource.prepare(); err != nil {
+			t.Fatalf("prepare(): %v", err)
+		}
+
+		ctxRecorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(ctxRecorder)
+		ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
+		ctx := &ninja.Context{Context: ginCtx}
+
+		if deleted, err := resource.deleteModelWithHooks(ctx, db, nil); err != nil || deleted {
+			t.Fatalf("deleteModelWithHooks(nil) = (%v, %v)", deleted, err)
+		}
+
+		user := adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"}
+		if err := db.Create(&user).Error; err != nil {
+			t.Fatalf("Create(user): %v", err)
+		}
+		model, err := resource.findByID(db, strconv.Itoa(int(user.ID)))
+		if err != nil {
+			t.Fatalf("findByID(): %v", err)
+		}
+		if deleted, err := resource.deleteModelWithHooks(ctx, db, model); err != nil || !deleted {
+			t.Fatalf("deleteModelWithHooks() = (%v, %v)", deleted, err)
+		}
+		if deleted, err := resource.deleteModelWithHooks(ctx, db, model); err != nil || deleted {
+			t.Fatalf("expected repeated delete to report no-op, got (%v, %v)", deleted, err)
+		}
+
+		another := adminUser{Name: "Bob", Email: "bob@example.com", Password: "p2"}
+		if err := db.Create(&another).Error; err != nil {
+			t.Fatalf("Create(another): %v", err)
+		}
+		resource.AfterDelete = func(ctx *ninja.Context, model any) error { return errors.New("after delete failed") }
+		model, err = resource.findByID(db, strconv.Itoa(int(another.ID)))
+		if err != nil {
+			t.Fatalf("findByID(another): %v", err)
+		}
+		if deleted, err := resource.deleteModelWithHooks(ctx, db, model); err == nil || deleted || !strings.Contains(err.Error(), "after delete failed") {
+			t.Fatalf("expected after delete error, got deleted=%v err=%v", deleted, err)
+		}
+
+		if !isDuplicateKeyError(gorm.ErrDuplicatedKey) {
+			t.Fatal("expected gorm duplicated key to be detected")
+		}
+		if !isDuplicateKeyError(errors.New("UNIQUE constraint failed: users.email")) {
+			t.Fatal("expected sqlite unique violation to be detected")
+		}
+		if isDuplicateKeyError(errors.New("validation failed")) {
+			t.Fatal("expected non-duplicate error to be ignored")
+		}
+	})
 }
 
 func TestAdminApplyFilterCoverage(t *testing.T) {

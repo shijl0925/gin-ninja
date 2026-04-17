@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -61,6 +62,16 @@ func TestFullappOptionsAndHelpers(t *testing.T) {
 	if want := filepath.Join("/tmp", "full_example.db"); cfg.Database.DSN != want {
 		t.Fatalf("expected normalized sqlite dsn %q, got %q", want, cfg.Database.DSN)
 	}
+	cfg.Database.DSN = "file:embedded.db?mode=memory&cache=shared"
+	normalizeConfigPaths(filepath.Join("/tmp", "config.yaml"), &cfg)
+	if cfg.Database.DSN != "file:embedded.db?mode=memory&cache=shared" {
+		t.Fatalf("expected file: DSN to remain unchanged, got %q", cfg.Database.DSN)
+	}
+	cfg.Database.DSN = filepath.Join("/tmp", "absolute.db")
+	normalizeConfigPaths(filepath.Join("/tmp", "config.yaml"), &cfg)
+	if cfg.Database.DSN != filepath.Join("/tmp", "absolute.db") {
+		t.Fatalf("expected absolute DSN to remain unchanged, got %q", cfg.Database.DSN)
+	}
 	normalizeConfigPaths(filepath.Join("/tmp", "config.yaml"), nil)
 }
 
@@ -99,6 +110,15 @@ func TestFullappInitCacheStoreCoverage(t *testing.T) {
 	}
 	if shutdown != nil {
 		t.Fatalf("expected nil shutdown after fallback, got nil=%t", shutdown == nil)
+	}
+
+	cfg.Redis.Addr = "127.0.0.1:1"
+	store, shutdown = initCacheStore(cfg)
+	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
+		t.Fatalf("expected ping failure fallback store, got %T", store)
+	}
+	if shutdown != nil {
+		t.Fatalf("expected nil shutdown after ping failure fallback, got nil=%t", shutdown == nil)
 	}
 }
 
@@ -144,5 +164,25 @@ func TestFullappBuildAPIAndRunCoverage(t *testing.T) {
 
 	if _, err := InitDB(&settings.DatabaseConfig{Driver: "oracle"}); err == nil {
 		t.Fatal("expected InitDB to fail for unsupported driver")
+	}
+}
+
+func TestMustLoadConfigNormalizesSQLitePaths(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(`
+app:
+  name: "fullapp"
+  version: "1.0.0"
+database:
+  driver: "sqlite"
+  dsn: "fullapp.db"
+`), 0o644); err != nil {
+		t.Fatalf("WriteFile(config): %v", err)
+	}
+
+	cfg := MustLoadConfig(configPath)
+	if cfg.Database.DSN != filepath.Join(dir, "fullapp.db") {
+		t.Fatalf("expected normalized config dsn, got %q", cfg.Database.DSN)
 	}
 }
