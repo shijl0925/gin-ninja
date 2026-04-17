@@ -61,6 +61,7 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		"bootstrap/db.go",
 		"bootstrap/logger.go",
 		"bootstrap/cache.go",
+		".air.toml",
 		"settings/config.local.yaml.example",
 		"settings/config.prod.yaml.example",
 		"README.md",
@@ -76,6 +77,22 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
 			t.Fatalf("expected %s: %v", rel, err)
 		}
+	}
+
+	airConfig, err := os.ReadFile(filepath.Join(outputDir, ".air.toml"))
+	if err != nil {
+		t.Fatalf("read .air.toml: %v", err)
+	}
+	if !strings.Contains(string(airConfig), `cmd = "go build -o ./bin/app ./cmd/server"`) {
+		t.Fatalf("expected .air.toml to build cmd/server, got:\n%s", airConfig)
+	}
+
+	makefile, err := os.ReadFile(filepath.Join(outputDir, "Makefile"))
+	if err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
+	if !strings.Contains(string(makefile), "make install-air") || !strings.Contains(string(makefile), "\ndev:\n") {
+		t.Fatalf("expected Makefile hot reload targets, got:\n%s", makefile)
 	}
 
 	runScaffoldGoTest(t, outputDir)

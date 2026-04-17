@@ -316,6 +316,7 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 			filepath.Join("bootstrap", "cache.go"):                 projectBootstrapCacheTemplate,
 			filepath.Join("settings", "config.local.yaml.example"): projectConfigLocalTemplate,
 			filepath.Join("settings", "config.prod.yaml.example"):  projectConfigProdTemplate,
+			".air.toml":                             projectAirTemplate,
 			"README.md":                             projectREADMETemplate,
 			".env.example":                          projectEnvTemplate,
 			"Makefile":                              projectMakefileTemplate,
@@ -919,7 +920,35 @@ APP__JWT__ISSUER={{ .Module }}
 {{- end }}
 `
 
-const projectMakefileTemplate = `.PHONY: run build test lint tidy
+const projectAirTemplate = `root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./bin/app ./cmd/server"
+bin = "./bin/app"
+full_bin = "./bin/app"
+include_ext = ["go", "yaml", "yml"]
+exclude_dir = ["tmp", "vendor", "bin"]
+exclude_regex = ["_test\\.go"]
+stop_on_error = true
+send_interrupt = true
+kill_delay = "500ms"
+
+[log]
+time = true
+`
+
+const projectMakefileTemplate = `.PHONY: dev install-air run build test lint tidy
+
+dev:
+	@if ! command -v air >/dev/null 2>&1; then \
+		echo "air is not installed. Run 'make install-air' first."; \
+		exit 1; \
+	fi
+	air
+
+install-air:
+	go install github.com/air-verse/air@latest
 
 run:
 go run .
@@ -973,6 +1002,13 @@ go run .
 ~~~
 
 {{- if .Options.Standard }}
+Hot reload development mode:
+
+~~~bash
+make install-air
+make dev
+~~~
+
 Alternative entrypoint:
 
 ~~~bash
@@ -989,6 +1025,7 @@ Configuration overrides can be placed in {{ bt }}settings/config.local.yaml{{ bt
 {{- if .Options.Standard }}
 - {{ bt }}internal/server{{ bt }}
 - {{ bt }}bootstrap{{ bt }}
+- {{ bt }}.air.toml{{ bt }}
 - {{ bt }}settings/*.yaml.example{{ bt }}
 - {{ bt }}Dockerfile{{ bt }} / {{ bt }}docker-compose.yml{{ bt }}
 {{- end }}
