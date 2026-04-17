@@ -1,8 +1,10 @@
 package admin
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,6 +20,11 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+type errReadCloser struct{}
+
+func (errReadCloser) Read([]byte) (int, error) { return 0, errors.New("read failed") }
+func (errReadCloser) Close() error             { return nil }
 
 func TestAdminHelperCoverage(t *testing.T) {
 	t.Run("time parsing and tag splitting", func(t *testing.T) {
@@ -162,6 +169,278 @@ func TestAdminRuntimeHelpers(t *testing.T) {
 		scoped = scope(nil, db.Session(&gorm.Session{}))
 		if _, ok := scoped.Statement.Preloads["Owner"]; !ok {
 			t.Fatalf("expected preloads to remain when query scope returns nil, got %v", scoped.Statement.Preloads)
+		}
+	})
+}
+
+func TestAdminRuntimeEdgeCoverage(t *testing.T) {
+	t.Run("decode payload and restore request body", func(t *testing.T) {
+		makeCtx := func(body io.ReadCloser) *ninja.Context {
+			recorder := httptest.NewRecorder()
+			ginCtx, _ := gin.CreateTestContext(recorder)
+			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			req.Body = body
+			ginCtx.Request = req
+			return &ninja.Context{Context: ginCtx}
+		}
+
+		nameField := &fieldMeta{
+			Meta:      FieldMeta{Name: "name", Column: "name", Create: true, Update: true, Required: true},
+			fieldType: reflect.TypeOf(""),
+			persisted: true,
+			index:     []int{0},
+		}
+		ageField := &fieldMeta{
+			Meta:      FieldMeta{Name: "age", Column: "age", Create: false, Update: false},
+			fieldType: reflect.TypeOf(int(0)),
+			persisted: true,
+			index:     []int{1},
+		}
+		view := &resolvedResource{
+			fields:      []*fieldMeta{nameField, ageField},
+			fieldByName: map[string]*fieldMeta{"name": nameField, "age": ageField},
+		}
+		resource := &Resource{}
+
+		ctx := makeCtx(io.NopCloser(strings.NewReader(`{"name":"Alice"}`)))
+		values, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate)
+		if err != nil {
+			t.Fatalf("decodeWritePayloadFor(): %v", err)
+		}
+		if values["name"] != "Alice" {
+			t.Fatalf("unexpected decoded values: %+v", values)
+		}
+		restored, err := io.ReadAll(ctx.Request.Body)
+		if err != nil {
+			t.Fatalf("ReadAll(restored body): %v", err)
+		}
+		if string(restored) != `{"name":"Alice"}` {
+			t.Fatalf("expected request body to be restored, got %q", restored)
+		}
+
+		ctx = makeCtx(io.NopCloser(strings.NewReader("   ")))
+		values, err = resource.decodeWritePayloadFor(view, ctx, fieldModeCreate)
+		if err != nil || len(values) != 0 {
+			t.Fatalf("expected empty payload to decode to empty map, got values=%v err=%v", values, err)
+		}
+
+		ctx = makeCtx(io.NopCloser(strings.NewReader("{")))
+		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate); err == nil {
+			t.Fatal("expected invalid JSON error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "INVALID_JSON" {
+			t.Fatalf("expected INVALID_JSON error, got %T %v", err, err)
+		}
+
+		ctx = makeCtx(io.NopCloser(strings.NewReader(`{"unknown":"value"}`)))
+		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate); err == nil {
+			t.Fatal("expected unknown field error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `unknown field "unknown"`) {
+			t.Fatalf("expected BAD_REQUEST unknown field, got %T %v", err, err)
+		}
+
+		ctx = makeCtx(io.NopCloser(strings.NewReader(`{"age":1}`)))
+		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeUpdate); err == nil {
+			t.Fatal("expected non-writable field error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `field "age" is not writable`) {
+			t.Fatalf("expected BAD_REQUEST not writable, got %T %v", err, err)
+		}
+
+		ctx = makeCtx(io.NopCloser(strings.NewReader(`{"name":1}`)))
+		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate); err == nil {
+			t.Fatal("expected field decode error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `field "name"`) {
+			t.Fatalf("expected BAD_REQUEST field decode message, got %T %v", err, err)
+		}
+
+		ctx = makeCtx(errReadCloser{})
+		if _, err := readAndRestoreRequestBody(ctx); err == nil || !strings.Contains(err.Error(), "read failed") {
+			t.Fatalf("expected read failure, got %v", err)
+		}
+	})
+
+	t.Run("required fields update columns and conflict normalization", func(t *testing.T) {
+		type sample struct {
+			Name  string
+			Alias string
+			Age   int
+			Meta  *struct {
+				Code string
+			}
+		}
+
+		requiredField := &fieldMeta{
+			Meta:      FieldMeta{Name: "name", Column: "name", Create: true, Required: true},
+			fieldType: reflect.TypeOf(""),
+			persisted: true,
+			index:     []int{0},
+		}
+		aliasField := &fieldMeta{
+			Meta:      FieldMeta{Name: "alias", Column: "name", Update: true},
+			fieldType: reflect.TypeOf(""),
+			persisted: true,
+			index:     []int{1},
+		}
+		ageField := &fieldMeta{
+			Meta:      FieldMeta{Name: "age", Column: "age", Update: true},
+			fieldType: reflect.TypeOf(int(0)),
+			persisted: true,
+			index:     []int{2},
+		}
+		nestedField := &fieldMeta{
+			Meta:      FieldMeta{Name: "code", Column: "code"},
+			fieldType: reflect.TypeOf(""),
+			index:     []int{3, 0},
+		}
+		view := &resolvedResource{
+			fields:      []*fieldMeta{requiredField, aliasField, ageField},
+			fieldByName: map[string]*fieldMeta{"name": requiredField, "alias": aliasField, "age": ageField},
+		}
+		resource := &Resource{}
+
+		if err := resource.validateRequiredFor(view, map[string]any{}, fieldModeCreate); err == nil {
+			t.Fatal("expected missing required field error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `field "name" is required`) {
+			t.Fatalf("expected BAD_REQUEST required error, got %T %v", err, err)
+		}
+		if err := resource.validateRequiredFor(view, map[string]any{}, fieldModeUpdate); err != nil {
+			t.Fatalf("expected update validation to skip required check, got %v", err)
+		}
+		if err := resource.validateRequiredFor(view, map[string]any{"name": "Alice"}, fieldModeCreate); err != nil {
+			t.Fatalf("expected provided required field to pass, got %v", err)
+		}
+
+		before := reflect.ValueOf(sample{Name: "Alice", Alias: "old", Age: 18})
+		after := reflect.ValueOf(sample{Name: "Alice", Alias: "new", Age: 18})
+		columns, err := resource.updateColumnsFor(view, before, after)
+		if err != nil {
+			t.Fatalf("updateColumnsFor(): %v", err)
+		}
+		if !reflect.DeepEqual(columns, []string{"name"}) {
+			t.Fatalf("expected duplicate column changes to collapse to one entry, got %v", columns)
+		}
+
+		if value, ok := resource.fieldValue(reflect.ValueOf(sample{}), nestedField); !ok || value != nil {
+			t.Fatalf("expected nil nested pointer value, got value=%v ok=%v", value, ok)
+		}
+		if value, ok := resource.fieldValue(reflect.Value{}, nestedField); ok || value != nil {
+			t.Fatalf("expected invalid value to report ok=false, got value=%v ok=%v", value, ok)
+		}
+		if value, ok := resource.fieldValue(reflect.ValueOf(sample{}), nil); ok || value != nil {
+			t.Fatalf("expected nil field to report ok=false, got value=%v ok=%v", value, ok)
+		}
+		if queryColumn(nil) != "" {
+			t.Fatal("expected nil queryColumn to be empty")
+		}
+
+		db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+		if err != nil {
+			t.Fatalf("gorm.Open: %v", err)
+		}
+		if err := db.AutoMigrate(&adminUser{}); err != nil {
+			t.Fatalf("AutoMigrate: %v", err)
+		}
+		if err := db.Create(&adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"}).Error; err != nil {
+			t.Fatalf("Create(user): %v", err)
+		}
+		orm.Init(db)
+
+		adminResource := &Resource{Name: "users", Model: adminUser{}}
+		if err := adminResource.prepare(); err != nil {
+			t.Fatalf("prepare(): %v", err)
+		}
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(nil))
+		ctx := &ninja.Context{Context: ginCtx}
+
+		conflictErr := adminResource.normalizeWriteError(ctx, ActionCreate, reflect.ValueOf(adminUser{
+			Name:     "Alice Again",
+			Email:    "alice@example.com",
+			Password: "p2",
+		}), nil, errors.New("duplicate key"))
+		if !ninja.IsConflict(conflictErr) {
+			t.Fatalf("expected generic conflict error, got %T %v", conflictErr, conflictErr)
+		}
+	})
+
+	t.Run("relation option error branches", func(t *testing.T) {
+		db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+		if err != nil {
+			t.Fatalf("gorm.Open: %v", err)
+		}
+		if err := db.AutoMigrate(&adminUser{}, &adminProject{}); err != nil {
+			t.Fatalf("AutoMigrate: %v", err)
+		}
+		if err := db.Create(&adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"}).Error; err != nil {
+			t.Fatalf("Create(user): %v", err)
+		}
+		orm.Init(db)
+
+		makeCtx := func() *ninja.Context {
+			recorder := httptest.NewRecorder()
+			ginCtx, _ := gin.CreateTestContext(recorder)
+			ginCtx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			return &ninja.Context{Context: ginCtx}
+		}
+
+		projectResource := &Resource{
+			Name:         "projects",
+			Model:        adminProject{},
+			ListFields:   []string{"id", "owner_id"},
+			DetailFields: []string{"id", "owner_id"},
+		}
+		if err := projectResource.prepare(); err != nil {
+			t.Fatalf("prepare(projects): %v", err)
+		}
+		projectResource.fieldByName["owner_id"].Meta.Relation = &RelationMeta{
+			Resource:   "users",
+			ValueField: "id",
+			LabelField: "name",
+		}
+
+		site := NewSite()
+		ctx := makeCtx()
+
+		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "title"}); !ninja.IsNotFound(err) {
+			t.Fatalf("expected not found for non-relation field, got %v", err)
+		}
+
+		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "owner_id"}); err == nil {
+			t.Fatal("expected missing relation resource error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `relation resource "users" is not registered`) {
+			t.Fatalf("expected missing relation resource BAD_REQUEST, got %T %v", err, err)
+		}
+
+		userResource := &Resource{
+			Name:         "users",
+			Model:        adminUser{},
+			ListFields:   []string{"id", "name"},
+			DetailFields: []string{"id", "name"},
+		}
+		if err := userResource.prepare(); err != nil {
+			t.Fatalf("prepare(users): %v", err)
+		}
+		site.byName["users"] = userResource
+		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "owner_id"}); err != nil {
+			t.Fatalf("expected relation options success, got %v", err)
+		}
+
+		projectResource.fieldByName["owner_id"].Meta.Relation.LabelField = "missing"
+		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "owner_id"}); err == nil {
+			t.Fatal("expected missing relation field error")
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `relation fields "id"/"missing" are not available`) {
+			t.Fatalf("expected missing relation field BAD_REQUEST, got %T %v", err, err)
+		}
+
+		projectResource.fieldByName["owner_id"].Meta.Relation.LabelField = "name"
+		userResource.Permissions = func(ctx *ninja.Context, action Action, resource *Resource) error {
+			if action == ActionList {
+				return ninja.ForbiddenError()
+			}
+			return nil
+		}
+		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "owner_id"}); !ninja.IsForbidden(err) {
+			t.Fatalf("expected forbidden relation options error, got %v", err)
 		}
 	})
 }

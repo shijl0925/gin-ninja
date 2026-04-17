@@ -55,6 +55,9 @@ type User struct {
 	if lowerCamel("HTTPRequestID") != "httpRequestId" {
 		t.Fatalf("unexpected lowerCamel output")
 	}
+	if lowerCamel("user") != "user" {
+		t.Fatalf("expected lowerCamel to preserve lower-case words")
+	}
 	if toSnake("HTTPRequestID") != "http_request_id" {
 		t.Fatalf("unexpected toSnake output")
 	}
@@ -70,6 +73,9 @@ func TestCRUDASTHelperCoverage(t *testing.T) {
 
 	if defaultFilterOperator(nil) != "eq" {
 		t.Fatal("expected eq default filter operator")
+	}
+	if defaultFilterOperator(&ast.Ident{Name: "int"}) != "eq" {
+		t.Fatal("expected non-string filter operator fallback to eq")
 	}
 	if !isListFilterType(&ast.Ident{Name: "string"}, nil) {
 		t.Fatal("expected string list filter type to be allowed")
@@ -203,6 +209,9 @@ func TestCRUDAndScaffoldErrorCoverage(t *testing.T) {
 		}
 		if got := resolveBelongsToForeignKey("Owner", "foreignKey:AccountID"); got != "AccountID" {
 			t.Fatalf("resolveBelongsToForeignKey() = %q", got)
+		}
+		if got := resolveBelongsToForeignKey("Owner", ""); got != "OwnerID" {
+			t.Fatalf("resolveBelongsToForeignKey default = %q", got)
 		}
 		if got := resolveColumnName("OwnerID", "column: owner_id "); got != "owner_id" {
 			t.Fatalf("resolveColumnName() = %q", got)
