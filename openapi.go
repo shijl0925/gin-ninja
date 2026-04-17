@@ -662,18 +662,39 @@ func homepageHTML(title, docsURL, adminURL string) string {
       line-height: 1.72;
       color: var(--muted);
     }
+    .meta-grid {
+      margin-top: 36px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+    .meta-card {
+      padding: 22px 22px 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      background: rgba(255,255,255,0.64);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+      min-width: 0;
+    }
+    .meta-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--subtle);
+    }
     .status {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      margin-top: 32px;
-      padding: 9px 13px;
-      border-radius: 999px;
-      border: 1px solid rgba(15, 118, 110, 0.12);
-      background: var(--success-soft);
+      margin-top: 14px;
+      padding: 0;
+      border: 0;
+      background: transparent;
       color: var(--success);
-      font-size: 0.84rem;
-      font-weight: 600;
+      font-size: 1.02rem;
+      font-weight: 650;
       letter-spacing: 0.01em;
     }
     .status-dot {
@@ -681,12 +702,20 @@ func homepageHTML(title, docsURL, adminURL string) string {
       height: 8px;
       border-radius: 50%%;
       background: currentColor;
+      box-shadow: 0 0 0 6px var(--success-soft);
+    }
+    .meta-copy {
+      margin-top: 12px;
+      max-width: 34ch;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.65;
     }
     .buttons {
       display: flex;
       gap: 14px;
       flex-wrap: wrap;
-      margin-top: 34px;
+      margin-top: 14px;
     }
     .btn {
       display: inline-flex;
@@ -761,6 +790,9 @@ func homepageHTML(title, docsURL, adminURL string) string {
       h1 {
         font-size: 2rem;
       }
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
       .buttons {
         flex-direction: column;
       }
@@ -787,14 +819,22 @@ func homepageHTML(title, docsURL, adminURL string) string {
     </div>
   </div>
 
-  <div class="status">
-    <span class="status-dot"></span>
-    Server is running
+  <div class="meta-grid">
+    <section class="meta-card" aria-label="Server status">
+      <div class="meta-label">Status</div>
+      <div class="status">
+        <span class="status-dot"></span>
+        Server is running
+      </div>
+      <p class="meta-copy">Ready to serve requests and expose typed API routes with a clean default setup.</p>
+    </section>
+    <section class="meta-card" aria-label="Quick links">
+      <div class="meta-label">Quick links</div>
+      <div class="buttons">%s%s
+      </div>
+    </section>
   </div>
-
-  <div class="buttons">%s%s
-  </div>
-
+ 
   <div class="footer">
     Powered by <a href="https://github.com/shijl0925/gin-ninja" target="_blank" rel="noopener">gin-ninja</a>
   </div>
