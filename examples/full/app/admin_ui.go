@@ -506,7 +506,12 @@ const adminPrototypeHTML = `<!doctype html>
       color:#f8fafc;
       border:1px solid rgba(255,255,255,0.08);
     }
-    .login-lead h2 { margin:0; line-height:1.15; }
+    .login-lead h2 {
+      margin:0;
+      font-size:clamp(3rem, 4vw, 3.75rem);
+      line-height:1.05;
+      letter-spacing:-0.05em;
+    }
     .login-marketing-copy { display:grid; gap:14px; max-width:34rem; }
     .login-marketing-copy h2 {
       margin:0;
@@ -1630,7 +1635,6 @@ const adminPrototypeHTML = `<!doctype html>
       </section>
       <section class="panel stack session-panel login-box card card-outline card-primary">
         <div class="login-lead">
-          <span class="eyebrow">Secure Sign In</span>
           <h2>Welcome back</h2>
         </div>
         <form id="loginForm" class="two-col">
