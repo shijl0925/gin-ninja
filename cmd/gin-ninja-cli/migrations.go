@@ -38,8 +38,8 @@ var (
 	moduleLinePattern         = regexp.MustCompile(`(?m)^module\s+(\S+)\s*$`)
 	indexPattern              = regexp.MustCompile(`(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)\s+ON\s+([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)`)
 	tablePattern              = regexp.MustCompile(`(?i)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)`)
-	alterAddColumnPattern     = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD(?:\s+COLUMN)?\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\b`)
-	alterAddConstraintPattern = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD\s+CONSTRAINT\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\b`)
+	alterAddColumnPattern     = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD(?:\s+COLUMN)?\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|$)`)
+	alterAddConstraintPattern = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD\s+CONSTRAINT\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|$)`)
 )
 
 type migrationProject struct {
