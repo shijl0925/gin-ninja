@@ -1487,7 +1487,7 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .login-lead { display:grid; }
     body.standalone-login-page .session-panel { margin:0; padding:32px; background:rgba(255,255,255,0.86); }
     body.standalone-login-page .login-lead { margin-top:0.625rem; }
-    body.standalone-login-page .session-panel.login-box { gap:12px; }
+    body.standalone-login-page .session-panel.login-box { gap:12px; align-content:start; }
     body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
     body.standalone-login-page input { min-height:46px; }
     body.standalone-login-page button { min-height:46px; }
