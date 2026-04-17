@@ -17,6 +17,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const mysqlDefaultStringSize uint = 191
+
 func sqliteDialector(dsn string) (gorm.Dialector, error) {
 	if dsn == "" {
 		return nil, fmt.Errorf("bootstrap: sqlite DSN must not be empty")
@@ -34,13 +36,19 @@ func mysqlDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
 		if err != nil {
 			return nil, fmt.Errorf("bootstrap: decode mysql DSN: %w", err)
 		}
-		return gormmysql.Open(decodedDSN), nil
+		return gormmysql.New(gormmysql.Config{
+			DSN:               decodedDSN,
+			DefaultStringSize: mysqlDefaultStringSize,
+		}), nil
 	}
 	dsnCfg, err := mysqlDriverConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return gormmysql.New(gormmysql.Config{DSNConfig: dsnCfg}), nil
+	return gormmysql.New(gormmysql.Config{
+		DSNConfig:          dsnCfg,
+		DefaultStringSize: mysqlDefaultStringSize,
+	}), nil
 }
 
 func postgresDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
