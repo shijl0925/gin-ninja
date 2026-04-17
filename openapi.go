@@ -543,18 +543,20 @@ func homepageHTML(title, docsURL, adminURL string) string {
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
       color-scheme: light;
-      --bg: #f3f6fb;
-      --bg-accent: rgba(37, 99, 235, 0.08);
-      --panel: rgba(255,255,255,0.9);
-      --panel-border: rgba(148, 163, 184, 0.24);
-      --text: #0f172a;
-      --muted: #475569;
-      --subtle: #64748b;
-      --primary: #2563eb;
-      --primary-soft: #eff6ff;
-      --success: #15803d;
-      --success-soft: #f0fdf4;
-      --shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+      --bg: #f7f8fb;
+      --bg-grid: rgba(15, 23, 42, 0.045);
+      --panel: rgba(255,255,255,0.78);
+      --panel-border: rgba(15, 23, 42, 0.08);
+      --text: #0a0a0f;
+      --muted: #52525b;
+      --subtle: #71717a;
+      --primary: #111111;
+      --primary-hover: #000000;
+      --accent: #635bff;
+      --accent-soft: rgba(99, 91, 255, 0.10);
+      --success: #0f766e;
+      --success-soft: rgba(15, 118, 110, 0.09);
+      --shadow: 0 18px 50px rgba(15, 23, 42, 0.07);
     }
     body {
       min-height: 100vh;
@@ -565,88 +567,114 @@ func homepageHTML(title, docsURL, adminURL string) string {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, var(--bg-accent), transparent 34%%),
-        radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.08), transparent 30%%),
+        linear-gradient(to right, transparent 0, transparent 47px, var(--bg-grid) 48px),
+        linear-gradient(to bottom, transparent 0, transparent 47px, var(--bg-grid) 48px),
+        radial-gradient(circle at top, rgba(99, 91, 255, 0.12), transparent 30%%),
+        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.07), transparent 28%%),
         var(--bg);
+      background-size: 48px 48px, 48px 48px, auto, auto, auto;
     }
     .shell {
       width: 100%%;
-      max-width: 920px;
+      max-width: 980px;
     }
     .card {
       background: var(--panel);
       border: 1px solid var(--panel-border);
-      border-radius: 24px;
+      border-radius: 28px;
       box-shadow: var(--shadow);
-      padding: 48px;
-      backdrop-filter: blur(12px);
+      padding: 56px;
+      backdrop-filter: blur(20px);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.9), transparent);
     }
     .eyebrow {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       padding: 6px 12px;
       border-radius: 999px;
       background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(148, 163, 184, 0.22);
+      border: 1px solid rgba(15, 23, 42, 0.08);
       color: var(--subtle);
-      font-size: 0.8rem;
+      font-size: 0.76rem;
       font-weight: 600;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
+    .eyebrow::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%%;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(99, 91, 255, 0.10);
+    }
     .hero {
-      margin-top: 24px;
+      margin-top: 28px;
       display: flex;
       align-items: flex-start;
-      gap: 20px;
+      gap: 22px;
     }
     .logo-ring {
-      width: 72px;
-      height: 72px;
+      width: 68px;
+      height: 68px;
       flex-shrink: 0;
-      border-radius: 20px;
-      background: linear-gradient(180deg, #ffffff, #e8f0ff);
-      border: 1px solid rgba(37, 99, 235, 0.14);
+      border-radius: 18px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,244,245,0.92)),
+        linear-gradient(135deg, rgba(99,91,255,0.08), rgba(59,130,246,0.04));
+      border: 1px solid rgba(15, 23, 42, 0.08);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.85),
+        0 8px 20px rgba(15, 23, 42, 0.04);
     }
     .logo-svg {
-      width: 34px;
-      height: 34px;
-      fill: var(--primary);
+      width: 30px;
+      height: 30px;
+      fill: var(--accent);
     }
     .hero-copy {
       min-width: 0;
     }
     h1 {
-      font-size: clamp(2rem, 4vw, 2.9rem);
-      line-height: 1.08;
-      letter-spacing: -0.03em;
-      font-weight: 700;
+      font-size: clamp(2.25rem, 5vw, 3.5rem);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+      font-weight: 750;
       color: var(--text);
+      max-width: 640px;
     }
     .tagline {
-      margin-top: 14px;
-      max-width: 620px;
-      font-size: 1.02rem;
-      line-height: 1.65;
+      margin-top: 18px;
+      max-width: 640px;
+      font-size: 1.04rem;
+      line-height: 1.72;
       color: var(--muted);
     }
     .status {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      margin-top: 28px;
-      padding: 10px 14px;
+      margin-top: 32px;
+      padding: 9px 13px;
       border-radius: 999px;
-      border: 1px solid rgba(34, 197, 94, 0.18);
+      border: 1px solid rgba(15, 118, 110, 0.12);
       background: var(--success-soft);
       color: var(--success);
-      font-size: 0.88rem;
+      font-size: 0.84rem;
       font-weight: 600;
+      letter-spacing: 0.01em;
     }
     .status-dot {
       width: 8px;
@@ -658,40 +686,41 @@ func homepageHTML(title, docsURL, adminURL string) string {
       display: flex;
       gap: 14px;
       flex-wrap: wrap;
-      margin-top: 32px;
+      margin-top: 34px;
     }
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      min-height: 48px;
+      min-height: 46px;
       padding: 0 18px;
       border-radius: 14px;
       border: 1px solid transparent;
       text-decoration: none;
-      font-size: 0.95rem;
+      font-size: 0.94rem;
       font-weight: 600;
       transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
     .btn:hover {
       transform: translateY(-1px);
-      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
     }
     .btn-docs {
       background: var(--primary);
       color: #fff;
     }
     .btn-docs:hover {
-      background: #1d4ed8;
+      background: var(--primary-hover);
     }
     .btn-admin {
-      background: #fff;
+      background: rgba(255,255,255,0.7);
       color: var(--text);
-      border-color: rgba(148, 163, 184, 0.28);
+      border-color: rgba(15, 23, 42, 0.10);
     }
     .btn-admin:hover {
-      background: #f8fafc;
-      border-color: rgba(100, 116, 139, 0.35);
+      background: rgba(255,255,255,0.92);
+      border-color: rgba(15, 23, 42, 0.16);
     }
     .btn-icon {
       width: 18px;
@@ -699,35 +728,38 @@ func homepageHTML(title, docsURL, adminURL string) string {
       flex-shrink: 0;
     }
     .footer {
-      margin-top: 36px;
+      margin-top: 40px;
       padding-top: 24px;
-      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      border-top: 1px solid rgba(15, 23, 42, 0.07);
       color: var(--subtle);
-      font-size: 0.88rem;
+      font-size: 0.86rem;
     }
     .footer a {
-      color: var(--primary);
+      color: var(--text);
       text-decoration: none;
       font-weight: 600;
     }
     .footer a:hover {
-      text-decoration: underline;
+      color: var(--accent);
     }
     @media (max-width: 640px) {
       body {
         padding: 18px;
       }
       .card {
-        padding: 28px 22px;
+        padding: 30px 22px;
         border-radius: 20px;
       }
       .hero {
         flex-direction: column;
       }
       .logo-ring {
-        width: 60px;
-        height: 60px;
+        width: 58px;
+        height: 58px;
         border-radius: 16px;
+      }
+      h1 {
+        font-size: 2rem;
       }
       .buttons {
         flex-direction: column;
