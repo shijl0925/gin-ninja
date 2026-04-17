@@ -97,7 +97,7 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 		return 2
 	}
 
-	project, err := loadMigrationProject(*configPath, *appDir, *migrationsDir)
+	project, err := loadMigrationProject(*configPath, *appDir, *migrationsDir, true)
 	if err != nil {
 		fmt.Fprintf(stderr, "load migration project: %v\n", err)
 		return 1
@@ -140,6 +140,8 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 }
 
 func runMigrate(stdout, stderr io.Writer, args []string) int {
+	targetArg, args := consumeLeadingName(args)
+
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
@@ -156,16 +158,20 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		}
 		return 2
 	}
-	if fs.NArg() > 1 {
+	if targetArg == "" && fs.NArg() > 1 {
 		fmt.Fprintln(stderr, "migrate accepts at most one target")
 		return 2
 	}
-	var target string
-	if fs.NArg() == 1 {
+	if targetArg != "" && fs.NArg() != 0 {
+		fmt.Fprintln(stderr, "migrate accepts at most one target")
+		return 2
+	}
+	target := strings.TrimSpace(targetArg)
+	if target == "" && fs.NArg() == 1 {
 		target = strings.TrimSpace(fs.Arg(0))
 	}
 
-	project, err := loadMigrationProject(*configPath, "", *migrationsDir)
+	project, err := loadMigrationProject(*configPath, "", *migrationsDir, false)
 	if err != nil {
 		fmt.Fprintf(stderr, "load migration project: %v\n", err)
 		return 1
@@ -179,7 +185,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		fmt.Fprintln(stdout, "No migration files found")
 		return 0
 	}
-	_, sqlDB, err := openMigrationDB(project)
+	sqlDB, err := openMigrationDB(project)
 	if err != nil {
 		fmt.Fprintf(stderr, "open database: %v\n", err)
 		return 1
@@ -213,7 +219,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 	}
 	if targetIndex > currentIndex {
 		for i := currentIndex + 1; i <= targetIndex; i++ {
-			if err := applyMigration(sqlDB, files[i]); err != nil {
+			if err := applyMigration(sqlDB, project.dialect, files[i]); err != nil {
 				fmt.Fprintf(stderr, "apply migration %s: %v\n", files[i].FileName, err)
 				return 1
 			}
@@ -222,7 +228,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		return 0
 	}
 	for i := currentIndex; i > targetIndex; i-- {
-		if err := rollbackMigration(sqlDB, files[i]); err != nil {
+		if err := rollbackMigration(sqlDB, project.dialect, files[i]); err != nil {
 			fmt.Fprintf(stderr, "rollback migration %s: %v\n", files[i].FileName, err)
 			return 1
 		}
@@ -252,7 +258,7 @@ func runShowMigrations(stdout, stderr io.Writer, args []string) int {
 		fmt.Fprintln(stderr, "showmigrations does not accept positional arguments")
 		return 2
 	}
-	project, err := loadMigrationProject(*configPath, "", *migrationsDir)
+	project, err := loadMigrationProject(*configPath, "", *migrationsDir, false)
 	if err != nil {
 		fmt.Fprintf(stderr, "load migration project: %v\n", err)
 		return 1
@@ -262,7 +268,7 @@ func runShowMigrations(stdout, stderr io.Writer, args []string) int {
 		fmt.Fprintf(stderr, "load migration files: %v\n", err)
 		return 1
 	}
-	_, sqlDB, err := openMigrationDB(project)
+	sqlDB, err := openMigrationDB(project)
 	if err != nil {
 		fmt.Fprintf(stderr, "open database: %v\n", err)
 		return 1
@@ -291,6 +297,8 @@ func runShowMigrations(stdout, stderr io.Writer, args []string) int {
 }
 
 func runSQLMigrate(stdout, stderr io.Writer, args []string) int {
+	migrationArg, args := consumeLeadingName(args)
+
 	fs := flag.NewFlagSet("sqlmigrate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
@@ -308,11 +316,23 @@ func runSQLMigrate(stdout, stderr io.Writer, args []string) int {
 		}
 		return 2
 	}
-	if fs.NArg() != 1 {
+	if migrationArg == "" && fs.NArg() != 1 {
 		fmt.Fprintln(stderr, "sqlmigrate requires exactly one migration identifier")
 		return 2
 	}
-	project, err := loadMigrationProject(*configPath, "", *migrationsDir)
+	if migrationArg != "" && fs.NArg() != 0 {
+		fmt.Fprintln(stderr, "sqlmigrate accepts only one migration identifier")
+		return 2
+	}
+	target := strings.TrimSpace(migrationArg)
+	if target == "" {
+		target = strings.TrimSpace(fs.Arg(0))
+	}
+	if target == "" {
+		fmt.Fprintln(stderr, "migration identifier must not be empty")
+		return 2
+	}
+	project, err := loadMigrationProject(*configPath, "", *migrationsDir, false)
 	if err != nil {
 		fmt.Fprintf(stderr, "load migration project: %v\n", err)
 		return 1
@@ -322,7 +342,7 @@ func runSQLMigrate(stdout, stderr io.Writer, args []string) int {
 		fmt.Fprintf(stderr, "load migration files: %v\n", err)
 		return 1
 	}
-	file, err := findMigration(files, fs.Arg(0))
+	file, err := findMigration(files, target)
 	if err != nil {
 		fmt.Fprintf(stderr, "find migration: %v\n", err)
 		return 1
@@ -338,13 +358,11 @@ func runSQLMigrate(stdout, stderr io.Writer, args []string) int {
 		fmt.Fprintln(stderr, "-direction must be one of: up, down, all")
 		return 2
 	}
-	if !strings.HasSuffix(strings.TrimSpace(file.RawUp)+strings.TrimSpace(file.RawDown), "") {
-		fmt.Fprintln(stdout)
-	}
+	fmt.Fprintln(stdout)
 	return 0
 }
 
-func loadMigrationProject(configPath, appDir, migrationsDir string) (migrationProject, error) {
+func loadMigrationProject(configPath, appDir, migrationsDir string, requireRegistry bool) (migrationProject, error) {
 	absConfig, err := filepath.Abs(strings.TrimSpace(configPath))
 	if err != nil {
 		return migrationProject{}, fmt.Errorf("resolve config path: %w", err)
@@ -363,19 +381,24 @@ func loadMigrationProject(configPath, appDir, migrationsDir string) (migrationPr
 	}
 	normalizeMigrationConfigPaths(absConfig, cfg)
 	resolvedAppDir := strings.TrimSpace(appDir)
-	if resolvedAppDir == "" {
-		resolvedAppDir, err = detectMigrationAppDir(projectRoot)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				resolvedAppDir = defaultMigrationAppDir
-			} else {
-				return migrationProject{}, err
+	if requireRegistry {
+		if resolvedAppDir == "" {
+			resolvedAppDir, err = detectMigrationAppDir(projectRoot)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					resolvedAppDir = defaultMigrationAppDir
+				} else {
+					return migrationProject{}, err
+				}
 			}
 		}
-	}
-	resolvedAppDir = filepath.Clean(resolvedAppDir)
-	if resolvedAppDir == "." || filepath.IsAbs(resolvedAppDir) {
-		return migrationProject{}, fmt.Errorf("app-dir must be a relative path")
+		resolvedAppDir = filepath.Clean(resolvedAppDir)
+		if resolvedAppDir == "." || filepath.IsAbs(resolvedAppDir) {
+			return migrationProject{}, fmt.Errorf("app-dir must be a relative path")
+		}
+		if err := ensureMigrationRegistry(projectRoot, resolvedAppDir); err != nil {
+			return migrationProject{}, err
+		}
 	}
 	resolvedMigrationsDir := strings.TrimSpace(migrationsDir)
 	if resolvedMigrationsDir == "" {
@@ -384,9 +407,6 @@ func loadMigrationProject(configPath, appDir, migrationsDir string) (migrationPr
 	resolvedMigrationsDir = filepath.Clean(resolvedMigrationsDir)
 	if resolvedMigrationsDir == "." || filepath.IsAbs(resolvedMigrationsDir) {
 		return migrationProject{}, fmt.Errorf("migrations-dir must be a relative path")
-	}
-	if err := ensureMigrationRegistry(projectRoot, resolvedAppDir); err != nil {
-		return migrationProject{}, err
 	}
 	return migrationProject{
 		rootDir:       projectRoot,
@@ -423,7 +443,11 @@ func collectMigrationStatements(project migrationProject) ([]string, error) {
 		return nil, fmt.Errorf("go run helper: %s", message)
 	}
 	var result helperResult
-	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+	payload := bytes.TrimSpace(stdout.Bytes())
+	if idx := bytes.LastIndexByte(payload, '{'); idx >= 0 {
+		payload = payload[idx:]
+	}
+	if err := json.Unmarshal(payload, &result); err != nil {
 		return nil, fmt.Errorf("decode helper output: %w", err)
 	}
 	return uniqueMigrationStatements(result.Statements), nil
@@ -760,21 +784,21 @@ func normalizeDialect(driver string) string {
 	}
 }
 
-func openMigrationDB(project migrationProject) (*settings.Config, *sql.DB, error) {
+func openMigrationDB(project migrationProject) (*sql.DB, error) {
 	cfg, err := settings.Load(project.configPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	normalizeMigrationConfigPaths(project.configPath, cfg)
 	db, err := ginbootstrap.InitDB(&cfg.Database)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return cfg, sqlDB, nil
+	return sqlDB, nil
 }
 
 func ensureMigrationTable(db *sql.DB) error {
@@ -976,18 +1000,18 @@ func findMigration(files []migrationFile, target string) (migrationFile, error) 
 	return files[idx], nil
 }
 
-func applyMigration(db *sql.DB, file migrationFile) error {
+func applyMigration(db *sql.DB, dialect string, file migrationFile) error {
 	statements := splitSQLStatements(file.RawUp)
 	if len(statements) == 0 {
-		return recordAppliedMigration(db, file)
+		return recordAppliedMigration(db, dialect, file)
 	}
 	if err := execMigrationStatements(db, statements); err != nil {
 		return err
 	}
-	return recordAppliedMigration(db, file)
+	return recordAppliedMigration(db, dialect, file)
 }
 
-func rollbackMigration(db *sql.DB, file migrationFile) error {
+func rollbackMigration(db *sql.DB, dialect string, file migrationFile) error {
 	if file.Irreversible {
 		return errIrreversibleMigration
 	}
@@ -998,7 +1022,7 @@ func rollbackMigration(db *sql.DB, file migrationFile) error {
 	if err := execMigrationStatements(db, statements); err != nil {
 		return err
 	}
-	_, err := db.Exec(`DELETE FROM `+migrationTableName+` WHERE version = ?`, file.Version)
+	_, err := db.Exec(`DELETE FROM `+migrationTableName+` WHERE version = `+bindVar(dialect, 1), file.Version)
 	return err
 }
 
@@ -1017,7 +1041,19 @@ func execMigrationStatements(db *sql.DB, statements []string) error {
 	return tx.Commit()
 }
 
-func recordAppliedMigration(db *sql.DB, file migrationFile) error {
-	_, err := db.Exec(`INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (?, ?, ?)`, file.Version, file.Name, time.Now().UTC())
+func recordAppliedMigration(db *sql.DB, dialect string, file migrationFile) error {
+	_, err := db.Exec(
+		`INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`,
+		file.Version,
+		file.Name,
+		time.Now().UTC(),
+	)
 	return err
+}
+
+func bindVar(dialect string, idx int) string {
+	if dialect == "postgres" {
+		return fmt.Sprintf("$%d", idx)
+	}
+	return "?"
 }

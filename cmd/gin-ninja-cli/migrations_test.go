@@ -15,7 +15,7 @@ import (
 func TestRunMigrationCommands(t *testing.T) {
 	t.Parallel()
 
-	projectDir, configPath, dbPath := writeMigrationTestProject(t)
+	_, configPath, dbPath := writeMigrationTestProject(t)
 	migrationID := makeMigration(t, configPath)
 
 	var stdout, stderr bytes.Buffer
@@ -140,6 +140,16 @@ func writeMigrationTestProject(t *testing.T) (string, string, string) {
 	}
 	if err := os.MkdirAll(filepath.Join(projectDir, "migrations"), 0o755); err != nil {
 		t.Fatalf("mkdir migrations: %v", err)
+	}
+	keepDeps := `package migrationtest
+
+import (
+	_ "github.com/shijl0925/gin-ninja/bootstrap"
+	_ "github.com/shijl0925/gin-ninja/settings"
+)
+`
+	if err := os.WriteFile(filepath.Join(projectDir, "deps.go"), []byte(keepDeps), 0o644); err != nil {
+		t.Fatalf("write deps.go: %v", err)
 	}
 	models := `package app
 
