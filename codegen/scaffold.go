@@ -286,7 +286,7 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 		return nil, err
 	}
 	files := map[string][]byte{
-		"go.mod":      []byte(fmt.Sprintf("module %s\n\ngo 1.20\n", data.Module)),
+		"go.mod":      []byte(projectGoMod(data.Module)),
 		"config.yaml": []byte(configYaml),
 		".gitignore":  []byte(gitignore),
 	}
@@ -607,6 +607,19 @@ func scaffoldCapitalizeFirst(word string) string {
 	}
 	lower := strings.ToLower(word)
 	return strings.ToUpper(lower[:1]) + lower[1:]
+}
+
+func projectGoMod(module string) string {
+	return fmt.Sprintf(`module %s
+
+go 1.20
+
+require (
+	github.com/gin-gonic/gin v1.10.1
+	go.uber.org/zap v1.27.1
+	gorm.io/gorm v1.31.1
+)
+`, module)
 }
 
 const projectMainTemplate = `package main

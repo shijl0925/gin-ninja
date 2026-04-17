@@ -110,7 +110,7 @@ func TestWriteAppScaffold(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	goMod := "module demo\n\ngo 1.20\n"
+	goMod := projectGoMod("demo")
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestWriteAppScaffoldStandardTemplate(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	goMod := "module demo\n\ngo 1.20\n"
+	goMod := projectGoMod("demo")
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	goMod := "module demo\n\ngo 1.20\n"
+	goMod := projectGoMod("demo")
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestWriteAppScaffoldForceAllowsNonEmptyDirectory(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	goMod := "module demo\n\ngo 1.20\n"
+	goMod := projectGoMod("demo")
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}
