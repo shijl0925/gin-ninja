@@ -12,6 +12,8 @@ import (
 	driverpg "gorm.io/driver/postgres"
 )
 
+const wantMySQLDefaultStringSize uint = 191
+
 func TestBuildDialector(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -44,8 +46,8 @@ func TestBuildDialector(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected *mysql.Dialector, got %T", dialector)
 				}
-				if mysqlDial.Config.DefaultStringSize != mysqlDefaultStringSize {
-					t.Fatalf("expected mysql default string size %d, got %d", mysqlDefaultStringSize, mysqlDial.Config.DefaultStringSize)
+				if mysqlDial.Config.DefaultStringSize != wantMySQLDefaultStringSize {
+					t.Fatalf("expected mysql default string size %d, got %d", wantMySQLDefaultStringSize, mysqlDial.Config.DefaultStringSize)
 				}
 				parsed, err := drivermysql.ParseDSN(mysqlDial.DSN)
 				if err != nil {
@@ -164,8 +166,8 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 			if tc.wantDSN != "" && mysqlDial.DSN != tc.wantDSN {
 				t.Fatalf("expected DSN %q, got %q", tc.wantDSN, mysqlDial.DSN)
 			}
-			if mysqlDial.Config.DefaultStringSize != mysqlDefaultStringSize {
-				t.Fatalf("expected mysql default string size %d, got %d", mysqlDefaultStringSize, mysqlDial.Config.DefaultStringSize)
+			if mysqlDial.Config.DefaultStringSize != wantMySQLDefaultStringSize {
+				t.Fatalf("expected mysql default string size %d, got %d", wantMySQLDefaultStringSize, mysqlDial.Config.DefaultStringSize)
 			}
 			if tc.verify != nil {
 				tc.verify(t, mysqlDial.DSN)
