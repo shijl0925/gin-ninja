@@ -179,7 +179,14 @@ make build-cli
 ```bash
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
+gin-ninja-cli makemigrations
+gin-ninja-cli migrate
+go run .
+
+# 后续新增 app / 模型包
 gin-ninja-cli startapp blog
+gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
+gin-ninja-cli migrate
 
 # 更丰富的模板 / 可选功能
 gin-ninja-cli startproject mysite \
@@ -197,6 +204,7 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 - `main.go`
 - `config.yaml`
 - `app/models.go`
+- `app/migrations.go`
 - `app/repos.go`
 - `app/schemas.go`
 - `app/apis.go`
@@ -222,6 +230,7 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 
 `startapp` 会在新的 app package 目录中生成相同的核心 CRUD 文件；更丰富的模板还会额外生成：
 
+- `migrations.go`
 - `services.go`
 - `errors.go`
 - `scaffold_test.go`
@@ -248,6 +257,28 @@ make dev
 ```
 
 生成的代码定位为起步骨架，能够作为最小 CRUD 风格模板直接编译；后续你仍可按业务需要继续补充模型、校验、中间件、路由和业务逻辑。
+
+## 数据库迁移命令
+
+CLI 也支持类似 Django 的数据库迁移工作流。对应的 app package 需要导出：
+
+```go
+func MigrationModels() []any
+```
+
+脚手架生成的 app 已经默认包含该函数。
+
+```bash
+gin-ninja-cli makemigrations [-config ./config.yaml] [-app-dir app] [-name add_users]
+gin-ninja-cli migrate [target|zero]
+gin-ninja-cli showmigrations
+gin-ninja-cli sqlmigrate 20260417120000_add_users
+```
+
+- `makemigrations` 会通过 GORM `AutoMigrate` 的 dry-run SQL 生成时间戳迁移文件，并写入 `migrations/`
+- `migrate` 会应用未执行迁移、迁移到指定版本，或通过 `zero` 回滚全部迁移
+- `showmigrations` 会列出所有迁移及其是否已执行
+- `sqlmigrate` 会输出指定迁移的 SQL（可通过 `-direction up|down|all` 控制）
 
 ## CRUD 脚手架生成器
 

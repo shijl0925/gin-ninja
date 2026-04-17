@@ -27,6 +27,7 @@ func TestWriteProjectScaffold(t *testing.T) {
 		"main.go",
 		"config.yaml",
 		"app/models.go",
+		"app/migrations.go",
 		"app/repos.go",
 		"app/schemas.go",
 		"app/apis.go",
@@ -68,6 +69,7 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		"README.md",
 		"Dockerfile",
 		"docker-compose.yml",
+		"internal/app/migrations.go",
 		"internal/app/services.go",
 		"internal/app/errors.go",
 		"internal/app/auth.go",
@@ -157,6 +159,9 @@ func TestWriteAppScaffold(t *testing.T) {
 	}
 	if !strings.Contains(string(content), `ninja.NewRouter("/posts"`) {
 		t.Fatalf("expected plural route base in routers.go\n%s", content)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "migrations.go")); err != nil {
+		t.Fatalf("expected migrations.go: %v", err)
 	}
 
 	runScaffoldGoTest(t, dir)

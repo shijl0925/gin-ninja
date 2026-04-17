@@ -359,9 +359,10 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 
 func appFiles(data appTemplateData) (map[string][]byte, error) {
 	templates := map[string]string{
-		"models.go":  appModelsTemplate,
-		"schemas.go": appSchemasTemplate,
-		"routers.go": appRoutersTemplate,
+		"models.go":     appModelsTemplate,
+		"migrations.go": appMigrationsTemplate,
+		"schemas.go":    appSchemasTemplate,
+		"routers.go":    appRoutersTemplate,
 	}
 	if data.Options.WithGormx {
 		templates["repos.go"] = appReposTemplate
@@ -637,9 +638,6 @@ db, err := ginbootstrap.InitDB(cfg)
 if err != nil {
 return nil, fmt.Errorf("init db: %w", err)
 }
-if err := db.AutoMigrate(&app.{{ .App.ModelName }}{}); err != nil {
-return nil, fmt.Errorf("auto migrate: %w", err)
-}
 orm.Init(db)
 return db, nil
 }
@@ -735,9 +733,6 @@ func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 db, err := projectbootstrap.InitDB(cfg)
 if err != nil {
 return nil, fmt.Errorf("init db: %w", err)
-}
-if err := db.AutoMigrate(&app.{{ .App.ModelName }}{}); err != nil {
-return nil, fmt.Errorf("auto migrate: %w", err)
 }
 orm.Init(db)
 return db, nil
@@ -998,6 +993,8 @@ Generated with gin-ninja scaffold template {{ .Options.Template }}.
 
 ~~~bash
 go mod tidy
+gin-ninja-cli makemigrations{{- if ne .AppDir "app" }} -app-dir {{ .AppDir }}{{- end }}
+gin-ninja-cli migrate
 go run .
 ~~~
 
@@ -1044,6 +1041,15 @@ import "gorm.io/gorm"
 type {{ .ModelName }} struct {
 gorm.Model
 Name string {{ bt }}gorm:"column:name;not null" json:"name"{{ bt }}
+}
+`
+
+const appMigrationsTemplate = `package {{ .PackageName }}
+
+func MigrationModels() []any {
+return []any{
+&{{ .ModelName }}{},
+}
 }
 `
 

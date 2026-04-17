@@ -106,6 +106,7 @@ func TestRunStartProject(t *testing.T) {
 		filepath.Join(outputDir, "main.go"),
 		filepath.Join(outputDir, "config.yaml"),
 		filepath.Join(outputDir, "app", "models.go"),
+		filepath.Join(outputDir, "app", "migrations.go"),
 		filepath.Join(outputDir, "app", "repos.go"),
 		filepath.Join(outputDir, "app", "schemas.go"),
 		filepath.Join(outputDir, "app", "apis.go"),
@@ -147,6 +148,7 @@ func TestRunStartProjectStandardTemplate(t *testing.T) {
 		filepath.Join(outputDir, "internal", "server", "server.go"),
 		filepath.Join(outputDir, "bootstrap", "db.go"),
 		filepath.Join(outputDir, "settings", "config.local.yaml.example"),
+		filepath.Join(outputDir, "internal", "app", "migrations.go"),
 		filepath.Join(outputDir, "internal", "app", "services.go"),
 		filepath.Join(outputDir, "internal", "app", "auth.go"),
 		filepath.Join(outputDir, "internal", "app", "admin.go"),
@@ -206,7 +208,7 @@ func TestRunStartApp(t *testing.T) {
 		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
 	}
 
-	for _, file := range []string{"models.go", "repos.go", "schemas.go", "apis.go", "routers.go"} {
+	for _, file := range []string{"models.go", "migrations.go", "repos.go", "schemas.go", "apis.go", "routers.go"} {
 		path := filepath.Join(outputDir, file)
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected scaffold file %s: %v", path, err)

@@ -216,7 +216,14 @@ make build-cli
 ```bash
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
+gin-ninja-cli makemigrations
+gin-ninja-cli migrate
+go run .
+
+# add another app / model package later
 gin-ninja-cli startapp blog
+gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
+gin-ninja-cli migrate
 
 # richer templates / optional features
 gin-ninja-cli startproject mysite \
@@ -234,6 +241,7 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 - `main.go`
 - `config.yaml`
 - `app/models.go`
+- `app/migrations.go`
 - `app/repos.go`
 - `app/schemas.go`
 - `app/apis.go`
@@ -259,6 +267,7 @@ When you opt into `-template standard`, `-template auth`, `-template admin`, or 
 
 `startapp` creates a new app package directory with the same core CRUD files, and richer templates can additionally generate:
 
+- `migrations.go`
 - `services.go`
 - `errors.go`
 - `scaffold_test.go`
@@ -285,6 +294,28 @@ make dev
 ```
 
 The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
+
+### Database migrations
+
+The CLI also provides Django-style migration commands driven by an app package that exports:
+
+```go
+func MigrationModels() []any
+```
+
+Generated scaffolds include this function automatically.
+
+```bash
+gin-ninja-cli makemigrations [-config ./config.yaml] [-app-dir app] [-name add_users]
+gin-ninja-cli migrate [target|zero]
+gin-ninja-cli showmigrations
+gin-ninja-cli sqlmigrate 20260417120000_add_users
+```
+
+- `makemigrations` captures the SQL emitted by GORM `AutoMigrate` in dry-run mode and writes a timestamped SQL migration under `migrations/`
+- `migrate` applies pending migrations, migrates to a target migration, or rolls everything back with `zero`
+- `showmigrations` lists all migration files and whether they have been applied
+- `sqlmigrate` prints the generated SQL for a migration (`-direction up|down|all`)
 
 ---
 
