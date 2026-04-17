@@ -998,6 +998,10 @@ gin-ninja-cli migrate
 go run .
 ~~~
 
+{{- if ne .AppDir "app" }}
+Use {{ bt }}-app-dir {{ .AppDir }}{{ bt }} because this scaffold stores its app package outside the default {{ bt }}app/{{ bt }} directory.
+{{- end }}
+
 {{- if .Options.Standard }}
 Hot reload development mode:
 
