@@ -924,7 +924,7 @@ const projectAirTemplate = `root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build -o ./bin/app ./cmd/server"
+cmd = "go build -o ./bin/app ."
 bin = "./bin/app"
 full_bin = "./bin/app"
 include_ext = ["go", "yaml", "yml"]

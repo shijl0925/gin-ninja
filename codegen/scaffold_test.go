@@ -83,15 +83,18 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read .air.toml: %v", err)
 	}
-	if !strings.Contains(string(airConfig), `cmd = "go build -o ./bin/app ./cmd/server"`) {
-		t.Fatalf("expected .air.toml to build cmd/server, got:\n%s", airConfig)
+	if !strings.Contains(string(airConfig), `cmd = "go build -o ./bin/app ."`) {
+		t.Fatalf("expected .air.toml to build the project root, got:\n%s", airConfig)
 	}
 
 	makefile, err := os.ReadFile(filepath.Join(outputDir, "Makefile"))
 	if err != nil {
 		t.Fatalf("read Makefile: %v", err)
 	}
-	if !strings.Contains(string(makefile), "make install-air") || !strings.Contains(string(makefile), "\ndev:\n") {
+	if !strings.Contains(string(makefile), "make install-air") ||
+		!strings.Contains(string(makefile), "\ndev:\n") ||
+		!strings.Contains(string(makefile), "\n\tair\n") ||
+		!strings.Contains(string(makefile), "go install github.com/air-verse/air@latest") {
 		t.Fatalf("expected Makefile hot reload targets, got:\n%s", makefile)
 	}
 
