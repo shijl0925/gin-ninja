@@ -592,14 +592,14 @@ func reverseMigrationStatement(dialect, statement string) (string, bool) {
 		}
 		return fmt.Sprintf("DROP INDEX IF EXISTS %s", matches[1]), true
 	}
-	if matches := alterAddColumnPattern.FindStringSubmatch(stmt); len(matches) == 3 {
-		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", matches[1], matches[2]), true
-	}
 	if matches := alterAddConstraintPattern.FindStringSubmatch(stmt); len(matches) == 3 {
 		if dialect == "mysql" && strings.Contains(upper, "FOREIGN KEY") {
 			return fmt.Sprintf("ALTER TABLE %s DROP FOREIGN KEY %s", matches[1], matches[2]), true
 		}
 		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", matches[1], matches[2]), true
+	}
+	if matches := alterAddColumnPattern.FindStringSubmatch(stmt); len(matches) == 3 {
+		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", matches[1], matches[2]), true
 	}
 	return "", false
 }
