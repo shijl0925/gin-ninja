@@ -241,6 +241,7 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 
 When you opt into `-template standard`, `-template auth`, `-template admin`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
 
+- `.air.toml`
 - `cmd/server/main.go`
 - `internal/server/server.go`
 - `bootstrap/db.go`
@@ -274,6 +275,14 @@ Useful scaffold flags:
 - `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
+
+Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:
+
+```bash
+cd mysite
+make install-air
+make dev
+```
 
 The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
 

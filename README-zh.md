@@ -204,6 +204,7 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 
 当你启用 `-template standard`、`-template auth`、`-template admin`，或 `-with-tests` 等功能开关时，脚手架还会额外生成更完整的起步文件，例如：
 
+- `.air.toml`
 - `cmd/server/main.go`
 - `internal/server/server.go`
 - `bootstrap/db.go`
@@ -237,6 +238,14 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 - `-with-gormx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
+
+标准风格项目脚手架还会内置官方 [air](https://github.com/air-verse/air) 预设，方便本地热重载开发：
+
+```bash
+cd mysite
+make install-air
+make dev
+```
 
 生成的代码定位为起步骨架，能够作为最小 CRUD 风格模板直接编译；后续你仍可按业务需要继续补充模型、校验、中间件、路由和业务逻辑。
 

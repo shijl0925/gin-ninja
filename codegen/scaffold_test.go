@@ -3,6 +3,7 @@ package codegen
 import (
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -61,6 +62,7 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		"bootstrap/db.go",
 		"bootstrap/logger.go",
 		"bootstrap/cache.go",
+		".air.toml",
 		"settings/config.local.yaml.example",
 		"settings/config.prod.yaml.example",
 		"README.md",
@@ -77,6 +79,31 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 			t.Fatalf("expected %s: %v", rel, err)
 		}
 	}
+
+	airConfig, err := os.ReadFile(filepath.Join(outputDir, ".air.toml"))
+	if err != nil {
+		t.Fatalf("read .air.toml: %v", err)
+	}
+	airText := string(airConfig)
+	if !strings.Contains(airText, "go build -o ./bin/app .") ||
+		!strings.Contains(airText, `bin = "./bin/app"`) ||
+		!strings.Contains(airText, `root = "."`) {
+		t.Fatalf("expected .air.toml to define the hot reload build, got:\n%s", airConfig)
+	}
+
+	makefile, err := os.ReadFile(filepath.Join(outputDir, "Makefile"))
+	if err != nil {
+		t.Fatalf("read Makefile: %v", err)
+	}
+	makeText := string(makefile)
+	if !strings.Contains(makeText, "dev:") ||
+		!strings.Contains(makeText, "install-air:") ||
+		!strings.Contains(makeText, "command -v air") ||
+		!strings.Contains(makeText, "make install-air") ||
+		!strings.Contains(makeText, "go install github.com/air-verse/air@latest") {
+		t.Fatalf("expected Makefile hot reload targets, got:\n%s", makefile)
+	}
+	assertGeneratedMakefileParses(t, outputDir)
 
 	runScaffoldGoTest(t, outputDir)
 }
@@ -285,5 +312,21 @@ func runScaffoldGoTest(t *testing.T, dir string) {
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go test scaffold: %v\n%s", err, output)
+	}
+}
+
+func assertGeneratedMakefileParses(t *testing.T, dir string) {
+	t.Helper()
+
+	if _, err := exec.LookPath("make"); err != nil {
+		t.Skip("make is not available")
+	}
+
+	for _, target := range []string{"install-air", "run", "build", "test", "lint", "tidy"} {
+		cmd := exec.Command("make", "-n", target)
+		cmd.Dir = dir
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("make -n %s in %s: %v\n%s", target, path.Base(dir), err, output)
+		}
 	}
 }
