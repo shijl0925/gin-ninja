@@ -112,6 +112,7 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewRedisCacheStore: %v", err)
 		}
+		ctx := context.Background()
 
 		value := &CachedResponse{
 			Status:  http.StatusCreated,
@@ -119,8 +120,8 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 			Body:    []byte("payload"),
 			Expires: time.Now().Add(time.Minute),
 		}
-		store.SetContext(nil, "users:1", value)
-		got, ok := store.GetContext(nil, "users:1")
+		store.SetContext(ctx, "users:1", value)
+		got, ok := store.GetContext(ctx, "users:1")
 		if !ok || got == nil || got.Status != http.StatusCreated || string(got.Body) != "payload" {
 			t.Fatalf("GetContext() = (%+v, %v), want cached payload", got, ok)
 		}
