@@ -803,9 +803,9 @@ func openMigrationDB(project migrationProject) (*sql.DB, error) {
 
 func ensureMigrationTable(db *sql.DB) error {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS ` + migrationTableName + ` (
-version TEXT PRIMARY KEY,
-name TEXT NOT NULL,
-applied_at TIMESTAMP NOT NULL
+	version VARCHAR(191) PRIMARY KEY,
+	name TEXT NOT NULL,
+	applied_at TIMESTAMP NOT NULL
 )`)
 	return err
 }
