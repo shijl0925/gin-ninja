@@ -14,6 +14,8 @@ package pagination
 
 import "math"
 
+var maxInt = int(^uint(0) >> 1)
+
 // DefaultPage is the default page number when not specified.
 const DefaultPage = 1
 
@@ -64,7 +66,6 @@ func (p PageInput) Offset() int {
 	}
 
 	size := p.GetSize()
-	maxInt := int(^uint(0) >> 1)
 	offset := page - 1
 	if offset > maxInt/size {
 		return maxInt
