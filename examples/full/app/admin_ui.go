@@ -508,7 +508,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .login-lead h2 {
       margin:0;
-      font-size:clamp(2.4rem, 3vw, 3.1rem);
+      font-size:clamp(2rem, 2.35vw, 2.55rem);
       line-height:1.08;
       letter-spacing:-0.05em;
     }
@@ -1486,7 +1486,7 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page .login-marketing,
     body.standalone-login-page .login-lead { display:grid; }
     body.standalone-login-page .session-panel { margin:0; padding:32px; background:rgba(255,255,255,0.86); }
-    body.standalone-login-page .session-panel.login-box { gap:10px; }
+    body.standalone-login-page .session-panel.login-box { gap:8px; }
     body.standalone-login-page #loginForm { grid-template-columns:1fr; gap:14px; }
     body.standalone-login-page input { min-height:46px; }
     body.standalone-login-page button { min-height:46px; }
