@@ -14,7 +14,7 @@ package pagination
 
 import "math"
 
-var maxInt = int(^uint(0) >> 1)
+const maxInt = int(^uint(0) >> 1)
 
 // DefaultPage is the default page number when not specified.
 const DefaultPage = 1
