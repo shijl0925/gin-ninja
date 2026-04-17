@@ -216,6 +216,42 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	}
 }
 
+func TestLoad_ExplicitMissingAndMalformedConfig(t *testing.T) {
+	if _, err := settings.Load(filepath.Join(t.TempDir(), "missing.yaml")); err == nil {
+		t.Fatal("expected missing explicit config error")
+	}
+
+	bad := writeTempConfig(t, "server: [broken")
+	if _, err := settings.Load(bad); err == nil {
+		t.Fatal("expected malformed config error")
+	}
+}
+
+func TestLoad_SearchesDefaultConfigPaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("server:\n  port: 9191\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	cfg, err := settings.Load("")
+	if err != nil {
+		t.Fatalf("Load default search: %v", err)
+	}
+	if cfg.Server.Port != 9191 {
+		t.Fatalf("expected discovered config port 9191, got %d", cfg.Server.Port)
+	}
+}
+
 func TestMustLoadPanicsOnError(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -373,6 +409,32 @@ server:
 	}
 	if cfg.Server.Port != 7777 {
 		t.Errorf("expected 7777, got %d", cfg.Server.Port)
+	}
+}
+
+func TestLoadForEnv_EnvironmentVariableOverridesAppEnv(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "config.yaml")
+	override := filepath.Join(dir, "config.staging.yaml")
+	if err := os.WriteFile(base, []byte(`
+app:
+  env: "production"
+server:
+  port: 8080
+`), 0o644); err != nil {
+		t.Fatalf("write base: %v", err)
+	}
+	if err := os.WriteFile(override, []byte("server:\n  port: 8181\n"), 0o644); err != nil {
+		t.Fatalf("write override: %v", err)
+	}
+
+	t.Setenv("APP__ENV", "staging")
+	cfg, err := settings.LoadForEnv(base)
+	if err != nil {
+		t.Fatalf("LoadForEnv: %v", err)
+	}
+	if cfg.Server.Port != 8181 {
+		t.Fatalf("expected staging override port 8181, got %d", cfg.Server.Port)
 	}
 }
 

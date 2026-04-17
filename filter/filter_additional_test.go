@@ -46,6 +46,9 @@ func TestApplyAndBuildOptionEdgeCases(t *testing.T) {
 	if isEmptyValue(reflect.ValueOf(map[string]int{"id": 1})) {
 		t.Fatal("expected non-empty map to be detected")
 	}
+	if isEmptyValue(reflect.ValueOf(false)) {
+		t.Fatal("expected false bool to be treated as a meaningful value")
+	}
 }
 
 func TestApplyDBEdgeCases(t *testing.T) {
@@ -69,5 +72,54 @@ func TestApplyDBEdgeCases(t *testing.T) {
 	}
 	if _, err := applyDBClause(db.Model(&userRecord{}), Clause{}); err == nil || !strings.Contains(err.Error(), "missing fields") {
 		t.Fatalf("expected missing field error with db, got %v", err)
+	}
+}
+
+func TestFilterHelperSuccessBranches(t *testing.T) {
+	t.Parallel()
+
+	type input struct {
+		Search string `filter:"name|email,like"`
+		IDs    []int  `filter:"id,in"`
+		Active bool   `filter:"active,eq"`
+	}
+
+	clauses, err := Parse(input{Search: "ali", IDs: []int{1, 2}, Active: false})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(clauses) != 3 {
+		t.Fatalf("expected 3 clauses, got %+v", clauses)
+	}
+
+	opts, err := BuildOptions(input{Search: "ali", IDs: []int{1, 2}})
+	if err != nil {
+		t.Fatalf("BuildOptions: %v", err)
+	}
+	if len(opts) != 3 {
+		t.Fatalf("expected 3 built options, got %d", len(opts))
+	}
+
+	query, _ := gormx.NewQuery[userRecord]()
+	if err := Apply(query, input{Active: false}); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if err := Apply[userRecord](nil, input{Active: true}); err != nil {
+		t.Fatalf("Apply nil query: %v", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	filtered, err := ApplyDB(db.Model(&userRecord{}), input{Search: "ali"})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+	if filtered == nil {
+		t.Fatal("expected filtered db")
+	}
+	if fields, op, combiner, err := parseTag("name,email,extra", reflect.StructField{Name: "Search"}); err == nil {
+		t.Fatalf("expected too-many-parts tag error, got fields=%v op=%v combiner=%v", fields, op, combiner)
 	}
 }

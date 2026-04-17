@@ -47,4 +47,59 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 	if !shouldIgnoreImplicitDefaultDSN("app.db", "mysql", true) {
 		t.Fatal("expected implicit sqlite dsn to be ignored for structured mysql config")
 	}
+
+	mysqlCfg := settings.DatabaseConfig{
+		MySQL: settings.MySQLConfig{
+			Host:      "127.0.0.1",
+			Port:      3307,
+			User:      "root",
+			Password:  "secret",
+			Name:      "gin_ninja",
+			Charset:   "utf8mb4",
+			ParseTime: true,
+			Loc:       "UTC",
+			Params:    map[string]string{"tls": "skip-verify", " ": "ignored"},
+		},
+	}
+	dsn, err := mysqlDSN(mysqlCfg)
+	if err != nil {
+		t.Fatalf("mysqlDSN: %v", err)
+	}
+	for _, want := range []string{"root:secret@", "127.0.0.1:3307", "gin_ninja", "charset=utf8mb4", "parseTime=true"} {
+		if !strings.Contains(dsn, want) {
+			t.Fatalf("expected mysql DSN to contain %q, got %q", want, dsn)
+		}
+	}
+	if _, err := mysqlDialector(mysqlCfg); err != nil {
+		t.Fatalf("mysqlDialector structured: %v", err)
+	}
+
+	rawMySQL := settings.DatabaseConfig{Driver: "mysql", DSN: "root:secret%21@tcp(localhost:3306)/app"}
+	if _, err := mysqlDialector(rawMySQL); err != nil {
+		t.Fatalf("mysqlDialector raw: %v", err)
+	}
+
+	if _, err := mysqlDriverConfig(settings.DatabaseConfig{MySQL: settings.MySQLConfig{Name: "app"}}); err == nil || !strings.Contains(err.Error(), "host must not be empty") {
+		t.Fatalf("expected mysql host validation error, got %v", err)
+	}
+	if _, err := mysqlDriverConfig(settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1"}}); err == nil || !strings.Contains(err.Error(), "database name must not be empty") {
+		t.Fatalf("expected mysql database validation error, got %v", err)
+	}
+
+	if _, err := postgresDSN(settings.DatabaseConfig{
+		Postgres: settings.PostgresConfig{
+			Host: "127.0.0.1",
+			User: "postgres",
+		},
+	}); err == nil || !strings.Contains(err.Error(), "database name must not be empty") {
+		t.Fatalf("expected postgres database validation error, got %v", err)
+	}
+
+	pgRaw := settings.DatabaseConfig{Driver: "postgres", DSN: "postgres://localhost/app"}
+	if dsn, err := postgresDSN(pgRaw); err != nil || dsn != pgRaw.DSN {
+		t.Fatalf("expected raw postgres dsn passthrough, got %q err=%v", dsn, err)
+	}
+	if _, err := postgresDialector(pgRaw); err != nil {
+		t.Fatalf("postgresDialector raw: %v", err)
+	}
 }
