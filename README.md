@@ -196,12 +196,95 @@ If you want to keep Swagger UI enabled but hide the homepage shortcut in product
 
 ---
 
+## Project / App Scaffold Commands
+
+gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
+
+Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
+
+```bash
+go install github.com/shijl0925/gin-ninja/cmd/gin-ninja-cli@latest
+
+# or install from the cloned repository with Make
+make install-cli
+
+# or build only (binary placed at ./bin/gin-ninja-cli)
+make build-cli
+./bin/gin-ninja-cli --help
+```
+
+```bash
+gin-ninja-cli startproject mysite -module github.com/acme/mysite
+cd mysite
+gin-ninja-cli startapp blog
+
+# richer templates / optional features
+gin-ninja-cli startproject mysite \
+  -module github.com/acme/mysite \
+  -template admin \
+  -app-dir internal/app \
+  -with-tests
+gin-ninja-cli startapp accounts -template auth -with-tests
+gin-ninja-cli startapp accounts -template standard -with-gormx=false
+```
+
+`startproject` creates a new directory with:
+
+- `go.mod`
+- `main.go`
+- `config.yaml`
+- `app/models.go`
+- `app/repos.go`
+- `app/schemas.go`
+- `app/apis.go`
+- `app/routers.go`
+
+When you opt into `-template standard`, `-template auth`, `-template admin`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
+
+- `cmd/server/main.go`
+- `internal/server/server.go`
+- `bootstrap/db.go`
+- `bootstrap/logger.go`
+- `bootstrap/cache.go`
+- `settings/config.local.yaml.example`
+- `settings/config.prod.yaml.example`
+- `.env.example`
+- `Makefile`
+- `Dockerfile`
+- `docker-compose.yml`
+- `README.md`
+- `migrations/.gitkeep`
+- `scripts/.gitkeep`
+
+`startapp` creates a new app package directory with the same core CRUD files, and richer templates can additionally generate:
+
+- `services.go`
+- `errors.go`
+- `scaffold_test.go`
+- `auth.go`
+- `admin.go`
+- `permissions.go`
+
+Useful scaffold flags:
+
+- `-template minimal|standard|auth|admin`
+- `-with-tests`
+- `-with-auth`
+- `-with-admin`
+- `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
+- `-app-dir <path>` (`startproject` only)
+- `-force`
+
+The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
+
+---
+
 ## CRUD Scaffold Generator
 
 gin-ninja now includes a small scaffolding CLI for generating model-based CRUD boilerplate.
 
 ```bash
-go run ./cmd/gin-ninja generate crud \
+gin-ninja-cli generate crud \
   -model User \
   -model-file ./examples/full/app/models.go \
   -output ./examples/full/app/user_crud_gen.go
