@@ -38,6 +38,8 @@ type badModelSchemaOut struct {
 	}]
 }
 
+type testClaimsWithoutUserID struct{}
+
 func serveAPIRequest(api *NinjaAPI, method, target string, body io.Reader, headers map[string]string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, target, body)
 	for key, value := range headers {
@@ -447,6 +449,114 @@ func TestCacheAndInternalRouteAdditionalCoverage(t *testing.T) {
 		writeCachedResponse(c, nil, "")
 		if c.Writer.Status() != http.StatusNoContent || w.Code != http.StatusOK {
 			t.Fatalf("expected nil cached response status 204, got writer=%d recorder=%d", c.Writer.Status(), w.Code)
+		}
+	})
+}
+
+func TestCoreHelperAdditionalCoverage(t *testing.T) {
+	t.Run("context request id and user id fallbacks", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodGet, "/", "")
+		ctx := newContext(c)
+		if got := ctx.RequestID(); got != "" {
+			t.Fatalf("expected empty request id, got %q", got)
+		}
+		c.Set(requestIDContextKey, "req-1")
+		if got := ctx.RequestID(); got != "req-1" {
+			t.Fatalf("RequestID() = %q, want req-1", got)
+		}
+
+		if got := ctx.GetUserID(); got != 0 {
+			t.Fatalf("expected empty user id, got %d", got)
+		}
+		c.Set(contextkeys.JWTClaims, testClaimsWithoutUserID{})
+		if got := ctx.GetUserID(); got != 0 {
+			t.Fatalf("expected unsupported claims to return 0, got %d", got)
+		}
+	})
+
+	t.Run("memory cache delete and cache helpers", func(t *testing.T) {
+		store := NewMemoryCacheStore()
+		store.Set("users:1", &CachedResponse{Status: http.StatusOK, Body: []byte("one")})
+		store.AddTags("users:1", "users")
+		store.Delete("")
+		store.Delete("users:1")
+		if _, ok := store.Get("users:1"); ok {
+			t.Fatal("expected Delete to remove item")
+		}
+		if removed := store.InvalidateTags("users"); removed != 0 {
+			t.Fatalf("expected no tagged items after delete, got %d", removed)
+		}
+
+		if key, cacheStore := cacheLookup(&operation{}, nil); key != "" || cacheStore != nil {
+			t.Fatalf("expected empty cache lookup, got key=%q store=%v", key, cacheStore)
+		}
+		op := &operation{cache: &routeCacheConfig{ttl: time.Minute, keyFn: func(*Context) string { return "k" }, store: store}}
+		if key, cacheStore := cacheLookup(op, nil); key != "k" || cacheStore != store {
+			t.Fatalf("unexpected cache lookup result key=%q store=%v", key, cacheStore)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ginCtx.Request = req
+		ctx := &Context{Context: ginCtx}
+		cacheStoreSet(ctx, store, "users:2", &CachedResponse{Status: http.StatusCreated, Body: []byte("two")})
+		value, ok := cacheStoreGet(ctx, store, "users:2")
+		if !ok || value == nil || string(value.Body) != "two" {
+			t.Fatalf("cacheStoreGet() = (%+v, %v), want cached value", value, ok)
+		}
+		if value, ok := cacheStoreGet(nil, nil, "users:2"); ok || value != nil {
+			t.Fatalf("expected nil store lookup miss, got value=%v ok=%v", value, ok)
+		}
+		cacheStoreSet(nil, nil, "users:3", &CachedResponse{Status: http.StatusOK})
+	})
+
+	t.Run("capture writer and upload helper", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodGet, "/", "")
+		recorder := newCaptureResponseWriter(c.Writer)
+		recorder.WriteHeader(http.StatusAccepted)
+		recorder.Flush()
+		if recorder.Status() != http.StatusAccepted {
+			t.Fatalf("Status() = %d, want %d", recorder.Status(), http.StatusAccepted)
+		}
+
+		if newUploadedFile(nil) != nil {
+			t.Fatal("expected nil uploaded file wrapper")
+		}
+	})
+
+	t.Run("version spec caching and rate limit disable", func(t *testing.T) {
+		api := New(Config{
+			Title:    "versions",
+			Version:  "1.0.0",
+			Versions: map[string]VersionConfig{"v1": {Prefix: "/v1"}},
+		})
+		spec := api.versionSpec("v1")
+		if spec == nil {
+			t.Fatal("expected version spec")
+		}
+		if cached, ok := api.lookupVersionSpec("v1"); !ok || cached != spec {
+			t.Fatalf("expected cached version spec, got spec=%v ok=%v", cached, ok)
+		}
+
+		op := &operation{}
+		RateLimit(0)(op)
+		if op.rateLimit != nil {
+			t.Fatal("expected RateLimit(0) to disable limiter")
+		}
+	})
+
+	t.Run("shutdown without active server is a no-op", func(t *testing.T) {
+		api := New(Config{Title: "shutdown"})
+		called := false
+		api.OnShutdown(func(ctx context.Context, api *NinjaAPI) error {
+			called = true
+			return nil
+		})
+		if err := api.Shutdown(context.Background()); err != nil {
+			t.Fatalf("Shutdown(): %v", err)
+		}
+		if called {
+			t.Fatal("expected shutdown hooks to be skipped before startup")
 		}
 	})
 }
