@@ -1135,7 +1135,7 @@ const adminPrototypeHTML = `<!doctype html>
       border: 1px solid rgba(15, 23, 42, 0.12);
       background:rgba(255,255,255,0.92);
       color:var(--admin-text);
-      transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease, transform 120ms ease;
     }
     input:focus, select:focus, textarea:focus {
       outline:none;
