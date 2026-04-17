@@ -22,6 +22,12 @@ const (
 	ScaffoldTemplateAdmin    ScaffoldTemplate = "admin"
 )
 
+const (
+	scaffoldGinVersion  = "v1.10.1"
+	scaffoldZapVersion  = "v1.27.1"
+	scaffoldGormVersion = "v1.31.1"
+)
+
 // ProjectScaffoldConfig defines the inputs for a new project scaffold.
 type ProjectScaffoldConfig struct {
 	Name      string
@@ -615,11 +621,11 @@ func projectGoMod(module string) string {
 go 1.20
 
 require (
-	github.com/gin-gonic/gin v1.10.1
-	go.uber.org/zap v1.27.1
-	gorm.io/gorm v1.31.1
+	github.com/gin-gonic/gin %s
+	go.uber.org/zap %s
+	gorm.io/gorm %s
 )
-`, module)
+`, module, scaffoldGinVersion, scaffoldZapVersion, scaffoldGormVersion)
 }
 
 const projectMainTemplate = `package main
