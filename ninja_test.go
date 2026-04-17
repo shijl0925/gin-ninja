@@ -79,6 +79,112 @@ func TestNew_DocsRouteExists(t *testing.T) {
 	}
 }
 
+func TestNew_HomepageRouteExists(t *testing.T) {
+	api := newTestAPI()
+	w := doRequest(api, http.MethodGet, "/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
+		t.Fatalf("expected HTML content-type, got %s", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "Test") || !strings.Contains(body, "Server is running") {
+		t.Fatalf("expected homepage title and status in body: %q", body)
+	}
+	if !strings.Contains(body, `class="meta-band"`) || !strings.Contains(body, `class="status-panel"`) || !strings.Contains(body, `class="quicklinks-panel"`) {
+		t.Fatalf("expected balanced homepage meta layout in body: %q", body)
+	}
+	if !strings.Contains(body, `href="/docs"`) || !strings.Contains(body, "API Docs") {
+		t.Fatalf("expected docs shortcut in body: %q", body)
+	}
+	if strings.Contains(body, `class="btn btn-admin"`) || strings.Contains(body, `href="/admin"`) {
+		t.Fatalf("expected admin shortcut to be hidden by default: %q", body)
+	}
+}
+
+func TestNew_HomepageIncludesAdminShortcutWhenConfigured(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:    "Admin Home",
+		Version:  "0.0.1",
+		AdminURL: "/admin",
+	})
+	w := doRequest(api, http.MethodGet, "/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `href="/admin"`) || !strings.Contains(body, `class="btn btn-admin"`) {
+		t.Fatalf("expected admin shortcut in body: %q", body)
+	}
+}
+
+func TestNew_HomepageCanHideDocsShortcutWithoutDisablingDocsRoute(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:            "Hidden Docs Shortcut",
+		Version:          "0.0.1",
+		HideDocsShortcut: true,
+	})
+	home := doRequest(api, http.MethodGet, "/", nil)
+	if home.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", home.Code)
+	}
+	body := home.Body.String()
+	if strings.Contains(body, "API Docs") || strings.Contains(body, `href="/docs"`) {
+		t.Fatalf("expected docs shortcut to be hidden: %q", body)
+	}
+	if !strings.Contains(body, `class="meta-band meta-band-single"`) {
+		t.Fatalf("expected single-panel homepage layout when quick links are hidden: %q", body)
+	}
+	if strings.Contains(body, `class="quicklinks-panel"`) {
+		t.Fatalf("expected quick links panel to be removed when no links are available: %q", body)
+	}
+
+	docs := doRequest(api, http.MethodGet, "/docs", nil)
+	if docs.Code != http.StatusOK {
+		t.Fatalf("expected docs route to remain available, got %d", docs.Code)
+	}
+}
+
+func TestNew_HomepageHidesQuickLinksPanelWhenNoShortcutsExist(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:            "No Shortcuts",
+		Version:          "0.0.1",
+		HideDocsShortcut: true,
+		AdminURL:         "",
+	})
+	w := doRequest(api, http.MethodGet, "/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `class="meta-band meta-band-single"`) {
+		t.Fatalf("expected single-panel layout in body: %q", body)
+	}
+	if strings.Contains(body, `class="quicklinks-panel"`) {
+		t.Fatalf("expected quick links panel to be hidden in body: %q", body)
+	}
+}
+
+func TestNew_HomepageCanMoveToCustomURL(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:       "Custom Home",
+		Version:     "0.0.1",
+		HomepageURL: "/welcome",
+	})
+	root := doRequest(api, http.MethodGet, "/", nil)
+	if root.Code != http.StatusNotFound {
+		t.Fatalf("expected root to be unregistered, got %d", root.Code)
+	}
+	custom := doRequest(api, http.MethodGet, "/welcome", nil)
+	if custom.Code != http.StatusOK {
+		t.Fatalf("expected custom homepage route to return 200 got %d", custom.Code)
+	}
+	if !strings.Contains(custom.Body.String(), "Custom Home") {
+		t.Fatalf("expected custom homepage title in body: %q", custom.Body.String())
+	}
+}
+
 func TestNew_OpenAPIRouteExists(t *testing.T) {
 	api := newTestAPI()
 	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
