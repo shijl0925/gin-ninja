@@ -541,216 +541,219 @@ func homepageHTML(title, docsURL, adminURL string) string {
   <title>%s</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --bg-accent: rgba(37, 99, 235, 0.08);
+      --panel: rgba(255,255,255,0.9);
+      --panel-border: rgba(148, 163, 184, 0.24);
+      --text: #0f172a;
+      --muted: #475569;
+      --subtle: #64748b;
+      --primary: #2563eb;
+      --primary-soft: #eff6ff;
+      --success: #15803d;
+      --success-soft: #f0fdf4;
+      --shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+    }
     body {
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      padding: 32px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      color: #e0e0e0;
-      overflow: hidden;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, var(--bg-accent), transparent 34%%),
+        radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.08), transparent 30%%),
+        var(--bg);
     }
-
-    /* Floating particles */
-    .particles {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      overflow: hidden;
-      z-index: 0;
+    .shell {
+      width: 100%%;
+      max-width: 920px;
     }
-    .particle {
-      position: absolute;
-      border-radius: 50%%;
-      opacity: 0.15;
-      animation: float linear infinite;
-    }
-    @keyframes float {
-      0%%   { transform: translateY(110vh) rotate(0deg);   opacity: 0;    }
-      10%%  {                                               opacity: 0.15; }
-      90%%  {                                               opacity: 0.15; }
-      100%% { transform: translateY(-10vh) rotate(720deg); opacity: 0;    }
-    }
-
-    /* Card */
     .card {
-      position: relative;
-      z-index: 1;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
       border-radius: 24px;
-      padding: 56px 64px;
-      max-width: 560px;
-      width: 90%%;
-      text-align: center;
-      backdrop-filter: blur(18px);
-      box-shadow: 0 32px 80px rgba(0,0,0,0.5);
-      animation: card-in 0.8s cubic-bezier(0.22,1,0.36,1) both;
+      box-shadow: var(--shadow);
+      padding: 48px;
+      backdrop-filter: blur(12px);
     }
-    @keyframes card-in {
-      from { opacity: 0; transform: translateY(40px) scale(0.96); }
-      to   { opacity: 1; transform: translateY(0)   scale(1);     }
-    }
-
-    /* Logo / ninja icon */
-    .logo-wrap {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 28px;
-    }
-    .logo-ring {
-      width: 96px;
-      height: 96px;
-      border-radius: 50%%;
-      background: linear-gradient(135deg, #7c3aed, #2563eb);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 0 0 rgba(124,58,237,0.5);
-      animation: pulse 2.4s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%%,100%% { box-shadow: 0 0 0 0   rgba(124,58,237,0.5); }
-      50%%      { box-shadow: 0 0 0 20px rgba(124,58,237,0);   }
-    }
-    .logo-svg {
-      width: 52px;
-      height: 52px;
-      fill: #fff;
-      animation: spin-slow 8s linear infinite;
-    }
-    @keyframes spin-slow {
-      from { transform: rotate(0deg);   }
-      to   { transform: rotate(360deg); }
-    }
-
-    /* Title */
-    h1 {
-      font-size: 2.2rem;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #a78bfa, #60a5fa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      margin-bottom: 10px;
-      animation: fade-up 0.9s 0.2s cubic-bezier(0.22,1,0.36,1) both;
-    }
-
-    .tagline {
-      font-size: 1rem;
-      color: rgba(255,255,255,0.55);
-      margin-bottom: 36px;
-      animation: fade-up 0.9s 0.35s cubic-bezier(0.22,1,0.36,1) both;
-    }
-
-    @keyframes fade-up {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0);    }
-    }
-
-    /* Status badge */
-    .status {
+    .eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(34,197,94,0.12);
-      border: 1px solid rgba(34,197,94,0.3);
+      padding: 6px 12px;
       border-radius: 999px;
-      padding: 6px 18px;
-      font-size: 0.82rem;
-      color: #4ade80;
-      margin-bottom: 40px;
-      animation: fade-up 0.9s 0.5s cubic-bezier(0.22,1,0.36,1) both;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      color: var(--subtle);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .hero {
+      margin-top: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    .logo-ring {
+      width: 72px;
+      height: 72px;
+      flex-shrink: 0;
+      border-radius: 20px;
+      background: linear-gradient(180deg, #ffffff, #e8f0ff);
+      border: 1px solid rgba(37, 99, 235, 0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.65);
+    }
+    .logo-svg {
+      width: 34px;
+      height: 34px;
+      fill: var(--primary);
+    }
+    .hero-copy {
+      min-width: 0;
+    }
+    h1 {
+      font-size: clamp(2rem, 4vw, 2.9rem);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .tagline {
+      margin-top: 14px;
+      max-width: 620px;
+      font-size: 1.02rem;
+      line-height: 1.65;
+      color: var(--muted);
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 28px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(34, 197, 94, 0.18);
+      background: var(--success-soft);
+      color: var(--success);
+      font-size: 0.88rem;
+      font-weight: 600;
     }
     .status-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%%;
-      background: #4ade80;
-      animation: blink 1.4s ease-in-out infinite;
+      background: currentColor;
     }
-    @keyframes blink {
-      0%%,100%% { opacity: 1; }
-      50%%      { opacity: 0.3; }
-    }
-
-    /* Buttons */
     .buttons {
       display: flex;
-      gap: 16px;
-      justify-content: center;
+      gap: 14px;
       flex-wrap: wrap;
-      animation: fade-up 0.9s 0.65s cubic-bezier(0.22,1,0.36,1) both;
+      margin-top: 32px;
     }
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 13px 28px;
-      border-radius: 12px;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      text-decoration: none;
       font-size: 0.95rem;
       font-weight: 600;
-      text-decoration: none;
-      transition: transform 0.18s, box-shadow 0.18s, filter 0.18s;
+      transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
     }
     .btn:hover {
-      transform: translateY(-3px);
-      filter: brightness(1.15);
-      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
     }
     .btn-docs {
-      background: linear-gradient(135deg, #7c3aed, #2563eb);
+      background: var(--primary);
       color: #fff;
     }
+    .btn-docs:hover {
+      background: #1d4ed8;
+    }
     .btn-admin {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.18);
-      color: #e0e0e0;
+      background: #fff;
+      color: var(--text);
+      border-color: rgba(148, 163, 184, 0.28);
     }
     .btn-admin:hover {
-      background: rgba(255,255,255,0.14);
+      background: #f8fafc;
+      border-color: rgba(100, 116, 139, 0.35);
     }
     .btn-icon {
       width: 18px;
       height: 18px;
       flex-shrink: 0;
     }
-
-    /* Footer */
     .footer {
-      margin-top: 44px;
-      font-size: 0.78rem;
-      color: rgba(255,255,255,0.25);
-      animation: fade-up 0.9s 0.8s cubic-bezier(0.22,1,0.36,1) both;
+      margin-top: 36px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(148, 163, 184, 0.16);
+      color: var(--subtle);
+      font-size: 0.88rem;
     }
     .footer a {
-      color: rgba(255,255,255,0.4);
+      color: var(--primary);
       text-decoration: none;
+      font-weight: 600;
     }
-    .footer a:hover { color: rgba(255,255,255,0.7); }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    @media (max-width: 640px) {
+      body {
+        padding: 18px;
+      }
+      .card {
+        padding: 28px 22px;
+        border-radius: 20px;
+      }
+      .hero {
+        flex-direction: column;
+      }
+      .logo-ring {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+      }
+      .buttons {
+        flex-direction: column;
+      }
+      .btn {
+        width: 100%%;
+        justify-content: center;
+      }
+    }
   </style>
 </head>
 <body>
-
-<!-- Floating background particles -->
-<div class="particles" id="particles"></div>
-
+<main class="shell">
 <div class="card">
-  <div class="logo-wrap">
-    <div class="logo-ring">
-      <!-- Shuriken / ninja star SVG -->
+  <div class="eyebrow">Gin Ninja</div>
+  <div class="hero">
+    <div class="logo-ring" aria-hidden="true">
       <svg class="logo-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
         <path d="M32 4 L40 28 L64 32 L40 36 L32 60 L24 36 L0 32 L24 28 Z"/>
       </svg>
     </div>
+    <div class="hero-copy">
+      <h1>%s</h1>
+      <p class="tagline">A fast, typed REST framework powered by Gin &amp; Go generics</p>
+    </div>
   </div>
-
-  <h1>%s</h1>
-  <p class="tagline">A fast, typed REST framework powered by Gin &amp; Go generics</p>
 
   <div class="status">
     <span class="status-dot"></span>
@@ -764,27 +767,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
     Powered by <a href="https://github.com/shijl0925/gin-ninja" target="_blank" rel="noopener">gin-ninja</a>
   </div>
 </div>
-
-<script>
-(function () {
-  var p = document.getElementById('particles');
-  var colors = ['#7c3aed','#2563eb','#4ade80','#f472b6','#facc15'];
-  for (var i = 0; i < 30; i++) {
-    var el = document.createElement('div');
-    el.className = 'particle';
-    var size = (Math.random() * 14 + 4) + 'px';
-    el.style.cssText = [
-      'width:'  + size,
-      'height:' + size,
-      'left:'   + (Math.random() * 100) + '%%',
-      'background:' + colors[Math.floor(Math.random() * colors.length)],
-      'animation-duration:' + (Math.random() * 18 + 10) + 's',
-      'animation-delay:'    + (Math.random() * -25) + 's'
-    ].join(';');
-    p.appendChild(el);
-  }
-})();
-</script>
+</main>
 </body>
 </html>`, title, title, docsButton, adminButton)
 }
