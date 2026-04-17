@@ -2274,6 +2274,10 @@ const adminPrototypeHTML = `<!doctype html>
           redirectToAdmin('Restored saved token. Redirecting to /admin.');
         }
       } else {
+        if (isStandaloneAdminPage()) {
+          redirectToLogin('Ready. Sign in to continue.');
+          return;
+        }
         renderSignedOutState();
       }
     }
