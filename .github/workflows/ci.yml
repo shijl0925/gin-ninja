@@ -35,3 +35,42 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+  postgres-migration-integration:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gin_ninja
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d gin_ninja"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run PostgreSQL migration integration tests
+        env:
+          GIN_NINJA_TEST_POSTGRES_DRIVER: postgresql
+          GIN_NINJA_TEST_POSTGRES_HOST: 127.0.0.1
+          GIN_NINJA_TEST_POSTGRES_PORT: "5432"
+          GIN_NINJA_TEST_POSTGRES_USER: postgres
+          GIN_NINJA_TEST_POSTGRES_PASSWORD: postgres
+          GIN_NINJA_TEST_POSTGRES_DB: gin_ninja
+          GIN_NINJA_TEST_POSTGRES_SSLMODE: disable
+          GIN_NINJA_TEST_POSTGRES_TIME_ZONE: UTC
+        run: go test ./cmd/gin-ninja-cli -run '^TestRunMigrationCommandsHandleMultiStepSchemaEvolutionPostgres$' -count=1
