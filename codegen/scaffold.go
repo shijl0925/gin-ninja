@@ -286,7 +286,7 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 		return nil, err
 	}
 	files := map[string][]byte{
-		"go.mod":      []byte(fmt.Sprintf("module %s\n\ngo 1.26\n", data.Module)),
+		"go.mod":      []byte(fmt.Sprintf("module %s\n\ngo 1.20\n", data.Module)),
 		"config.yaml": []byte(configYaml),
 		".gitignore":  []byte(gitignore),
 	}
@@ -937,7 +937,7 @@ tidy:
 go mod tidy
 `
 
-const projectDockerfileTemplate = `FROM golang:1.26 AS build
+const projectDockerfileTemplate = `FROM golang:1.20 AS build
 WORKDIR /src
 COPY . .
 RUN go mod download && go build -o /out/app .

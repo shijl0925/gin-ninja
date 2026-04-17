@@ -1,6 +1,6 @@
 module github.com/shijl0925/gin-ninja
 
-go 1.26
+go 1.20
 
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
