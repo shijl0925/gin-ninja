@@ -792,11 +792,11 @@ func homepageHTML(title, docsURL, adminURL string) string {
       box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
     }
     .btn-docs {
-      background: var(--primary);
+      background: #85ea2d;
       color: #fff;
     }
     .btn-docs:hover {
-      background: var(--primary-hover);
+      background: #62a03f;
     }
     .btn-admin {
       background: rgba(255,255,255,0.7);
