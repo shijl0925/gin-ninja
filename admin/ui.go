@@ -1201,28 +1201,28 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
     .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid var(--admin-border); border-radius:8px; padding:8px 10px; }
     .relation-preview mark { background:#fcf8e3; padding:0; }
-    .detail-layout { display:grid; gap:18px; grid-template-columns:minmax(0, 1fr); align-items:start; }
+    .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.1fr) minmax(320px, 0.9fr); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
     .detail-card {
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:26px;
-      padding:22px;
+      border-radius:22px;
+      padding:18px 20px;
       background:#fff;
-      box-shadow:0 12px 30px rgba(15, 23, 42, 0.06);
+      box-shadow:0 10px 24px rgba(15, 23, 42, 0.05);
     }
     .detail-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    .detail-grid { display:grid; gap:12px; }
+    .detail-grid { display:grid; gap:8px; }
     .detail-row {
       display:grid;
       grid-template-columns:minmax(120px, 152px) minmax(0, 1fr);
-      gap:16px;
+      gap:14px;
       align-items:start;
-      padding:14px 0;
+      padding:10px 0;
       border-bottom:1px solid #edf1f4;
     }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
-    .detail-label { font-size:12px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.08em; padding-top:6px; }
-    .detail-value { display:grid; gap:8px; font-size:14px; word-break:break-word; color:var(--admin-text); }
+    .detail-label { font-size:11px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.08em; padding-top:4px; }
+    .detail-value { display:grid; gap:6px; font-size:14px; word-break:break-word; color:var(--admin-text); }
     .detail-value-text { font-size:14px; line-height:1.55; color:var(--admin-text); }
     .detail-value-text.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:13px; }
     .bulk-edit-fields { display:grid; gap:12px; }
@@ -1258,17 +1258,17 @@ const adminPrototypeHTML = `<!doctype html>
       box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
       backdrop-filter: blur(18px);
     }
-    .modal-dialog.large { width:min(860px, 100%); }
+    .modal-dialog.large { width:min(1080px, 100%); }
     .modal-header {
       display:flex;
       gap:16px;
       align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:24px 24px 18px;
+      padding:18px 20px 14px;
       border-bottom:1px solid rgba(15, 23, 42, 0.06);
     }
-    .modal-body { padding:20px 24px 24px; background:linear-gradient(180deg, rgba(248,250,252,0.52) 0%, rgba(255,255,255,0) 100%); }
+    .modal-body { padding:16px 20px 20px; background:linear-gradient(180deg, rgba(248,250,252,0.52) 0%, rgba(255,255,255,0) 100%); }
     .modal-close { min-width:44px; min-height:44px; padding:0 14px; }
     body.modal-open { overflow:hidden; }
     label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
@@ -1301,42 +1301,43 @@ const adminPrototypeHTML = `<!doctype html>
     button.danger:hover { background:#c0392b; border-color:#a93226; }
     button:hover:not(:disabled) { filter:none; transform:translateY(-1px); }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
-    .resource-form { display:grid; gap:18px; }
+    .resource-form { display:grid; gap:14px; }
     .form-section-intro {
       display:grid;
-      gap:8px;
-      padding:18px 20px;
+      gap:4px;
+      padding:14px 16px;
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:24px;
+      border-radius:18px;
       background:linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%);
-      box-shadow:0 10px 24px rgba(15, 23, 42, 0.04);
+      box-shadow:0 6px 16px rgba(15, 23, 42, 0.03);
     }
+    .form-section-intro .eyebrow { display:none; }
     .form-section-title {
       margin:0;
-      font-size:1rem;
+      font-size:0.95rem;
       font-weight:700;
       color:var(--admin-text);
       letter-spacing:-0.02em;
     }
     .form-section-copy {
       margin:0;
-      font-size:13px;
-      line-height:1.6;
+      font-size:12px;
+      line-height:1.45;
       color:var(--admin-muted);
     }
     .form-grid {
       display:grid;
-      gap:16px;
-      grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));
+      gap:12px;
+      grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
     }
     .form-field-card {
       display:grid;
-      gap:14px;
-      padding:18px 20px;
+      gap:10px;
+      padding:14px 16px;
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:24px;
+      border-radius:18px;
       background:#fff;
-      box-shadow:0 10px 24px rgba(15, 23, 42, 0.05);
+      box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);
     }
     .form-field-wide { grid-column:1 / -1; }
     .form-field-header {
@@ -1354,13 +1355,13 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .form-field-label {
       margin:0;
-      font-size:15px;
+      font-size:14px;
       font-weight:700;
       color:var(--admin-text);
     }
     .form-field-description {
       margin:0;
-      font-size:12px;
+      font-size:11px;
       line-height:1.5;
       color:var(--admin-muted);
     }
@@ -1403,15 +1404,15 @@ const adminPrototypeHTML = `<!doctype html>
     .form-field-card select,
     .form-field-card textarea,
     .form-field-card .multi-relation-dropdown summary {
-      min-height:48px;
+      min-height:44px;
       background:var(--admin-input-bg);
       border-color:rgba(15, 23, 42, 0.1);
       box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.03);
     }
     .form-field-card textarea {
-      min-height:136px;
-      padding-top:13px;
-      padding-bottom:13px;
+      min-height:120px;
+      padding-top:12px;
+      padding-bottom:12px;
       line-height:1.55;
     }
     .form-field-checkbox .form-field-control { display:block; }
@@ -1420,9 +1421,9 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:center;
       justify-content:space-between;
       gap:12px;
-      padding:14px 16px;
+      padding:12px 14px;
       border:1px solid rgba(15, 23, 42, 0.1);
-      border-radius:20px;
+      border-radius:16px;
       background:var(--admin-input-bg);
       box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.03);
     }
@@ -1487,11 +1488,11 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       gap:12px;
       flex-wrap:wrap;
-      padding:18px 20px;
+      padding:14px 16px;
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:24px;
+      border-radius:18px;
       background:#fff;
-      box-shadow:0 10px 24px rgba(15, 23, 42, 0.05);
+      box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);
     }
     .resource-form-footer .muted {
       margin:0;
@@ -2042,6 +2043,7 @@ const adminPrototypeHTML = `<!doctype html>
       .workspace-header-main,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
+      .detail-layout { grid-template-columns:minmax(0, 1fr); }
       .table-toolbar .row-actions { flex-basis:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
       .resource-form-footer { align-items:flex-start; }
@@ -2308,7 +2310,7 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="section-heading">
                 <span class="eyebrow subtle">Create</span>
                 <h3 id="createModalTitle" class="section-title">Create record</h3>
-                <p class="section-copy muted">Add a new entry for the active resource with the same polished workspace layout.</p>
+                <p class="section-copy muted">Add a new entry for the active resource.</p>
               </div>
               <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
             </div>
@@ -2326,35 +2328,33 @@ const adminPrototypeHTML = `<!doctype html>
                   <span id="detailObjectBadge" class="badge badge-muted">Draft view</span>
                 </div>
                 <h3 id="recordModalTitle" class="section-title">Open record</h3>
-                <p class="section-copy muted">Inspect the selected record and review the structured payload in one focused dialog.</p>
+                <p class="section-copy muted">Inspect the selected record and its raw payload.</p>
               </div>
               <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">Close</button>
             </div>
             <div class="modal-body">
               <div class="detail-layout">
-                <section class="stack">
-                  <div class="detail-card stack card card-outline card-primary">
-                    <div class="detail-card-header">
-                      <div class="section-heading">
-                        <span class="eyebrow subtle">Overview</span>
-                        <strong id="detailTitle">No record selected</strong>
-                      </div>
-                    </div>
-                    <div id="detailFields" class="detail-grid">
-                      <p class="muted">No record selected.</p>
+                <div class="detail-card stack card card-outline card-primary">
+                  <div class="detail-card-header">
+                    <div class="section-heading">
+                      <span class="eyebrow subtle">Overview</span>
+                      <strong id="detailTitle">No record selected</strong>
                     </div>
                   </div>
-                  <div class="detail-card stack card card-outline card-secondary">
-                    <div class="detail-card-header">
-                      <div class="section-heading">
-                        <span class="eyebrow subtle">Payload</span>
-                        <strong>Reference payload</strong>
-                        <p class="section-copy muted">Use the raw payload for quick inspection or copy/paste during debugging.</p>
-                      </div>
-                    </div>
-                    <pre id="detail">No record selected.</pre>
+                  <div id="detailFields" class="detail-grid">
+                    <p class="muted">No record selected.</p>
                   </div>
-                </section>
+                </div>
+                <div class="detail-card stack card card-outline card-secondary">
+                  <div class="detail-card-header">
+                    <div class="section-heading">
+                      <span class="eyebrow subtle">Payload</span>
+                      <strong>Reference payload</strong>
+                      <p class="section-copy muted">Use the raw payload for quick inspection or copy/paste during debugging.</p>
+                    </div>
+                  </div>
+                  <pre id="detail">No record selected.</pre>
+                </div>
               </div>
             </div>
           </div>
@@ -2365,7 +2365,7 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="section-heading">
                 <span class="eyebrow subtle">Edit</span>
                 <h3 id="editModalTitle" class="section-title">Edit record</h3>
-                <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
+                <p class="section-copy muted" id="editHint">Select a row to edit it.</p>
               </div>
               <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">Close</button>
             </div>
@@ -3945,18 +3945,14 @@ const adminPrototypeHTML = `<!doctype html>
       }
       const intro = document.createElement('div');
       intro.className = 'form-section-intro';
-      const introEyebrow = document.createElement('span');
-      introEyebrow.className = 'eyebrow subtle';
-      introEyebrow.textContent = mode === 'update' ? 'Selected record' : 'New record';
       const introTitle = document.createElement('h4');
       introTitle.className = 'form-section-title';
-      introTitle.textContent = mode === 'update' ? 'Update field values' : 'Enter the primary details';
+      introTitle.textContent = mode === 'update' ? 'Editable fields' : 'Required fields';
       const introCopy = document.createElement('p');
       introCopy.className = 'form-section-copy';
       introCopy.textContent = mode === 'update'
-        ? 'Adjust the fields below and save when you are ready to apply changes to the selected record.'
-        : 'Complete the required fields below to create a new record in the active resource.';
-      intro.appendChild(introEyebrow);
+        ? 'Update the selected record and save when ready.'
+        : 'Fill in the fields below to create a new record.';
       intro.appendChild(introTitle);
       intro.appendChild(introCopy);
       target.appendChild(intro);
@@ -4042,8 +4038,8 @@ const adminPrototypeHTML = `<!doctype html>
       const footerCopy = document.createElement('p');
       footerCopy.className = 'muted';
       footerCopy.textContent = mode === 'update'
-        ? 'Review the field values before saving. Changes are applied immediately to the selected record.'
-        : 'Fill in the required fields to create a new record for the current resource.';
+        ? 'Review the changes before saving.'
+        : 'Only required fields need values to create the record.';
       const submit = document.createElement('button');
       submit.type = 'submit';
       submit.textContent = mode === 'update' ? 'Update' : 'Create';
@@ -4060,7 +4056,7 @@ const adminPrototypeHTML = `<!doctype html>
     async function renderUpdateForm() {
       if (!state.selected) {
         els.updateForm.innerHTML = '<p class="muted">Select a row to edit it.</p>';
-        els.editHint.textContent = 'Select a row to open the change form.';
+        els.editHint.textContent = 'Select a row to edit it.';
         return;
       }
       els.editHint.textContent = 'Editing record #' + recordPrimaryKey(state.selected.item) + '.';
