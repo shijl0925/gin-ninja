@@ -48,6 +48,9 @@ func JWTAuth() gin.HandlerFunc {
 // reading from global settings.  Useful in tests or when running multiple APIs
 // with different secrets.
 func JWTAuthWithSecret(secret string) gin.HandlerFunc {
+	if secret == "" {
+		panic("jwt: Secret must not be empty")
+	}
 	return func(c *gin.Context) {
 		tokenString := extractBearerToken(c)
 		if tokenString == "" {

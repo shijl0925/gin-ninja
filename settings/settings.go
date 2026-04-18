@@ -22,7 +22,7 @@
 //	  max_open_conns: 100
 //
 //	jwt:
-//	  secret: "change-me-in-production"
+//	  secret: "your-secret-here"
 //	  expire_hours: 24
 //	  issuer: "gin-ninja"
 //
@@ -415,7 +415,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("redis.prefix", "gin-ninja:")
 
-	v.SetDefault("jwt.secret", "change-me-in-production")
+	v.SetDefault("jwt.secret", "")
 	v.SetDefault("jwt.expire_hours", 24)
 	v.SetDefault("jwt.issuer", "gin-ninja")
 

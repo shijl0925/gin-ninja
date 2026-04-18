@@ -259,7 +259,7 @@ func WriteError(c *gin.Context, err error) {
 			Error: &Error{
 				Status:  http.StatusInternalServerError,
 				Code:    "INTERNAL_ERROR",
-				Message: fmt.Sprintf("%v", err),
+				Message: "internal server error",
 			},
 		})
 	}
