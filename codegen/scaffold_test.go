@@ -90,6 +90,14 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		t.Fatalf("expected generated admin scaffold to mount the default admin UI, got:\n%s", adminContent)
 	}
 
+	readmeContent, err := os.ReadFile(filepath.Join(outputDir, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	if !strings.Contains(string(readmeContent), "`/admin`") {
+		t.Fatalf("expected generated README to mention the default admin UI, got:\n%s", readmeContent)
+	}
+
 	for _, rel := range []string{
 		"config.yaml",
 		"settings/config.local.yaml.example",

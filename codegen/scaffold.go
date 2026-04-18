@@ -1048,6 +1048,9 @@ Configuration overrides can be placed in {{ bt }}settings/config.local.yaml{{ bt
 {{- end }}
 {{- if .Options.WithAdmin }}
 - Admin resource scaffold at {{ bt }}/api/v1/admin{{ bt }}
+{{- if .Options.WithAuth }}
+- Default admin UI at {{ bt }}/admin{{ bt }}
+{{- end }}
 {{- end }}
 `
 
