@@ -112,28 +112,28 @@ const adminPrototypeHTML = `<!doctype html>
   <style>
     :root {
       color-scheme: light;
-      --admin-body-bg: #f7f8fb;
+      --admin-body-bg: #f4f6f9;
       --admin-grid: rgba(15, 23, 42, 0.045);
-      --admin-surface: rgba(255, 255, 255, 0.82);
-      --admin-sidebar: rgba(15, 23, 42, 0.9);
-      --admin-sidebar-alt: rgba(30, 41, 59, 0.92);
-      --admin-sidebar-text: #cbd5e1;
-      --admin-sidebar-active: #635bff;
-      --admin-topbar: rgba(255, 255, 255, 0.72);
-      --admin-border: rgba(15, 23, 42, 0.08);
-      --admin-border-strong: rgba(99, 91, 255, 0.18);
-      --admin-text: #0f172a;
-      --admin-muted: #64748b;
-      --admin-soft: #f8faff;
-      --admin-input-bg: #fbfcff;
-      --admin-primary: #635bff;
-      --admin-primary-dark: #4f46e5;
+      --admin-surface: #ffffff;
+      --admin-sidebar: #343a40;
+      --admin-sidebar-alt: #3f474e;
+      --admin-sidebar-text: #c2c7d0;
+      --admin-sidebar-active: #007bff;
+      --admin-topbar: #ffffff;
+      --admin-border: #dee2e6;
+      --admin-border-strong: rgba(0, 123, 255, 0.24);
+      --admin-text: #212529;
+      --admin-muted: #6c757d;
+      --admin-soft: #f8f9fa;
+      --admin-input-bg: #ffffff;
+      --admin-primary: #007bff;
+      --admin-primary-dark: #0056b3;
       --admin-success: #00a65a;
       --admin-danger: #dd4b39;
       --admin-warning: #f39c12;
-      --admin-shadow: 0 18px 50px rgba(15, 23, 42, 0.09);
-      --admin-radius: 1rem;
-      --admin-radius-lg: 1.25rem;
+      --admin-shadow: 0 0 1px rgba(0, 0, 0, 0.125), 0 1px 3px rgba(0, 0, 0, 0.08);
+      --admin-radius: 0.375rem;
+      --admin-radius-lg: 0.5rem;
       --admin-grid-size: 48px;
       --admin-topbar-min-height: 64px;
       --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
@@ -228,7 +228,8 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .table-shell,
     [data-theme="dark"] .form-section-intro,
     [data-theme="dark"] .detail-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
-    [data-theme="dark"] .field-tag { background: #22253a; border-color: var(--admin-border); color: var(--admin-muted); }
+    [data-theme="dark"] .field-tag,
+    [data-theme="dark"] .form-section-meta { background: #22253a; border-color: var(--admin-border); color: var(--admin-muted); }
     [data-theme="dark"] .field-tag.required { background: rgba(102,176,255,0.15); color: #bfdbfe; border-color: rgba(102,176,255,0.28); }
     [data-theme="dark"] .field-tag.readonly { background: rgba(148,163,184,0.12); color: #cbd5f5; border-color: rgba(148,163,184,0.24); }
     [data-theme="dark"] .table-cell-value,
@@ -278,13 +279,7 @@ const adminPrototypeHTML = `<!doctype html>
       font-family: Inter, system-ui, "Segoe UI", sans-serif;
       margin: 0;
       min-height: 100vh;
-      background:
-        linear-gradient(to right, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
-        linear-gradient(to bottom, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
-        radial-gradient(circle at top left, rgba(99, 91, 255, 0.12), transparent 34%),
-        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.08), transparent 30%),
-        var(--admin-body-bg);
-      background-size: var(--admin-grid-size) var(--admin-grid-size), var(--admin-grid-size) var(--admin-grid-size), auto, auto, auto;
+      background: var(--admin-body-bg);
       color: var(--admin-text);
     }
     a { color: inherit; }
@@ -300,8 +295,7 @@ const adminPrototypeHTML = `<!doctype html>
       padding:0 16px;
       background: var(--admin-topbar);
       border-bottom:1px solid var(--admin-border);
-      box-shadow:0 12px 32px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(18px);
+      box-shadow:0 1px 1px rgba(0,0,0,.08);
     }
     .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:6px; }
     .topbar-left {
@@ -361,12 +355,12 @@ const adminPrototypeHTML = `<!doctype html>
       border-radius:14px;
       display:grid;
       place-items:center;
-      background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,244,245,0.92));
-      color:var(--admin-primary-dark);
-      border:1px solid rgba(15, 23, 42, 0.08);
+      background:#e9ecef;
+      color:var(--admin-primary);
+      border:1px solid var(--admin-border);
       font-weight:800;
       letter-spacing:0.08em;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      box-shadow:none;
     }
     .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-lead p { margin:0; }
@@ -444,8 +438,8 @@ const adminPrototypeHTML = `<!doctype html>
       min-width:160px;
       background:#fff;
       border:1px solid var(--admin-border);
-      border-radius:0.35rem;
-      box-shadow:0 4px 16px rgba(0,0,0,0.12);
+      border-radius:0.25rem;
+      box-shadow:0 3px 10px rgba(0,0,0,0.12);
       list-style:none;
       margin:0;
       padding:4px 0;
@@ -477,7 +471,7 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-search-expand.open { display:block; }
     .topbar-search-expand input {
       width:100%;
-      border-radius:0.35rem;
+      border-radius:0.25rem;
       border:1px solid var(--admin-border);
       padding:8px 14px;
       font-size:14px;
@@ -489,8 +483,8 @@ const adminPrototypeHTML = `<!doctype html>
       background:var(--admin-surface);
       border:1px solid var(--admin-border);
       border-top:none;
-      border-radius:0 0 0.35rem 0.35rem;
-      box-shadow:0 4px 12px rgba(0,0,0,0.12);
+      border-radius:0 0 0.25rem 0.25rem;
+      box-shadow:0 3px 10px rgba(0,0,0,0.12);
       max-height:320px;
       overflow-y:auto;
     }
@@ -583,7 +577,7 @@ const adminPrototypeHTML = `<!doctype html>
     .app-main {
       display:grid;
       gap:var(--admin-content-gap);
-      padding:18px 24px 24px;
+      padding:18px 18px 24px;
       align-items:start;
     }
     .panel {
@@ -594,7 +588,6 @@ const adminPrototypeHTML = `<!doctype html>
       border-radius: var(--admin-radius);
       padding:18px;
       box-shadow: var(--admin-shadow);
-      backdrop-filter: blur(18px);
     }
     .stack { display:grid; gap:16px; }
     .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
@@ -607,8 +600,8 @@ const adminPrototypeHTML = `<!doctype html>
       gap:10px;
       border-radius:999px;
       padding:6px 12px;
-      background:rgba(255,255,255,0.72);
-      border:1px solid rgba(15, 23, 42, 0.08);
+      background:#e9ecef;
+      border:1px solid var(--admin-border);
       color:var(--admin-primary-dark);
       font-size:11px;
       font-weight:700;
@@ -621,7 +614,7 @@ const adminPrototypeHTML = `<!doctype html>
       height:6px;
       border-radius:50%;
       background:currentColor;
-      box-shadow:0 0 0 4px rgba(99, 91, 255, 0.10);
+      box-shadow:0 0 0 4px rgba(0, 123, 255, 0.12);
     }
     .eyebrow.subtle { background:#e9ecef; color:#495057; }
     .badge {
@@ -630,10 +623,11 @@ const adminPrototypeHTML = `<!doctype html>
       gap:6px;
       font-size:12px;
       font-weight:700;
-      background:#eaf3f8;
+      background:#e9ecef;
       color:var(--admin-primary-dark);
       border-radius:999px;
       padding:6px 11px;
+      border:1px solid var(--admin-border);
     }
     .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0, 0, 0, 0); white-space:nowrap; border:0; }
     .login-shell { display:grid; gap:20px; }
@@ -761,14 +755,13 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       flex-direction:column;
       min-height:calc(100vh - var(--admin-topbar-height) - (var(--admin-content-gap) * 2));
-      background:linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.94) 100%);
+      background:var(--admin-sidebar);
       color:var(--admin-sidebar-text);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:1.25rem;
-      box-shadow:0 20px 48px rgba(15, 23, 42, 0.2);
+      border:1px solid rgba(0,0,0,.12);
+      border-radius:0.5rem;
+      box-shadow:0 0 1px rgba(0,0,0,.2), 0 4px 18px rgba(0,0,0,.14);
       padding:0;
       overflow:hidden;
-      backdrop-filter: blur(18px);
     }
     .sidebar-brand {
       display:grid;
@@ -784,12 +777,12 @@ const adminPrototypeHTML = `<!doctype html>
       height:48px;
       display:grid;
       place-items:center;
-      border-radius:16px;
-      background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,244,245,0.92));
-      color:var(--admin-primary-dark);
+      border-radius:12px;
+      background:#f8f9fa;
+      color:var(--admin-primary);
       font-size:23px;
       font-weight:800;
-      box-shadow:0 12px 24px rgba(15, 23, 42, 0.22);
+      box-shadow:none;
       flex-shrink:0;
     }
     .sidebar-brand-copy { display:grid; gap:2px; min-width:0; }
@@ -820,11 +813,11 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       place-items:center;
       border-radius:50%;
-      background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
+      background:#ced4da;
       color:#495057;
       font-size:14px;
       font-weight:700;
-      box-shadow:0 4px 10px rgba(0,0,0,0.24);
+      box-shadow:none;
       flex-shrink:0;
     }
     .sidebar-user-copy { display:grid; gap:2px; min-width:0; }
@@ -1069,7 +1062,7 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       gap:0;
       padding:0;
-      border-top-color:var(--admin-primary);
+      border-top-color:#007bff;
       overflow:hidden;
     }
     .workspace-header-main {
@@ -1078,8 +1071,8 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:20px 22px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.74) 100%);
+      padding:18px 20px;
+      background:#ffffff;
     }
     .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
@@ -1111,16 +1104,16 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       gap:14px;
       flex-wrap:wrap;
-      padding:18px 20px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.74) 100%);
+      padding:14px 16px;
+      background:#f8f9fa;
     }
     .section-card-header {
-      border-bottom:1px solid rgba(0,0,0,0.06);
+      border-bottom:1px solid var(--admin-border);
       border-top-left-radius:calc(var(--admin-radius) - 1px);
       border-top-right-radius:calc(var(--admin-radius) - 1px);
     }
-    .section-card-body { display:grid; gap:16px; padding:20px; background:var(--admin-surface); }
-    .section-card-footer { align-items:center; border-top:1px solid rgba(0,0,0,0.06); background:rgba(248,250,252,0.72); }
+    .section-card-body { display:grid; gap:16px; padding:16px; background:var(--admin-surface); }
+    .section-card-footer { align-items:center; border-top:1px solid var(--admin-border); background:#f8f9fa; }
     .section-card-tools {
       display:flex;
       align-items:center;
@@ -1204,11 +1197,11 @@ const adminPrototypeHTML = `<!doctype html>
     .detail-layout { display:grid; gap:16px; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
     .detail-card {
-      border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:22px;
-      padding:18px 20px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      padding:16px;
       background:#fff;
-      box-shadow:0 10px 24px rgba(15, 23, 42, 0.05);
+      box-shadow:0 1px 2px rgba(0, 0, 0, 0.05);
     }
     .detail-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
     .detail-grid { display:grid; gap:8px; }
@@ -1239,45 +1232,48 @@ const adminPrototypeHTML = `<!doctype html>
     .table-shell {
       overflow:auto;
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:24px;
+      border-radius:0.375rem;
       background:#fff;
-      box-shadow:0 16px 36px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(14px);
+      box-shadow:0 1px 2px rgba(0,0,0,.05);
     }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:rgba(255,255,255,0.72); color:var(--admin-muted); text-align:center; }
     .resource-header-actions button { padding-inline:14px; }
-    .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
+    .modal-overlay { position:fixed; inset:0; background:rgba(0, 0, 0, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
     .modal-dialog {
       width:min(720px, 100%);
       max-height:min(85vh, 920px);
       overflow:auto;
-      border-radius:1.1rem;
+      border-radius:0.3rem;
       border:1px solid var(--admin-border);
       border-top:1px solid var(--admin-border);
-      background:rgba(255,255,255,0.88);
-      box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
-      backdrop-filter: blur(18px);
+      background:#fff;
+      box-shadow:0 0.5rem 1rem rgba(0,0,0,.18);
     }
     .modal-dialog.large { width:min(1080px, 100%); }
     .modal-header {
       display:flex;
-      gap:16px;
+      gap:12px;
       align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:18px 20px 14px;
-      border-bottom:1px solid rgba(15, 23, 42, 0.06);
+      padding:12px 16px;
+      border-bottom:1px solid var(--admin-border);
+      background:#f8f9fa;
     }
-    .modal-body { padding:16px 20px 20px; background:linear-gradient(180deg, rgba(248,250,252,0.52) 0%, rgba(255,255,255,0) 100%); }
+    .modal-body { padding:16px; background:#fff; }
     .modal-close { min-width:44px; min-height:44px; padding:0 14px; }
+    .modal-heading { gap:4px; }
+    .modal-form-heading { gap:2px; }
+    .modal-form-heading .eyebrow { display:none; }
+    .modal-form-heading .section-copy { max-width:34rem; }
     body.modal-open { overflow:hidden; }
     label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
     input, select, textarea, button {
       font: inherit;
-      padding: 11px 14px;
-      border-radius: 0.9rem;
-      border: 1px solid rgba(15, 23, 42, 0.12);
-      background:rgba(255,255,255,0.92);
+      padding: 10px 12px;
+      border-radius: 0.375rem;
+      border: 1px solid #ced4da;
+      background:#fff;
       color:var(--admin-text);
       transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease, transform 120ms ease;
     }
@@ -1289,32 +1285,35 @@ const adminPrototypeHTML = `<!doctype html>
     textarea { min-height: 112px; }
     button {
       cursor:pointer;
-      background:linear-gradient(135deg, var(--admin-primary) 0%, #3b82f6 100%);
+      background:var(--admin-primary);
       color:#fff;
-      border-color:rgba(79, 70, 229, 0.6);
+      border-color:var(--admin-primary);
       font-weight:600;
-      box-shadow:0 12px 24px rgba(99, 91, 255, 0.18);
+      box-shadow:none;
     }
-    button.secondary { background:rgba(255,255,255,0.78); color:var(--admin-text); border-color:rgba(15, 23, 42, 0.12); box-shadow:none; }
-    button.secondary:hover { background:#fff; border-color:rgba(15, 23, 42, 0.16); }
+    button.secondary { background:#f8f9fa; color:var(--admin-text); border-color:#ced4da; box-shadow:none; }
+    button.secondary:hover { background:#e9ecef; border-color:#adb5bd; }
     button.danger { background:var(--admin-danger); border-color:#c0392b; }
     button.danger:hover { background:#c0392b; border-color:#a93226; }
-    button:hover:not(:disabled) { filter:none; transform:translateY(-1px); }
+    button:hover:not(:disabled) { filter:none; transform:none; }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
     .resource-form { display:grid; gap:14px; }
     .form-section-intro {
       display:grid;
-      gap:4px;
-      padding:14px 16px;
-      border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%);
-      box-shadow:0 6px 16px rgba(15, 23, 42, 0.03);
+      grid-template-columns:minmax(0, 1fr) auto;
+      align-items:start;
+      gap:12px;
+      padding:12px 14px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      background:#f8f9fa;
+      box-shadow:none;
     }
     .form-section-intro .eyebrow { display:none; }
+    .form-section-copy-wrap { display:grid; gap:4px; min-width:0; }
     .form-section-title {
       margin:0;
-      font-size:0.95rem;
+      font-size:1rem;
       font-weight:700;
       color:var(--admin-text);
       letter-spacing:-0.02em;
@@ -1325,6 +1324,21 @@ const adminPrototypeHTML = `<!doctype html>
       line-height:1.45;
       color:var(--admin-muted);
     }
+    .form-section-meta {
+      display:inline-flex;
+      align-items:center;
+      min-height:26px;
+      padding:4px 10px;
+      border-radius:999px;
+      background:#fff;
+      border:1px solid var(--admin-border);
+      color:var(--admin-muted);
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
     .form-grid {
       display:grid;
       gap:12px;
@@ -1334,10 +1348,10 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       gap:10px;
       padding:14px 16px;
-      border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:18px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
       background:#fff;
-      box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);
+      box-shadow:none;
     }
     .form-field-wide { grid-column:1 / -1; }
     .form-field-header {
@@ -1377,7 +1391,7 @@ const adminPrototypeHTML = `<!doctype html>
       min-height:24px;
       padding:4px 10px;
       border-radius:999px;
-      border:1px solid rgba(15, 23, 42, 0.08);
+      border:1px solid var(--admin-border);
       background:var(--admin-soft);
       color:var(--admin-muted);
       font-size:11px;
@@ -1404,10 +1418,10 @@ const adminPrototypeHTML = `<!doctype html>
     .form-field-card select,
     .form-field-card textarea,
     .form-field-card .multi-relation-dropdown summary {
-      min-height:44px;
+      min-height:42px;
       background:var(--admin-input-bg);
-      border-color:rgba(15, 23, 42, 0.1);
-      box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.03);
+      border-color:#ced4da;
+      box-shadow:none;
     }
     .form-field-card textarea {
       min-height:120px;
@@ -1422,10 +1436,10 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       gap:12px;
       padding:12px 14px;
-      border:1px solid rgba(15, 23, 42, 0.1);
-      border-radius:16px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
       background:var(--admin-input-bg);
-      box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.03);
+      box-shadow:none;
     }
     .form-toggle-copy {
       display:grid;
@@ -1488,11 +1502,11 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       gap:12px;
       flex-wrap:wrap;
-      padding:14px 16px;
-      border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:18px;
+      padding:12px 14px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
       background:#fff;
-      box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);
+      box-shadow:none;
     }
     .resource-form-footer .muted {
       margin:0;
@@ -2047,6 +2061,7 @@ const adminPrototypeHTML = `<!doctype html>
       .workspace-header-main,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
+      .form-section-intro { grid-template-columns:minmax(0, 1fr); }
       .table-toolbar .row-actions { flex-basis:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
       .resource-form-footer { align-items:flex-start; }
@@ -2310,10 +2325,10 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="createModal" class="modal-overlay" hidden>
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
             <div class="modal-header">
-              <div class="section-heading">
+              <div class="section-heading modal-heading modal-form-heading">
                 <span class="eyebrow subtle">Create</span>
                 <h3 id="createModalTitle" class="section-title">Create record</h3>
-                <p class="section-copy muted">Add a new entry for the active resource.</p>
+                <p class="section-copy muted">Create a record for the active resource.</p>
               </div>
               <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
             </div>
@@ -2325,7 +2340,7 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="recordModal" class="modal-overlay" hidden>
           <div class="modal-dialog large" role="dialog" aria-modal="true" aria-labelledby="recordModalTitle">
             <div class="modal-header">
-              <div class="section-heading">
+              <div class="section-heading modal-heading">
                 <div class="row-actions">
                   <span class="eyebrow subtle">Details</span>
                   <span id="detailObjectBadge" class="badge badge-muted">Draft view</span>
@@ -2365,10 +2380,10 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="editModal" class="modal-overlay" hidden>
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
             <div class="modal-header">
-              <div class="section-heading">
+              <div class="section-heading modal-heading modal-form-heading">
                 <span class="eyebrow subtle">Edit</span>
                 <h3 id="editModalTitle" class="section-title">Edit record</h3>
-                <p class="section-copy muted" id="editHint">Select a row to edit it.</p>
+                <p class="section-copy muted" id="editHint">Update the selected record.</p>
               </div>
               <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">Close</button>
             </div>
@@ -3948,16 +3963,23 @@ const adminPrototypeHTML = `<!doctype html>
       }
       const intro = document.createElement('div');
       intro.className = 'form-section-intro';
+      const introCopyWrap = document.createElement('div');
+      introCopyWrap.className = 'form-section-copy-wrap';
       const introTitle = document.createElement('h4');
       introTitle.className = 'form-section-title';
-      introTitle.textContent = mode === 'update' ? 'Editable fields' : 'Required fields';
+      introTitle.textContent = mode === 'update' ? 'Edit form' : 'Create form';
       const introCopy = document.createElement('p');
       introCopy.className = 'form-section-copy';
       introCopy.textContent = mode === 'update'
-        ? 'Update the selected record and save when ready.'
-        : 'Fill in the fields below to create a new record.';
-      intro.appendChild(introTitle);
-      intro.appendChild(introCopy);
+        ? 'Review the fields below and save the changes when ready.'
+        : 'Fill in the fields below and submit to create the record.';
+      const introMeta = document.createElement('span');
+      introMeta.className = 'form-section-meta';
+      introMeta.textContent = fieldNames.length + ' field' + (fieldNames.length === 1 ? '' : 's');
+      introCopyWrap.appendChild(introTitle);
+      introCopyWrap.appendChild(introCopy);
+      intro.appendChild(introCopyWrap);
+      intro.appendChild(introMeta);
       target.appendChild(intro);
       const grid = document.createElement('div');
       grid.className = 'form-grid';
@@ -4059,7 +4081,7 @@ const adminPrototypeHTML = `<!doctype html>
     async function renderUpdateForm() {
       if (!state.selected) {
         els.updateForm.innerHTML = '<p class="muted">Select a row to edit it.</p>';
-        els.editHint.textContent = 'Select a row to edit it.';
+        els.editHint.textContent = 'Select a row to edit.';
         return;
       }
       els.editHint.textContent = 'Editing record #' + recordPrimaryKey(state.selected.item) + '.';
