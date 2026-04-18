@@ -42,10 +42,7 @@ const (
 // New creates a new *zap.Logger configured from the supplied LogConfig.
 func New(cfg settings.LogConfig) *zap.Logger {
 	level := parseLevel(cfg.Level)
-	encoder := buildEncoder(cfg.Format)
-	sink := buildSink(cfg)
-
-	core := zapcore.NewCore(encoder, sink, level)
+	core := buildCore(cfg, level)
 	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(0))
 }
 
@@ -121,17 +118,38 @@ func parseLevel(level string) zapcore.Level {
 	}
 }
 
-func buildEncoder(format string) zapcore.Encoder {
+func buildEncoder(format string, colorize bool) zapcore.Encoder {
 	cfg := zap.NewProductionEncoderConfig()
 	cfg.TimeKey = "time"
 	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
 	cfg.EncodeLevel = zapcore.CapitalLevelEncoder
 
 	if format == "console" {
-		cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		if colorize {
+			cfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		}
 		return zapcore.NewConsoleEncoder(cfg)
 	}
 	return zapcore.NewJSONEncoder(cfg)
+}
+
+func buildCore(cfg settings.LogConfig, level zapcore.Level) zapcore.Core {
+	output := strings.TrimSpace(cfg.Output)
+	switch output {
+	case "", "stdout":
+		return zapcore.NewCore(buildEncoder(cfg.Format, true), zapcore.AddSync(os.Stdout), level)
+	case "stderr":
+		return zapcore.NewCore(buildEncoder(cfg.Format, true), zapcore.AddSync(os.Stderr), level)
+	default:
+		rotator, err := buildRollingLogger(cfg)
+		if err != nil {
+			return zapcore.NewCore(buildEncoder(cfg.Format, true), zapcore.AddSync(os.Stdout), level)
+		}
+		return zapcore.NewTee(
+			zapcore.NewCore(buildEncoder(cfg.Format, true), zapcore.AddSync(os.Stdout), level),
+			zapcore.NewCore(buildEncoder(cfg.Format, false), zapcore.AddSync(rotator), level),
+		)
+	}
 }
 
 func buildSink(cfg settings.LogConfig) zapcore.WriteSyncer {
