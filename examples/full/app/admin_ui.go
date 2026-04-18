@@ -1073,14 +1073,19 @@ const adminPrototypeHTML = `<!doctype html>
       right:0;
       z-index:5;
       display:grid;
-      gap:6px;
-      max-height:240px;
-      overflow:auto;
+      gap:10px;
       border:1px solid var(--admin-border);
       border-radius:12px;
       background:#fff;
       padding:10px;
       box-shadow:0 18px 40px rgba(15, 23, 42, 0.12);
+    }
+    .multi-relation-search { width:100%; }
+    .multi-relation-options {
+      display:grid;
+      gap:6px;
+      max-height:190px;
+      overflow:auto;
     }
     .multi-relation-option {
       display:flex;
@@ -2598,6 +2603,8 @@ const adminPrototypeHTML = `<!doctype html>
         menu.appendChild(empty);
         return;
       }
+      const options = document.createElement('div');
+      options.className = 'multi-relation-options';
       const selected = new Set(selectedRelationValues(select, field).map((value) => String(value)));
       items.forEach((item) => {
         const label = document.createElement('label');
@@ -2621,8 +2628,9 @@ const adminPrototypeHTML = `<!doctype html>
         });
         label.appendChild(checkbox);
         label.appendChild(text);
-        menu.appendChild(label);
+        options.appendChild(label);
       });
+      menu.appendChild(options);
     }
 
     function resetQueryState() {
@@ -3180,28 +3188,39 @@ const adminPrototypeHTML = `<!doctype html>
         const select = document.createElement('select');
         select.name = field.name;
         select.className = 'custom-select';
-        const preview = isMultiRelationField(field) ? null : document.createElement('ul');
+        const multiRelation = isMultiRelationField(field);
+        const preview = multiRelation ? null : document.createElement('ul');
         if (preview) preview.className = 'relation-preview';
-        const dropdown = isMultiRelationField(field) ? document.createElement('details') : null;
+        const dropdown = multiRelation ? document.createElement('details') : null;
         const dropdownSummary = dropdown ? document.createElement('summary') : null;
         const dropdownMenu = dropdown ? document.createElement('div') : null;
+        const dropdownOptions = dropdown ? document.createElement('div') : null;
         if (dropdown) {
           dropdown.className = 'multi-relation-dropdown';
           dropdownSummary.className = 'multi-relation-summary';
           dropdownMenu.className = 'multi-relation-menu';
+          dropdownOptions.className = 'multi-relation-options';
+          searchInput.classList.add('multi-relation-search');
           dropdown.appendChild(dropdownSummary);
+          dropdownMenu.appendChild(searchInput);
+          dropdownMenu.appendChild(dropdownOptions);
           dropdown.appendChild(dropdownMenu);
           select.hidden = true;
+          dropdown.addEventListener('toggle', () => {
+            if (dropdown.open) {
+              window.requestAnimationFrame(() => searchInput.focus());
+            }
+          });
         }
         const help = document.createElement('div');
         help.className = 'field-help';
-        help.textContent = isMultiRelationField(field)
+        help.textContent = multiRelation
           ? 'Search related records and choose one or more matching options for this field.'
           : 'Search related records and choose the best matching option for this field.';
-        wrapper.appendChild(searchInput);
         if (dropdown) {
           wrapper.appendChild(dropdown);
         } else {
+          wrapper.appendChild(searchInput);
           wrapper.appendChild(select);
         }
         if (preview) wrapper.appendChild(preview);
@@ -3210,14 +3229,14 @@ const adminPrototypeHTML = `<!doctype html>
         const items = await loadRelationOptions(field, searchInput.value.trim(), 1, 8);
         const nextValue = resolveRelationSelection(field, items, value, searchInput.value);
         populateRelationSelect(field, select, items, nextValue, field.label);
-        syncMultiRelationDropdown(field, select, dropdownSummary, dropdownMenu, items);
+        syncMultiRelationDropdown(field, select, dropdownSummary, dropdownOptions, items);
         updateRelationPreview(preview, items, searchInput.value.trim());
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;
-          scheduleRelationSearch(field, scopeKey, searchInput, select, preview, dropdownSummary, dropdownMenu);
+          scheduleRelationSearch(field, scopeKey, searchInput, select, preview, dropdownSummary, dropdownOptions);
         });
         select.addEventListener('change', () => {
-          syncMultiRelationDropdown(field, select, dropdownSummary, dropdownMenu, items);
+          syncMultiRelationDropdown(field, select, dropdownSummary, dropdownOptions, items);
         });
         return wrapper;
       }

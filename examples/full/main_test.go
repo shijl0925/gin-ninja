@@ -984,6 +984,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "[data-theme=\"dark\"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }") {
 		t.Fatalf("expected dark mode multi-relation checkbox accent override in html: %q", html)
 	}
+	if !strings.Contains(html, ".multi-relation-search { width:100%; }") {
+		t.Fatalf("expected embedded multi-relation search styling in html: %q", html)
+	}
+	if !strings.Contains(html, "dropdownMenu.appendChild(searchInput);") {
+		t.Fatalf("expected multi-relation search input rendered inside dropdown menu in html: %q", html)
+	}
 	if !strings.Contains(html, "button:hover:not(:disabled) { filter: brightness(1.15)") {
 		t.Fatalf("expected dark mode button hover filter reversal in html: %q", html)
 	}
@@ -1823,6 +1829,12 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 		const menu = document.querySelector("#createForm .multi-relation-menu");
 		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Administrators")) && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Editors"));
 	})()`)
+	clickBrowser(t, ctx, "#createForm details.multi-relation-dropdown summary")
+	waitForBrowserCondition(t, ctx, "create multiselect dropdown opens and focuses search", `(() => {
+		const dropdown = document.querySelector("#createForm details.multi-relation-dropdown");
+		const search = document.querySelector("#createForm .multi-relation-search");
+		return !!dropdown && dropdown.open && !!search && document.activeElement === search;
+	})()`)
 
 	setBrowserValue(t, ctx, "#createForm textarea[name='name']", "Role User")
 	setBrowserValue(t, ctx, "#createForm input[name='email']", "role.user@example.com")
@@ -1831,7 +1843,6 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
 		const dropdown = document.querySelector("#createForm details.multi-relation-dropdown");
 		if (!dropdown) return "";
-		dropdown.open = true;
 		Array.from(dropdown.querySelectorAll(".multi-relation-option")).forEach((option) => {
 			const checkbox = option.querySelector("input[type='checkbox']");
 			const shouldSelect = option.textContent.includes("Administrators") || option.textContent.includes("Editors");
@@ -1860,10 +1871,20 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 		const menu = document.querySelector("#updateForm .multi-relation-menu");
 		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Administrators")) && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Editors"));
 	})()`)
+	clickBrowser(t, ctx, "#updateForm details.multi-relation-dropdown summary")
+	waitForBrowserCondition(t, ctx, "update multiselect dropdown opens and focuses search", `(() => {
+		const dropdown = document.querySelector("#updateForm details.multi-relation-dropdown");
+		const search = document.querySelector("#updateForm .multi-relation-search");
+		return !!dropdown && dropdown.open && !!search && document.activeElement === search;
+	})()`)
+	setBrowserValue(t, ctx, "#updateForm .multi-relation-search", "Admin")
+	waitForBrowserCondition(t, ctx, "update multiselect options filtered", `(() => {
+		const options = Array.from(document.querySelectorAll("#updateForm .multi-relation-option"));
+		return options.length === 1 && options[0].textContent.includes("Administrators");
+	})()`)
 	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
 		const dropdown = document.querySelector("#updateForm details.multi-relation-dropdown");
 		if (!dropdown) return "";
-		dropdown.open = true;
 		Array.from(dropdown.querySelectorAll(".multi-relation-option")).forEach((option) => {
 			const checkbox = option.querySelector("input[type='checkbox']");
 			const shouldSelect = option.textContent.includes("Editors");
