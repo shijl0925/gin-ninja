@@ -82,6 +82,14 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		}
 	}
 
+	adminContent, err := os.ReadFile(filepath.Join(outputDir, "internal", "app", "admin.go"))
+	if err != nil {
+		t.Fatalf("read internal/app/admin.go: %v", err)
+	}
+	if !strings.Contains(string(adminContent), "admin.MountUI(api.Engine(), admin.DefaultUIConfig())") {
+		t.Fatalf("expected generated admin scaffold to mount the default admin UI, got:\n%s", adminContent)
+	}
+
 	for _, rel := range []string{
 		"config.yaml",
 		"settings/config.local.yaml.example",
@@ -220,6 +228,14 @@ func TestWriteAppScaffoldStandardTemplate(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
 			t.Fatalf("expected %s: %v", rel, err)
 		}
+	}
+
+	adminContent, err := os.ReadFile(filepath.Join(outputDir, "admin.go"))
+	if err != nil {
+		t.Fatalf("read admin.go: %v", err)
+	}
+	if !strings.Contains(string(adminContent), "admin.MountUI(api.Engine(), admin.DefaultUIConfig())") {
+		t.Fatalf("expected generated admin scaffold to mount the default admin UI, got:\n%s", adminContent)
 	}
 
 	runScaffoldGoTest(t, dir)

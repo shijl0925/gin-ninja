@@ -1788,6 +1788,9 @@ router.UseGin(middleware.JWTAuth())
 {{- end }}
 NewAdminSite().Mount(router)
 api.AddRouter(router)
+{{- if .Options.WithAuth }}
+admin.MountUI(api.Engine(), admin.DefaultUIConfig())
+{{- end }}
 }
 `
 
