@@ -70,7 +70,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 
 	// Bind JSON body for mutating methods.
 	if isBodyMethod(method) && !isMultipartRequest(c) {
-		body, err := io.ReadAll(c.Request.Body)
+		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 32<<20)) // 32 MB limit
 		if err != nil {
 			return err
 		}
