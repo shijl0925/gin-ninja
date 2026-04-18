@@ -591,6 +591,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
 		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
 	}
+	if !strings.Contains(loginHTML, "body.standalone-login-page .topbar { display:none; }") {
+		t.Fatalf("expected standalone login page to hide the top header in html: %q", loginHTML)
+	}
 	if !strings.Contains(loginHTML, "[hidden] { display:none !important; }") {
 		t.Fatalf("expected hidden css rule in html: %q", loginHTML)
 	}

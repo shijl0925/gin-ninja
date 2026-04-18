@@ -1546,7 +1546,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     body.standalone-login-page .topbar,
     body.standalone-login-page .app-main { max-width:1200px; margin:0 auto; width:100%; }
-    body.standalone-login-page .topbar { padding-top:24px; border-bottom:none; box-shadow:none; background:transparent; backdrop-filter:none; position:static; }
+    body.standalone-login-page .topbar { display:none; }
     body.standalone-login-page .topbar-nav,
     body.standalone-login-page .topbar-actions,
     body.standalone-login-page .topbar-toggle { display:none; }
