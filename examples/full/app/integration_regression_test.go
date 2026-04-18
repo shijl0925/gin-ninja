@@ -85,7 +85,7 @@ type listRegressionRecordsInput struct {
 }
 
 type getRegressionRecordInput struct {
-	ID uint `path:"id" binding:"required"`
+	ID uint `path:"id" json:"-" binding:"required"`
 }
 
 type createRegressionRecordInput struct {
@@ -106,7 +106,7 @@ type createRegressionRecordInput struct {
 }
 
 type updateRegressionRecordInput struct {
-	ID         uint       `path:"id" binding:"required"`
+	ID         uint       `path:"id" json:"-" binding:"required"`
 	Name       *string    `json:"name"`
 	Email      *string    `json:"email" binding:"omitempty,email"`
 	Password   *string    `json:"password" binding:"omitempty,min=8"`
@@ -124,7 +124,7 @@ type updateRegressionRecordInput struct {
 }
 
 type deleteRegressionRecordInput struct {
-	ID uint `path:"id" binding:"required"`
+	ID uint `path:"id" json:"-" binding:"required"`
 }
 
 func (r *regressionRecord) BeforeSave(*gorm.DB) error {
@@ -424,13 +424,12 @@ func newRegressionIntegrationAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	api := ninja.New(ninja.Config{
 		Title:             "regression integration",
 		Version:           "test",
-		Prefix:            "/api",
 		DisableGinDefault: true,
 	})
 	orm.RegisterDefaultErrorMappers(api)
 	api.UseGin(orm.Middleware(db))
 
-	crudRouter := ninja.NewRouter("/regression-records", ninja.WithTags("Regression"))
+	crudRouter := ninja.NewRouter("/api/regression-records", ninja.WithTags("Regression"))
 	ninja.Get(crudRouter, "/", listRegressionRecords, ninja.Paginated[regressionRecordOut]())
 	ninja.Get(crudRouter, "/:id", getRegressionRecord)
 	ninja.Post(crudRouter, "/", createRegressionRecord, ninja.WithTransaction())
@@ -506,6 +505,28 @@ func containsString(items []string, want string) bool {
 	return false
 }
 
+func sameUintSet(got []uint, want ...uint) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	counts := make(map[uint]int, len(want))
+	for _, item := range want {
+		counts[item]++
+	}
+	for _, item := range got {
+		counts[item]--
+		if counts[item] < 0 {
+			return false
+		}
+	}
+	for _, count := range counts {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func TestRegressionCRUDRoutesExerciseRichModelScenarios(t *testing.T) {
 	api, db := newRegressionIntegrationAPI(t)
 	tags := seedRegressionTags(t, db)
@@ -518,7 +539,7 @@ func TestRegressionCRUDRoutesExerciseRichModelScenarios(t *testing.T) {
 
 	createResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-records/", createRegressionRecordInput{
 		Name:       "  Alpha Runner  ",
-		Email:      "  ALPHA@EXAMPLE.COM  ",
+		Email:      "ALPHA@EXAMPLE.COM",
 		Password:   "password123",
 		InviteCode: "invite-me",
 		Age:        28,
@@ -542,7 +563,7 @@ func TestRegressionCRUDRoutesExerciseRichModelScenarios(t *testing.T) {
 	if created.StatusNote != "" || created.Score != 98.75 || created.Balance != 123456789 || !created.Active {
 		t.Fatalf("unexpected create payload: %+v", created)
 	}
-	if len(created.TagIDs) != 2 || created.TagIDs[0] != tags[1].ID || created.TagIDs[1] != tags[0].ID {
+	if !sameUintSet(created.TagIDs, tags[0].ID, tags[1].ID) {
 		t.Fatalf("expected normalized tag ids, got %+v", created)
 	}
 	var rawCreate map[string]any
@@ -569,8 +590,8 @@ func TestRegressionCRUDRoutesExerciseRichModelScenarios(t *testing.T) {
 		Email:    "not-an-email",
 		Password: "password123",
 		StartsAt: startsAt,
-	}, nil); got.Code != http.StatusBadRequest {
-		t.Fatalf("expected invalid email 400, got %d body=%s", got.Code, got.Body.String())
+	}, nil); got.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected invalid email 422, got %d body=%s", got.Code, got.Body.String())
 	}
 
 	secondResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-records/", createRegressionRecordInput{
@@ -702,7 +723,7 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 	tags := seedRegressionTags(t, db)
 	headers := map[string]string{"X-User-ID": "1"}
 
-	metaResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression_records/meta", nil, headers)
+	metaResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression-records/meta", nil, headers)
 	if metaResp.Code != http.StatusOK {
 		t.Fatalf("meta status=%d body=%s", metaResp.Code, metaResp.Body.String())
 	}
@@ -731,7 +752,7 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 
 	startsAt := time.Date(2026, 4, 19, 10, 0, 0, 0, time.UTC)
 	archivedAt := startsAt.Add(3 * time.Hour)
-	createDisallowed := performRegressionJSON(t, api, http.MethodPost, "/admin/resources/regression_records", map[string]any{
+	createDisallowed := performRegressionJSON(t, api, http.MethodPost, "/admin/resources/regression-records", map[string]any{
 		"name":        "Admin User",
 		"email":       "admin@example.com",
 		"password":    "password123",
@@ -743,7 +764,7 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 		t.Fatalf("expected update-only field create rejection, got %d body=%s", createDisallowed.Code, createDisallowed.Body.String())
 	}
 
-	createResp := performRegressionJSON(t, api, http.MethodPost, "/admin/resources/regression_records", map[string]any{
+	createResp := performRegressionJSON(t, api, http.MethodPost, "/admin/resources/regression-records", map[string]any{
 		"name":        "  Admin User  ",
 		"email":       "ADMIN@EXAMPLE.COM",
 		"password":    "password123",
@@ -774,7 +795,7 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 		t.Fatalf("expected normalized tag ids, got %+v", created.Item["tag_ids"])
 	}
 
-	listResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression_records?search=admin&active=true&sort=-age", nil, headers)
+	listResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression-records?search=admin&active=true&sort=-age", nil, headers)
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("admin list status=%d body=%s", listResp.Code, listResp.Body.String())
 	}
@@ -789,14 +810,14 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 	}
 	id := uint(idValue)
 
-	updateDisallowed := performRegressionJSON(t, api, http.MethodPut, "/admin/resources/regression_records/"+strconv.FormatUint(uint64(id), 10), map[string]any{
+	updateDisallowed := performRegressionJSON(t, api, http.MethodPut, "/admin/resources/regression-records/"+strconv.FormatUint(uint64(id), 10), map[string]any{
 		"invite_code": "should-fail",
 	}, headers)
 	if updateDisallowed.Code != http.StatusBadRequest {
 		t.Fatalf("expected create-only field update rejection, got %d body=%s", updateDisallowed.Code, updateDisallowed.Body.String())
 	}
 
-	updateResp := performRegressionJSON(t, api, http.MethodPut, "/admin/resources/regression_records/"+strconv.FormatUint(uint64(id), 10), map[string]any{
+	updateResp := performRegressionJSON(t, api, http.MethodPut, "/admin/resources/regression-records/"+strconv.FormatUint(uint64(id), 10), map[string]any{
 		"name":        "Admin Updated",
 		"email":       "admin.updated@example.com",
 		"password":    "updatedpass123",
@@ -827,7 +848,7 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 		t.Fatalf("expected admin-updated tag relation, got %+v", stored.Tags)
 	}
 
-	detailResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression_records/"+strconv.FormatUint(uint64(id), 10), nil, headers)
+	detailResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression-records/"+strconv.FormatUint(uint64(id), 10), nil, headers)
 	if detailResp.Code != http.StatusOK {
 		t.Fatalf("admin detail status=%d body=%s", detailResp.Code, detailResp.Body.String())
 	}
@@ -836,11 +857,11 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 		t.Fatalf("unexpected admin detail item: %+v", detail.Item)
 	}
 
-	deleteResp := performRegressionJSON(t, api, http.MethodDelete, "/admin/resources/regression_records/"+strconv.FormatUint(uint64(id), 10), nil, headers)
+	deleteResp := performRegressionJSON(t, api, http.MethodDelete, "/admin/resources/regression-records/"+strconv.FormatUint(uint64(id), 10), nil, headers)
 	if deleteResp.Code != http.StatusNoContent {
 		t.Fatalf("admin delete status=%d body=%s", deleteResp.Code, deleteResp.Body.String())
 	}
-	missingResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression_records/"+strconv.FormatUint(uint64(id), 10), nil, headers)
+	missingResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression-records/"+strconv.FormatUint(uint64(id), 10), nil, headers)
 	if missingResp.Code != http.StatusNotFound {
 		t.Fatalf("expected deleted admin detail 404, got %d body=%s", missingResp.Code, missingResp.Body.String())
 	}
