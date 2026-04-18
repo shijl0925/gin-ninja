@@ -4,6 +4,8 @@
 
 The repository ships `gin-ninja-cli` in `cmd/gin-ninja-cli/`.
 
+For focused `startproject` / `startapp` work, prefer the dedicated skill: [`../../gin-ninja-scaffold/SKILL.md`](../../gin-ninja-scaffold/SKILL.md).
+
 Common commands:
 
 - `gin-ninja-cli startproject <name> -module <go-module>`
