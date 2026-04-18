@@ -1637,7 +1637,7 @@ const adminPrototypeHTML = `<!doctype html>
       overflow-wrap:anywhere;
     }
     .table-cell-value.mono {
-      font-family:ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size:13px;
       letter-spacing:-0.01em;
     }
@@ -3766,9 +3766,9 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function buildFilterControl(field) {
-      const wrapper = document.createElement('label');
+      const wrapper = document.createElement('div');
       wrapper.className = 'inline-field form-group filter-field-card';
-      const label = document.createElement('span');
+      const label = document.createElement('label');
       label.className = 'filter-field-label';
       label.textContent = field.label;
       let input;
@@ -3796,6 +3796,8 @@ const adminPrototypeHTML = `<!doctype html>
       }
       input.name = field.name;
       input.placeholder = 'Filter by ' + field.label;
+      input.id = 'filter-' + field.name;
+      label.setAttribute('for', input.id);
       wrapper.appendChild(label);
       wrapper.appendChild(input);
       els.filtersForm.appendChild(wrapper);
@@ -4146,36 +4148,36 @@ const adminPrototypeHTML = `<!doctype html>
       await renderForm(els.updateForm, state.meta?.update_fields || [], 'update', state.selected.item || {}, 'update');
     }
 
-     function renderSelectedRecord() {
-       els.detailFields.innerHTML = '';
-       if (!state.selected) {
-          els.detailTitle.textContent = 'No record selected';
-          els.detailObjectBadge.textContent = 'Draft view';
-          els.detail.textContent = 'No record selected.';
+    function renderSelectedRecord() {
+      els.detailFields.innerHTML = '';
+      if (!state.selected) {
+        els.detailTitle.textContent = 'No record selected';
+        els.detailObjectBadge.textContent = 'Draft view';
+        els.detail.textContent = 'No record selected.';
         els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
         highlightSelectedRow();
         return;
-       }
-       const record = state.selected.item || {};
-       const recordID = recordPrimaryKey(record);
-       els.detailTitle.textContent = state.meta.label + ' #' + recordID;
-       els.detailObjectBadge.textContent = 'Record overview';
-       els.detail.textContent = JSON.stringify(record, null, 2);
-       const detailFields = state.meta?.detail_fields || Object.keys(record);
-       detailFields.forEach((name) => {
-         const row = document.createElement('div');
-         row.className = 'detail-row';
-         const label = document.createElement('div');
-         label.className = 'detail-label';
-         label.textContent = fieldMeta(name)?.label || name;
-         const value = document.createElement('div');
-         value.className = 'detail-value';
-         value.appendChild(buildDetailValueContent(name, record[name]));
-         row.appendChild(label);
-         row.appendChild(value);
-         els.detailFields.appendChild(row);
-       });
-     }
+      }
+      const record = state.selected.item || {};
+      const recordID = recordPrimaryKey(record);
+      els.detailTitle.textContent = state.meta.label + ' #' + recordID;
+      els.detailObjectBadge.textContent = 'Record overview';
+      els.detail.textContent = JSON.stringify(record, null, 2);
+      const detailFields = state.meta?.detail_fields || Object.keys(record);
+      detailFields.forEach((name) => {
+        const row = document.createElement('div');
+        row.className = 'detail-row';
+        const label = document.createElement('div');
+        label.className = 'detail-label';
+        label.textContent = fieldMeta(name)?.label || name;
+        const value = document.createElement('div');
+        value.className = 'detail-value';
+        value.appendChild(buildDetailValueContent(name, record[name]));
+        row.appendChild(label);
+        row.appendChild(value);
+        els.detailFields.appendChild(row);
+      });
+    }
 
     function syncBulkActionState() {
       const count = selectedIDs().length;
