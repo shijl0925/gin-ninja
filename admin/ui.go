@@ -1544,8 +1544,16 @@ const adminPrototypeHTML = `<!doctype html>
         linear-gradient(180deg, #f7f8fb 0%, #eef2ff 52%, #f8fafc 100%);
       background-size: var(--admin-grid-size) var(--admin-grid-size), var(--admin-grid-size) var(--admin-grid-size), auto, auto, auto;
     }
-    body.standalone-login-page .topbar,
-    body.standalone-login-page .app-main { max-width:1200px; margin:0 auto; width:100%; }
+    body.standalone-login-page .topbar { max-width:1200px; margin:0 auto; width:100%; }
+    body.standalone-login-page .app-main {
+      max-width:1200px;
+      margin:0 auto;
+      width:100%;
+      min-height:100vh;
+      align-content:center;
+      padding-top:clamp(24px, 5vh, 48px);
+      padding-bottom:clamp(24px, 5vh, 48px);
+    }
     body.standalone-login-page .topbar { display:none; }
     body.standalone-login-page .topbar-nav,
     body.standalone-login-page .topbar-actions,
