@@ -103,6 +103,7 @@ func chromiumExecPath(t *testing.T) string {
 
 func newFullBrowserContext(t *testing.T) (context.Context, context.CancelFunc) {
 	t.Helper()
+	requireIntegration(t)
 
 	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(context.Background(),
 		append(chromedp.DefaultExecAllocatorOptions[:],

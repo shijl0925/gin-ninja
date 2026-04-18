@@ -137,10 +137,12 @@ func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 }
 
 func TestRunMigrationCommandsHandleMultiStepSchemaEvolutionMySQL(t *testing.T) {
+	requireIntegration(t)
 	runMigrationSchemaEvolutionScenario(t, mysqlMigrationTestBackend(t))
 }
 
 func TestRunMigrationCommandsHandleMultiStepSchemaEvolutionPostgres(t *testing.T) {
+	requireIntegration(t)
 	runMigrationSchemaEvolutionScenario(t, postgresMigrationTestBackend(t))
 }
 

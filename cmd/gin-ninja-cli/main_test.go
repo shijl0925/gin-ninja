@@ -797,6 +797,7 @@ func TestScaffoldSupportsGeneratedCommentCRUD(t *testing.T) {
 
 func runScaffoldModuleGoTest(t *testing.T, dir string) {
 	t.Helper()
+	requireIntegration(t)
 
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {

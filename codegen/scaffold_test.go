@@ -334,6 +334,7 @@ func TestWriteAppScaffoldForceAllowsNonEmptyDirectory(t *testing.T) {
 
 func runScaffoldGoTest(t *testing.T, dir string) {
 	t.Helper()
+	requireIntegration(t)
 
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
