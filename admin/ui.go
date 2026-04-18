@@ -226,14 +226,15 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .form-toggle,
     [data-theme="dark"] .resource-form-footer,
     [data-theme="dark"] .table-shell,
-    [data-theme="dark"] .table-meta-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .form-section-intro,
+    [data-theme="dark"] .filters-shell,
+    [data-theme="dark"] .detail-card,
+    [data-theme="dark"] .records-toolbar { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
     [data-theme="dark"] .field-tag { background: #22253a; border-color: var(--admin-border); color: var(--admin-muted); }
     [data-theme="dark"] .field-tag.required { background: rgba(102,176,255,0.15); color: #bfdbfe; border-color: rgba(102,176,255,0.28); }
     [data-theme="dark"] .field-tag.readonly { background: rgba(148,163,184,0.12); color: #cbd5f5; border-color: rgba(148,163,184,0.24); }
-    [data-theme="dark"] .table-meta-card::before { opacity:0.9; }
-    [data-theme="dark"] .table-meta-card-value,
-    [data-theme="dark"] .table-cell-value { color: var(--admin-text); }
-    [data-theme="dark"] .table-meta-card-label,
+    [data-theme="dark"] .table-cell-value,
+    [data-theme="dark"] .detail-value-text { color: var(--admin-text); }
     [data-theme="dark"] .table-cell-hint,
     [data-theme="dark"] .table-column-key { color: var(--admin-muted); }
     [data-theme="dark"] .resource-table thead th { background: #202433; border-bottom-color: var(--admin-border); }
@@ -248,11 +249,14 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .table-badge.info { background: rgba(102,176,255,0.12); border-color: rgba(102,176,255,0.24); color: #bfdbfe; }
     [data-theme="dark"] .table-badge.neutral { background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.24); color: #cbd5e1; }
     [data-theme="dark"] .table-dot { box-shadow:0 0 0 4px rgba(255,255,255,0.04); }
+    [data-theme="dark"] .records-search-field,
+    [data-theme="dark"] .filter-field-card,
     [data-theme="dark"] .form-field-card input,
     [data-theme="dark"] .form-field-card select,
     [data-theme="dark"] .form-field-card textarea,
     [data-theme="dark"] .form-field-card .multi-relation-dropdown summary,
     [data-theme="dark"] .form-toggle { background: var(--admin-input-bg); border-color: var(--admin-border); }
+    [data-theme="dark"] .badge.badge-muted { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     [data-theme="dark"] .form-check-input.switch-input { background: rgba(148,163,184,0.28); }
     [data-theme="dark"] .form-check-input.switch-input::before { background: #fff; }
     [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
@@ -1077,8 +1081,8 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:18px 20px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.62) 100%);
+      padding:20px 22px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.74) 100%);
     }
     .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
@@ -1110,25 +1114,16 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       gap:14px;
       flex-wrap:wrap;
-      padding:16px 18px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.62) 100%);
+      padding:18px 20px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.74) 100%);
     }
     .section-card-header {
       border-bottom:1px solid rgba(0,0,0,0.06);
       border-top-left-radius:calc(var(--admin-radius) - 1px);
       border-top-right-radius:calc(var(--admin-radius) - 1px);
     }
-    .section-card-body {
-      display:grid;
-      gap:14px;
-      padding:18px;
-      background:var(--admin-surface);
-    }
-    .section-card-footer {
-      align-items:center;
-      border-top:1px solid rgba(0,0,0,0.06);
-      background:rgba(248,250,252,0.7);
-    }
+    .section-card-body { display:grid; gap:16px; padding:20px; background:var(--admin-surface); }
+    .section-card-footer { align-items:center; border-top:1px solid rgba(0,0,0,0.06); background:rgba(248,250,252,0.72); }
     .section-card-tools {
       display:flex;
       align-items:center;
@@ -1140,7 +1135,6 @@ const adminPrototypeHTML = `<!doctype html>
       background:rgba(0,123,255,0.08);
     }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
-    .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
     .field-help, .muted { font-size:13px; color:var(--admin-muted); }
     .relation-control { display:grid; gap:10px; }
@@ -1210,73 +1204,90 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
     .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid var(--admin-border); border-radius:8px; padding:8px 10px; }
     .relation-preview mark { background:#fcf8e3; padding:0; }
-    .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
+    .detail-layout { display:grid; gap:18px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
-    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
-    .detail-grid { display:grid; gap:10px; }
-    .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf1f4; padding-bottom:10px; }
+    .detail-card {
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:26px;
+      padding:22px;
+      background:#fff;
+      box-shadow:0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+    .detail-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .detail-grid { display:grid; gap:12px; }
+    .detail-row {
+      display:grid;
+      grid-template-columns:minmax(120px, 152px) minmax(0, 1fr);
+      gap:16px;
+      align-items:start;
+      padding:14px 0;
+      border-bottom:1px solid #edf1f4;
+    }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
-    .detail-label { font-size:12px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.06em; }
-    .detail-value { font-size:14px; word-break:break-word; color:var(--admin-text); }
+    .detail-label { font-size:12px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.08em; padding-top:6px; }
+    .detail-value { display:grid; gap:8px; font-size:14px; word-break:break-word; color:var(--admin-text); }
+    .detail-value-text { font-size:14px; line-height:1.55; color:var(--admin-text); }
+    .detail-value-text.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:13px; }
     .bulk-edit-fields { display:grid; gap:12px; }
     .bulk-edit-field { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:14px; background:rgba(255,255,255,0.72); }
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-    .table-toolbar .row-actions { flex:1 1 480px; }
-    .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
-    .pagination-info { font-size:14px; color:var(--admin-muted); }
-    .table-meta-grid {
+    .records-toolbar {
       display:grid;
-      gap:12px;
-      margin-bottom:14px;
-      grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
-    }
-    .table-meta-card {
-      position:relative;
-      display:grid;
-      gap:8px;
-      min-height:92px;
-      padding:16px 18px 16px 22px;
+      gap:14px;
+      padding:18px;
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:22px;
+      border-radius:24px;
+      background:linear-gradient(180deg, rgba(249,250,252,0.98) 0%, rgba(255,255,255,0.95) 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+    }
+    .records-toolbar-main,
+    .records-toolbar-status {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .records-search-field {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex:1 1 340px;
+      min-height:52px;
+      padding:0 16px;
+      border:1px solid rgba(15, 23, 42, 0.1);
+      border-radius:18px;
       background:#fff;
-      box-shadow:0 10px 26px rgba(15, 23, 42, 0.05);
+      box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);
     }
-    .table-meta-card::before {
-      content:"";
-      position:absolute;
-      top:16px;
-      bottom:16px;
-      left:16px;
-      width:4px;
-      border-radius:999px;
-      background:var(--table-meta-accent, var(--admin-primary));
+    .records-search-field input {
+      flex:1 1 auto;
+      min-width:0;
+      padding:0;
+      border:none;
+      border-radius:0;
+      background:transparent;
+      box-shadow:none;
     }
-    .table-meta-card:nth-child(1) { --table-meta-accent: #6c4df6; }
-    .table-meta-card:nth-child(2) { --table-meta-accent: #1d9bf0; }
-    .table-meta-card:nth-child(3) { --table-meta-accent: #10b981; }
-    .table-meta-card:nth-child(4) { --table-meta-accent: #f97316; }
-    .table-meta-card strong,
-    .table-meta-card span { min-width:0; }
-    .table-meta-card-label,
-    .table-meta-card-value { padding-left:12px; }
-    .table-meta-card-hint {
-      padding-left:12px;
-      font-size:12px;
-      color:var(--admin-muted);
-      line-height:1.45;
+    .records-search-field input:focus { box-shadow:none; }
+    .records-search-icon { font-size:18px; line-height:1; color:var(--admin-muted); flex-shrink:0; }
+    .records-utility-actions {
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:flex-end;
+      flex:1 1 420px;
+      flex-wrap:wrap;
     }
-    .table-meta-card-label {
-      font-size:12px;
-      font-weight:600;
-      letter-spacing:0.01em;
-      color:var(--admin-muted);
+    .records-utility-actions select,
+    .records-utility-actions button { min-height:46px; }
+    .records-toolbar-status { padding-top:2px; }
+    .badge.badge-muted {
+      background:#f2f4f7;
+      color:#667085;
+      border:1px solid rgba(15, 23, 42, 0.06);
     }
-    .table-meta-card-value {
-      font-size:1.9rem;
-      font-weight:800;
-      color:var(--admin-text);
-      letter-spacing:-0.05em;
-    }
+    .pagination-info { font-size:14px; color:var(--admin-muted); }
     .table-shell {
       overflow:auto;
       border:1px solid rgba(15, 23, 42, 0.08);
@@ -1343,6 +1354,28 @@ const adminPrototypeHTML = `<!doctype html>
     button:hover:not(:disabled) { filter:none; transform:translateY(-1px); }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
     .resource-form { display:grid; gap:18px; }
+    .form-section-intro {
+      display:grid;
+      gap:8px;
+      padding:18px 20px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:24px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.92) 100%);
+      box-shadow:0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+    .form-section-title {
+      margin:0;
+      font-size:1rem;
+      font-weight:700;
+      color:var(--admin-text);
+      letter-spacing:-0.02em;
+    }
+    .form-section-copy {
+      margin:0;
+      font-size:13px;
+      line-height:1.6;
+      color:var(--admin-muted);
+    }
     .form-grid {
       display:grid;
       gap:16px;
@@ -1517,6 +1550,43 @@ const adminPrototypeHTML = `<!doctype html>
       max-width:32rem;
       line-height:1.5;
     }
+    .filters-shell {
+      display:grid;
+      gap:12px;
+      padding:16px 18px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:22px;
+      background:#fff;
+      box-shadow:0 10px 24px rgba(15, 23, 42, 0.04);
+    }
+    .filters-shell-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .filters-shell-copy { display:grid; gap:4px; }
+    .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .filter-field-card {
+      gap:10px;
+      padding:14px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:18px;
+      background:var(--admin-soft);
+    }
+    .filter-field-label {
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      color:var(--admin-muted);
+    }
+    .filter-field-card input,
+    .filter-field-card select {
+      min-height:44px;
+      background:#fff;
+    }
     .resource-table { width:100%; min-width:780px; border-collapse:separate; border-spacing:0; }
     .resource-table th, .resource-table td { border-bottom:1px solid #eef2f7; padding:1rem 1rem; text-align:left; font-size:14px; vertical-align:middle; }
     .resource-table thead th {
@@ -1637,6 +1707,15 @@ const adminPrototypeHTML = `<!doctype html>
     .action-menu-item.danger:hover { background:#fdf1ef; }
     .action-btn-view:hover { background:#fff; border-color:rgba(15, 23, 42, 0.12); }
     pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#1f2d3d; color:#e9ecef; padding:14px; border-radius:0.65rem; }
+    pre#detail {
+      padding:16px 18px;
+      border-radius:18px;
+      background:#111827;
+      color:#e5eefb;
+      font-size:12px;
+      line-height:1.6;
+      overflow:auto;
+    }
     @keyframes spin { to { transform:rotate(360deg); } }
     .list-loading {
       display:none;
@@ -2030,7 +2109,14 @@ const adminPrototypeHTML = `<!doctype html>
       .workspace-header-main,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
-      .table-toolbar .row-actions { flex-basis:100%; }
+      .records-toolbar-main,
+      .records-toolbar-status,
+      .filters-shell-head,
+      .records-utility-actions { align-items:stretch; }
+      .records-search-field,
+      .records-utility-actions,
+      .records-utility-actions > *,
+      .row-actions { width:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
       .resource-form-footer { align-items:flex-start; }
     }
@@ -2241,39 +2327,45 @@ const adminPrototypeHTML = `<!doctype html>
             <section id="recordsShell" class="panel section-shell card card-outline card-primary">
               <div class="card-header section-card-header">
                 <div class="section-heading">
+                  <span class="eyebrow subtle">Workspace</span>
                   <h3 class="section-title">Records</h3>
-                  <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
-                </div>
-                <div class="row-actions">
-                  <span id="selectedCountBadge" class="badge">0 selected</span>
+                  <p class="section-copy muted">Search, filter, sort, and manage the current resource with a cleaner list workspace.</p>
                 </div>
               </div>
               <div class="card-body section-card-body">
-                <div class="toolbar">
-                  <div class="section-heading">
-                    <span class="eyebrow subtle">Table tools</span>
-                    <p class="section-copy muted">Apply fast filters, reload data, and run bulk actions from the record list.</p>
+                <div class="records-toolbar">
+                  <div class="records-toolbar-main">
+                    <label class="records-search-field" aria-label="Search current resource">
+                      <span class="records-search-icon" aria-hidden="true">⌕</span>
+                      <input id="search" class="form-control" placeholder="Search current resource">
+                    </label>
+                    <div class="records-utility-actions">
+                      <select id="sort" class="custom-select"></select>
+                      <select id="pageSize" class="custom-select">
+                        <option value="5">5 / page</option>
+                        <option value="10" selected>10 / page</option>
+                        <option value="20">20 / page</option>
+                        <option value="50">50 / page</option>
+                      </select>
+                      <button id="reloadList" class="secondary btn btn-default" type="button">Refresh</button>
+                      <button id="clearFilters" class="secondary btn btn-default" type="button">Reset</button>
+                      <button id="bulkDelete" class="danger btn btn-danger" type="button">Delete selected</button>
+                    </div>
                   </div>
-                  <div class="row-actions">
-                    <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
-                    <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
-                    <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
+                  <div class="records-toolbar-status">
+                    <span id="selectedCountBadge" class="badge badge-muted">0 selected</span>
+                    <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
                   </div>
                 </div>
-                <div class="table-toolbar">
-                  <div class="row-actions">
-                    <input id="search" class="form-control" placeholder="Search current resource">
-                    <select id="sort" class="custom-select"></select>
-                    <select id="pageSize" class="custom-select">
-                      <option value="5">5 / page</option>
-                      <option value="10" selected>10 / page</option>
-                      <option value="20">20 / page</option>
-                      <option value="50">50 / page</option>
-                    </select>
+                <div id="filtersShell" class="filters-shell">
+                  <div class="filters-shell-head">
+                    <div class="filters-shell-copy">
+                      <span class="eyebrow subtle">Filters</span>
+                      <p class="section-copy muted">Narrow the current list with field-level filters.</p>
+                    </div>
                   </div>
-                  <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+                  <form id="filtersForm" class="filters"></form>
                 </div>
-                <form id="filtersForm" class="filters"></form>
                 <div id="list"></div>
                 <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
                   <span class="list-spinner" aria-hidden="true"></span>
@@ -2281,7 +2373,6 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
               </div>
               <div class="card-footer section-card-footer">
-                <div class="muted">Use filters to refine the current workspace.</div>
                 <div class="row-actions">
                   <button id="prevPage" class="secondary btn btn-default" type="button">Previous</button>
                   <button id="nextPage" class="secondary btn btn-default" type="button">Next</button>
@@ -2294,8 +2385,9 @@ const adminPrototypeHTML = `<!doctype html>
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
             <div class="modal-header">
               <div class="section-heading">
+                <span class="eyebrow subtle">Create</span>
                 <h3 id="createModalTitle" class="section-title">Create record</h3>
-                <p class="section-copy muted">Use the same admin layout to add a new record to the active resource.</p>
+                <p class="section-copy muted">Add a new entry for the active resource with the same polished workspace layout.</p>
               </div>
               <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
             </div>
@@ -2309,10 +2401,11 @@ const adminPrototypeHTML = `<!doctype html>
             <div class="modal-header">
               <div class="section-heading">
                 <div class="row-actions">
-                  <h3 id="recordModalTitle" class="section-title">Open record</h3>
-                  <span id="detailObjectBadge" class="badge">Draft view</span>
+                  <span class="eyebrow subtle">Details</span>
+                  <span id="detailObjectBadge" class="badge badge-muted">Draft view</span>
                 </div>
-                <p class="section-copy muted">Inspect the selected record and review the reference payload in a focused dialog.</p>
+                <h3 id="recordModalTitle" class="section-title">Open record</h3>
+                <p class="section-copy muted">Inspect the selected record and review the structured payload in one focused dialog.</p>
               </div>
               <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">Close</button>
             </div>
@@ -2320,15 +2413,24 @@ const adminPrototypeHTML = `<!doctype html>
               <div class="detail-layout">
                 <section class="stack">
                   <div class="detail-card stack card card-outline card-primary">
-                    <div class="toolbar">
-                      <strong id="detailTitle">No record selected</strong>
+                    <div class="detail-card-header">
+                      <div class="section-heading">
+                        <span class="eyebrow subtle">Overview</span>
+                        <strong id="detailTitle">No record selected</strong>
+                      </div>
                     </div>
                     <div id="detailFields" class="detail-grid">
                       <p class="muted">No record selected.</p>
                     </div>
                   </div>
                   <div class="detail-card stack card card-outline card-secondary">
-                    <strong>Reference payload</strong>
+                    <div class="detail-card-header">
+                      <div class="section-heading">
+                        <span class="eyebrow subtle">Payload</span>
+                        <strong>Reference payload</strong>
+                        <p class="section-copy muted">Use the raw payload for quick inspection or copy/paste during debugging.</p>
+                      </div>
+                    </div>
                     <pre id="detail">No record selected.</pre>
                   </div>
                 </section>
@@ -2340,6 +2442,7 @@ const adminPrototypeHTML = `<!doctype html>
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
             <div class="modal-header">
               <div class="section-heading">
+                <span class="eyebrow subtle">Edit</span>
                 <h3 id="editModalTitle" class="section-title">Edit record</h3>
                 <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
               </div>
@@ -2438,6 +2541,7 @@ const adminPrototypeHTML = `<!doctype html>
       closeEditModal: document.getElementById('closeEditModal'),
       updateForm: document.getElementById('updateForm'),
       editHint: document.getElementById('editHint'),
+      filtersShell: document.getElementById('filtersShell'),
       filtersForm: document.getElementById('filtersForm'),
       sort: document.getElementById('sort'),
       pageSize: document.getElementById('pageSize'),
@@ -3084,37 +3188,6 @@ const adminPrototypeHTML = `<!doctype html>
       return badge;
     }
 
-    function buildTableMetaCards(rows) {
-      const fragment = document.createDocumentFragment();
-      const metaGrid = document.createElement('div');
-      metaGrid.className = 'table-meta-grid';
-      const cards = [
-        { label: 'Visible rows', value: rows.length, hint: 'Rows in the current viewport' },
-        { label: 'Total records', value: state.pagination.total, hint: 'Matched by the current resource scope' },
-        { label: 'Active sort', value: els.sort.selectedOptions[0]?.textContent || 'Default order', hint: 'Applied ordering for the table' },
-        { label: 'Current page', value: state.pagination.page + ' / ' + state.pagination.pages, hint: 'Pagination position' },
-      ];
-      cards.forEach((card) => {
-        const item = document.createElement('div');
-        item.className = 'table-meta-card';
-        const label = document.createElement('span');
-        label.className = 'table-meta-card-label';
-        label.textContent = card.label;
-        const value = document.createElement('strong');
-        value.className = 'table-meta-card-value';
-        value.textContent = String(card.value);
-        const hint = document.createElement('span');
-        hint.className = 'table-meta-card-hint';
-        hint.textContent = card.hint;
-        item.appendChild(label);
-        item.appendChild(value);
-        item.appendChild(hint);
-        metaGrid.appendChild(item);
-      });
-      fragment.appendChild(metaGrid);
-      return fragment;
-    }
-
     function buildTableCellContent(fieldName, value) {
       const field = fieldMeta(fieldName);
       const wrap = document.createElement('div');
@@ -3178,6 +3251,48 @@ const adminPrototypeHTML = `<!doctype html>
         wrap.appendChild(badge);
       }
       return wrap;
+    }
+
+    function buildDetailValueContent(fieldName, value) {
+      const field = fieldMeta(fieldName);
+      const fragment = document.createDocumentFragment();
+      if (value == null || value === '') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge neutral';
+        badge.textContent = 'Empty';
+        fragment.appendChild(badge);
+        return fragment;
+      }
+      if (typeof value === 'boolean') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge ' + (value ? 'success' : 'danger');
+        const dot = document.createElement('span');
+        dot.className = 'table-dot';
+        badge.appendChild(dot);
+        badge.appendChild(document.createTextNode(value ? 'Yes' : 'No'));
+        fragment.appendChild(badge);
+        return fragment;
+      }
+      const primary = document.createElement('span');
+      primary.className = 'detail-value-text';
+      if (fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+        primary.classList.add('mono');
+      }
+      if (isDateLikeValue(field, value)) {
+        const formattedDate = formatDateTimeParts(value);
+        primary.textContent = formattedDate.primary;
+        fragment.appendChild(primary);
+        if (formattedDate.secondary) {
+          const secondary = document.createElement('span');
+          secondary.className = 'table-cell-hint';
+          secondary.textContent = formattedDate.secondary;
+          fragment.appendChild(secondary);
+        }
+        return fragment;
+      }
+      primary.textContent = formatValue(value);
+      fragment.appendChild(primary);
+      return fragment;
     }
 
     function relationStateKey(scopeKey, field) {
@@ -3652,8 +3767,10 @@ const adminPrototypeHTML = `<!doctype html>
 
     function buildFilterControl(field) {
       const wrapper = document.createElement('label');
-      wrapper.className = 'inline-field form-group';
-      wrapper.textContent = field.label;
+      wrapper.className = 'inline-field form-group filter-field-card';
+      const label = document.createElement('span');
+      label.className = 'filter-field-label';
+      label.textContent = field.label;
       let input;
       if (field.component === 'checkbox') {
         input = document.createElement('select');
@@ -3679,6 +3796,7 @@ const adminPrototypeHTML = `<!doctype html>
       }
       input.name = field.name;
       input.placeholder = 'Filter by ' + field.label;
+      wrapper.appendChild(label);
       wrapper.appendChild(input);
       els.filtersForm.appendChild(wrapper);
     }
@@ -3687,9 +3805,10 @@ const adminPrototypeHTML = `<!doctype html>
       els.filtersForm.innerHTML = '';
       const filterFields = state.meta?.filter_fields || [];
       if (!filterFields.length) {
-        els.filtersForm.innerHTML = '<p class="muted">No filters available for this resource.</p>';
+        if (els.filtersShell) els.filtersShell.hidden = true;
         return;
       }
+      if (els.filtersShell) els.filtersShell.hidden = false;
       filterFields.forEach((name) => {
         const field = fieldMeta(name);
         if (field) buildFilterControl(field);
@@ -3903,6 +4022,23 @@ const adminPrototypeHTML = `<!doctype html>
         target.innerHTML = '<p class="muted">' + mode + ' is not available for this resource.</p>';
         return;
       }
+      const intro = document.createElement('div');
+      intro.className = 'form-section-intro';
+      const introEyebrow = document.createElement('span');
+      introEyebrow.className = 'eyebrow subtle';
+      introEyebrow.textContent = mode === 'update' ? 'Selected record' : 'New record';
+      const introTitle = document.createElement('h4');
+      introTitle.className = 'form-section-title';
+      introTitle.textContent = mode === 'update' ? 'Update field values' : 'Enter the primary details';
+      const introCopy = document.createElement('p');
+      introCopy.className = 'form-section-copy';
+      introCopy.textContent = mode === 'update'
+        ? 'Adjust the fields below and save when you are ready to apply changes to the selected record.'
+        : 'Complete the required fields below to create a new record in the active resource.';
+      intro.appendChild(introEyebrow);
+      intro.appendChild(introTitle);
+      intro.appendChild(introCopy);
+      target.appendChild(intro);
       const grid = document.createElement('div');
       grid.className = 'form-grid';
       for (const name of fieldNames) {
@@ -4013,9 +4149,9 @@ const adminPrototypeHTML = `<!doctype html>
      function renderSelectedRecord() {
        els.detailFields.innerHTML = '';
        if (!state.selected) {
-         els.detailTitle.textContent = 'No record selected';
-         els.detailObjectBadge.textContent = 'Draft view';
-         els.detail.textContent = 'No record selected.';
+          els.detailTitle.textContent = 'No record selected';
+          els.detailObjectBadge.textContent = 'Draft view';
+          els.detail.textContent = 'No record selected.';
         els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
         highlightSelectedRow();
         return;
@@ -4025,21 +4161,21 @@ const adminPrototypeHTML = `<!doctype html>
        els.detailTitle.textContent = state.meta.label + ' #' + recordID;
        els.detailObjectBadge.textContent = 'Record overview';
        els.detail.textContent = JSON.stringify(record, null, 2);
-      const detailFields = state.meta?.detail_fields || Object.keys(record);
-      detailFields.forEach((name) => {
-        const row = document.createElement('div');
-        row.className = 'detail-row';
-        const label = document.createElement('div');
-        label.className = 'detail-label';
-        label.textContent = fieldMeta(name)?.label || name;
-        const value = document.createElement('div');
-        value.className = 'detail-value';
-        value.textContent = formatValue(record[name]);
-        row.appendChild(label);
-        row.appendChild(value);
-        els.detailFields.appendChild(row);
-      });
-    }
+       const detailFields = state.meta?.detail_fields || Object.keys(record);
+       detailFields.forEach((name) => {
+         const row = document.createElement('div');
+         row.className = 'detail-row';
+         const label = document.createElement('div');
+         label.className = 'detail-label';
+         label.textContent = fieldMeta(name)?.label || name;
+         const value = document.createElement('div');
+         value.className = 'detail-value';
+         value.appendChild(buildDetailValueContent(name, record[name]));
+         row.appendChild(label);
+         row.appendChild(value);
+         els.detailFields.appendChild(row);
+       });
+     }
 
     function syncBulkActionState() {
       const count = selectedIDs().length;
@@ -4159,7 +4295,6 @@ const adminPrototypeHTML = `<!doctype html>
         return;
       }
       const listFragment = document.createDocumentFragment();
-      listFragment.appendChild(buildTableMetaCards(rows));
       const tableShell = document.createElement('div');
       tableShell.className = 'table-shell table-responsive p-0';
       const table = document.createElement('table');
