@@ -180,15 +180,15 @@ func buildRollingLogger(cfg settings.LogConfig) (*lumberjack.Logger, error) {
 
 	return &lumberjack.Logger{
 		Filename:   filename,
-		MaxSize:    normalizedRotationValue(cfg.MaxSizeMB, defaultMaxSizeMB),
-		MaxAge:     normalizedRotationValue(cfg.MaxAgeDays, defaultMaxAgeDays),
-		MaxBackups: normalizedRotationValue(cfg.MaxBackups, defaultMaxBackups),
+		MaxSize:    normalizeRotationValue(cfg.MaxSizeMB, defaultMaxSizeMB),
+		MaxAge:     normalizeRotationValue(cfg.MaxAgeDays, defaultMaxAgeDays),
+		MaxBackups: normalizeRotationValue(cfg.MaxBackups, defaultMaxBackups),
 		Compress:   cfg.Compress,
 		LocalTime:  true,
 	}, nil
 }
 
-func normalizedRotationValue(value, fallback int) int {
+func normalizeRotationValue(value, fallback int) int {
 	if value <= 0 {
 		return fallback
 	}
