@@ -3131,6 +3131,7 @@ const adminPrototypeHTML = `<!doctype html>
 
     function isFieldRequiredForForm(field, scopeKey) {
       if (!field?.required) return false;
+      // Update forms allow blank passwords so users only re-enter one when changing it.
       return !(scopeKey === 'update' && field.component === 'password');
     }
 
