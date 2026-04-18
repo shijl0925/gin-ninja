@@ -77,10 +77,6 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w, "Run 'gin-ninja-cli help <command>' for command details.")
 }
 
-func printUsage(w io.Writer) {
-	printRootUsage(w)
-}
-
 func printGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w, "Generate CRUD scaffold code from an existing model struct.")
 	fmt.Fprintln(w)

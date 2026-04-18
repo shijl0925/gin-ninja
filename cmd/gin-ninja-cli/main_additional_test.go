@@ -192,7 +192,7 @@ func TestPrintUsageHelpers(t *testing.T) {
 	t.Parallel()
 
 	var usage, generate bytes.Buffer
-	printUsage(&usage)
+	printRootUsage(&usage)
 	printGenerateUsage(&generate)
 
 	if !strings.Contains(usage.String(), "generate crud") {

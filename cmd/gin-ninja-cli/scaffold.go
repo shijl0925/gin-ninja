@@ -28,6 +28,8 @@ type scaffoldPreset struct {
 	Force       *bool  `json:"force" yaml:"force"`
 }
 
+const defaultScaffoldAppDir = "app"
+
 func runGenerate(stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		printGenerateUsage(stderr)
@@ -113,16 +115,17 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	}
 	set := visitedFlags(fs)
 
-	name, ok := resolveLeadingName(nameArg, fs.Args(), strings.TrimSpace(preset.Name))
-	if !ok {
+	name, status := resolveLeadingName(nameArg, fs.Args(), strings.TrimSpace(preset.Name))
+	switch status {
+	case nameStatusTooMany:
 		fmt.Fprintln(stderr, "startproject accepts only one project name")
 		return 2
-	}
-	name = strings.TrimSpace(name)
-	if name == "" && nameArg == "" && len(fs.Args()) == 0 && strings.TrimSpace(preset.Name) == "" {
+	case nameStatusMissing:
 		fmt.Fprintln(stderr, "startproject requires exactly one project name")
 		return 2
 	}
+
+	name = strings.TrimSpace(name)
 	if name == "" {
 		fmt.Fprintln(stderr, "project name must not be empty")
 		return 2
@@ -181,16 +184,16 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	}
 	set := visitedFlags(fs)
 
-	name, ok := resolveLeadingName(nameArg, fs.Args(), strings.TrimSpace(preset.Name))
-	if !ok {
+	name, status := resolveLeadingName(nameArg, fs.Args(), strings.TrimSpace(preset.Name))
+	switch status {
+	case nameStatusTooMany:
 		fmt.Fprintln(stderr, "startapp accepts only one app name")
 		return 2
-	}
-	name = strings.TrimSpace(name)
-	if name == "" && nameArg == "" && len(fs.Args()) == 0 && strings.TrimSpace(preset.Name) == "" {
+	case nameStatusMissing:
 		fmt.Fprintln(stderr, "startapp requires exactly one app name")
 		return 2
 	}
+	name = strings.TrimSpace(name)
 	if name == "" {
 		fmt.Fprintln(stderr, "app name must not be empty")
 		return 2
@@ -278,7 +281,7 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read output directory: %v\n", err)
 		return 1
 	}
-	appDir, err := promptString(stdout, reader, "App package directory", mergeStringFlag("", false, strings.TrimSpace(preset.AppDir), "app"))
+	appDir, err := promptString(stdout, reader, "App package directory", mergeStringFlag("", false, strings.TrimSpace(preset.AppDir), defaultScaffoldAppDir))
 	if err != nil {
 		fmt.Fprintf(stderr, "read app package directory: %v\n", err)
 		return 1
@@ -406,7 +409,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Advanced overrides:")
 	printFlagGroup(w, []flagHelp{
-		{name: "-app-dir <path>", usage: "Relative app package directory inside the project (default: app)"},
+		{name: "-app-dir <path>", usage: fmt.Sprintf("Relative app package directory inside the project (default: %s)", defaultScaffoldAppDir)},
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: true)"},
@@ -497,17 +500,31 @@ func visitedFlags(fs *flag.FlagSet) map[string]bool {
 	return set
 }
 
-func resolveLeadingName(leading string, rest []string, fallback string) (string, bool) {
-	if strings.TrimSpace(leading) != "" {
-		return leading, len(rest) == 0
+type nameStatus int
+
+const (
+	nameStatusResolved nameStatus = iota
+	nameStatusMissing
+	nameStatusTooMany
+)
+
+func resolveLeadingName(leading string, rest []string, fallback string) (string, nameStatus) {
+	if leading != "" {
+		if len(rest) != 0 {
+			return "", nameStatusTooMany
+		}
+		return leading, nameStatusResolved
 	}
 	if len(rest) > 1 {
-		return "", false
+		return "", nameStatusTooMany
 	}
 	if len(rest) == 1 {
-		return rest[0], true
+		return rest[0], nameStatusResolved
 	}
-	return fallback, true
+	if fallback != "" {
+		return fallback, nameStatusResolved
+	}
+	return "", nameStatusMissing
 }
 
 func mergeStringFlag(flagValue string, flagSet bool, presetValue string, fallback string) string {
@@ -556,9 +573,6 @@ func promptString(stdout io.Writer, reader *bufio.Reader, label, defaultValue st
 	value := strings.TrimSpace(line)
 	if value == "" {
 		value = defaultValue
-	}
-	if err == io.EOF {
-		return value, nil
 	}
 	return value, nil
 }
