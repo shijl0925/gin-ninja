@@ -77,10 +77,7 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 	fs := flag.NewFlagSet("makemigrations", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage:")
-		fmt.Fprintln(stderr, "  gin-ninja-cli makemigrations [-config <path>] [-app-dir <path>] [-migrations-dir <path>] [-name <name>]")
-		fmt.Fprintln(stderr, "\nFlags:")
-		fs.PrintDefaults()
+		printMakeMigrationsUsage(stderr)
 	}
 	configPath := fs.String("config", defaultConfigPath, "Project config file path")
 	appDir := fs.String("app-dir", "", "Relative app package directory containing MigrationModels()")
@@ -145,10 +142,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage:")
-		fmt.Fprintln(stderr, "  gin-ninja-cli migrate [target|zero] [-config <path>] [-migrations-dir <path>]")
-		fmt.Fprintln(stderr, "\nFlags:")
-		fs.PrintDefaults()
+		printMigrateUsage(stderr)
 	}
 	configPath := fs.String("config", defaultConfigPath, "Project config file path")
 	migrationsDir := fs.String("migrations-dir", defaultMigrationsDir, "Relative migrations directory")
@@ -241,10 +235,7 @@ func runShowMigrations(stdout, stderr io.Writer, args []string) int {
 	fs := flag.NewFlagSet("showmigrations", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage:")
-		fmt.Fprintln(stderr, "  gin-ninja-cli showmigrations [-config <path>] [-migrations-dir <path>]")
-		fmt.Fprintln(stderr, "\nFlags:")
-		fs.PrintDefaults()
+		printShowMigrationsUsage(stderr)
 	}
 	configPath := fs.String("config", defaultConfigPath, "Project config file path")
 	migrationsDir := fs.String("migrations-dir", defaultMigrationsDir, "Relative migrations directory")
@@ -302,10 +293,7 @@ func runSQLMigrate(stdout, stderr io.Writer, args []string) int {
 	fs := flag.NewFlagSet("sqlmigrate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage:")
-		fmt.Fprintln(stderr, "  gin-ninja-cli sqlmigrate <migration> [-config <path>] [-migrations-dir <path>] [-direction <up|down|all>]")
-		fmt.Fprintln(stderr, "\nFlags:")
-		fs.PrintDefaults()
+		printSQLMigrateUsage(stderr)
 	}
 	configPath := fs.String("config", defaultConfigPath, "Project config file path")
 	migrationsDir := fs.String("migrations-dir", defaultMigrationsDir, "Relative migrations directory")

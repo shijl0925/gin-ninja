@@ -200,6 +200,12 @@ If you want to keep Swagger UI enabled but hide the homepage shortcut in product
 
 gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
 
+The CLI now follows a progressive-help model:
+
+- `gin-ninja-cli --help` shows command groups and recommended entry points
+- `gin-ninja-cli help startproject` or `gin-ninja-cli startproject -h` shows full command details
+- `gin-ninja-cli init` starts an interactive wizard for new users
+
 Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
 
 ```bash
@@ -214,6 +220,9 @@ make build-cli
 ```
 
 ```bash
+gin-ninja-cli --help
+gin-ninja-cli help startproject
+
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli makemigrations
@@ -233,6 +242,13 @@ gin-ninja-cli startproject mysite \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
 gin-ninja-cli startapp accounts -template standard -with-gormx=false
+
+# interactive wizard
+gin-ninja-cli init
+
+# load a reusable scaffold preset
+gin-ninja-cli startproject -config ./scaffold.yaml
+gin-ninja-cli startapp -config ./scaffold.yaml
 ```
 
 `startproject` creates a new directory with:
@@ -282,8 +298,21 @@ Useful scaffold flags:
 - `-with-auth`
 - `-with-admin`
 - `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
+- `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
+
+Example scaffold preset:
+
+```yaml
+name: mysite
+module: github.com/acme/mysite
+output: ./mysite
+app_dir: internal/app
+template: admin
+with_tests: true
+with_gormx: true
+```
 
 Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:
 

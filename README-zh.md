@@ -164,6 +164,12 @@ func main() {
 
 gin-ninja 也提供了类似 Django 的脚手架命令，可快速创建可运行的项目骨架和新的 app 包。
 
+CLI 现在采用渐进式帮助：
+
+- `gin-ninja-cli --help` 只展示命令分组和推荐入口
+- `gin-ninja-cli help startproject` 或 `gin-ninja-cli startproject -h` 再查看完整参数
+- `gin-ninja-cli init` 可通过交互式向导完成首次创建
+
 CLI 会安装到 Go 的可执行目录（优先使用 `$GOBIN`，未设置时使用 `$GOPATH/bin`）：
 
 ```bash
@@ -178,6 +184,9 @@ make build-cli
 ```
 
 ```bash
+gin-ninja-cli --help
+gin-ninja-cli help startproject
+
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli makemigrations
@@ -197,6 +206,13 @@ gin-ninja-cli startproject mysite \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
 gin-ninja-cli startapp accounts -template standard -with-gormx=false
+
+# 交互式向导
+gin-ninja-cli init
+
+# 复用脚手架 preset 配置
+gin-ninja-cli startproject -config ./scaffold.yaml
+gin-ninja-cli startapp -config ./scaffold.yaml
 ```
 
 `startproject` 会创建一个新目录，包含：
@@ -246,8 +262,21 @@ gin-ninja-cli startapp accounts -template standard -with-gormx=false
 - `-with-auth`
 - `-with-admin`
 - `-with-gormx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
+- `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
+
+preset 配置示例：
+
+```yaml
+name: mysite
+module: github.com/acme/mysite
+output: ./mysite
+app_dir: internal/app
+template: admin
+with_tests: true
+with_gormx: true
+```
 
 标准风格项目脚手架还会内置官方 [air](https://github.com/air-verse/air) 预设，方便本地热重载开发：
 
