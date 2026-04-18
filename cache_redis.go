@@ -255,7 +255,7 @@ func randomLockToken() string {
 	if _, err := rand.Read(b); err != nil {
 		// crypto/rand failure is a system-level error; panic rather than fall
 		// back to a predictable value that would silently break lock semantics.
-		panic("redis cache: failed to generate lock token")
+		panic("redis cache: system error")
 	}
 	return hex.EncodeToString(b)
 }

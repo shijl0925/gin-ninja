@@ -193,9 +193,10 @@ type LogConfig struct {
 var globalMu sync.RWMutex
 
 // Global holds the application-wide configuration loaded by Load.
-// Direct field access (e.g. settings.Global.JWT.Secret) is safe for reads when
-// the config is set once at startup.  If you reload config at runtime call
-// SetGlobal/GetGlobal to avoid data races.
+// Direct field access (e.g. settings.Global.JWT.Secret) is only safe when
+// no other goroutine writes to Global (i.e. config is set once at startup
+// and never reloaded).  For all other cases, use GetGlobal/SetGlobal to
+// avoid data races.
 var Global Config
 
 // GetGlobal returns a safe copy of the global configuration.
