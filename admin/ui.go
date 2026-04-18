@@ -215,6 +215,28 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }
     [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
     [data-theme="dark"] label { color: var(--admin-text); }
+    [data-theme="dark"] .form-field-card,
+    [data-theme="dark"] .form-toggle,
+    [data-theme="dark"] .resource-form-footer { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .field-tag { background: #22253a; border-color: var(--admin-border); color: var(--admin-muted); }
+    [data-theme="dark"] .field-tag.required { background: rgba(102,176,255,0.15); color: #bfdbfe; border-color: rgba(102,176,255,0.28); }
+    [data-theme="dark"] .field-tag.readonly { background: rgba(148,163,184,0.12); color: #cbd5f5; border-color: rgba(148,163,184,0.24); }
+    [data-theme="dark"] .table-meta-card { background: #22253a; border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .table-meta-card-value,
+    [data-theme="dark"] .table-cell-value { color: var(--admin-text); }
+    [data-theme="dark"] .table-meta-card-label,
+    [data-theme="dark"] .table-cell-hint,
+    [data-theme="dark"] .table-column-key { color: var(--admin-muted); }
+    [data-theme="dark"] .resource-table thead th { background: #202433; border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .resource-table tbody td { border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .resource-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    [data-theme="dark"] .resource-table tbody tr:hover td { background: rgba(102,176,255,0.08); }
+    [data-theme="dark"] .resource-table tbody tr.row-selected td { background: rgba(102,176,255,0.13); }
+    [data-theme="dark"] .table-badge { background: #22253a; border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .table-badge.success { background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.28); color: #bbf7d0; }
+    [data-theme="dark"] .table-badge.danger { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.28); color: #fecaca; }
+    [data-theme="dark"] .table-badge.info { background: rgba(102,176,255,0.12); border-color: rgba(102,176,255,0.24); color: #bfdbfe; }
+    [data-theme="dark"] .table-badge.neutral { background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.24); color: #cbd5e1; }
     [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
     [data-theme="dark"] .action-menu-trigger,
     [data-theme="dark"] .action-btn-view,
@@ -1184,7 +1206,35 @@ const adminPrototypeHTML = `<!doctype html>
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
     .pagination-info { font-size:14px; color:var(--admin-muted); }
-    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); backdrop-filter: blur(14px); }
+    .table-meta-grid {
+      display:grid;
+      gap:12px;
+      margin-bottom:14px;
+      grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+    }
+    .table-meta-card {
+      display:grid;
+      gap:6px;
+      padding:14px 16px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.88) 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+    }
+    .table-meta-card-label {
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color:var(--admin-muted);
+    }
+    .table-meta-card-value {
+      font-size:1.05rem;
+      font-weight:700;
+      color:var(--admin-text);
+      letter-spacing:-0.02em;
+    }
+    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:calc(var(--admin-radius) + 4px); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); backdrop-filter: blur(14px); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:rgba(255,255,255,0.72); color:var(--admin-muted); text-align:center; }
     .resource-header-actions button { padding-inline:14px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
@@ -1234,17 +1284,248 @@ const adminPrototypeHTML = `<!doctype html>
     button.danger:hover { background:#c0392b; border-color:#a93226; }
     button:hover:not(:disabled) { filter:none; transform:translateY(-1px); }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
-    table { width:100%; border-collapse:collapse; min-width:720px; }
-    th, td { border-bottom:1px solid #dee2e6; padding:0.75rem; text-align:left; font-size:14px; vertical-align:top; }
-    th { background:rgba(248,250,252,0.82); color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; border-bottom-width:2px; }
-    th.sortable-th { cursor:pointer; user-select:none; white-space:nowrap; }
-    th.sortable-th:hover { background:#e9ecef; color:#212529; }
-    th.sortable-th.sort-asc, th.sortable-th.sort-desc { color:var(--admin-primary); background:#eef2ff; }
-    .sort-icon { display:inline-block; margin-left:4px; font-style:normal; opacity:0.45; font-size:10px; vertical-align:middle; }
-    th.sortable-th.sort-asc .sort-icon,
-    th.sortable-th.sort-desc .sort-icon { opacity:1; }
-    tbody tr:hover { background:rgba(0,0,0,.04); }
-    tbody tr.row-selected { background:#eaf3f8; }
+    .resource-form { display:grid; gap:18px; }
+    .form-grid {
+      display:grid;
+      gap:14px;
+      grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .form-field-card {
+      display:grid;
+      gap:12px;
+      padding:16px 18px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:20px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(248,250,252,0.88) 100%);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.78);
+    }
+    .form-field-wide { grid-column:1 / -1; }
+    .form-field-header {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .form-field-copy {
+      display:grid;
+      gap:6px;
+      min-width:0;
+      flex:1 1 180px;
+    }
+    .form-field-label {
+      margin:0;
+      font-size:14px;
+      font-weight:700;
+      color:var(--admin-text);
+    }
+    .form-field-description {
+      margin:0;
+      font-size:12px;
+      line-height:1.5;
+      color:var(--admin-muted);
+    }
+    .form-field-meta {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .field-tag {
+      display:inline-flex;
+      align-items:center;
+      min-height:24px;
+      padding:4px 9px;
+      border-radius:999px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      background:#f8fafc;
+      color:var(--admin-muted);
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+    }
+    .field-tag.required {
+      background:rgba(99, 91, 255, 0.1);
+      border-color:rgba(99, 91, 255, 0.2);
+      color:var(--admin-primary-dark);
+    }
+    .field-tag.readonly {
+      background:rgba(100, 116, 139, 0.1);
+      border-color:rgba(100, 116, 139, 0.18);
+      color:#475569;
+    }
+    .form-field-control { min-width:0; }
+    .form-field-control > input,
+    .form-field-control > select,
+    .form-field-control > textarea,
+    .form-field-control > .relation-control,
+    .form-field-control > .form-toggle { width:100%; }
+    .form-field-card input,
+    .form-field-card select,
+    .form-field-card textarea,
+    .form-field-card .multi-relation-dropdown summary {
+      background:#fff;
+      border-color:rgba(15, 23, 42, 0.1);
+      box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .form-field-card textarea { min-height:132px; }
+    .form-field-checkbox .form-field-control { display:block; }
+    .form-toggle {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border:1px solid rgba(15, 23, 42, 0.1);
+      border-radius:16px;
+      background:#fff;
+      box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .form-toggle-copy {
+      display:grid;
+      gap:4px;
+      min-width:0;
+    }
+    .form-toggle-label {
+      font-size:14px;
+      font-weight:700;
+      color:var(--admin-text);
+    }
+    .form-toggle-help {
+      font-size:12px;
+      line-height:1.45;
+      color:var(--admin-muted);
+    }
+    .form-check-input {
+      width:18px;
+      height:18px;
+      margin:0;
+      accent-color:var(--admin-primary);
+      flex-shrink:0;
+    }
+    .resource-form-footer {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      padding:16px 18px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:20px;
+      background:rgba(248,250,252,0.82);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
+    }
+    .resource-form-footer .muted {
+      margin:0;
+      max-width:32rem;
+      line-height:1.5;
+    }
+    .resource-table { width:100%; min-width:780px; border-collapse:separate; border-spacing:0; }
+    .resource-table th, .resource-table td { border-bottom:1px solid #e5e7eb; padding:0.95rem 1rem; text-align:left; font-size:14px; vertical-align:middle; }
+    .resource-table thead th {
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:linear-gradient(180deg, rgba(248,250,252,0.96) 0%, rgba(241,245,249,0.98) 100%);
+      color:#334155;
+      font-size:12px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+      border-bottom-width:1px;
+      white-space:nowrap;
+    }
+    .resource-table tbody td { background:rgba(255,255,255,0.82); }
+    .resource-table tbody tr:nth-child(even) td { background:rgba(248,250,252,0.88); }
+    .resource-table tbody tr:hover td { background:rgba(238,242,255,0.88); }
+    .resource-table tbody tr.row-selected td { background:#eef4ff; }
+    .resource-table tbody tr:last-child td { border-bottom:none; }
+    .resource-table th.sortable-th { cursor:pointer; user-select:none; }
+    .resource-table th.sortable-th { position:relative; padding-right:2.6rem; }
+    .resource-table th.sortable-th:hover { background:#e9eefc; color:#1e293b; }
+    .resource-table th.sortable-th.sort-asc, .resource-table th.sortable-th.sort-desc { color:var(--admin-primary); background:#eef2ff; }
+    .table-column-label { display:block; font-size:12px; font-weight:700; color:inherit; }
+    .table-column-key {
+      display:block;
+      margin-top:4px;
+      font-size:10px;
+      font-weight:600;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color:var(--admin-muted);
+    }
+    .sort-icon {
+      position:absolute;
+      top:0.95rem;
+      right:1rem;
+      display:inline-block;
+      margin-left:0;
+      font-style:normal;
+      opacity:0.45;
+      font-size:10px;
+      vertical-align:middle;
+    }
+    .resource-table th.sortable-th.sort-asc .sort-icon,
+    .resource-table th.sortable-th.sort-desc .sort-icon { opacity:1; }
+    .table-cell {
+      display:grid;
+      gap:4px;
+      min-width:0;
+    }
+    .table-cell-value {
+      min-width:0;
+      font-weight:600;
+      color:var(--admin-text);
+      overflow-wrap:anywhere;
+    }
+    .table-cell-value.mono {
+      font-family:ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:13px;
+      letter-spacing:-0.01em;
+    }
+    .table-cell-value.numeric { font-variant-numeric:tabular-nums; }
+    .table-cell-hint {
+      font-size:12px;
+      color:var(--admin-muted);
+      line-height:1.4;
+    }
+    .table-badge {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      width:max-content;
+      min-height:28px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      background:#fff;
+      font-size:12px;
+      font-weight:700;
+      line-height:1.2;
+    }
+    .table-badge.success {
+      background:rgba(0,166,90,0.12);
+      border-color:rgba(0,166,90,0.2);
+      color:#15803d;
+    }
+    .table-badge.danger {
+      background:rgba(221,75,57,0.12);
+      border-color:rgba(221,75,57,0.2);
+      color:#c2410c;
+    }
+    .table-badge.info {
+      background:rgba(99,91,255,0.12);
+      border-color:rgba(99,91,255,0.18);
+      color:var(--admin-primary-dark);
+    }
+    .table-badge.neutral {
+      background:rgba(100,116,139,0.1);
+      border-color:rgba(100,116,139,0.16);
+      color:#475569;
+    }
+    .table-select-cell { width:52px; }
+    .table-actions-head, .table-actions-cell { width:128px; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
     .action-menu { position:relative; display:inline-block; }
     .action-menu-trigger,
@@ -1654,6 +1935,8 @@ const adminPrototypeHTML = `<!doctype html>
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
       .table-toolbar .row-actions { flex-basis:100%; }
+      .form-grid { grid-template-columns:minmax(0, 1fr); }
+      .resource-form-footer { align-items:flex-start; }
     }
   </style>
 </head>
@@ -2592,6 +2875,10 @@ const adminPrototypeHTML = `<!doctype html>
       return (state.meta?.fields || []).find((field) => field.name === name);
     }
 
+    function fieldLabel(name) {
+      return fieldMeta(name)?.label || name;
+    }
+
     function fieldValue(name) {
       return els.filtersForm.elements.namedItem(name);
     }
@@ -2647,6 +2934,116 @@ const adminPrototypeHTML = `<!doctype html>
       if (typeof value === 'boolean') return value ? 'Yes' : 'No';
       if (typeof value === 'object') return JSON.stringify(value);
       return String(value);
+    }
+
+    function fieldControlID(scopeKey, field) {
+      return 'field-' + scopeKey + '-' + field.name;
+    }
+
+    function isWideFormField(field) {
+      if (!field) return false;
+      return field.component === 'textarea' || field.component === 'text' || field.component === 'array' || isMultiRelationField(field);
+    }
+
+    function applyFieldControlState(control, field, scopeKey) {
+      if (!control || !field) return;
+      const controlID = fieldControlID(scopeKey, field);
+      const directControl = control.tagName === 'INPUT' || control.tagName === 'SELECT' || control.tagName === 'TEXTAREA'
+        ? control
+        : control.querySelector('input[name="' + field.name + '"], select[name="' + field.name + '"], textarea[name="' + field.name + '"]');
+      if (directControl) {
+        directControl.id = controlID;
+        if (field.required && !field.read_only && directControl.type !== 'checkbox') {
+          directControl.required = true;
+        }
+        if (field.read_only) {
+          directControl.disabled = true;
+        }
+      }
+    }
+
+    function createFieldTag(text, tone) {
+      const badge = document.createElement('span');
+      badge.className = 'field-tag' + (tone ? ' ' + tone : '');
+      badge.textContent = text;
+      return badge;
+    }
+
+    function buildTableMetaCards(rows) {
+      const fragment = document.createDocumentFragment();
+      const metaGrid = document.createElement('div');
+      metaGrid.className = 'table-meta-grid';
+      const cards = [
+        { label: 'Visible rows', value: rows.length },
+        { label: 'Total records', value: state.pagination.total },
+        { label: 'Active sort', value: els.sort.selectedOptions[0]?.textContent || 'Default order' },
+        { label: 'Current page', value: state.pagination.page + ' / ' + state.pagination.pages },
+      ];
+      cards.forEach((card) => {
+        const item = document.createElement('div');
+        item.className = 'table-meta-card';
+        const label = document.createElement('span');
+        label.className = 'table-meta-card-label';
+        label.textContent = card.label;
+        const value = document.createElement('strong');
+        value.className = 'table-meta-card-value';
+        value.textContent = String(card.value);
+        item.appendChild(label);
+        item.appendChild(value);
+        metaGrid.appendChild(item);
+      });
+      fragment.appendChild(metaGrid);
+      return fragment;
+    }
+
+    function buildTableCellContent(fieldName, value) {
+      const field = fieldMeta(fieldName);
+      const wrap = document.createElement('div');
+      wrap.className = 'table-cell';
+      if (value == null || value === '') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge neutral';
+        badge.textContent = 'Empty';
+        wrap.appendChild(badge);
+        return wrap;
+      }
+      if (typeof value === 'boolean') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge ' + (value ? 'success' : 'danger');
+        badge.textContent = value ? 'Enabled' : 'Disabled';
+        wrap.appendChild(badge);
+        return wrap;
+      }
+      if (Array.isArray(value)) {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge info';
+        badge.textContent = value.length + ' item' + (value.length === 1 ? '' : 's');
+        wrap.appendChild(badge);
+        if (value.length) {
+          const hint = document.createElement('span');
+          hint.className = 'table-cell-hint';
+          hint.textContent = value.map((item) => formatValue(item)).join(', ');
+          wrap.appendChild(hint);
+        }
+        return wrap;
+      }
+      const primary = document.createElement('span');
+      primary.className = 'table-cell-value';
+      primary.textContent = formatValue(value);
+      if (fieldName === 'id' || field?.name === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+        primary.classList.add('mono');
+      }
+      if (field?.component === 'number' || field?.type === 'number' || field?.type === 'integer') {
+        primary.classList.add('numeric');
+      }
+      wrap.appendChild(primary);
+      if (field?.unique) {
+        const hint = document.createElement('span');
+        hint.className = 'table-cell-hint';
+        hint.textContent = 'Unique field';
+        wrap.appendChild(hint);
+      }
+      return wrap;
     }
 
     function relationStateKey(scopeKey, field) {
@@ -3367,25 +3764,98 @@ const adminPrototypeHTML = `<!doctype html>
 
     async function renderForm(target, fieldNames, mode, values, scopeKey) {
       target.innerHTML = '';
+      target.className = 'stack resource-form';
       if (!state.meta || !fieldNames.length) {
         target.innerHTML = '<p class="muted">' + mode + ' is not available for this resource.</p>';
         return;
       }
+      const grid = document.createElement('div');
+      grid.className = 'form-grid';
       for (const name of fieldNames) {
         const field = fieldMeta(name);
         if (!field) continue;
-        const wrapper = document.createElement('label');
-        wrapper.className = 'form-field form-group';
-        wrapper.textContent = field.label;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'form-field-card';
+        if (isWideFormField(field)) {
+          wrapper.classList.add('form-field-wide');
+        }
+        if (field.component === 'checkbox') {
+          wrapper.classList.add('form-field-checkbox');
+        }
         const control = await buildFieldControl(field, values[name], scopeKey);
-        wrapper.appendChild(control);
-        target.appendChild(wrapper);
+        applyFieldControlState(control, field, scopeKey);
+        const header = document.createElement('div');
+        header.className = 'form-field-header';
+        const copy = document.createElement('div');
+        copy.className = 'form-field-copy';
+        if (field.component !== 'checkbox') {
+          const label = document.createElement('label');
+          label.className = 'form-field-label';
+          label.setAttribute('for', fieldControlID(scopeKey, field));
+          label.textContent = field.label;
+          copy.appendChild(label);
+        }
+        if (field.description) {
+          const description = document.createElement('p');
+          description.className = 'form-field-description';
+          description.textContent = field.description;
+          copy.appendChild(description);
+        }
+        const meta = document.createElement('div');
+        meta.className = 'form-field-meta';
+        meta.appendChild(createFieldTag(field.required ? 'Required' : 'Optional', field.required ? 'required' : ''));
+        if (field.read_only) {
+          meta.appendChild(createFieldTag('Read only', 'readonly'));
+        }
+        if (field.relation) {
+          meta.appendChild(createFieldTag('Relation', ''));
+        }
+        if (copy.childNodes.length || meta.childNodes.length) {
+          if (copy.childNodes.length) {
+            header.appendChild(copy);
+          }
+          header.appendChild(meta);
+          wrapper.appendChild(header);
+        }
+        const controlWrap = document.createElement('div');
+        controlWrap.className = 'form-field-control';
+        if (field.component === 'checkbox') {
+          const toggle = document.createElement('label');
+          toggle.className = 'form-toggle';
+          const toggleCopy = document.createElement('span');
+          toggleCopy.className = 'form-toggle-copy';
+          const toggleLabel = document.createElement('span');
+          toggleLabel.className = 'form-toggle-label';
+          toggleLabel.textContent = field.label;
+          const toggleHelp = document.createElement('span');
+          toggleHelp.className = 'form-toggle-help';
+          toggleHelp.textContent = field.description || 'Use this switch to turn the option on or off.';
+          toggleCopy.appendChild(toggleLabel);
+          toggleCopy.appendChild(toggleHelp);
+          toggle.appendChild(toggleCopy);
+          toggle.appendChild(control);
+          controlWrap.appendChild(toggle);
+        } else {
+          controlWrap.appendChild(control);
+        }
+        wrapper.appendChild(controlWrap);
+        grid.appendChild(wrapper);
       }
+      target.appendChild(grid);
+      const footer = document.createElement('div');
+      footer.className = 'resource-form-footer';
+      const footerCopy = document.createElement('p');
+      footerCopy.className = 'muted';
+      footerCopy.textContent = mode === 'update'
+        ? 'Review the field values before saving. Changes are applied immediately to the selected record.'
+        : 'Fill in the required fields to create a new record for the current resource.';
       const submit = document.createElement('button');
       submit.type = 'submit';
       submit.textContent = mode === 'update' ? 'Update' : 'Create';
       submit.className = 'btn btn-primary';
-      target.appendChild(submit);
+      footer.appendChild(footerCopy);
+      footer.appendChild(submit);
+      target.appendChild(footer);
     }
 
     async function renderCreateForm() {
@@ -3550,14 +4020,17 @@ const adminPrototypeHTML = `<!doctype html>
         els.list.innerHTML = '<div class="empty-state">No records matched the current filters.</div>';
         return;
       }
+      const listFragment = document.createDocumentFragment();
+      listFragment.appendChild(buildTableMetaCards(rows));
       const tableShell = document.createElement('div');
       tableShell.className = 'table-shell table-responsive p-0';
       const table = document.createElement('table');
-      table.className = 'table table-bordered table-striped table-hover';
+      table.className = 'resource-table table table-bordered table-striped table-hover';
       const thead = document.createElement('thead');
       thead.className = 'thead-light';
       const headRow = document.createElement('tr');
       const bulkCell = document.createElement('th');
+      bulkCell.className = 'table-select-cell';
       const selectAll = document.createElement('input');
       selectAll.type = 'checkbox';
       selectAll.className = 'form-check-input position-static';
@@ -3573,25 +4046,33 @@ const adminPrototypeHTML = `<!doctype html>
       const { field: sortField, dir: sortDir } = activeSortField();
       fields.forEach((field) => {
         const th = document.createElement('th');
+        const label = fieldLabel(field);
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'table-column-label';
+        labelSpan.textContent = label;
+        const keySpan = document.createElement('span');
+        keySpan.className = 'table-column-key';
+        keySpan.textContent = field;
         if (sortable.has(field)) {
           th.className = 'sortable-th' + (sortField === field ? ' sort-' + sortDir : '');
           th.setAttribute('aria-sort', sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
-          th.setAttribute('title', 'Click to sort by ' + field);
-          const labelSpan = document.createElement('span');
-          labelSpan.textContent = field;
+          th.setAttribute('title', 'Click to sort by ' + label);
           const iconSpan = document.createElement('span');
           iconSpan.className = 'sort-icon';
           iconSpan.setAttribute('aria-hidden', 'true');
           iconSpan.textContent = sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅';
           th.appendChild(labelSpan);
+          th.appendChild(keySpan);
           th.appendChild(iconSpan);
           th.onclick = () => applySortFromHeader(field);
         } else {
-          th.textContent = field;
+          th.appendChild(labelSpan);
+          th.appendChild(keySpan);
         }
         headRow.appendChild(th);
       });
       const actionHead = document.createElement('th');
+      actionHead.className = 'table-actions-head';
       actionHead.textContent = 'Actions';
       headRow.appendChild(actionHead);
       thead.appendChild(headRow);
@@ -3602,6 +4083,7 @@ const adminPrototypeHTML = `<!doctype html>
         const id = recordPrimaryKey(row);
         tr.dataset.recordId = String(id);
         const checkCell = document.createElement('td');
+        checkCell.className = 'table-select-cell';
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'form-check-input position-static';
@@ -3614,10 +4096,11 @@ const adminPrototypeHTML = `<!doctype html>
         tr.appendChild(checkCell);
         fields.forEach((field) => {
           const td = document.createElement('td');
-          td.textContent = formatValue(row[field]);
+          td.appendChild(buildTableCellContent(field, row[field]));
           tr.appendChild(td);
         });
         const actionCell = document.createElement('td');
+        actionCell.className = 'table-actions-cell';
         const actionWrap = document.createElement('div');
         actionWrap.className = 'action-cell';
         // View button
@@ -3649,7 +4132,8 @@ const adminPrototypeHTML = `<!doctype html>
       table.appendChild(tbody);
       tableShell.appendChild(table);
       els.list.innerHTML = '';
-      els.list.appendChild(tableShell);
+      listFragment.appendChild(tableShell);
+      els.list.appendChild(listFragment);
       highlightSelectedRow();
     }
 
