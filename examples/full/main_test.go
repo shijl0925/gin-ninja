@@ -238,6 +238,8 @@ func clickBrowser(t *testing.T, ctx context.Context, selector string) {
 }
 
 func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
+	requireIntegration(t)
+
 	server := newFullTestServer(t)
 	defer server.Close()
 
@@ -313,6 +315,8 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 }
 
 func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
+	requireIntegration(t)
+
 	server := newFullTestServer(t)
 	defer server.Close()
 
@@ -475,6 +479,8 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 }
 
 func TestFullExampleOpenAPIContracts(t *testing.T) {
+	requireIntegration(t)
+
 	server := newFullTestServer(t)
 	defer server.Close()
 
@@ -564,6 +570,8 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 }
 
 func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
+	requireIntegration(t)
+
 	server := newFullTestServer(t)
 	defer server.Close()
 
@@ -1317,6 +1325,8 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 }
 
 func TestFullExampleAdminAPIUsersAndProjectPermissions(t *testing.T) {
+	requireIntegration(t)
+
 	server := newFullTestServer(t)
 	defer server.Close()
 
