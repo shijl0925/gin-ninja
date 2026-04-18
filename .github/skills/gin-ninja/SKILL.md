@@ -31,6 +31,8 @@ Use this skill when the task belongs to a service built on `github.com/shijl0925
 1. Identify the job:
    - new project or app scaffold -> [Scaffolding and examples](./references/scaffolding-and-examples.md)
    - new or changed endpoint -> [API patterns](./references/api-patterns.md)
+   - error handling or request context usage -> [Errors and context helpers](./references/errors-and-context.md)
+   - file transfer, model schema shaping, lifecycle, security schemes, versioning, or admin features -> [Advanced features](./references/advanced-features.md)
 2. Pick the core shape:
    - API root -> `ninja.New(ninja.Config{...})`
    - route group -> `ninja.NewRouter(...)`
@@ -48,3 +50,4 @@ Use this skill when the task belongs to a service built on `github.com/shijl0925
 - ORM/settings/bootstrap helpers: `orm/`, `settings/`, `bootstrap/`
 - Runnable examples: `examples/basic`, `examples/users`, `examples/features`, `examples/admin`, `examples/full`
 - CLI scaffolding and migrations: `cmd/gin-ninja-cli/`
+- Skill references: `references/api-patterns.md`, `references/scaffolding-and-examples.md`, `references/errors-and-context.md`, `references/advanced-features.md`
