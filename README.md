@@ -136,6 +136,13 @@ Core module responsibilities:
 go get github.com/shijl0925/gin-ninja
 ```
 
+## Copilot Skill
+
+This repository now includes a workspace Skill at `.github/skills/gin-ninja/`.
+
+- invoke it explicitly with `/gin-ninja`
+- or let the agent auto-load it for gin-ninja-specific API, middleware, scaffold, and OpenAPI tasks
+
 ---
 
 ## Quick Start

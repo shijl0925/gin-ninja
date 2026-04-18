@@ -104,6 +104,13 @@ gin-ninja/
 go get github.com/shijl0925/gin-ninja
 ```
 
+## Copilot Skill
+
+仓库现在内置了一个工作区 Skill：`.github/skills/gin-ninja/`。
+
+- 可以直接用 `/gin-ninja` 显式调用
+- 也可以让智能体在处理 gin-ninja 相关 API、中间件、脚手架和 OpenAPI 任务时自动加载
+
 ## 快速开始
 
 ```go
