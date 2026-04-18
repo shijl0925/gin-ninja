@@ -990,6 +990,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "dropdownMenu.appendChild(searchInput);") {
 		t.Fatalf("expected multi-relation search input rendered inside dropdown menu in html: %q", html)
 	}
+	if !strings.Contains(html, "const dropdown = document.createElement('details');") {
+		t.Fatalf("expected relation fields to render with dropdown controls in html: %q", html)
+	}
 	if !strings.Contains(html, "button:hover:not(:disabled) { filter: brightness(1.15)") {
 		t.Fatalf("expected dark mode button hover filter reversal in html: %q", html)
 	}
@@ -1665,20 +1668,32 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	clickBrowser(t, ctx, "#openCreateModal")
 	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserExists(t, ctx, "#createForm details.multi-relation-dropdown")
+	waitForBrowserCondition(t, ctx, "owner relation dropdown options loaded", `(() => {
+		const menu = document.querySelector("#createForm .multi-relation-menu");
+		return !!menu && Array.from(menu.querySelectorAll(".multi-relation-option")).some((option) => option.textContent.includes("Alice"));
+	})()`)
+	clickBrowser(t, ctx, "#createForm details.multi-relation-dropdown summary")
+	waitForBrowserCondition(t, ctx, "owner relation dropdown opens and focuses search", `(() => {
+		const dropdown = document.querySelector("#createForm details.multi-relation-dropdown");
+		const search = document.querySelector("#createForm .multi-relation-search");
+		const options = document.querySelectorAll("#createForm .multi-relation-option");
+		return !!dropdown && dropdown.open && !!search && document.activeElement === search && options.length > 0;
+	})()`)
 
 	setBrowserValue(t, ctx, "#createForm textarea[name='title']", "Black Box Project")
 	setBrowserValue(t, ctx, "#createForm textarea[name='summary']", "created via browser integration")
-	setBrowserValue(t, ctx, "#createForm .relation-control input[type='text']", "ali")
-	waitForBrowserCondition(t, ctx, "owner relation option 1", `(() => {
-		const select = document.querySelector("#createForm select[name='owner_id']");
-		return !!select && Array.from(select.options).some((option) => option.value === "1");
+	setBrowserValue(t, ctx, "#createForm .multi-relation-search", "ali")
+	waitForBrowserCondition(t, ctx, "owner relation option filtered", `(() => {
+		const options = Array.from(document.querySelectorAll("#createForm .multi-relation-option"));
+		return options.length > 0 && options.every((option) => option.textContent.includes("Ali"));
 	})()`)
-	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+	clickBrowser(t, ctx, "#createForm .multi-relation-option")
+	waitForBrowserCondition(t, ctx, "owner relation value selected", `(() => {
 		const select = document.querySelector("#createForm select[name='owner_id']");
-		select.value = "1";
-		select.dispatchEvent(new Event("change", { bubbles: true }));
-		return select.value;
-	})()`, nil))
+		const summary = document.querySelector("#createForm details.multi-relation-dropdown summary");
+		return !!select && select.value === "1" && !!summary && summary.textContent.includes("Alice");
+	})()`)
 	clickBrowser(t, ctx, "#createForm button[type='submit']")
 
 	waitForBrowserText(t, ctx, "#status", "Created a new projects record.")
