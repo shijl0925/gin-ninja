@@ -867,7 +867,8 @@ database:
 {{- if .Options.WithAuth }}
 
 jwt:
-  secret: "change-me-in-production"
+  # Generate a strong random secret, e.g.: openssl rand -base64 32
+  secret: "replace-with-a-strong-random-secret"
   expire_hours: 24
   issuer: "{{ .Module }}"
 {{- end }}
@@ -927,7 +928,7 @@ APP__ENV=development
 APP__SERVER__PORT=8080
 APP__DATABASE__DSN={{ .DatabaseFile }}
 {{- if .Options.WithAuth }}
-APP__JWT__SECRET=change-me-in-production
+APP__JWT__SECRET=replace-with-a-strong-random-secret
 APP__JWT__ISSUER={{ .Module }}
 {{- end }}
 `

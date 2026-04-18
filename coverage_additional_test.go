@@ -565,10 +565,11 @@ func TestOperationLimitAdditionalCoverage(t *testing.T) {
 	t.Run("rate limiting and timeout", func(t *testing.T) {
 		limiter := newRateLimiter(1, 0)
 		now := time.Now()
-		if !limiter.allow(now) {
+		ip := "192.0.2.1"
+		if !limiter.allow(ip, now) {
 			t.Fatal("expected first request to be allowed")
 		}
-		if limiter.allow(now) {
+		if limiter.allow(ip, now) {
 			t.Fatal("expected second request to be limited")
 		}
 

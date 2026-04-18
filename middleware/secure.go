@@ -18,6 +18,10 @@ type SecurityConfig struct {
 	//   ""            – header is not emitted
 	FrameOption string
 	// XSSProtection sets `X-XSS-Protection: 1; mode=block`.
+	// Deprecated: X-XSS-Protection is no longer supported by modern browsers
+	// and has been removed from Chrome, Firefox, and Edge.  It can introduce
+	// security vulnerabilities in older browsers.  Use ContentSecurityPolicy
+	// instead.  This field defaults to false in DefaultSecurityConfig.
 	XSSProtection bool
 	// ReferrerPolicy sets the `Referrer-Policy` header.
 	// Common values: "no-referrer", "strict-origin-when-cross-origin".
@@ -30,6 +34,13 @@ type SecurityConfig struct {
 	HSTSIncludeSubDomains bool
 	// HSTSPreload appends `; preload` to the HSTS header.
 	HSTSPreload bool
+	// TrustForwardedProto controls whether the X-Forwarded-Proto request header
+	// is trusted when deciding to emit the Strict-Transport-Security header.
+	// Set this to true only when the application is deployed behind a trusted
+	// reverse proxy that sets the header reliably.  Defaults to false.
+	// When false, HSTS is only emitted for connections where TLS is terminated
+	// by this process (c.Request.TLS != nil).
+	TrustForwardedProto bool
 	// ContentSecurityPolicy sets the `Content-Security-Policy` header value.
 	// Empty string disables it.
 	ContentSecurityPolicy string
@@ -44,11 +55,12 @@ func DefaultSecurityConfig() *SecurityConfig {
 	return &SecurityConfig{
 		ContentTypeNoSniff:    true,
 		FrameOption:           "DENY",
-		XSSProtection:         true,
+		XSSProtection:         false, // deprecated; use ContentSecurityPolicy instead
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 		HSTSMaxAge:            0, // disabled by default; set to 31536000 for production HTTPS
 		HSTSIncludeSubDomains: false,
 		HSTSPreload:           false,
+		TrustForwardedProto:   false,
 	}
 }
 
@@ -101,8 +113,11 @@ func SecureHeaders(cfg *SecurityConfig) gin.HandlerFunc {
 		}
 
 		if hstsValue != "" {
-			// Only emit HSTS over HTTPS connections.
-			if c.Request.TLS != nil || forwardedProtoIsHTTPS(c.GetHeader("X-Forwarded-Proto")) {
+			// Only emit HSTS over HTTPS connections.  When TrustForwardedProto is
+			// enabled the X-Forwarded-Proto header from a trusted reverse proxy is
+			// also accepted; leave it disabled (default) to prevent HSTS poisoning
+			// by unauthenticated clients that can set arbitrary request headers.
+			if c.Request.TLS != nil || (cfg.TrustForwardedProto && forwardedProtoIsHTTPS(c.GetHeader("X-Forwarded-Proto"))) {
 				w.Header().Set("Strict-Transport-Security", hstsValue)
 			}
 		}
@@ -134,13 +149,15 @@ func forwardedProtoIsHTTPS(value string) bool {
 // a strict configuration suitable for production HTTPS deployments:
 //   - All basic security headers enabled
 //   - HSTS with a 1-year max-age + includeSubDomains
+//   - TrustForwardedProto enabled (assumes a trusted reverse proxy in front)
 func SecureHeadersStrict() gin.HandlerFunc {
 	return SecureHeaders(&SecurityConfig{
 		ContentTypeNoSniff:    true,
 		FrameOption:           "DENY",
-		XSSProtection:         true,
+		XSSProtection:         false,
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 		HSTSMaxAge:            31536000,
 		HSTSIncludeSubDomains: true,
+		TrustForwardedProto:   true,
 	})
 }

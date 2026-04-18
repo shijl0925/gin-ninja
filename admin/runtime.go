@@ -122,7 +122,7 @@ func (r *Resource) decodeWritePayloadFor(view *resolvedResource, ctx *ninja.Cont
 
 	var payload map[string]json.RawMessage
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "INVALID_JSON", err.Error())
+		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "INVALID_JSON", "invalid request body")
 	}
 
 	values := make(map[string]any, len(payload))
@@ -144,7 +144,7 @@ func (r *Resource) decodeWritePayloadFor(view *resolvedResource, ctx *ninja.Cont
 }
 
 func readAndRestoreRequestBody(ctx *ninja.Context) ([]byte, error) {
-	body, err := io.ReadAll(ctx.Request.Body)
+	body, err := io.ReadAll(io.LimitReader(ctx.Request.Body, 1<<20)) // 1 MB limit
 	if err != nil {
 		return nil, err
 	}

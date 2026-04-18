@@ -428,8 +428,11 @@ func TestWriteError(t *testing.T) {
 	t.Run("generic error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, errors.New("boom"))
-		if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "boom") {
+		if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "INTERNAL_ERROR") {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), "boom") {
+			t.Fatalf("raw error detail must not be exposed to clients: %s", w.Body.String())
 		}
 	})
 
