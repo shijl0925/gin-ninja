@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +32,7 @@ func TestParseLevel(t *testing.T) {
 }
 
 func TestBuildEncoder(t *testing.T) {
-	jsonEncoder := buildEncoder("json")
+	jsonEncoder := buildEncoder("json", false)
 	jsonEntry, err := jsonEncoder.EncodeEntry(zapcore.Entry{Level: zapcore.InfoLevel, Message: "hello"}, nil)
 	if err != nil {
 		t.Fatalf("EncodeEntry(json): %v", err)
@@ -40,13 +41,22 @@ func TestBuildEncoder(t *testing.T) {
 		t.Fatalf("expected json log output, got %s", jsonEntry.String())
 	}
 
-	consoleEncoder := buildEncoder("console")
+	consoleEncoder := buildEncoder("console", true)
 	consoleEntry, err := consoleEncoder.EncodeEntry(zapcore.Entry{Level: zapcore.InfoLevel, Message: "hello"}, nil)
 	if err != nil {
 		t.Fatalf("EncodeEntry(console): %v", err)
 	}
 	if !strings.Contains(consoleEntry.String(), "hello") {
 		t.Fatalf("expected console log output, got %s", consoleEntry.String())
+	}
+
+	plainConsoleEncoder := buildEncoder("console", false)
+	plainConsoleEntry, err := plainConsoleEncoder.EncodeEntry(zapcore.Entry{Level: zapcore.InfoLevel, Message: "hello"}, nil)
+	if err != nil {
+		t.Fatalf("EncodeEntry(console plain): %v", err)
+	}
+	if strings.Contains(plainConsoleEntry.String(), "\x1b[") {
+		t.Fatalf("expected plain console log output without ANSI color codes, got %q", plainConsoleEntry.String())
 	}
 }
 
@@ -66,7 +76,7 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "app.log")
 
-	sink := buildSink(logFile)
+	sink := buildSink(settings.LogConfig{Output: logFile})
 	if _, err := sink.Write([]byte("seed")); err != nil {
 		t.Fatalf("sink.Write: %v", err)
 	}
@@ -77,7 +87,15 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 		t.Fatalf("expected sink to write to file, got data=%q err=%v", data, err)
 	}
 
-	cfg := settings.LogConfig{Level: "debug", Format: "json", Output: logFile}
+	cfg := settings.LogConfig{
+		Level:      "debug",
+		Format:     "json",
+		Output:     logFile,
+		MaxSizeMB:  1,
+		MaxAgeDays: 2,
+		MaxBackups: 4,
+		Compress:   true,
+	}
 	l := New(cfg)
 	if l == nil {
 		t.Fatal("expected logger")
@@ -107,8 +125,97 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 		}
 	}
 
-	if sink := buildSink("stderr"); sink == nil {
+	if sink := buildSink(settings.LogConfig{Output: "stderr"}); sink == nil {
 		t.Fatal("expected stderr sink")
+	}
+}
+
+func TestBuildRollingLoggerDefaultsAndDirectories(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "logs", "app.log")
+
+	rotator, err := buildRollingLogger(settings.LogConfig{
+		Output:     logFile,
+		MaxSizeMB:  0,
+		MaxAgeDays: 0,
+		MaxBackups: 0,
+	})
+	if err != nil {
+		t.Fatalf("buildRollingLogger: %v", err)
+	}
+	if rotator.Filename != logFile {
+		t.Fatalf("expected filename %q, got %q", logFile, rotator.Filename)
+	}
+	if rotator.MaxSize != defaultMaxSizeMB {
+		t.Fatalf("expected default max size %d, got %d", defaultMaxSizeMB, rotator.MaxSize)
+	}
+	if rotator.MaxAge != defaultMaxAgeDays {
+		t.Fatalf("expected default max age %d, got %d", defaultMaxAgeDays, rotator.MaxAge)
+	}
+	if rotator.MaxBackups != defaultMaxBackups {
+		t.Fatalf("expected default max backups %d, got %d", defaultMaxBackups, rotator.MaxBackups)
+	}
+
+	sink := buildSink(settings.LogConfig{Output: logFile})
+	if _, err := sink.Write([]byte("rotating")); err != nil {
+		t.Fatalf("sink.Write: %v", err)
+	}
+	if err := sink.Sync(); err != nil {
+		t.Fatalf("sink.Sync: %v", err)
+	}
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "rotating" {
+		t.Fatalf("expected nested log file write, got %q", string(data))
+	}
+}
+
+func TestNewWithFileOutputMirrorsToStdoutAndUsesPlainFileLogs(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "app.log")
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+	})
+
+	l := New(settings.LogConfig{
+		Level:  "info",
+		Format: "console",
+		Output: logFile,
+	})
+	l.Info("mirrored message")
+	_ = l.Sync()
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close stdout pipe writer: %v", err)
+	}
+
+	stdoutData, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("ReadAll(stdout): %v", err)
+	}
+	stdoutText := string(stdoutData)
+	if !strings.Contains(stdoutText, "mirrored message") {
+		t.Fatalf("expected mirrored stdout log, got %q", stdoutText)
+	}
+
+	fileData, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	fileText := string(fileData)
+	if !strings.Contains(fileText, "mirrored message") {
+		t.Fatalf("expected file log output, got %q", fileText)
+	}
+	if strings.Contains(fileText, "\x1b[") {
+		t.Fatalf("expected file log output without ANSI color codes, got %q", fileText)
 	}
 }
 

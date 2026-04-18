@@ -59,4 +59,8 @@ jwt:
 log:
   level: "info"
   format: "console"
-  output: "stdout"
+  output: "stdout"        # 改成文件路径即可启用文件日志，如 "logs/app.log"
+  max_size_mb: 100        # 单文件上限，默认 100MB
+  max_age_days: 7         # 旧日志保留天数，默认 7 天
+  max_backups: 3          # 保留旧日志份数，默认 3 份
+  compress: false         # 是否压缩旧日志

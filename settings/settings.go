@@ -187,6 +187,14 @@ type LogConfig struct {
 	Format string `mapstructure:"format"`
 	// Output is where logs are written ("stdout", "stderr", or a file path).
 	Output string `mapstructure:"output"`
+	// MaxSizeMB is the maximum size in megabytes of each log file before rotation.
+	MaxSizeMB int `mapstructure:"max_size_mb"`
+	// MaxAgeDays is the maximum number of days to retain old log files.
+	MaxAgeDays int `mapstructure:"max_age_days"`
+	// MaxBackups is the maximum number of old log files to retain.
+	MaxBackups int `mapstructure:"max_backups"`
+	// Compress controls whether rotated log files are compressed.
+	Compress bool `mapstructure:"compress"`
 }
 
 // globalMu protects concurrent reads and writes to Global.
@@ -446,6 +454,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")
 	v.SetDefault("log.output", "stdout")
+	v.SetDefault("log.max_size_mb", 100)
+	v.SetDefault("log.max_age_days", 7)
+	v.SetDefault("log.max_backups", 3)
+	v.SetDefault("log.compress", false)
 }
 
 func normalizeDatabaseConfig(cfg *DatabaseConfig) {

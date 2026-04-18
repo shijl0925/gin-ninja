@@ -42,6 +42,12 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Log.Level != "info" {
 		t.Errorf("expected default log level info, got %s", cfg.Log.Level)
 	}
+	if cfg.Log.MaxSizeMB != 100 || cfg.Log.MaxAgeDays != 7 || cfg.Log.MaxBackups != 3 {
+		t.Errorf("expected default log rotation settings 100/7/3, got %d/%d/%d", cfg.Log.MaxSizeMB, cfg.Log.MaxAgeDays, cfg.Log.MaxBackups)
+	}
+	if cfg.Log.Compress {
+		t.Error("expected default log compression to be false")
+	}
 }
 
 func TestLoad_FromFile(t *testing.T) {
