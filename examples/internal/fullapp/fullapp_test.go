@@ -123,6 +123,8 @@ func TestFullappInitCacheStoreCoverage(t *testing.T) {
 }
 
 func TestFullappBuildAPIAndRunCoverage(t *testing.T) {
+	requireIntegration(t)
+
 	cfg := testConfig("file:fullapp-build?mode=memory&cache=shared")
 	db, err := InitDB(&cfg.Database)
 	if err != nil {

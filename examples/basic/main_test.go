@@ -53,6 +53,8 @@ func decodeBasicBody(t *testing.T, resp *http.Response, out any) {
 }
 
 func TestBasicExampleRoutesAndCRUD(t *testing.T) {
+	requireIntegration(t)
+
 	server := newBasicTestAPI(t)
 	defer server.Close()
 
