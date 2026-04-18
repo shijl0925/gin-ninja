@@ -133,7 +133,7 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("appFiles(minimal): %v", err)
 	}
-	for _, name := range []string{"models.go", "schemas.go", "routers.go", "repos.go", "apis.go"} {
+	for _, name := range []string{"models.go", "migrations.go", "schemas.go", "routers.go", "repos.go", "apis.go"} {
 		if _, ok := minimalFiles[name]; !ok {
 			t.Fatalf("expected minimal app file %q", name)
 		}
@@ -154,7 +154,7 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("appFiles(standard): %v", err)
 	}
-	for _, name := range []string{"models.go", "schemas.go", "routers.go", "repos.go", "apis.go", "services.go", "errors.go", "auth.go", "admin.go", "permissions.go", "scaffold_test.go"} {
+	for _, name := range []string{"models.go", "migrations.go", "schemas.go", "routers.go", "repos.go", "apis.go", "services.go", "errors.go", "auth.go", "admin.go", "permissions.go", "scaffold_test.go"} {
 		if _, ok := standardFiles[name]; !ok {
 			t.Fatalf("expected standard app file %q", name)
 		}

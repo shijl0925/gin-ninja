@@ -28,6 +28,14 @@ func run(stdout, stderr io.Writer, args []string) int {
 		return runStartProject(stdout, stderr, args[1:])
 	case "startapp":
 		return runStartApp(stdout, stderr, args[1:])
+	case "makemigrations":
+		return runMakeMigrations(stdout, stderr, args[1:])
+	case "migrate":
+		return runMigrate(stdout, stderr, args[1:])
+	case "showmigrations":
+		return runShowMigrations(stdout, stderr, args[1:])
+	case "sqlmigrate":
+		return runSQLMigrate(stdout, stderr, args[1:])
 	case "help", "-h", "--help":
 		printUsage(stdout)
 		return 0
@@ -242,6 +250,10 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-app-dir <path>] [-template <minimal|standard|auth|admin>] [-with-tests] [-with-auth] [-with-admin] [-with-gormx] [-force]")
 	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-template <minimal|standard|auth|admin>] [-with-tests] [-with-auth] [-with-admin] [-with-gormx] [-force]")
 	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]")
+	fmt.Fprintln(w, "  gin-ninja-cli makemigrations [-config <path>] [-app-dir <path>] [-migrations-dir <path>] [-name <name>]")
+	fmt.Fprintln(w, "  gin-ninja-cli migrate [target|zero] [-config <path>] [-migrations-dir <path>]")
+	fmt.Fprintln(w, "  gin-ninja-cli showmigrations [-config <path>] [-migrations-dir <path>]")
+	fmt.Fprintln(w, "  gin-ninja-cli sqlmigrate <migration> [-config <path>] [-migrations-dir <path>] [-direction <up|down|all>]")
 }
 
 func boolPtr(v bool) *bool {
