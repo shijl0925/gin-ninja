@@ -1201,7 +1201,7 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
     .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid var(--admin-border); border-radius:8px; padding:8px 10px; }
     .relation-preview mark { background:#fcf8e3; padding:0; }
-    .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1.1fr) minmax(320px, 0.9fr); align-items:start; }
+    .detail-layout { display:grid; gap:16px; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
     .detail-card {
       border:1px solid rgba(15, 23, 42, 0.08);
@@ -2032,6 +2032,10 @@ const adminPrototypeHTML = `<!doctype html>
         min-height:0;
       }
     }
+    @media (max-width: 1180px) {
+      .detail-layout { grid-template-columns:minmax(0, 1fr); }
+      .modal-dialog.large { width:min(920px, 100%); }
+    }
     @media (max-width: 960px) {
       body.standalone-login-page .login-shell { grid-template-columns:1fr; }
       .login-metrics { grid-template-columns:1fr; }
@@ -2043,7 +2047,6 @@ const adminPrototypeHTML = `<!doctype html>
       .workspace-header-main,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
-      .detail-layout { grid-template-columns:minmax(0, 1fr); }
       .table-toolbar .row-actions { flex-basis:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
       .resource-form-footer { align-items:flex-start; }
