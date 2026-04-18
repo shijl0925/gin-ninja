@@ -53,27 +53,7 @@ func JWTAuth() gin.HandlerFunc {
 			response.Unauthorized(c, "JWT not configured")
 			return
 		}
-
-		tokenString := extractBearerToken(c)
-		if tokenString == "" {
-			response.Unauthorized(c, "missing or malformed token")
-			return
-		}
-
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(secret), nil
-		})
-		if err != nil || !token.Valid {
-			response.Unauthorized(c, "invalid or expired token")
-			return
-		}
-
-		c.Set(claimsKey, claims)
-		c.Next()
+		validateJWTToken(c, secret)
 	}
 }
 
@@ -85,27 +65,34 @@ func JWTAuthWithSecret(secret string) gin.HandlerFunc {
 		panic("jwt: Secret must not be empty")
 	}
 	return func(c *gin.Context) {
-		tokenString := extractBearerToken(c)
-		if tokenString == "" {
-			response.Unauthorized(c, "missing or malformed token")
-			return
-		}
-
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(secret), nil
-		})
-		if err != nil || !token.Valid {
-			response.Unauthorized(c, "invalid or expired token")
-			return
-		}
-
-		c.Set(claimsKey, claims)
-		c.Next()
+		validateJWTToken(c, secret)
 	}
+}
+
+// validateJWTToken extracts, parses, and validates the Bearer token in c.
+// On success it stores the parsed claims and calls c.Next(); on failure it
+// aborts with 401.
+func validateJWTToken(c *gin.Context, secret string) {
+	tokenString := extractBearerToken(c)
+	if tokenString == "" {
+		response.Unauthorized(c, "missing or malformed token")
+		return
+	}
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		response.Unauthorized(c, "invalid or expired token")
+		return
+	}
+
+	c.Set(claimsKey, claims)
+	c.Next()
 }
 
 // GetClaims retrieves the JWT claims stored by the JWTAuth middleware.
@@ -125,9 +112,10 @@ func ClaimsKey() string { return claimsKey }
 // GenerateToken creates a signed JWT token for the given user.
 // The token is signed with the HMAC secret and TTL from global settings.
 func GenerateToken(userID uint, username string) (string, error) {
-	secret := settings.Global.JWT.Secret
-	ttl := settings.Global.JWT.ExpireDuration()
-	issuer := settings.Global.JWT.Issuer
+	cfg := settings.GetGlobal()
+	secret := cfg.JWT.Secret
+	ttl := cfg.JWT.ExpireDuration()
+	issuer := cfg.JWT.Issuer
 	if issuer == "" {
 		issuer = "gin-ninja"
 	}
