@@ -82,6 +82,28 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 		}
 	}
 
+	for _, rel := range []string{
+		"config.yaml",
+		"settings/config.local.yaml.example",
+		"settings/config.prod.yaml.example",
+	} {
+		content, err := os.ReadFile(filepath.Join(outputDir, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		text := string(content)
+		for _, snippet := range []string{
+			`max_size_mb: 100`,
+			`max_age_days: 7`,
+			`max_backups: 3`,
+			`compress: false`,
+		} {
+			if !strings.Contains(text, snippet) {
+				t.Fatalf("expected %s to contain %q, got:\n%s", rel, snippet, text)
+			}
+		}
+	}
+
 	airConfig, err := os.ReadFile(filepath.Join(outputDir, ".air.toml"))
 	if err != nil {
 		t.Fatalf("read .air.toml: %v", err)
