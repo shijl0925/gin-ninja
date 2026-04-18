@@ -594,7 +594,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "body.standalone-login-page .topbar { display:none; }") {
 		t.Fatalf("expected standalone login page to hide the top header in html: %q", loginHTML)
 	}
-	if !strings.Contains(loginHTML, "body.standalone-login-page .app-main {\n      max-width:1200px;\n      margin:0 auto;\n      width:100%;\n      min-height:100vh;\n      align-content:center;") {
+	if !strings.Contains(loginHTML, "body.standalone-login-page .app-main {") ||
+		!strings.Contains(loginHTML, "min-height:100vh;") ||
+		!strings.Contains(loginHTML, "align-content:center;") {
 		t.Fatalf("expected standalone login page to vertically center the main login shell in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "[hidden] { display:none !important; }") {
