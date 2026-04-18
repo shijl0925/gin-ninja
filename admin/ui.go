@@ -4023,7 +4023,7 @@ const adminPrototypeHTML = `<!doctype html>
           toggleLabel.textContent = field.label;
           const toggleHelp = document.createElement('span');
           toggleHelp.className = 'form-toggle-help';
-          toggleHelp.textContent = field.description || 'Use this switch to turn the option on or off.';
+          toggleHelp.textContent = field.description || 'Enable or disable this option.';
           toggleCopy.appendChild(toggleLabel);
           toggleCopy.appendChild(toggleHelp);
           toggle.appendChild(toggleCopy);
