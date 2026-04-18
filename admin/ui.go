@@ -1037,15 +1037,13 @@ const adminPrototypeHTML = `<!doctype html>
       align-items:flex-start;
       justify-content:space-between;
       flex-wrap:wrap;
-      padding:18px 20px 14px;
+      padding:18px 20px;
       background:linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.62) 100%);
-      border-bottom:1px solid rgba(0,0,0,0.06);
     }
     .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
     .workspace-header-copy p { margin:0; }
     .workspace-header-copy h2 { font-size:clamp(1.35rem, 1.8vw, 1.65rem); line-height:1.15; }
-    .workspace-header-kicker { margin-bottom:2px; }
     .workspace-path {
       display:inline-flex;
       width:max-content;
@@ -1056,50 +1054,11 @@ const adminPrototypeHTML = `<!doctype html>
       line-height:1.35;
       color:var(--admin-muted);
     }
-    .content-header-breadcrumb {
+    .resource-header-actions {
       display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
-      list-style:none;
-      margin:0;
-      padding:0;
-      color:var(--admin-muted);
-      font-size:12px;
-      text-transform:uppercase;
-      letter-spacing:0.06em;
-    }
-    .content-header-breadcrumb li {
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-    }
-    .content-header-breadcrumb li + li::before {
-      content:'/';
-      color:#adb5bd;
-      margin-right:8px;
-    }
-    .workspace-actions {
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 20px 18px;
-      background:rgba(255,255,255,0.38);
-    }
-    .workspace-actions-copy {
-      display:grid;
-      gap:2px;
-      min-width:0;
-    }
-    .workspace-actions-copy strong {
-      font-size:13px;
-      color:#495057;
-    }
-    .workspace-actions-copy span {
-      font-size:12px;
-      color:var(--admin-muted);
+      align-items:flex-start;
+      justify-content:flex-end;
+      flex:0 0 auto;
     }
     .content-grid { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
     .section-shell { display:grid; gap:14px; }
@@ -1227,7 +1186,7 @@ const adminPrototypeHTML = `<!doctype html>
     .pagination-info { font-size:14px; color:var(--admin-muted); }
     .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); backdrop-filter: blur(14px); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:rgba(255,255,255,0.72); color:var(--admin-muted); text-align:center; }
-    .workspace-actions button { padding-inline:14px; }
+    .resource-header-actions button { padding-inline:14px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
     .modal-dialog {
       width:min(720px, 100%);
@@ -1551,9 +1510,6 @@ const adminPrototypeHTML = `<!doctype html>
       border-color:var(--admin-border);
       box-shadow:none;
     }
-    [data-theme="dark"] .workspace-actions { background:var(--admin-surface); }
-    [data-theme="dark"] .workspace-actions-copy strong { color:var(--admin-text); }
-    [data-theme="dark"] .content-header-breadcrumb { color:var(--admin-muted); }
     [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
     [data-theme="dark"] .dashboard-tile.small-box {
       background:
@@ -1657,7 +1613,6 @@ const adminPrototypeHTML = `<!doctype html>
       .topbar-nav { flex-wrap:wrap; }
       .topbar-meta { justify-content:flex-start; margin-left:0; }
       .workspace-header-main,
-      .workspace-actions,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
       .table-toolbar .row-actions { flex-basis:100%; }
@@ -1842,22 +1797,12 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="workspaceHeader" class="panel workspace-header card card-outline card-primary">
           <div class="workspace-header-main">
             <div class="workspace-header-copy">
-              <span class="workspace-header-kicker eyebrow">Workspace</span>
               <h2 id="resourceTitle">Select a resource</h2>
               <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
             </div>
-            <ol class="content-header-breadcrumb" aria-label="Workspace breadcrumb">
-              <li>Home</li>
-              <li>Admin</li>
-              <li>Workspace</li>
-            </ol>
-          </div>
-          <div class="workspace-actions">
-            <div class="workspace-actions-copy">
-              <strong>AdminLTE workspace chrome</strong>
-              <span>Operate resources with dashboard, filters, and table controls in one place.</span>
+            <div class="resource-header-actions">
+              <button id="openCreateModal" class="btn btn-primary" type="button">Create record</button>
             </div>
-            <button id="openCreateModal" class="btn btn-primary" type="button">Create record</button>
           </div>
         </section>
         <section id="dashboardShell" class="panel stack card card-outline card-info" hidden>
