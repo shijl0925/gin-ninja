@@ -144,6 +144,7 @@ const adminPrototypeHTML = `<!doctype html>
       color-scheme: dark;
       --admin-body-bg: #0f1117;
       --admin-surface: #1a1d27;
+      --admin-surface-elevated: #1f2430;
       --admin-sidebar: #111827;
       --admin-sidebar-alt: #1c2535;
       --admin-sidebar-text: #9ca3af;
@@ -1907,13 +1908,39 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .content-wrapper,
     [data-theme="dark"] .card,
     [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
+    [data-theme="dark"] .modal-header,
     [data-theme="dark"] .workspace-header-main,
     [data-theme="dark"] .section-card-header,
     [data-theme="dark"] .section-card-footer {
-      background:#1f2430;
+      background:var(--admin-surface-elevated);
       border-color:var(--admin-border);
       box-shadow:none;
     }
+    [data-theme="dark"] .modal-body,
+    [data-theme="dark"] .detail-card,
+    [data-theme="dark"] .form-section-intro,
+    [data-theme="dark"] .form-field-card,
+    [data-theme="dark"] .resource-form-footer,
+    [data-theme="dark"] .bulk-edit-field { background:var(--admin-surface); border-color:var(--admin-border); box-shadow:none; }
+    [data-theme="dark"] .filter-field-card input,
+    [data-theme="dark"] .filter-field-card select,
+    [data-theme="dark"] .resource-table thead th,
+    [data-theme="dark"] .resource-table tbody td,
+    [data-theme="dark"] .badge.badge-muted {
+      background:#22253a;
+      border-color:var(--admin-border);
+      color:var(--admin-text);
+    }
+    [data-theme="dark"] .resource-table tbody tr:nth-child(even) td { background:#1c2030; }
+    [data-theme="dark"] .resource-table tbody tr:hover td { background:#273047; }
+    [data-theme="dark"] .resource-table tbody tr.row-selected td { background:#25354b; }
+    [data-theme="dark"] .resource-table th.sortable-th:hover { background:#293246; color:#f8fafc; }
+    [data-theme="dark"] .resource-table th.sortable-th.sort-asc,
+    [data-theme="dark"] .resource-table th.sortable-th.sort-desc { background:#31415f; color:#9dc7ff; }
+    [data-theme="dark"] .resource-table th.sortable-th .sort-icon { color:inherit; }
+    [data-theme="dark"] .form-section-meta,
+    [data-theme="dark"] .field-tag,
+    [data-theme="dark"] .table-badge { background:#252b3b; border-color:#364055; }
     [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
     [data-theme="dark"] .dashboard-tile.small-box {
       background:
