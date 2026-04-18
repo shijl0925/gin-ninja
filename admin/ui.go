@@ -3129,6 +3129,11 @@ const adminPrototypeHTML = `<!doctype html>
       return field.component === 'textarea' || field.component === 'text' || field.component === 'array' || isMultiRelationField(field);
     }
 
+    function isFieldRequiredForForm(field, scopeKey) {
+      if (!field?.required) return false;
+      return !(scopeKey === 'update' && field.component === 'password');
+    }
+
     function applyFieldControlState(control, field, scopeKey) {
       if (!control || !field) return;
       const controlID = fieldControlID(scopeKey, field);
@@ -3137,7 +3142,7 @@ const adminPrototypeHTML = `<!doctype html>
         : control.querySelector('input[name="' + field.name + '"], select[name="' + field.name + '"], textarea[name="' + field.name + '"]');
       if (directControl) {
         directControl.id = controlID;
-        if (field.required && !field.read_only && directControl.type !== 'checkbox') {
+        if (isFieldRequiredForForm(field, scopeKey) && !field.read_only && directControl.type !== 'checkbox') {
           directControl.required = true;
         }
         if (field.read_only) {
@@ -4042,7 +4047,7 @@ const adminPrototypeHTML = `<!doctype html>
         }
         const meta = document.createElement('div');
         meta.className = 'form-field-meta';
-        if (field.required) {
+        if (isFieldRequiredForForm(field, scopeKey)) {
           meta.appendChild(createFieldTag('Required', 'required'));
         }
         if (field.read_only) {
