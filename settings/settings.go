@@ -22,7 +22,7 @@
 //	  max_open_conns: 100
 //
 //	jwt:
-//	  secret: "change-me-in-production"
+//	  secret: "your-secret-here"
 //	  expire_hours: 24
 //	  issuer: "gin-ninja"
 //
@@ -38,6 +38,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -188,8 +189,31 @@ type LogConfig struct {
 	Output string `mapstructure:"output"`
 }
 
+// globalMu protects concurrent reads and writes to Global.
+var globalMu sync.RWMutex
+
 // Global holds the application-wide configuration loaded by Load.
+// Direct field access (e.g. settings.Global.JWT.Secret) is only safe when
+// no other goroutine writes to Global (i.e. config is set once at startup
+// and never reloaded).  For all other cases, use GetGlobal/SetGlobal to
+// avoid data races.
 var Global Config
+
+// GetGlobal returns a safe copy of the global configuration.
+// Prefer this function when the config may be set concurrently (e.g. tests,
+// hot-reload scenarios).
+func GetGlobal() Config {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+	return Global
+}
+
+// SetGlobal replaces the global configuration under the mutex.
+func SetGlobal(cfg Config) {
+	globalMu.Lock()
+	Global = cfg
+	globalMu.Unlock()
+}
 
 // Load reads configuration from the given file path and merges in
 // environment variables.  Environment variables are mapped using the
@@ -232,7 +256,7 @@ func Load(cfgFile string) (*Config, error) {
 	}
 	normalizeDatabaseConfig(&cfg.Database)
 
-	Global = cfg
+	SetGlobal(cfg)
 	return &cfg, nil
 }
 
@@ -303,7 +327,7 @@ func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error
 	}
 	normalizeDatabaseConfig(&cfg.Database)
 
-	Global = cfg
+	SetGlobal(cfg)
 	return &cfg, nil
 }
 
@@ -415,7 +439,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("redis.prefix", "gin-ninja:")
 
-	v.SetDefault("jwt.secret", "change-me-in-production")
+	v.SetDefault("jwt.secret", "")
 	v.SetDefault("jwt.expire_hours", 24)
 	v.SetDefault("jwt.issuer", "gin-ninja")
 

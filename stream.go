@@ -57,12 +57,14 @@ func (s *SSEStream) Send(event SSEEvent) error {
 		return InternalError()
 	}
 	if event.ID != "" {
-		if _, err := fmt.Fprintf(writer, "id: %s\n", event.ID); err != nil {
+		// Strip newlines to prevent SSE header injection.
+		if _, err := fmt.Fprintf(writer, "id: %s\n", sseStripNewlines(event.ID)); err != nil {
 			return err
 		}
 	}
 	if event.Event != "" {
-		if _, err := fmt.Fprintf(writer, "event: %s\n", event.Event); err != nil {
+		// Strip newlines to prevent SSE header injection.
+		if _, err := fmt.Fprintf(writer, "event: %s\n", sseStripNewlines(event.Event)); err != nil {
 			return err
 		}
 	}
@@ -242,4 +244,11 @@ func sseData(value any) string {
 		}
 		return string(data)
 	}
+}
+
+// sseStripNewlines removes CR and LF characters from SSE field values (id,
+// event) to prevent header injection.  Embedded newlines would allow a caller
+// to inject arbitrary SSE frames into the response stream.
+func sseStripNewlines(s string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
 }

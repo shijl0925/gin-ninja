@@ -10,47 +10,83 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type rateLimiter struct {
-	mu     sync.Mutex
-	rate   float64
-	burst  float64
+// tokenBucket is a single token-bucket entry keyed by client IP.
+type tokenBucket struct {
 	tokens float64
 	last   time.Time
+}
+
+const (
+	rateLimiterPruneInterval = 5 * time.Minute
+	rateLimiterClientTTL     = 5 * time.Minute
+)
+
+// rateLimiter manages per-client-IP token buckets so that a single client
+// cannot exhaust the rate limit for all other callers.
+type rateLimiter struct {
+	mu        sync.Mutex
+	rate      float64
+	burst     float64
+	clients   map[string]*tokenBucket
+	lastPrune time.Time
 }
 
 func newRateLimiter(rate, burst float64) *rateLimiter {
 	if burst < 1 {
 		burst = 1
 	}
-	now := time.Now()
 	return &rateLimiter{
-		rate:   rate,
-		burst:  burst,
-		tokens: burst,
-		last:   now,
+		rate:      rate,
+		burst:     burst,
+		clients:   make(map[string]*tokenBucket),
+		lastPrune: time.Now(),
 	}
 }
 
-func (l *rateLimiter) allow(now time.Time) bool {
+// allow reports whether the request from clientIP should be allowed through.
+func (l *rateLimiter) allow(clientIP string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	elapsed := now.Sub(l.last).Seconds()
-	l.last = now
-	l.tokens += elapsed * l.rate
-	if l.tokens > l.burst {
-		l.tokens = l.burst
+	bucket, ok := l.clients[clientIP]
+	if !ok {
+		bucket = &tokenBucket{tokens: l.burst, last: now}
+		l.clients[clientIP] = bucket
 	}
-	if l.tokens < 1 {
-		return false
+
+	elapsed := now.Sub(bucket.last).Seconds()
+	bucket.last = now
+	bucket.tokens += elapsed * l.rate
+	if bucket.tokens > l.burst {
+		bucket.tokens = l.burst
 	}
-	l.tokens--
-	return true
+
+	allowed := bucket.tokens >= 1
+	if allowed {
+		bucket.tokens--
+	}
+
+	if now.Sub(l.lastPrune) > rateLimiterPruneInterval {
+		l.pruneLocked(now)
+	}
+
+	return allowed
+}
+
+// pruneLocked removes client entries that have been idle longer than
+// rateLimiterClientTTL.  Must be called with l.mu held.
+func (l *rateLimiter) pruneLocked(now time.Time) {
+	for ip, bucket := range l.clients {
+		if now.Sub(bucket.last) > rateLimiterClientTTL {
+			delete(l.clients, ip)
+		}
+	}
+	l.lastPrune = now
 }
 
 func wrapRateLimit(limiter *rateLimiter, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !limiter.allow(time.Now()) {
+		if !limiter.allow(c.ClientIP(), time.Now()) {
 			writeError(c, &Error{
 				Status:  http.StatusTooManyRequests,
 				Code:    "RATE_LIMITED",

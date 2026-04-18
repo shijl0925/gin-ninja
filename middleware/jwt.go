@@ -36,40 +36,63 @@ func (c *Claims) GetUserID() uint { return c.UserID }
 // JWTAuth returns a gin middleware that validates Bearer tokens using the
 // HMAC secret from the global settings.
 //
+// The secret is read from settings.Global on every request rather than at
+// middleware construction time, so the middleware works correctly even when
+// settings are loaded after the middleware is registered (e.g. in main()).
+// If the global secret is empty at request time the middleware responds with
+// 401; it does NOT panic on construction.
+//
 // On success the parsed *Claims are stored in the Gin context under the key
 // returned by ClaimsKey().  On failure the request is aborted with 401.
 //
 //	api.Engine().Use(middleware.JWTAuth())
 func JWTAuth() gin.HandlerFunc {
-	return JWTAuthWithSecret(settings.Global.JWT.Secret)
+	return func(c *gin.Context) {
+		secret := settings.GetGlobal().JWT.Secret
+		if secret == "" {
+			response.Unauthorized(c, "authentication unavailable")
+			return
+		}
+		validateJWTToken(c, secret)
+	}
 }
 
 // JWTAuthWithSecret is like JWTAuth but uses an explicit secret rather than
 // reading from global settings.  Useful in tests or when running multiple APIs
 // with different secrets.
 func JWTAuthWithSecret(secret string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		tokenString := extractBearerToken(c)
-		if tokenString == "" {
-			response.Unauthorized(c, "missing or malformed token")
-			return
-		}
-
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, errors.New("unexpected signing method")
-			}
-			return []byte(secret), nil
-		})
-		if err != nil || !token.Valid {
-			response.Unauthorized(c, "invalid or expired token")
-			return
-		}
-
-		c.Set(claimsKey, claims)
-		c.Next()
+	if secret == "" {
+		panic("jwt: Secret must not be empty")
 	}
+	return func(c *gin.Context) {
+		validateJWTToken(c, secret)
+	}
+}
+
+// validateJWTToken extracts, parses, and validates the Bearer token in c.
+// On success it stores the parsed claims and calls c.Next(); on failure it
+// aborts with 401.
+func validateJWTToken(c *gin.Context, secret string) {
+	tokenString := extractBearerToken(c)
+	if tokenString == "" {
+		response.Unauthorized(c, "missing or malformed token")
+		return
+	}
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		response.Unauthorized(c, "invalid or expired token")
+		return
+	}
+
+	c.Set(claimsKey, claims)
+	c.Next()
 }
 
 // GetClaims retrieves the JWT claims stored by the JWTAuth middleware.
@@ -89,9 +112,10 @@ func ClaimsKey() string { return claimsKey }
 // GenerateToken creates a signed JWT token for the given user.
 // The token is signed with the HMAC secret and TTL from global settings.
 func GenerateToken(userID uint, username string) (string, error) {
-	secret := settings.Global.JWT.Secret
-	ttl := settings.Global.JWT.ExpireDuration()
-	issuer := settings.Global.JWT.Issuer
+	cfg := settings.GetGlobal()
+	secret := cfg.JWT.Secret
+	ttl := cfg.JWT.ExpireDuration()
+	issuer := cfg.JWT.Issuer
 	if issuer == "" {
 		issuer = "gin-ninja"
 	}

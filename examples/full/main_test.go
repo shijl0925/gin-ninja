@@ -2242,6 +2242,11 @@ func TestFullExampleInitDBAndMainHelpers(t *testing.T) {
 			Driver: "sqlite",
 			DSN:    "file:init-full?mode=memory&cache=shared",
 		},
+		JWT: settings.JWTConfig{
+			Secret:      "test-secret",
+			ExpireHours: 24,
+			Issuer:      "gin-ninja",
+		},
 		Log: settings.LogConfig{Level: "debug", Format: "json", Output: "stdout"},
 	}
 	log := bootstrap.InitLogger(&cfg.Log)

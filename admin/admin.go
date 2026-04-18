@@ -758,7 +758,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			return nil, err
 		}
 
-		body, err := io.ReadAll(ctx.Request.Body)
+		body, err := io.ReadAll(io.LimitReader(ctx.Request.Body, 1<<20)) // 1 MB limit
 		if err != nil {
 			return nil, err
 		}
@@ -768,7 +768,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			IDs []json.RawMessage `json:"ids"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "INVALID_JSON", err.Error())
+			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "INVALID_JSON", "invalid request body")
 		}
 		if len(payload.IDs) == 0 {
 			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", "ids must not be empty")
@@ -807,7 +807,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 func (r *Resource) findByID(db *gorm.DB, raw string) (any, error) {
 	value, err := r.primaryKey.parseString(raw)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_PATH_PARAM", fmt.Sprintf("id: %s", err.Error()))
+		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_PATH_PARAM", "invalid id")
 	}
 	model := r.newModel()
 	if err := db.First(model, value).Error; err != nil {
@@ -822,7 +822,7 @@ func (r *Resource) findByID(db *gorm.DB, raw string) (any, error) {
 func (r *Resource) parsePrimaryKeyJSON(raw json.RawMessage) (any, error) {
 	value, err := r.primaryKey.decodeJSON(raw)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("id: %s", err.Error()))
+		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", "invalid id value")
 	}
 	return value, nil
 }

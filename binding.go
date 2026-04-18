@@ -57,7 +57,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 			return &Error{
 				Status:  http.StatusBadRequest,
 				Code:    "INVALID_QUERY",
-				Message: err.Error(),
+				Message: "invalid query parameters",
 			}
 		}
 	}
@@ -70,7 +70,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 
 	// Bind JSON body for mutating methods.
 	if isBodyMethod(method) && !isMultipartRequest(c) {
-		body, err := io.ReadAll(c.Request.Body)
+		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 32<<20)) // 32 MB limit
 		if err != nil {
 			return err
 		}
@@ -82,7 +82,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "INVALID_JSON",
-					Message: err.Error(),
+					Message: "invalid request body",
 				}
 			}
 		}
@@ -180,7 +180,7 @@ func bindMultipartFields(c *gin.Context, t reflect.Type, v reflect.Value) error 
 		return &Error{
 			Status:  http.StatusBadRequest,
 			Code:    "INVALID_MULTIPART",
-			Message: err.Error(),
+			Message: "invalid multipart form",
 		}
 	}
 	return bindMultipartValue(t, v, form)

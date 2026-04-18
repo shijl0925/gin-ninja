@@ -552,8 +552,9 @@ func TestSecureHeaders_Defaults(t *testing.T) {
 	if got := w.Header().Get("X-Frame-Options"); got != "DENY" {
 		t.Errorf("X-Frame-Options: expected DENY, got %q", got)
 	}
-	if got := w.Header().Get("X-XSS-Protection"); got != "1; mode=block" {
-		t.Errorf("X-XSS-Protection: expected '1; mode=block', got %q", got)
+	// X-XSS-Protection is deprecated; DefaultSecurityConfig sets it to false.
+	if got := w.Header().Get("X-XSS-Protection"); got != "" {
+		t.Errorf("X-XSS-Protection: expected empty (deprecated), got %q", got)
 	}
 	if got := w.Header().Get("Referrer-Policy"); got != "strict-origin-when-cross-origin" {
 		t.Errorf("Referrer-Policy: expected strict-origin-when-cross-origin, got %q", got)
@@ -597,6 +598,7 @@ func TestSecureHeaders_HSTS_ForwardedHTTPS(t *testing.T) {
 	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
 		HSTSMaxAge:            31536000,
 		HSTSIncludeSubDomains: true,
+		TrustForwardedProto:   true, // explicitly trust the proxy header
 	}))
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
@@ -607,17 +609,36 @@ func TestSecureHeaders_HSTS_ForwardedHTTPS(t *testing.T) {
 
 	got := w.Header().Get("Strict-Transport-Security")
 	if got == "" {
-		t.Error("expected HSTS header when X-Forwarded-Proto is https")
+		t.Error("expected HSTS header when X-Forwarded-Proto is https and TrustForwardedProto is true")
 	}
 	if !strings.Contains(got, "includeSubDomains") {
 		t.Errorf("expected includeSubDomains in HSTS header, got %q", got)
 	}
 }
 
-func TestSecureHeaders_HSTS_ForwardedHTTPSListAndCaseInsensitive(t *testing.T) {
+func TestSecureHeaders_HSTS_ForwardedHTTPS_Untrusted(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
 		HSTSMaxAge: 31536000,
+		// TrustForwardedProto defaults to false
+	}))
+	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Strict-Transport-Security"); got != "" {
+		t.Errorf("HSTS must not be emitted when TrustForwardedProto is false, got %q", got)
+	}
+}
+
+func TestSecureHeaders_HSTS_ForwardedHTTPSListAndCaseInsensitive(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.SecureHeaders(&middleware.SecurityConfig{
+		HSTSMaxAge:          31536000,
+		TrustForwardedProto: true,
 	}))
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
@@ -627,7 +648,7 @@ func TestSecureHeaders_HSTS_ForwardedHTTPSListAndCaseInsensitive(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	if got := w.Header().Get("Strict-Transport-Security"); got == "" {
-		t.Fatal("expected HSTS header when forwarded proto list contains HTTPS")
+		t.Fatal("expected HSTS header when forwarded proto list contains HTTPS and TrustForwardedProto is true")
 	}
 }
 
