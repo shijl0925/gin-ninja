@@ -38,6 +38,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -188,8 +189,30 @@ type LogConfig struct {
 	Output string `mapstructure:"output"`
 }
 
+// globalMu protects concurrent reads and writes to Global.
+var globalMu sync.RWMutex
+
 // Global holds the application-wide configuration loaded by Load.
+// Direct field access (e.g. settings.Global.JWT.Secret) is safe for reads when
+// the config is set once at startup.  If you reload config at runtime call
+// SetGlobal/GetGlobal to avoid data races.
 var Global Config
+
+// GetGlobal returns a safe copy of the global configuration.
+// Prefer this function when the config may be set concurrently (e.g. tests,
+// hot-reload scenarios).
+func GetGlobal() Config {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+	return Global
+}
+
+// SetGlobal replaces the global configuration under the mutex.
+func SetGlobal(cfg Config) {
+	globalMu.Lock()
+	Global = cfg
+	globalMu.Unlock()
+}
 
 // Load reads configuration from the given file path and merges in
 // environment variables.  Environment variables are mapped using the
@@ -232,7 +255,7 @@ func Load(cfgFile string) (*Config, error) {
 	}
 	normalizeDatabaseConfig(&cfg.Database)
 
-	Global = cfg
+	SetGlobal(cfg)
 	return &cfg, nil
 }
 
@@ -303,7 +326,7 @@ func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error
 	}
 	normalizeDatabaseConfig(&cfg.Database)
 
-	Global = cfg
+	SetGlobal(cfg)
 	return &cfg, nil
 }
 

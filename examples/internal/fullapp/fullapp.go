@@ -179,7 +179,7 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 	// Ensure the global settings reflect the provided config so that helpers
 	// such as middleware.JWTAuth() and middleware.GenerateToken() use the
 	// correct values when called from route setup functions.
-	settings.Global = cfg
+	settings.SetGlobal(cfg)
 
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -152,6 +153,12 @@ func (s *Session) Keys() []string {
 	return keys
 }
 
+// maxCookieValueLen is the safe maximum size of a cookie value in bytes.
+// RFC 6265 does not mandate a size, but most browsers enforce a 4 KB limit per
+// cookie.  We use a slightly lower threshold to leave headroom for cookie
+// attributes (name, Path, Domain, etc.).
+const maxCookieValueLen = 4000
+
 // Save writes the session to the response cookie.  Call this explicitly if
 // you need the cookie written before the end of the handler chain; the
 // middleware calls it automatically after c.Next().
@@ -159,6 +166,9 @@ func (s *Session) Save(c *gin.Context) error {
 	raw, err := encodeSession(s.data, s.cfg.Secret)
 	if err != nil {
 		return err
+	}
+	if len(raw) > maxCookieValueLen {
+		return fmt.Errorf("session: encoded cookie value (%d bytes) exceeds the %d-byte limit; reduce stored data", len(raw), maxCookieValueLen)
 	}
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     s.cfg.CookieName,

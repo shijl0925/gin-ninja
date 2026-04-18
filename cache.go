@@ -222,6 +222,11 @@ func (s *MemoryCacheStore) Get(key string) (*CachedResponse, bool) {
 		s.mu.Unlock()
 		return nil, false
 	}
+	// Promote the key to the back of the eviction order so that recently
+	// accessed entries are evicted last (LRU semantics).
+	s.mu.Lock()
+	s.promoteKeyLocked(key)
+	s.mu.Unlock()
 	return cloneCachedResponse(value), true
 }
 
@@ -380,6 +385,24 @@ func (s *MemoryCacheStore) deleteKeyLocked(key string) {
 		}
 	}
 	s.order = filtered
+}
+
+// promoteKeyLocked moves key to the back of s.order so that eviction (which
+// removes from the front) targets the least-recently-used entry.
+// Must be called with s.mu held for writing.
+func (s *MemoryCacheStore) promoteKeyLocked(key string) {
+	if len(s.order) == 0 {
+		return
+	}
+	// Remove the key from its current position.
+	filtered := s.order[:0]
+	for _, existing := range s.order {
+		if existing != key {
+			filtered = append(filtered, existing)
+		}
+	}
+	// Re-append at the back (most-recently-used position).
+	s.order = append(filtered, key)
 }
 
 func (s *MemoryCacheStore) deleteKeyTagsLocked(key string) {

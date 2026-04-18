@@ -36,12 +36,45 @@ func (c *Claims) GetUserID() uint { return c.UserID }
 // JWTAuth returns a gin middleware that validates Bearer tokens using the
 // HMAC secret from the global settings.
 //
+// The secret is read from settings.Global on every request rather than at
+// middleware construction time, so the middleware works correctly even when
+// settings are loaded after the middleware is registered (e.g. in main()).
+// If the global secret is empty at request time the middleware responds with
+// 401; it does NOT panic on construction.
+//
 // On success the parsed *Claims are stored in the Gin context under the key
 // returned by ClaimsKey().  On failure the request is aborted with 401.
 //
 //	api.Engine().Use(middleware.JWTAuth())
 func JWTAuth() gin.HandlerFunc {
-	return JWTAuthWithSecret(settings.Global.JWT.Secret)
+	return func(c *gin.Context) {
+		secret := settings.GetGlobal().JWT.Secret
+		if secret == "" {
+			response.Unauthorized(c, "JWT not configured")
+			return
+		}
+
+		tokenString := extractBearerToken(c)
+		if tokenString == "" {
+			response.Unauthorized(c, "missing or malformed token")
+			return
+		}
+
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("unexpected signing method")
+			}
+			return []byte(secret), nil
+		})
+		if err != nil || !token.Valid {
+			response.Unauthorized(c, "invalid or expired token")
+			return
+		}
+
+		c.Set(claimsKey, claims)
+		c.Next()
+	}
 }
 
 // JWTAuthWithSecret is like JWTAuth but uses an explicit secret rather than

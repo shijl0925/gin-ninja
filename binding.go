@@ -57,7 +57,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 			return &Error{
 				Status:  http.StatusBadRequest,
 				Code:    "INVALID_QUERY",
-				Message: err.Error(),
+				Message: "invalid query parameters",
 			}
 		}
 	}
@@ -82,7 +82,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "INVALID_JSON",
-					Message: err.Error(),
+					Message: "invalid request body",
 				}
 			}
 		}

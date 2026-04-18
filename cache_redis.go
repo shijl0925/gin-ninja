@@ -2,6 +2,8 @@ package ninja
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -197,7 +199,7 @@ func (s *RedisCacheStore) AcquireLock(key string, ttl time.Duration) (func(), bo
 		ttl = 5 * time.Second
 	}
 	ctx := context.Background()
-	token := time.Now().UTC().Format(time.RFC3339Nano)
+	token := randomLockToken()
 	ok, err := s.client.SetNX(ctx, s.lockKey(key), token, ttl).Result()
 	if err != nil || !ok {
 		return nil, false
@@ -242,4 +244,18 @@ func (s *RedisCacheStore) keyTagsKey(key string) string {
 
 func (s *RedisCacheStore) lockKey(key string) string {
 	return s.prefix + "lock:" + key
+}
+
+// randomLockToken generates a cryptographically random 16-byte hex token for
+// distributed lock ownership.  Using a random token (instead of a timestamp)
+// ensures that two concurrent callers on different processes or goroutines
+// never share the same token, preventing accidental lock release.
+func randomLockToken() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// crypto/rand failure is a system-level error; panic rather than fall
+		// back to a predictable value that would silently break lock semantics.
+		panic("redis cache: crypto/rand unavailable: " + err.Error())
+	}
+	return hex.EncodeToString(b)
 }

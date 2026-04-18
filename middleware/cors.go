@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -24,7 +25,9 @@ type CORSConfig struct {
 }
 
 // CORS returns a gin middleware that applies the supplied CORS policy.
-// If cfg is nil, a permissive default policy suitable for development is used.
+// If cfg is nil, a permissive default policy (allow all origins) suitable for
+// development is used.  Passing nil in production (gin.ReleaseMode) emits a
+// warning to the standard logger; supply an explicit CORSConfig instead.
 //
 //	api.Engine().Use(middleware.CORS(nil))
 //	api.Engine().Use(middleware.CORS(&middleware.CORSConfig{
@@ -35,6 +38,10 @@ func CORS(cfg *CORSConfig) gin.HandlerFunc {
 	c := cors.DefaultConfig()
 
 	if cfg == nil {
+		if gin.Mode() == gin.ReleaseMode {
+			log.Println("[gin-ninja] WARNING: middleware.CORS(nil) allows all origins – " +
+				"provide an explicit CORSConfig in production")
+		}
 		c.AllowAllOrigins = true
 		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
