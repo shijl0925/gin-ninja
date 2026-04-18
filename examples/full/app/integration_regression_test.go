@@ -31,22 +31,22 @@ type regressionTag struct {
 
 type regressionRecord struct {
 	gorm.Model
-	Name       string           `gorm:"not null" json:"name" binding:"required"`
-	Email      string           `gorm:"uniqueIndex;not null" json:"email" binding:"required,email"`
-	Password   string           `gorm:"not null" json:"password" binding:"required,min=8" admin:"component:password" ninja:"writeOnly"`
-	InviteCode string           `gorm:"column:invite_code;type:varchar(64)" json:"invite_code" ninja:"createOnly"`
-	StatusNote string           `gorm:"column:status_note;type:text" json:"status_note" crud:"updateOnly"`
-	Age        int              `gorm:"not null;default:0" json:"age"`
-	Score      float64          `gorm:"not null;default:0" json:"score"`
-	Balance    int64            `gorm:"not null;default:0" json:"balance"`
-	Active     bool             `gorm:"not null;default:false" json:"active"`
-	StartsAt   time.Time        `gorm:"not null" json:"starts_at"`
-	ArchivedAt *time.Time       `json:"archived_at"`
-	Nickname   *string          `json:"nickname"`
-	Level      *int             `json:"level"`
-	Verified   *bool            `json:"verified"`
-	Tags       []regressionTag  `gorm:"many2many:regression_record_tags;" json:"-"`
-	TagIDs     []uint           `gorm:"-" json:"tag_ids" admin:"label:Tags;relation:regression_tags"`
+	Name       string          `gorm:"not null" json:"name" binding:"required"`
+	Email      string          `gorm:"uniqueIndex;not null" json:"email" binding:"required,email"`
+	Password   string          `gorm:"not null" json:"password" binding:"required,min=8" admin:"component:password" ninja:"writeOnly"`
+	InviteCode string          `gorm:"column:invite_code;type:varchar(64)" json:"invite_code" ninja:"createOnly"`
+	StatusNote string          `gorm:"column:status_note;type:text" json:"status_note" crud:"updateOnly"`
+	Age        int             `gorm:"not null;default:0" json:"age"`
+	Score      float64         `gorm:"not null;default:0" json:"score"`
+	Balance    int64           `gorm:"not null;default:0" json:"balance"`
+	Active     bool            `gorm:"not null;default:false" json:"active"`
+	StartsAt   time.Time       `gorm:"not null" json:"starts_at"`
+	ArchivedAt *time.Time      `json:"archived_at"`
+	Nickname   *string         `json:"nickname"`
+	Level      *int            `json:"level"`
+	Verified   *bool           `json:"verified"`
+	Tags       []regressionTag `gorm:"many2many:regression_record_tags;" json:"-"`
+	TagIDs     []uint          `gorm:"-" json:"tag_ids" admin:"label:Tags;relation:regression_tags"`
 }
 
 type regressionRecordTag struct {
@@ -250,7 +250,7 @@ func listRegressionRecords(ctx *ninja.Context, in *listRegressionRecordsInput) (
 	}
 
 	var items []regressionRecord
-	if err := db.Preload("Tags").Offset((in.GetPage()-1)*in.GetSize()).Limit(in.GetSize()).Find(&items).Error; err != nil {
+	if err := db.Preload("Tags").Offset((in.GetPage() - 1) * in.GetSize()).Limit(in.GetSize()).Find(&items).Error; err != nil {
 		return nil, err
 	}
 
@@ -497,6 +497,15 @@ func seedRegressionTags(t *testing.T, db *gorm.DB) []regressionTag {
 	return tags
 }
 
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestRegressionCRUDRoutesExerciseRichModelScenarios(t *testing.T) {
 	api, db := newRegressionIntegrationAPI(t)
 	tags := seedRegressionTags(t, db)
@@ -698,10 +707,10 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 		t.Fatalf("meta status=%d body=%s", metaResp.Code, metaResp.Body.String())
 	}
 	meta := decodeJSONBody[admin.ResourceMetadata](t, metaResp.Body)
-	if !containsName(meta.CreateFields, "invite_code") || containsName(meta.UpdateFields, "invite_code") {
+	if !containsString(meta.CreateFields, "invite_code") || containsString(meta.UpdateFields, "invite_code") {
 		t.Fatalf("expected invite_code create-only metadata, got %+v", meta)
 	}
-	if containsName(meta.CreateFields, "status_note") || !containsName(meta.UpdateFields, "status_note") {
+	if containsString(meta.CreateFields, "status_note") || !containsString(meta.UpdateFields, "status_note") {
 		t.Fatalf("expected status_note update-only metadata, got %+v", meta)
 	}
 	var passwordField, tagIDsField *admin.FieldMeta
