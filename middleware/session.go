@@ -168,7 +168,7 @@ func (s *Session) Save(c *gin.Context) error {
 		return err
 	}
 	if len(raw) > maxCookieValueLen {
-		return fmt.Errorf("session: encoded cookie value (%d bytes) exceeds the %d-byte limit; reduce stored data", len(raw), maxCookieValueLen)
+		return fmt.Errorf("session: encoded cookie value exceeds the %d-byte limit; reduce stored data", maxCookieValueLen)
 	}
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     s.cfg.CookieName,

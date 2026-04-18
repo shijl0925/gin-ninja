@@ -50,7 +50,7 @@ func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		secret := settings.GetGlobal().JWT.Secret
 		if secret == "" {
-			response.Unauthorized(c, "JWT not configured")
+			response.Unauthorized(c, "authentication unavailable")
 			return
 		}
 		validateJWTToken(c, secret)

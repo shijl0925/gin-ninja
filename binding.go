@@ -180,7 +180,7 @@ func bindMultipartFields(c *gin.Context, t reflect.Type, v reflect.Value) error 
 		return &Error{
 			Status:  http.StatusBadRequest,
 			Code:    "INVALID_MULTIPART",
-			Message: err.Error(),
+			Message: "invalid multipart form",
 		}
 	}
 	return bindMultipartValue(t, v, form)
