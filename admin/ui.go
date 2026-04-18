@@ -1560,6 +1560,36 @@ const adminPrototypeHTML = `<!doctype html>
     body.standalone-login-page input { min-height:46px; }
     body.standalone-login-page button { min-height:46px; }
     body.standalone-login-page #loginButton { width:100%; }
+    [data-theme="dark"] body.standalone-login-page {
+      background:
+        linear-gradient(to right, transparent 0, transparent calc(var(--admin-grid-size) - 1px), rgba(148,163,184,0.08) var(--admin-grid-size)),
+        linear-gradient(to bottom, transparent 0, transparent calc(var(--admin-grid-size) - 1px), rgba(148,163,184,0.08) var(--admin-grid-size)),
+        radial-gradient(circle at top, rgba(102, 176, 255, 0.16), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(99, 91, 255, 0.14), transparent 30%),
+        linear-gradient(180deg, #0b1120 0%, #111827 55%, #0f172a 100%);
+      background-size: var(--admin-grid-size) var(--admin-grid-size), var(--admin-grid-size) var(--admin-grid-size), auto, auto, auto;
+    }
+    [data-theme="dark"] body.standalone-login-page .topbar .brand-link { background:transparent; }
+    [data-theme="dark"] body.standalone-login-page .login-marketing {
+      background:
+        radial-gradient(circle at top left, rgba(102, 176, 255, 0.22), transparent 40%),
+        linear-gradient(160deg, rgba(15, 23, 42, 0.96) 0%, rgba(17, 24, 39, 0.94) 100%);
+      border-color:rgba(148,163,184,0.16);
+    }
+    [data-theme="dark"] body.standalone-login-page .login-marketing .eyebrow {
+      background:rgba(148,163,184,0.12);
+      border-color:rgba(148,163,184,0.16);
+      color:#93b4ff;
+    }
+    [data-theme="dark"] body.standalone-login-page .login-metric {
+      background:rgba(15,23,42,0.3);
+      border-color:rgba(148,163,184,0.12);
+    }
+    [data-theme="dark"] body.standalone-login-page .session-panel {
+      background:rgba(26,29,39,0.88);
+      border-color:var(--admin-border);
+      box-shadow:0 24px 52px rgba(0,0,0,0.34);
+    }
     body.standalone-admin-page .topbar,
     body.legacy-prototype-page .topbar {
       background:#fff;

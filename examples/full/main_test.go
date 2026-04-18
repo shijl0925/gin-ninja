@@ -603,6 +603,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, "window.location.replace(adminPagePath)") {
 		t.Fatalf("expected standalone login redirect to /admin in html: %q", loginHTML)
 	}
+	if !strings.Contains(loginHTML, "[data-theme=\"dark\"] body.standalone-login-page .session-panel {") {
+		t.Fatalf("expected standalone login dark mode card override in html: %q", loginHTML)
+	}
 
 	adminPageResp, err := http.Get(server.URL + "/admin")
 	if err != nil {
@@ -929,6 +932,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "localStorage.setItem(themeStorageKey") {
 		t.Fatalf("expected dark mode localStorage persistence in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] body.standalone-login-page {") {
+		t.Fatalf("expected standalone login dark mode background override in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] body.standalone-login-page .login-marketing {") {
+		t.Fatalf("expected standalone login dark mode marketing panel override in html: %q", html)
 	}
 	if !strings.Contains(html, "id=\"topbarSearchInput\"") {
 		t.Fatalf("expected topbar search input in html: %q", html)
