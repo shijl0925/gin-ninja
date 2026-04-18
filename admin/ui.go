@@ -130,6 +130,7 @@ const adminPrototypeHTML = `<!doctype html>
       --admin-warning: #f39c12;
       --admin-shadow: 0 18px 50px rgba(15, 23, 42, 0.09);
       --admin-radius: 1rem;
+      --admin-radius-lg: 1.25rem;
       --admin-grid-size: 48px;
       --admin-topbar-min-height: 64px;
       --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
@@ -1229,12 +1230,12 @@ const adminPrototypeHTML = `<!doctype html>
       color:var(--admin-muted);
     }
     .table-meta-card-value {
-      font-size:1.05rem;
+      font-size:1.125rem;
       font-weight:700;
       color:var(--admin-text);
       letter-spacing:-0.02em;
     }
-    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:calc(var(--admin-radius) + 4px); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); backdrop-filter: blur(14px); }
+    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius-lg); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); backdrop-filter: blur(14px); }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:rgba(255,255,255,0.72); color:var(--admin-muted); text-align:center; }
     .resource-header-actions button { padding-inline:14px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
@@ -2283,6 +2284,7 @@ const adminPrototypeHTML = `<!doctype html>
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
     const stringLikeComponents = new Set(['text', 'textarea', 'email']);
+    const formControlTagNames = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
     const adminPagePath = __GIN_NINJA_ADMIN_PAGE_PATH__;
     const adminLoginPath = __GIN_NINJA_ADMIN_LOGIN_PATH__;
     const prototypePagePath = __GIN_NINJA_ADMIN_PROTOTYPE_PATH__;
@@ -2940,7 +2942,7 @@ const adminPrototypeHTML = `<!doctype html>
       return 'field-' + scopeKey + '-' + field.name;
     }
 
-    function isWideFormField(field) {
+    function shouldSpanFullWidth(field) {
       if (!field) return false;
       return field.component === 'textarea' || field.component === 'text' || field.component === 'array' || isMultiRelationField(field);
     }
@@ -2948,7 +2950,7 @@ const adminPrototypeHTML = `<!doctype html>
     function applyFieldControlState(control, field, scopeKey) {
       if (!control || !field) return;
       const controlID = fieldControlID(scopeKey, field);
-      const directControl = control.tagName === 'INPUT' || control.tagName === 'SELECT' || control.tagName === 'TEXTAREA'
+      const directControl = formControlTagNames.has(control.tagName)
         ? control
         : control.querySelector('input[name="' + field.name + '"], select[name="' + field.name + '"], textarea[name="' + field.name + '"]');
       if (directControl) {
@@ -3030,7 +3032,7 @@ const adminPrototypeHTML = `<!doctype html>
       const primary = document.createElement('span');
       primary.className = 'table-cell-value';
       primary.textContent = formatValue(value);
-      if (fieldName === 'id' || field?.name === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+      if (fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
         primary.classList.add('mono');
       }
       if (field?.component === 'number' || field?.type === 'number' || field?.type === 'integer') {
@@ -3776,7 +3778,7 @@ const adminPrototypeHTML = `<!doctype html>
         if (!field) continue;
         const wrapper = document.createElement('div');
         wrapper.className = 'form-field-card';
-        if (isWideFormField(field)) {
+        if (shouldSpanFullWidth(field)) {
           wrapper.classList.add('form-field-wide');
         }
         if (field.component === 'checkbox') {
@@ -3803,7 +3805,7 @@ const adminPrototypeHTML = `<!doctype html>
         }
         const meta = document.createElement('div');
         meta.className = 'form-field-meta';
-        meta.appendChild(createFieldTag(field.required ? 'Required' : 'Optional', field.required ? 'required' : ''));
+        meta.appendChild(createFieldTag(field.required ? 'Required' : 'Optional', field.required && 'required'));
         if (field.read_only) {
           meta.appendChild(createFieldTag('Read only', 'readonly'));
         }
@@ -3814,7 +3816,9 @@ const adminPrototypeHTML = `<!doctype html>
           if (copy.childNodes.length) {
             header.appendChild(copy);
           }
-          header.appendChild(meta);
+          if (meta.childNodes.length) {
+            header.appendChild(meta);
+          }
           wrapper.appendChild(header);
         }
         const controlWrap = document.createElement('div');
@@ -4057,6 +4061,7 @@ const adminPrototypeHTML = `<!doctype html>
           th.className = 'sortable-th' + (sortField === field ? ' sort-' + sortDir : '');
           th.setAttribute('aria-sort', sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
           th.setAttribute('title', 'Click to sort by ' + label);
+          th.setAttribute('aria-label', 'Sort by ' + label);
           const iconSpan = document.createElement('span');
           iconSpan.className = 'sort-icon';
           iconSpan.setAttribute('aria-hidden', 'true');
