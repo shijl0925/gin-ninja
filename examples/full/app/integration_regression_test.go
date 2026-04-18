@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,6 +21,8 @@ import (
 	"github.com/shijl0925/gin-ninja/order"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -31,22 +35,24 @@ type regressionTag struct {
 
 type regressionRecord struct {
 	gorm.Model
-	Name       string          `gorm:"not null" json:"name" binding:"required"`
-	Email      string          `gorm:"uniqueIndex;not null" json:"email" binding:"required,email"`
-	Password   string          `gorm:"not null" json:"password" binding:"required,min=8" admin:"component:password" ninja:"writeOnly"`
-	InviteCode string          `gorm:"column:invite_code;type:varchar(64)" json:"invite_code" ninja:"createOnly"`
-	StatusNote string          `gorm:"column:status_note;type:text" json:"status_note" crud:"updateOnly"`
-	Age        int             `gorm:"not null;default:0" json:"age"`
-	Score      float64         `gorm:"not null;default:0" json:"score"`
-	Balance    int64           `gorm:"not null;default:0" json:"balance"`
-	Active     bool            `gorm:"not null;default:false" json:"active"`
-	StartsAt   time.Time       `gorm:"not null" json:"starts_at"`
-	ArchivedAt *time.Time      `json:"archived_at"`
-	Nickname   *string         `json:"nickname"`
-	Level      *int            `json:"level"`
-	Verified   *bool           `json:"verified"`
-	Tags       []regressionTag `gorm:"many2many:regression_record_tags;" json:"-"`
-	TagIDs     []uint          `gorm:"-" json:"tag_ids" admin:"label:Tags;relation:regression_tags"`
+	Name       string              `gorm:"not null" json:"name" binding:"required"`
+	Email      string              `gorm:"uniqueIndex;not null" json:"email" binding:"required,email"`
+	Password   string              `gorm:"not null" json:"password" binding:"required,min=8" admin:"component:password" ninja:"writeOnly"`
+	InviteCode string              `gorm:"column:invite_code;type:varchar(64)" json:"invite_code" ninja:"createOnly"`
+	StatusNote string              `gorm:"column:status_note;type:text" json:"status_note" crud:"updateOnly"`
+	Age        int                 `gorm:"not null;default:0" json:"age"`
+	Score      float64             `gorm:"not null;default:0" json:"score"`
+	Balance    int64               `gorm:"not null;default:0" json:"balance"`
+	Active     bool                `gorm:"not null;default:false" json:"active"`
+	StartsAt   time.Time           `gorm:"not null" json:"starts_at"`
+	ArchivedAt *time.Time          `json:"archived_at"`
+	Nickname   *string             `json:"nickname"`
+	Level      *int                `json:"level"`
+	Verified   *bool               `json:"verified"`
+	Tags       []regressionTag     `gorm:"many2many:regression_record_tags;" json:"-"`
+	Comments   []regressionComment `gorm:"foreignKey:RecordID" json:"-"`
+	TagIDs     []uint              `gorm:"-" json:"tag_ids" admin:"label:Tags;relation:regression_tags"`
+	CommentIDs []uint              `gorm:"-" json:"comment_ids" admin:"label:Comments;relation:regression_comments;readonly"`
 }
 
 type regressionRecordTag struct {
@@ -54,8 +60,24 @@ type regressionRecordTag struct {
 	RegressionTagID    uint `gorm:"column:regression_tag_id"`
 }
 
+type regressionComment struct {
+	gorm.Model
+	RecordID uint                `gorm:"column:record_id;not null;index" json:"record_id" binding:"required" admin:"label:Record;relation:regression_records"`
+	ParentID *uint               `gorm:"column:parent_id;index" json:"parent_id" admin:"label:Parent;relation:regression_comments"`
+	Body     string              `gorm:"column:body;type:text;not null" json:"body" binding:"required"`
+	IsPinned bool                `gorm:"column:is_pinned;not null;default:false" json:"is_pinned"`
+	Record   regressionRecord    `gorm:"foreignKey:RecordID" json:"-"`
+	Parent   *regressionComment  `gorm:"foreignKey:ParentID" json:"-"`
+	Children []regressionComment `gorm:"foreignKey:ParentID" json:"-"`
+	ChildIDs []uint              `gorm:"-" json:"child_ids" admin:"label:Children;relation:regression_comments;readonly"`
+}
+
 type regressionRecordOut struct {
-	ninja.ModelSchema[regressionRecord] `fields:"id,name,email,invite_code,status_note,age,score,balance,active,starts_at,archived_at,nickname,level,verified,tag_ids" exclude:"password"`
+	ninja.ModelSchema[regressionRecord] `fields:"id,name,email,invite_code,status_note,age,score,balance,active,starts_at,archived_at,nickname,level,verified,tag_ids,comment_ids" exclude:"password"`
+}
+
+type regressionCommentOut struct {
+	ninja.ModelSchema[regressionComment] `fields:"id,record_id,parent_id,body,is_pinned,child_ids"`
 }
 
 type regressionRecordPayload struct {
@@ -74,6 +96,16 @@ type regressionRecordPayload struct {
 	Level      *int       `json:"level"`
 	Verified   *bool      `json:"verified"`
 	TagIDs     []uint     `json:"tag_ids"`
+	CommentIDs []uint     `json:"comment_ids"`
+}
+
+type regressionCommentPayload struct {
+	ID       uint   `json:"id"`
+	RecordID uint   `json:"record_id"`
+	ParentID *uint  `json:"parent_id"`
+	Body     string `json:"body"`
+	IsPinned bool   `json:"is_pinned"`
+	ChildIDs []uint `json:"child_ids"`
 }
 
 type listRegressionRecordsInput struct {
@@ -127,6 +159,36 @@ type deleteRegressionRecordInput struct {
 	ID uint `path:"id" json:"-" binding:"required"`
 }
 
+type listRegressionCommentsInput struct {
+	pagination.PageInput
+	Sort     string `form:"sort" order:"id|record_id|parent_id|body|is_pinned|created_at"`
+	Search   string `form:"search" filter:"body,like"`
+	RecordID *uint  `form:"record_id" filter:"record_id,eq"`
+	ParentID *uint  `form:"parent_id" filter:"parent_id,eq"`
+}
+
+type getRegressionCommentInput struct {
+	ID uint `path:"id" json:"-" binding:"required"`
+}
+
+type createRegressionCommentInput struct {
+	RecordID uint   `json:"record_id" binding:"required"`
+	ParentID *uint  `json:"parent_id"`
+	Body     string `json:"body" binding:"required"`
+	IsPinned bool   `json:"is_pinned"`
+}
+
+type updateRegressionCommentInput struct {
+	ID       uint    `path:"id" json:"-" binding:"required"`
+	ParentID *uint   `json:"parent_id"`
+	Body     *string `json:"body"`
+	IsPinned *bool   `json:"is_pinned"`
+}
+
+type deleteRegressionCommentInput struct {
+	ID uint `path:"id" json:"-" binding:"required"`
+}
+
 func (r *regressionRecord) BeforeSave(*gorm.DB) error {
 	r.Name = strings.TrimSpace(r.Name)
 	r.Email = strings.TrimSpace(strings.ToLower(r.Email))
@@ -151,6 +213,7 @@ func (r *regressionRecord) AfterSave(tx *gorm.DB) error {
 
 func (r *regressionRecord) AfterFind(*gorm.DB) error {
 	r.syncTagIDs()
+	r.syncCommentIDs()
 	return nil
 }
 
@@ -164,6 +227,18 @@ func (r *regressionRecord) syncTagIDs() {
 		ids = append(ids, tag.ID)
 	}
 	r.TagIDs = ids
+}
+
+func (r *regressionRecord) syncCommentIDs() {
+	if len(r.Comments) == 0 {
+		r.CommentIDs = nil
+		return
+	}
+	ids := make([]uint, 0, len(r.Comments))
+	for _, comment := range r.Comments {
+		ids = append(ids, comment.ID)
+	}
+	r.CommentIDs = ids
 }
 
 func syncRegressionTags(tx *gorm.DB, record *regressionRecord, tagIDs []uint) error {
@@ -217,6 +292,31 @@ func syncRegressionTags(tx *gorm.DB, record *regressionRecord, tagIDs []uint) er
 	return nil
 }
 
+func (c *regressionComment) BeforeSave(*gorm.DB) error {
+	c.Body = strings.TrimSpace(c.Body)
+	if c.Body == "" {
+		return ninja.NewErrorWithCode(400, "BAD_REQUEST", `field "body" is required`)
+	}
+	return nil
+}
+
+func (c *regressionComment) AfterFind(*gorm.DB) error {
+	c.syncChildIDs()
+	return nil
+}
+
+func (c *regressionComment) syncChildIDs() {
+	if len(c.Children) == 0 {
+		c.ChildIDs = nil
+		return
+	}
+	ids := make([]uint, 0, len(c.Children))
+	for _, child := range c.Children {
+		ids = append(ids, child.ID)
+	}
+	c.ChildIDs = ids
+}
+
 func regressionDB(ctx *ninja.Context) *gorm.DB {
 	if ctx != nil && ctx.Context != nil {
 		return orm.WithContext(ctx.Context)
@@ -228,9 +328,19 @@ func toRegressionRecordOut(item regressionRecord) (*regressionRecordOut, error) 
 	return ninja.BindModelSchema[regressionRecordOut](item)
 }
 
+func toRegressionCommentOut(item regressionComment) (*regressionCommentOut, error) {
+	return ninja.BindModelSchema[regressionCommentOut](item)
+}
+
 func loadRegressionRecord(db *gorm.DB, id uint) (regressionRecord, error) {
 	var item regressionRecord
-	err := db.Preload("Tags").First(&item, id).Error
+	err := db.Preload("Tags").Preload("Comments").First(&item, id).Error
+	return item, err
+}
+
+func loadRegressionComment(db *gorm.DB, id uint) (regressionComment, error) {
+	var item regressionComment
+	err := db.Preload("Children").First(&item, id).Error
 	return item, err
 }
 
@@ -377,6 +487,138 @@ func deleteRegressionRecord(ctx *ninja.Context, in *deleteRegressionRecordInput)
 	return db.Delete(&regressionRecord{}, in.ID).Error
 }
 
+func listRegressionComments(ctx *ninja.Context, in *listRegressionCommentsInput) (*pagination.Page[regressionCommentOut], error) {
+	db := regressionDB(ctx).Model(&regressionComment{})
+	var err error
+	if db, err = filter.ApplyDB(db, in); err != nil {
+		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+	}
+	if db, err = order.ApplyDB(db, in); err != nil {
+		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+	}
+
+	var total int64
+	if err := db.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return nil, err
+	}
+
+	var items []regressionComment
+	if err := db.Preload("Children").Offset((in.GetPage() - 1) * in.GetSize()).Limit(in.GetSize()).Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]regressionCommentOut, len(items))
+	for i := range items {
+		bound, err := toRegressionCommentOut(items[i])
+		if err != nil {
+			return nil, err
+		}
+		out[i] = *bound
+	}
+	return pagination.NewPage(out, total, in.PageInput), nil
+}
+
+func getRegressionComment(ctx *ninja.Context, in *getRegressionCommentInput) (*regressionCommentOut, error) {
+	item, err := loadRegressionComment(regressionDB(ctx), in.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
+	}
+	return toRegressionCommentOut(item)
+}
+
+func createRegressionComment(ctx *ninja.Context, in *createRegressionCommentInput) (*regressionCommentOut, error) {
+	item := regressionComment{
+		RecordID: in.RecordID,
+		ParentID: in.ParentID,
+		Body:     in.Body,
+		IsPinned: in.IsPinned,
+	}
+	db := regressionDB(ctx)
+	if err := ensureRegressionCommentRelations(db, item.RecordID, item.ParentID, 0); err != nil {
+		return nil, err
+	}
+	if err := db.Create(&item).Error; err != nil {
+		return nil, err
+	}
+	loaded, err := loadRegressionComment(db, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	return toRegressionCommentOut(loaded)
+}
+
+func updateRegressionComment(ctx *ninja.Context, in *updateRegressionCommentInput) (*regressionCommentOut, error) {
+	db := regressionDB(ctx)
+	item, err := loadRegressionComment(db, in.ID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
+	}
+	item.ParentID = in.ParentID
+	if in.Body != nil {
+		item.Body = *in.Body
+	}
+	if in.IsPinned != nil {
+		item.IsPinned = *in.IsPinned
+	}
+	if err := ensureRegressionCommentRelations(db, item.RecordID, item.ParentID, item.ID); err != nil {
+		return nil, err
+	}
+	if err := db.Save(&item).Error; err != nil {
+		return nil, err
+	}
+	loaded, err := loadRegressionComment(db, item.ID)
+	if err != nil {
+		return nil, err
+	}
+	return toRegressionCommentOut(loaded)
+}
+
+func deleteRegressionComment(ctx *ninja.Context, in *deleteRegressionCommentInput) error {
+	db := regressionDB(ctx)
+	if _, err := loadRegressionComment(db, in.ID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ninja.NotFoundError()
+		}
+		return err
+	}
+	return db.Delete(&regressionComment{}, in.ID).Error
+}
+
+func ensureRegressionCommentRelations(db *gorm.DB, recordID uint, parentID *uint, selfID uint) error {
+	if db == nil {
+		return nil
+	}
+	if _, err := loadRegressionRecord(db, recordID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("record %d does not exist", recordID))
+		}
+		return err
+	}
+	if parentID == nil {
+		return nil
+	}
+	if *parentID == selfID && selfID != 0 {
+		return ninja.NewErrorWithCode(400, "BAD_REQUEST", `field "parent_id" must not reference itself`)
+	}
+	parent, err := loadRegressionComment(db, *parentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("comment %d does not exist", *parentID))
+		}
+		return err
+	}
+	if parent.RecordID != recordID {
+		return ninja.NewErrorWithCode(400, "BAD_REQUEST", `field "parent_id" must reference a comment in the same record`)
+	}
+	return nil
+}
+
 func newRegressionAdminSite() *admin.Site {
 	site := admin.NewSite(admin.WithPermissionChecker(requireAuthenticatedAdmin))
 	site.MustRegisterModel(&admin.ModelResource{
@@ -395,14 +637,27 @@ func newRegressionAdminSite() *admin.Site {
 		Name:         "regression_records",
 		Path:         "/regression-records",
 		Model:        regressionRecord{},
-		Preloads:     []string{"Tags"},
-		ListFields:   []string{"id", "name", "email", "invite_code", "status_note", "age", "score", "balance", "active", "starts_at", "nickname", "level", "verified", "tag_ids"},
-		DetailFields: []string{"id", "name", "email", "invite_code", "status_note", "age", "score", "balance", "active", "starts_at", "archived_at", "nickname", "level", "verified", "tag_ids"},
+		Preloads:     []string{"Tags", "Comments"},
+		ListFields:   []string{"id", "name", "email", "invite_code", "status_note", "age", "score", "balance", "active", "starts_at", "nickname", "level", "verified", "tag_ids", "comment_ids"},
+		DetailFields: []string{"id", "name", "email", "invite_code", "status_note", "age", "score", "balance", "active", "starts_at", "archived_at", "nickname", "level", "verified", "tag_ids", "comment_ids"},
 		CreateFields: []string{"name", "email", "password", "invite_code", "age", "score", "balance", "active", "starts_at", "archived_at", "nickname", "level", "verified", "tag_ids"},
 		UpdateFields: []string{"name", "email", "password", "status_note", "age", "score", "balance", "active", "starts_at", "archived_at", "nickname", "level", "verified", "tag_ids"},
 		FilterFields: []string{"active", "age", "starts_at"},
 		SortFields:   []string{"id", "name", "email", "age", "score", "balance", "active", "starts_at"},
 		SearchFields: []string{"name", "email"},
+	})
+	site.MustRegisterModel(&admin.ModelResource{
+		Name:         "regression_comments",
+		Path:         "/regression-comments",
+		Model:        regressionComment{},
+		Preloads:     []string{"Children"},
+		ListFields:   []string{"id", "record_id", "parent_id", "body", "is_pinned", "child_ids"},
+		DetailFields: []string{"id", "record_id", "parent_id", "body", "is_pinned", "child_ids", "createdAt", "updatedAt"},
+		CreateFields: []string{"record_id", "parent_id", "body", "is_pinned"},
+		UpdateFields: []string{"parent_id", "body", "is_pinned"},
+		FilterFields: []string{"record_id", "parent_id", "is_pinned"},
+		SortFields:   []string{"id", "record_id", "parent_id", "body", "is_pinned", "createdAt"},
+		SearchFields: []string{"body"},
 	})
 	return site
 }
@@ -416,11 +671,14 @@ func newRegressionIntegrationAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("gorm.Open: %v", err)
 	}
-	if err := db.AutoMigrate(&regressionTag{}, &regressionRecord{}, &regressionRecordTag{}); err != nil {
-		t.Fatalf("AutoMigrate: %v", err)
-	}
-	orm.Init(db)
+	prepareRegressionSchema(t, db)
+	return newRegressionIntegrationAPIWithDB(t, db), db
+}
 
+func newRegressionIntegrationAPIWithDB(t *testing.T, db *gorm.DB) *ninja.NinjaAPI {
+	t.Helper()
+
+	orm.Init(db)
 	api := ninja.New(ninja.Config{
 		Title:             "regression integration",
 		Version:           "test",
@@ -429,13 +687,21 @@ func newRegressionIntegrationAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	orm.RegisterDefaultErrorMappers(api)
 	api.UseGin(orm.Middleware(db))
 
-	crudRouter := ninja.NewRouter("/api/regression-records", ninja.WithTags("Regression"))
-	ninja.Get(crudRouter, "/", listRegressionRecords, ninja.Paginated[regressionRecordOut]())
-	ninja.Get(crudRouter, "/:id", getRegressionRecord)
-	ninja.Post(crudRouter, "/", createRegressionRecord, ninja.WithTransaction())
-	ninja.Patch(crudRouter, "/:id", updateRegressionRecord, ninja.WithTransaction())
-	ninja.Delete(crudRouter, "/:id", deleteRegressionRecord, ninja.WithTransaction())
-	api.AddRouter(crudRouter)
+	recordRouter := ninja.NewRouter("/api/regression-records", ninja.WithTags("Regression"))
+	ninja.Get(recordRouter, "/", listRegressionRecords, ninja.Paginated[regressionRecordOut]())
+	ninja.Get(recordRouter, "/:id", getRegressionRecord)
+	ninja.Post(recordRouter, "/", createRegressionRecord, ninja.WithTransaction())
+	ninja.Patch(recordRouter, "/:id", updateRegressionRecord, ninja.WithTransaction())
+	ninja.Delete(recordRouter, "/:id", deleteRegressionRecord, ninja.WithTransaction())
+	api.AddRouter(recordRouter)
+
+	commentRouter := ninja.NewRouter("/api/regression-comments", ninja.WithTags("Regression Comments"))
+	ninja.Get(commentRouter, "/", listRegressionComments, ninja.Paginated[regressionCommentOut]())
+	ninja.Get(commentRouter, "/:id", getRegressionComment)
+	ninja.Post(commentRouter, "/", createRegressionComment, ninja.WithTransaction())
+	ninja.Patch(commentRouter, "/:id", updateRegressionComment, ninja.WithTransaction())
+	ninja.Delete(commentRouter, "/:id", deleteRegressionComment, ninja.WithTransaction())
+	api.AddRouter(commentRouter)
 
 	adminRouter := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
 	adminRouter.UseGin(func(c *gin.Context) {
@@ -447,8 +713,20 @@ func newRegressionIntegrationAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	})
 	newRegressionAdminSite().Mount(adminRouter)
 	api.AddRouter(adminRouter)
+	return api
+}
 
-	return api, db
+func prepareRegressionSchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if db == nil {
+		t.Fatal("db must not be nil")
+	}
+	if err := db.Migrator().DropTable(&regressionComment{}, &regressionRecordTag{}, &regressionRecord{}, &regressionTag{}); err != nil {
+		t.Fatalf("DropTable: %v", err)
+	}
+	if err := db.AutoMigrate(&regressionTag{}, &regressionRecord{}, &regressionRecordTag{}, &regressionComment{}); err != nil {
+		t.Fatalf("AutoMigrate: %v", err)
+	}
 }
 
 func performRegressionJSON(t *testing.T, api *ninja.NinjaAPI, method, path string, body any, headers map[string]string) *httptest.ResponseRecorder {
@@ -525,6 +803,302 @@ func sameUintSet(got []uint, want ...uint) bool {
 		}
 	}
 	return true
+}
+
+type regressionExternalDBEnv struct {
+	driver   string
+	dsn      string
+	host     string
+	port     string
+	user     string
+	password string
+	database string
+	charset  string
+	loc      string
+	sslMode  string
+	timeZone string
+}
+
+func loadRegressionExternalDBEnv(prefix string) (regressionExternalDBEnv, bool) {
+	cfg := regressionExternalDBEnv{
+		driver:   strings.TrimSpace(os.Getenv(prefix + "_DRIVER")),
+		dsn:      strings.TrimSpace(os.Getenv(prefix + "_DSN")),
+		host:     strings.TrimSpace(os.Getenv(prefix + "_HOST")),
+		port:     strings.TrimSpace(os.Getenv(prefix + "_PORT")),
+		user:     strings.TrimSpace(os.Getenv(prefix + "_USER")),
+		password: strings.TrimSpace(os.Getenv(prefix + "_PASSWORD")),
+		database: strings.TrimSpace(os.Getenv(prefix + "_DB")),
+		charset:  strings.TrimSpace(os.Getenv(prefix + "_CHARSET")),
+		loc:      strings.TrimSpace(os.Getenv(prefix + "_LOC")),
+		sslMode:  strings.TrimSpace(os.Getenv(prefix + "_SSLMODE")),
+		timeZone: strings.TrimSpace(os.Getenv(prefix + "_TIME_ZONE")),
+	}
+	if cfg.dsn != "" {
+		return cfg, true
+	}
+	ok := cfg.host != "" && cfg.database != ""
+	return cfg, ok
+}
+
+func openRegressionExternalDB(t *testing.T, prefix string) *gorm.DB {
+	t.Helper()
+
+	cfg, ok := loadRegressionExternalDBEnv(prefix)
+	if !ok {
+		switch prefix {
+		case "GIN_NINJA_TEST_MYSQL":
+			t.Skip("set GIN_NINJA_TEST_MYSQL_DSN or GIN_NINJA_TEST_MYSQL_HOST/GIN_NINJA_TEST_MYSQL_DB to run MySQL regression integration tests")
+		case "GIN_NINJA_TEST_POSTGRES":
+			t.Skip("set GIN_NINJA_TEST_POSTGRES_DSN or GIN_NINJA_TEST_POSTGRES_HOST/GIN_NINJA_TEST_POSTGRES_DB to run PostgreSQL regression integration tests")
+		default:
+			t.Skip("external regression database is not configured")
+		}
+	}
+
+	driver := strings.ToLower(strings.TrimSpace(cfg.driver))
+	if driver == "" {
+		if strings.Contains(strings.ToLower(prefix), "mysql") {
+			driver = "mysql"
+		} else {
+			driver = "postgres"
+		}
+	}
+	var dialector gorm.Dialector
+	switch driver {
+	case "mysql":
+		dsn := cfg.dsn
+		if dsn == "" {
+			charset := cfg.charset
+			if charset == "" {
+				charset = "utf8mb4"
+			}
+			loc := cfg.loc
+			if loc == "" {
+				loc = "UTC"
+			}
+			user := cfg.user
+			if user == "" {
+				user = "root"
+			}
+			dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=%s&loc=%s", user, cfg.password, cfg.host, defaultString(cfg.port, "3306"), cfg.database, charset, loc)
+		}
+		dialector = mysql.Open(dsn)
+	case "postgres", "postgresql":
+		dsn := cfg.dsn
+		if dsn == "" {
+			user := cfg.user
+			if user == "" {
+				user = "postgres"
+			}
+			sslMode := cfg.sslMode
+			if sslMode == "" {
+				sslMode = "disable"
+			}
+			dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s", cfg.host, defaultString(cfg.port, "5432"), user, cfg.password, cfg.database, sslMode)
+			if cfg.timeZone != "" {
+				dsn += " TimeZone=" + cfg.timeZone
+			}
+		}
+		dialector = postgres.Open(dsn)
+	default:
+		t.Fatalf("unsupported external regression driver %q", driver)
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatalf("gorm.Open external db: %v", err)
+	}
+	prepareRegressionSchema(t, db)
+	return db
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func runRegressionCommentAndBulkDeleteScenario(t *testing.T, api *ninja.NinjaAPI, db *gorm.DB) {
+	t.Helper()
+
+	tags := seedRegressionTags(t, db)
+	recordResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-records/", createRegressionRecordInput{
+		Name:       "Bulk Parent",
+		Email:      "bulk.parent@example.com",
+		Password:   "password123",
+		InviteCode: "bulk-parent",
+		Age:        35,
+		Score:      44.4,
+		Balance:    200,
+		Active:     true,
+		StartsAt:   time.Date(2026, 4, 20, 9, 0, 0, 0, time.UTC),
+		TagIDs:     []uint{tags[0].ID},
+	}, nil)
+	if recordResp.Code != http.StatusCreated {
+		t.Fatalf("create record status=%d body=%s", recordResp.Code, recordResp.Body.String())
+	}
+	record := decodeJSONBody[regressionRecordPayload](t, recordResp.Body)
+
+	rootResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-comments/", createRegressionCommentInput{
+		RecordID: record.ID,
+		Body:     "root comment",
+	}, nil)
+	if rootResp.Code != http.StatusCreated {
+		t.Fatalf("create root comment status=%d body=%s", rootResp.Code, rootResp.Body.String())
+	}
+	root := decodeJSONBody[regressionCommentPayload](t, rootResp.Body)
+
+	childResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-comments/", createRegressionCommentInput{
+		RecordID: record.ID,
+		ParentID: &root.ID,
+		Body:     "child comment",
+		IsPinned: true,
+	}, nil)
+	if childResp.Code != http.StatusCreated {
+		t.Fatalf("create child comment status=%d body=%s", childResp.Code, childResp.Body.String())
+	}
+	child := decodeJSONBody[regressionCommentPayload](t, childResp.Body)
+
+	otherRecordResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-records/", createRegressionRecordInput{
+		Name:       "Other Parent",
+		Email:      "other.parent@example.com",
+		Password:   "password123",
+		InviteCode: "other-parent",
+		StartsAt:   time.Date(2026, 4, 21, 9, 0, 0, 0, time.UTC),
+	}, nil)
+	if otherRecordResp.Code != http.StatusCreated {
+		t.Fatalf("create other record status=%d body=%s", otherRecordResp.Code, otherRecordResp.Body.String())
+	}
+	otherRecord := decodeJSONBody[regressionRecordPayload](t, otherRecordResp.Body)
+
+	crossRecordResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-comments/", createRegressionCommentInput{
+		RecordID: otherRecord.ID,
+		ParentID: &root.ID,
+		Body:     "cross-record child",
+	}, nil)
+	if crossRecordResp.Code != http.StatusBadRequest {
+		t.Fatalf("expected cross-record parent rejection, got %d body=%s", crossRecordResp.Code, crossRecordResp.Body.String())
+	}
+
+	commentDetailResp := performRegressionJSON(t, api, http.MethodGet, "/api/regression-comments/"+strconv.FormatUint(uint64(root.ID), 10), nil, nil)
+	if commentDetailResp.Code != http.StatusOK {
+		t.Fatalf("comment detail status=%d body=%s", commentDetailResp.Code, commentDetailResp.Body.String())
+	}
+	rootDetail := decodeJSONBody[regressionCommentPayload](t, commentDetailResp.Body)
+	if len(rootDetail.ChildIDs) != 1 || rootDetail.ChildIDs[0] != child.ID {
+		t.Fatalf("expected child_ids on parent comment, got %+v", rootDetail)
+	}
+
+	recordDetailResp := performRegressionJSON(t, api, http.MethodGet, "/api/regression-records/"+strconv.FormatUint(uint64(record.ID), 10), nil, nil)
+	if recordDetailResp.Code != http.StatusOK {
+		t.Fatalf("record detail status=%d body=%s", recordDetailResp.Code, recordDetailResp.Body.String())
+	}
+	recordDetail := decodeJSONBody[regressionRecordPayload](t, recordDetailResp.Body)
+	if !sameUintSet(recordDetail.CommentIDs, root.ID, child.ID) {
+		t.Fatalf("expected comment_ids on record detail, got %+v", recordDetail)
+	}
+
+	newBody := "child comment updated"
+	unpin := false
+	updateChildResp := performRegressionJSON(t, api, http.MethodPatch, "/api/regression-comments/"+strconv.FormatUint(uint64(child.ID), 10), updateRegressionCommentInput{
+		ParentID: &root.ID,
+		Body:     &newBody,
+		IsPinned: &unpin,
+	}, nil)
+	if updateChildResp.Code != http.StatusOK {
+		t.Fatalf("update child comment status=%d body=%s", updateChildResp.Code, updateChildResp.Body.String())
+	}
+
+	headers := map[string]string{"X-User-ID": "1"}
+	metaResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression-comments/meta", nil, headers)
+	if metaResp.Code != http.StatusOK {
+		t.Fatalf("admin comment meta status=%d body=%s", metaResp.Code, metaResp.Body.String())
+	}
+	meta := decodeJSONBody[admin.ResourceMetadata](t, metaResp.Body)
+	var recordField, parentField, childIDsField *admin.FieldMeta
+	for i := range meta.Fields {
+		switch meta.Fields[i].Name {
+		case "record_id":
+			recordField = &meta.Fields[i]
+		case "parent_id":
+			parentField = &meta.Fields[i]
+		case "child_ids":
+			childIDsField = &meta.Fields[i]
+		}
+	}
+	if recordField == nil || recordField.Relation == nil || recordField.Relation.Resource != "regression_records" {
+		t.Fatalf("unexpected record_id relation metadata: %+v", recordField)
+	}
+	if parentField == nil || parentField.Relation == nil || parentField.Relation.Resource != "regression_comments" {
+		t.Fatalf("unexpected parent_id relation metadata: %+v", parentField)
+	}
+	if childIDsField == nil || !childIDsField.ReadOnly || childIDsField.Relation == nil || childIDsField.Relation.Resource != "regression_comments" {
+		t.Fatalf("unexpected child_ids metadata: %+v", childIDsField)
+	}
+
+	adminCreateResp := performRegressionJSON(t, api, http.MethodPost, "/admin/resources/regression-comments", map[string]any{
+		"record_id": record.ID,
+		"body":      "standalone admin comment",
+		"is_pinned": true,
+	}, headers)
+	if adminCreateResp.Code != http.StatusCreated {
+		t.Fatalf("admin create comment status=%d body=%s", adminCreateResp.Code, adminCreateResp.Body.String())
+	}
+	adminCreated := decodeJSONBody[admin.ResourceRecordOutput](t, adminCreateResp.Body)
+	if _, ok := adminCreated.Item["id"].(float64); !ok {
+		t.Fatalf("expected numeric admin comment id, got %+v", adminCreated.Item["id"])
+	}
+
+	adminListResp := performRegressionJSON(t, api, http.MethodGet, "/admin/resources/regression-comments?record_id="+strconv.FormatUint(uint64(record.ID), 10)+"&search=comment&sort=-id", nil, headers)
+	if adminListResp.Code != http.StatusOK {
+		t.Fatalf("admin comment list status=%d body=%s", adminListResp.Code, adminListResp.Body.String())
+	}
+	adminList := decodeJSONBody[admin.ResourceListOutput](t, adminListResp.Body)
+	if adminList.Total < 3 {
+		t.Fatalf("expected at least 3 comments in admin list, got %+v", adminList)
+	}
+
+	bulkAResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-records/", createRegressionRecordInput{
+		Name:       "Bulk Delete A",
+		Email:      "bulk.delete.a@example.com",
+		Password:   "password123",
+		InviteCode: "bulk-a",
+		StartsAt:   time.Date(2026, 4, 22, 9, 0, 0, 0, time.UTC),
+	}, nil)
+	if bulkAResp.Code != http.StatusCreated {
+		t.Fatalf("create bulk record A status=%d body=%s", bulkAResp.Code, bulkAResp.Body.String())
+	}
+	bulkA := decodeJSONBody[regressionRecordPayload](t, bulkAResp.Body)
+
+	bulkBResp := performRegressionJSON(t, api, http.MethodPost, "/api/regression-records/", createRegressionRecordInput{
+		Name:       "Bulk Delete B",
+		Email:      "bulk.delete.b@example.com",
+		Password:   "password123",
+		InviteCode: "bulk-b",
+		StartsAt:   time.Date(2026, 4, 23, 9, 0, 0, 0, time.UTC),
+	}, nil)
+	if bulkBResp.Code != http.StatusCreated {
+		t.Fatalf("create bulk record B status=%d body=%s", bulkBResp.Code, bulkBResp.Body.String())
+	}
+	bulkB := decodeJSONBody[regressionRecordPayload](t, bulkBResp.Body)
+
+	bulkDeleteResp := performRegressionJSON(t, api, http.MethodPost, "/admin/resources/regression-records/bulk-delete", map[string]any{
+		"ids": []uint{bulkA.ID, bulkB.ID},
+	}, headers)
+	if bulkDeleteResp.Code != http.StatusCreated {
+		t.Fatalf("admin record bulk delete status=%d body=%s", bulkDeleteResp.Code, bulkDeleteResp.Body.String())
+	}
+	deleted := decodeJSONBody[admin.BulkDeleteOutput](t, bulkDeleteResp.Body)
+	if deleted.Deleted != 2 {
+		t.Fatalf("expected bulk delete of 2 records, got %+v", deleted)
+	}
+	for _, id := range []uint{bulkA.ID, bulkB.ID} {
+		resp := performRegressionJSON(t, api, http.MethodGet, "/api/regression-records/"+strconv.FormatUint(uint64(id), 10), nil, nil)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected bulk deleted record %d to be missing, got %d body=%s", id, resp.Code, resp.Body.String())
+		}
+	}
 }
 
 func TestRegressionCRUDRoutesExerciseRichModelScenarios(t *testing.T) {
@@ -865,4 +1439,21 @@ func TestRegressionAdminCRUDAndMetadataExerciseRichModelScenarios(t *testing.T) 
 	if missingResp.Code != http.StatusNotFound {
 		t.Fatalf("expected deleted admin detail 404, got %d body=%s", missingResp.Code, missingResp.Body.String())
 	}
+}
+
+func TestRegressionBulkDeleteAndSelfReferentialCommentScenarios(t *testing.T) {
+	api, db := newRegressionIntegrationAPI(t)
+	runRegressionCommentAndBulkDeleteScenario(t, api, db)
+}
+
+func TestRegressionMySQLDialectScenarios(t *testing.T) {
+	db := openRegressionExternalDB(t, "GIN_NINJA_TEST_MYSQL")
+	api := newRegressionIntegrationAPIWithDB(t, db)
+	runRegressionCommentAndBulkDeleteScenario(t, api, db)
+}
+
+func TestRegressionPostgresDialectScenarios(t *testing.T) {
+	db := openRegressionExternalDB(t, "GIN_NINJA_TEST_POSTGRES")
+	api := newRegressionIntegrationAPIWithDB(t, db)
+	runRegressionCommentAndBulkDeleteScenario(t, api, db)
 }

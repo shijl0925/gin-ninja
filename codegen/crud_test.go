@@ -689,6 +689,63 @@ type Project struct {
 	}
 }
 
+func TestGenerateCRUDSupportsRichSelfReferentialRelations(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+import "gorm.io/gorm"
+
+type Record struct {
+	gorm.Model
+	Email    string    `+"`json:\"email\" binding:\"required,email\"`"+`
+	Comments []Comment `+"`gorm:\"foreignKey:RecordID\" json:\"-\"`"+`
+}
+
+type Comment struct {
+	gorm.Model
+	RecordID uint      `+"`json:\"record_id\" binding:\"required\"`"+`
+	ParentID *uint     `+"`json:\"parent_id\"`"+`
+	Body     string    `+"`json:\"body\" binding:\"required\"`"+`
+	Record   Record    `+"`gorm:\"foreignKey:RecordID\" json:\"-\"`"+`
+	Parent   *Comment  `+"`gorm:\"foreignKey:ParentID\" json:\"-\"`"+`
+	Children []Comment `+"`gorm:\"foreignKey:ParentID\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Comment"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		`RecordID uint ` + "`json:\"record_id\" binding:\"required\"`" + ``,
+		`ParentID *uint ` + "`json:\"parent_id\"`" + ``,
+		`Record                     *CommentRecordOut`,
+		`Parent                     *CommentParentOut`,
+		`Children                   []CommentChildrenOut`,
+		`query.Preload("Record")`,
+		`query.Preload("Parent")`,
+		`query.Preload("Children")`,
+		`func syncCommentChildrenRelations(db *gorm.DB, item *Comment, ids []uint) error {`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, "comment_crud_gen.go"), content, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	runGoTest(t, dir)
+}
+
 func runGoTest(t *testing.T, dir string) {
 	t.Helper()
 

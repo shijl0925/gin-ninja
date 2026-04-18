@@ -69,6 +69,69 @@ func TestRunGenerateCRUDWithNativeGORM(t *testing.T) {
 	}
 }
 
+func TestRunGenerateCRUDWithRichRelations(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+import "gorm.io/gorm"
+
+type Tag struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+
+type Record struct {
+	gorm.Model
+	Email    string    `+"`json:\"email\" binding:\"required,email\"`"+`
+	Tags     []Tag     `+"`gorm:\"many2many:record_tags;\" json:\"-\"`"+`
+	TagIDs   []uint    `+"`gorm:\"-\" json:\"tag_ids\"`"+`
+	Comments []Comment `+"`gorm:\"foreignKey:RecordID\" json:\"-\"`"+`
+}
+
+type Comment struct {
+	gorm.Model
+	RecordID uint      `+"`json:\"record_id\" binding:\"required\"`"+`
+	ParentID *uint     `+"`json:\"parent_id\"`"+`
+	Body     string    `+"`json:\"body\" binding:\"required\"`"+`
+	Record   Record    `+"`gorm:\"foreignKey:RecordID\" json:\"-\"`"+`
+	Parent   *Comment  `+"`gorm:\"foreignKey:ParentID\" json:\"-\"`"+`
+	Children []Comment `+"`gorm:\"foreignKey:ParentID\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{"generate", "crud", "-model", "Comment", "-model-file", modelFile})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	outputFile := filepath.Join(dir, "comment_crud_gen.go")
+	content, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("read generated file: %v", err)
+	}
+	text := string(content)
+	for _, snippet := range []string{
+		"func RegisterCommentCRUDRoutes",
+		`RecordID uint ` + "`json:\"record_id\" binding:\"required\"`",
+		`ParentID *uint ` + "`json:\"parent_id\"`",
+		`query.Preload("Record")`,
+		`query.Preload("Parent")`,
+		`query.Preload("Children")`,
+		`func syncCommentChildrenRelations`,
+	} {
+		if !strings.Contains(text, snippet) {
+			t.Fatalf("expected generated content to contain %q\n%s", snippet, text)
+		}
+	}
+}
+
 func TestRunGenerateCRUDRequiresFlags(t *testing.T) {
 	t.Parallel()
 

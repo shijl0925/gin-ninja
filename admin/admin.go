@@ -792,7 +792,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 		var deleted int64
 		for i := 0; i < itemsPtr.Elem().Len(); i++ {
 			model := itemsPtr.Elem().Index(i).Addr().Interface()
-			removed, err := r.deleteModelWithHooks(ctx, scopedDB, model)
+			removed, err := r.deleteModelWithHooks(ctx, r.scopedDB(ctx, ActionBulkDelete, orm.WithContext(ctx.Context)), model)
 			if err != nil {
 				return nil, err
 			}
