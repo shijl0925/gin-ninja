@@ -3189,7 +3189,7 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
-    function scheduleRelationSearch(field, scopeKey, searchInput, select, preview, summary, menu, dropdown, itemsRef) {
+    function scheduleRelationSearch(field, scopeKey, searchInput, select, summary, menu, dropdown, itemsRef) {
       const key = relationStateKey(scopeKey, field);
       clearTimeout(state.relationTimers[key]);
       state.relationTimers[key] = setTimeout(async () => {
@@ -3200,7 +3200,6 @@ const adminPrototypeHTML = `<!doctype html>
           const nextValue = resolveRelationSelection(field, items, selectedRelationValues(select, field), term);
           populateRelationSelect(field, select, items, nextValue, field.label);
           syncRelationDropdown(field, select, summary, menu, items, dropdown);
-          updateRelationPreview(preview, items, term);
           setStatus('Loaded ' + items.length + ' relation option(s) for ' + field.name + '.');
         } catch (error) {
           setStatus(String(error.message || error));
@@ -3222,48 +3221,40 @@ const adminPrototypeHTML = `<!doctype html>
         select.name = field.name;
         select.className = 'custom-select';
         const multiRelation = isMultiRelationField(field);
-        const preview = null;
-        if (preview) preview.className = 'relation-preview';
         const dropdown = document.createElement('details');
-        const dropdownSummary = dropdown ? document.createElement('summary') : null;
-        const dropdownMenu = dropdown ? document.createElement('div') : null;
-        const dropdownOptions = dropdown ? document.createElement('div') : null;
-        if (dropdown) {
-          dropdown.className = 'multi-relation-dropdown';
-          dropdownSummary.className = 'multi-relation-summary';
-          dropdownMenu.className = 'multi-relation-menu';
-          dropdownOptions.className = 'multi-relation-options';
-          searchInput.classList.add('multi-relation-search');
-          dropdown.appendChild(dropdownSummary);
-          dropdownMenu.appendChild(searchInput);
-          dropdownMenu.appendChild(dropdownOptions);
-          dropdown.appendChild(dropdownMenu);
-          select.hidden = true;
-          dropdown.addEventListener('toggle', () => {
-            if (dropdown.open) {
-              window.requestAnimationFrame(() => searchInput.focus());
-            }
-          });
-        }
+        const dropdownSummary = document.createElement('summary');
+        const dropdownMenu = document.createElement('div');
+        const dropdownOptions = document.createElement('div');
+        dropdown.className = 'multi-relation-dropdown';
+        dropdownSummary.className = 'multi-relation-summary';
+        dropdownMenu.className = 'multi-relation-menu';
+        dropdownOptions.className = 'multi-relation-options';
+        searchInput.classList.add('multi-relation-search');
+        dropdown.appendChild(dropdownSummary);
+        dropdownMenu.appendChild(searchInput);
+        dropdownMenu.appendChild(dropdownOptions);
+        dropdown.appendChild(dropdownMenu);
+        select.hidden = true;
+        dropdown.addEventListener('toggle', () => {
+          if (dropdown.open) {
+            window.requestAnimationFrame(() => searchInput.focus());
+          }
+        });
         const help = document.createElement('div');
         help.className = 'field-help';
         help.textContent = multiRelation
           ? 'Search related records and choose one or more matching options for this field.'
           : 'Search related records and choose the best matching option for this field.';
-        if (dropdown) {
-          wrapper.appendChild(dropdown);
-        }
-        if (preview) wrapper.appendChild(preview);
+        wrapper.appendChild(dropdown);
         wrapper.appendChild(select);
         wrapper.appendChild(help);
         const itemsRef = { items: await loadRelationOptions(field, searchInput.value.trim(), 1, 8) };
         const nextValue = resolveRelationSelection(field, itemsRef.items, value, searchInput.value);
         populateRelationSelect(field, select, itemsRef.items, nextValue, field.label);
         syncRelationDropdown(field, select, dropdownSummary, dropdownOptions, itemsRef.items, dropdown);
-        updateRelationPreview(preview, itemsRef.items, searchInput.value.trim());
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;
-          scheduleRelationSearch(field, scopeKey, searchInput, select, preview, dropdownSummary, dropdownOptions, dropdown, itemsRef);
+          scheduleRelationSearch(field, scopeKey, searchInput, select, dropdownSummary, dropdownOptions, dropdown, itemsRef);
         });
         select.addEventListener('change', () => {
           syncRelationDropdown(field, select, dropdownSummary, dropdownOptions, itemsRef.items, dropdown);

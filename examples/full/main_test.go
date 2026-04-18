@@ -993,6 +993,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "const dropdown = document.createElement('details');") {
 		t.Fatalf("expected relation fields to render with dropdown controls in html: %q", html)
 	}
+	if !strings.Contains(html, "document.createElement(multiRelation ? 'label' : 'button')") {
+		t.Fatalf("expected single relation dropdown options to render as buttons in html: %q", html)
+	}
 	if !strings.Contains(html, "button:hover:not(:disabled) { filter: brightness(1.15)") {
 		t.Fatalf("expected dark mode button hover filter reversal in html: %q", html)
 	}
