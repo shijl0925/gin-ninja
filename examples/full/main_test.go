@@ -579,7 +579,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected /admin/login 200, got %d", loginPageResp.StatusCode)
 	}
 	loginHTML := string(loginPageBody)
-	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
+	if !strings.Contains(loginHTML, `const adminLoginPath = "/admin/login"`) {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "Gin Ninja") {
@@ -617,7 +617,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected /admin 200, got %d", adminPageResp.StatusCode)
 	}
 	adminHTML := string(adminPageBody)
-	if !strings.Contains(adminHTML, "const adminPagePath = '/admin'") {
+	if !strings.Contains(adminHTML, `const adminPagePath = "/admin"`) {
 		t.Fatalf("expected standalone admin path in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Admin Workspace") {
@@ -748,10 +748,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "Gin Ninja Admin") {
 		t.Fatalf("expected prototype title in html: %q", html)
 	}
-	if !strings.Contains(html, "const apiBase = '/api/v1/admin'") {
+	if !strings.Contains(html, `const apiBase = "/api/v1/admin"`) {
 		t.Fatalf("expected admin api base in html: %q", html)
 	}
-	if !strings.Contains(html, "const prototypePagePath = '/admin-prototype'") {
+	if !strings.Contains(html, `const prototypePagePath = "/admin-prototype"`) {
 		t.Fatalf("expected prototype page path in html: %q", html)
 	}
 	if !strings.Contains(html, "selectRecord(row, { openModal: 'record' })") {
