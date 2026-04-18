@@ -318,7 +318,8 @@ func (s *openAPISpec) responseHeadersForOperation(op *operation) map[string]head
 func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterSpec, *Schema, string) {
 	var params []parameterSpec
 	bodyFields := make(map[string]*Schema)
-	bodyRequired := []string{}
+	var bodyRequired []string
+
 	hasBody := isBodyMethod(method)
 	isMultipart := hasMultipartBody(t)
 

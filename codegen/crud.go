@@ -299,14 +299,22 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		}
 	}
 	fields := make([]fieldSpec, 0, len(structType.Fields.List))
-	outputFields := []string{}
-	createFields := []fieldSpec{}
-	updateFields := []fieldSpec{}
-	listFields := []listFieldSpec{}
-	sortFields := []sortFieldSpec{}
-	searchFields := []string{}
-	relations := []relationSpec{}
-	relationOuts := []relationOutSpec{}
+	var outputFields []string
+
+	var createFields []fieldSpec
+
+	var updateFields []fieldSpec
+
+	var listFields []listFieldSpec
+
+	var sortFields []sortFieldSpec
+
+	var searchFields []string
+
+	var relations []relationSpec
+
+	var relationOuts []relationOutSpec
+
 	idTypeExpr := "string"
 	idField := "ID"
 	idColumn := "id"
