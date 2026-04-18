@@ -227,9 +227,7 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .resource-form-footer,
     [data-theme="dark"] .table-shell,
     [data-theme="dark"] .form-section-intro,
-    [data-theme="dark"] .filters-shell,
-    [data-theme="dark"] .detail-card,
-    [data-theme="dark"] .records-toolbar { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .detail-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
     [data-theme="dark"] .field-tag { background: #22253a; border-color: var(--admin-border); color: var(--admin-muted); }
     [data-theme="dark"] .field-tag.required { background: rgba(102,176,255,0.15); color: #bfdbfe; border-color: rgba(102,176,255,0.28); }
     [data-theme="dark"] .field-tag.readonly { background: rgba(148,163,184,0.12); color: #cbd5f5; border-color: rgba(148,163,184,0.24); }
@@ -249,7 +247,6 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .table-badge.info { background: rgba(102,176,255,0.12); border-color: rgba(102,176,255,0.24); color: #bfdbfe; }
     [data-theme="dark"] .table-badge.neutral { background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.24); color: #cbd5e1; }
     [data-theme="dark"] .table-dot { box-shadow:0 0 0 4px rgba(255,255,255,0.04); }
-    [data-theme="dark"] .records-search-field,
     [data-theme="dark"] .filter-field-card,
     [data-theme="dark"] .form-field-card input,
     [data-theme="dark"] .form-field-card select,
@@ -1231,57 +1228,8 @@ const adminPrototypeHTML = `<!doctype html>
     .bulk-edit-fields { display:grid; gap:12px; }
     .bulk-edit-field { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:14px; background:rgba(255,255,255,0.72); }
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-    .records-toolbar {
-      display:grid;
-      gap:14px;
-      padding:18px;
-      border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:24px;
-      background:linear-gradient(180deg, rgba(249,250,252,0.98) 0%, rgba(255,255,255,0.95) 100%);
-      box-shadow:inset 0 1px 0 rgba(255,255,255,0.7);
-    }
-    .records-toolbar-main,
-    .records-toolbar-status {
-      display:flex;
-      gap:12px;
-      align-items:center;
-      justify-content:space-between;
-      flex-wrap:wrap;
-    }
-    .records-search-field {
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex:1 1 340px;
-      min-height:52px;
-      padding:0 16px;
-      border:1px solid rgba(15, 23, 42, 0.1);
-      border-radius:18px;
-      background:#fff;
-      box-shadow:0 6px 18px rgba(15, 23, 42, 0.04);
-    }
-    .records-search-field input {
-      flex:1 1 auto;
-      min-width:0;
-      padding:0;
-      border:none;
-      border-radius:0;
-      background:transparent;
-      box-shadow:none;
-    }
-    .records-search-field input:focus { box-shadow:none; }
-    .records-search-icon { font-size:18px; line-height:1; color:var(--admin-muted); flex-shrink:0; }
-    .records-utility-actions {
-      display:flex;
-      gap:10px;
-      align-items:center;
-      justify-content:flex-end;
-      flex:1 1 420px;
-      flex-wrap:wrap;
-    }
-    .records-utility-actions select,
-    .records-utility-actions button { min-height:46px; }
-    .records-toolbar-status { padding-top:2px; }
+    .table-toolbar .row-actions { flex:1 1 480px; }
+    .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
     .badge.badge-muted {
       background:#f2f4f7;
       color:#667085;
@@ -1550,30 +1498,15 @@ const adminPrototypeHTML = `<!doctype html>
       max-width:32rem;
       line-height:1.5;
     }
-    .filters-shell {
-      display:grid;
-      gap:12px;
-      padding:16px 18px;
-      border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:22px;
-      background:#fff;
-      box-shadow:0 10px 24px rgba(15, 23, 42, 0.04);
-    }
-    .filters-shell-head {
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .filters-shell-copy { display:grid; gap:4px; }
     .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .filter-field-card {
       gap:10px;
-      padding:14px;
+      padding:10px 0 0;
       border:1px solid rgba(15, 23, 42, 0.08);
-      border-radius:18px;
-      background:var(--admin-soft);
+      border-width:0;
+      border-top-width:1px;
+      border-radius:0;
+      background:transparent;
     }
     .filter-field-label {
       font-size:12px;
@@ -2109,14 +2042,7 @@ const adminPrototypeHTML = `<!doctype html>
       .workspace-header-main,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
-      .records-toolbar-main,
-      .records-toolbar-status,
-      .filters-shell-head,
-      .records-utility-actions { align-items:stretch; }
-      .records-search-field,
-      .records-utility-actions,
-      .records-utility-actions > *,
-      .row-actions { width:100%; }
+      .table-toolbar .row-actions { flex-basis:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
       .resource-form-footer { align-items:flex-start; }
     }
@@ -2327,45 +2253,39 @@ const adminPrototypeHTML = `<!doctype html>
             <section id="recordsShell" class="panel section-shell card card-outline card-primary">
               <div class="card-header section-card-header">
                 <div class="section-heading">
-                  <span class="eyebrow subtle">Workspace</span>
                   <h3 class="section-title">Records</h3>
-                  <p class="section-copy muted">Search, filter, sort, and manage the current resource with a cleaner list workspace.</p>
+                  <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
+                </div>
+                <div class="row-actions">
+                  <span id="selectedCountBadge" class="badge">0 selected</span>
                 </div>
               </div>
               <div class="card-body section-card-body">
-                <div class="records-toolbar">
-                  <div class="records-toolbar-main">
-                    <label class="records-search-field" aria-label="Search current resource">
-                      <span class="records-search-icon" aria-hidden="true">⌕</span>
-                      <input id="search" class="form-control" placeholder="Search current resource">
-                    </label>
-                    <div class="records-utility-actions">
-                      <select id="sort" class="custom-select"></select>
-                      <select id="pageSize" class="custom-select">
-                        <option value="5">5 / page</option>
-                        <option value="10" selected>10 / page</option>
-                        <option value="20">20 / page</option>
-                        <option value="50">50 / page</option>
-                      </select>
-                      <button id="reloadList" class="secondary btn btn-default" type="button">Refresh</button>
-                      <button id="clearFilters" class="secondary btn btn-default" type="button">Reset</button>
-                      <button id="bulkDelete" class="danger btn btn-danger" type="button">Delete selected</button>
-                    </div>
+                <div class="toolbar">
+                  <div class="section-heading">
+                    <span class="eyebrow subtle">Table tools</span>
+                    <p class="section-copy muted">Apply fast filters, reload data, and run bulk actions from the record list.</p>
                   </div>
-                  <div class="records-toolbar-status">
-                    <span id="selectedCountBadge" class="badge badge-muted">0 selected</span>
-                    <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
+                  <div class="row-actions">
+                    <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
+                    <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
+                    <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                   </div>
                 </div>
-                <div id="filtersShell" class="filters-shell">
-                  <div class="filters-shell-head">
-                    <div class="filters-shell-copy">
-                      <span class="eyebrow subtle">Filters</span>
-                      <p class="section-copy muted">Narrow the current list with field-level filters.</p>
-                    </div>
+                <div class="table-toolbar">
+                  <div class="row-actions">
+                    <input id="search" class="form-control" placeholder="Search current resource">
+                    <select id="sort" class="custom-select"></select>
+                    <select id="pageSize" class="custom-select">
+                      <option value="5">5 / page</option>
+                      <option value="10" selected>10 / page</option>
+                      <option value="20">20 / page</option>
+                      <option value="50">50 / page</option>
+                    </select>
                   </div>
-                  <form id="filtersForm" class="filters"></form>
+                  <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
                 </div>
+                <form id="filtersForm" class="filters"></form>
                 <div id="list"></div>
                 <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
                   <span class="list-spinner" aria-hidden="true"></span>
@@ -2373,6 +2293,7 @@ const adminPrototypeHTML = `<!doctype html>
                 </div>
               </div>
               <div class="card-footer section-card-footer">
+                <div class="muted">Use filters to refine the current workspace.</div>
                 <div class="row-actions">
                   <button id="prevPage" class="secondary btn btn-default" type="button">Previous</button>
                   <button id="nextPage" class="secondary btn btn-default" type="button">Next</button>
@@ -2541,7 +2462,6 @@ const adminPrototypeHTML = `<!doctype html>
       closeEditModal: document.getElementById('closeEditModal'),
       updateForm: document.getElementById('updateForm'),
       editHint: document.getElementById('editHint'),
-      filtersShell: document.getElementById('filtersShell'),
       filtersForm: document.getElementById('filtersForm'),
       sort: document.getElementById('sort'),
       pageSize: document.getElementById('pageSize'),
@@ -3807,10 +3727,9 @@ const adminPrototypeHTML = `<!doctype html>
       els.filtersForm.innerHTML = '';
       const filterFields = state.meta?.filter_fields || [];
       if (!filterFields.length) {
-        if (els.filtersShell) els.filtersShell.hidden = true;
+        els.filtersForm.innerHTML = '<p class="muted">No filters available for this resource.</p>';
         return;
       }
-      if (els.filtersShell) els.filtersShell.hidden = false;
       filterFields.forEach((name) => {
         const field = fieldMeta(name);
         if (field) buildFilterControl(field);
