@@ -579,7 +579,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected /admin/login 200, got %d", loginPageResp.StatusCode)
 	}
 	loginHTML := string(loginPageBody)
-	if !strings.Contains(loginHTML, "const adminLoginPath = '/admin/login'") {
+	if !strings.Contains(loginHTML, `const adminLoginPath = "/admin/login"`) {
 		t.Fatalf("expected standalone login path in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "Gin Ninja") {
@@ -590,6 +590,18 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(loginHTML, "document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage())") {
 		t.Fatalf("expected standalone login body class toggle in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "body.standalone-login-page .topbar { display:none; }") {
+		t.Fatalf("expected standalone login page to hide the top header in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "body.standalone-login-page .app-main {") {
+		t.Fatalf("expected standalone login page app-main selector in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "min-height:100vh;") {
+		t.Fatalf("expected standalone login page app-main min-height override in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "align-content:center;") {
+		t.Fatalf("expected standalone login page app-main centering override in html: %q", loginHTML)
 	}
 	if !strings.Contains(loginHTML, "[hidden] { display:none !important; }") {
 		t.Fatalf("expected hidden css rule in html: %q", loginHTML)
@@ -602,6 +614,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(loginHTML, "window.location.replace(adminPagePath)") {
 		t.Fatalf("expected standalone login redirect to /admin in html: %q", loginHTML)
+	}
+	if !strings.Contains(loginHTML, "[data-theme=\"dark\"] body.standalone-login-page .session-panel {") {
+		t.Fatalf("expected standalone login dark mode card override in html: %q", loginHTML)
 	}
 
 	adminPageResp, err := http.Get(server.URL + "/admin")
@@ -617,7 +632,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected /admin 200, got %d", adminPageResp.StatusCode)
 	}
 	adminHTML := string(adminPageBody)
-	if !strings.Contains(adminHTML, "const adminPagePath = '/admin'") {
+	if !strings.Contains(adminHTML, `const adminPagePath = "/admin"`) {
 		t.Fatalf("expected standalone admin path in html: %q", adminHTML)
 	}
 	if strings.Contains(adminHTML, "Admin Workspace") {
@@ -628,12 +643,6 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(adminHTML, "els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';") {
 		t.Fatalf("expected shorter admin workspace summary copy in html: %q", adminHTML)
-	}
-	if strings.Contains(adminHTML, "workspace-breadcrumbs") {
-		t.Fatalf("expected oversized workspace breadcrumbs to be removed from html: %q", adminHTML)
-	}
-	if strings.Contains(adminHTML, "Refresh workspace") {
-		t.Fatalf("expected admin workspace refresh action to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "els.loginForm.hidden = false;") {
 		t.Fatalf("expected signed-out admin page to keep login form visible in html: %q", adminHTML)
@@ -704,8 +713,17 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
 	}
-	if !strings.Contains(adminHTML, "class=\"content-header-breadcrumb\"") || !strings.Contains(adminHTML, "AdminLTE workspace chrome") {
-		t.Fatalf("expected richer AdminLTE-style content header chrome in html: %q", adminHTML)
+	if strings.Contains(adminHTML, "Workspace</span>") {
+		t.Fatalf("expected workspace eyebrow to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "AdminLTE workspace chrome") {
+		t.Fatalf("expected workspace chrome heading to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "Operate resources with dashboard, filters, and table controls in one place.") {
+		t.Fatalf("expected workspace chrome description to be removed from html: %q", adminHTML)
+	}
+	if !strings.Contains(adminHTML, "class=\"resource-header-actions\"") {
+		t.Fatalf("expected create action to move into the resource header actions area in html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "id=\"workspaceHeader\"") || !strings.Contains(adminHTML, "id=\"recordsShell\"") {
 		t.Fatalf("expected dashboard-toggleable workspace header and records shells in html: %q", adminHTML)
@@ -748,10 +766,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, "Gin Ninja Admin") {
 		t.Fatalf("expected prototype title in html: %q", html)
 	}
-	if !strings.Contains(html, "const apiBase = '/api/v1/admin'") {
+	if !strings.Contains(html, `const apiBase = "/api/v1/admin"`) {
 		t.Fatalf("expected admin api base in html: %q", html)
 	}
-	if !strings.Contains(html, "const prototypePagePath = '/admin-prototype'") {
+	if !strings.Contains(html, `const prototypePagePath = "/admin-prototype"`) {
 		t.Fatalf("expected prototype page path in html: %q", html)
 	}
 	if !strings.Contains(html, "selectRecord(row, { openModal: 'record' })") {
@@ -926,6 +944,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	}
 	if !strings.Contains(html, "localStorage.setItem(themeStorageKey") {
 		t.Fatalf("expected dark mode localStorage persistence in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] body.standalone-login-page {") {
+		t.Fatalf("expected standalone login dark mode background override in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] body.standalone-login-page .login-marketing {") {
+		t.Fatalf("expected standalone login dark mode marketing panel override in html: %q", html)
 	}
 	if !strings.Contains(html, "id=\"topbarSearchInput\"") {
 		t.Fatalf("expected topbar search input in html: %q", html)

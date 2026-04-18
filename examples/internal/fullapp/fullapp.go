@@ -11,6 +11,7 @@ import (
 
 	ginpkg "github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
+	admin "github.com/shijl0925/gin-ninja/admin"
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	"github.com/shijl0925/gin-ninja/examples/full/app"
 	"github.com/shijl0925/gin-ninja/middleware"
@@ -466,9 +467,7 @@ func addVersionedRoutes(api *ninja.NinjaAPI) {
 }
 
 func addAdminPages(api *ninja.NinjaAPI) {
-	api.Engine().GET("/admin/login", app.ServeAdminPrototype)
-	api.Engine().GET("/admin", app.ServeAdminPrototype)
-	api.Engine().GET("/admin-prototype", app.ServeAdminPrototype)
+	admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 }
 
 func addHealthRoute(api *ninja.NinjaAPI) {
