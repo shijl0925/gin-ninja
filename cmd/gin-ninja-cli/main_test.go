@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -550,5 +552,279 @@ func TestRunInitAppWizard(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected scaffold file %s: %v", path, err)
 		}
+	}
+}
+
+func TestRunStartProjectGeneratedCRUDRoutesIntegration(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "rich-project")
+
+	var stdout, stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"rich-project",
+		"-module", "github.com/acme/rich-project",
+		"-output", outputDir,
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	injectRichCRUDScaffold(t, filepath.Join(outputDir, "app"), "app")
+	runScaffoldModuleGoTest(t, outputDir)
+}
+
+func TestRunStartAppGeneratedCRUDRoutesIntegration(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module demo\n\ngo 1.26\n"), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	outputDir := filepath.Join(dir, "blog")
+	var stdout, stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startapp",
+		"blog",
+		"-output", outputDir,
+		"-package", "blog",
+		"-model", "Post",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	injectRichCRUDScaffold(t, outputDir, "blog")
+	runScaffoldModuleGoTest(t, dir)
+}
+
+func injectRichCRUDScaffold(t *testing.T, appDir, packageName string) {
+	t.Helper()
+
+	modelFile := filepath.Join(appDir, "complex_models.go")
+	if err := os.WriteFile(modelFile, []byte(richScaffoldModelSource(packageName)), 0o644); err != nil {
+		t.Fatalf("write complex models: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"generate", "crud",
+		"-model", "Comment",
+		"-model-file", modelFile,
+		"-output", filepath.Join(appDir, "comment_crud_gen.go"),
+	})
+	if code != 0 {
+		t.Fatalf("generate crud exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for path, content := range map[string]string{
+		filepath.Join(appDir, "comment_routes_testhook.go"): richScaffoldRouteHookSource(packageName),
+		filepath.Join(appDir, "comment_runtime_test.go"):    richScaffoldIntegrationTestSource(packageName),
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatalf("write %s: %v", filepath.Base(path), err)
+		}
+	}
+}
+
+func richScaffoldModelSource(packageName string) string {
+	return `package ` + packageName + `
+
+import "gorm.io/gorm"
+
+type Record struct {
+	gorm.Model
+	Email    string    ` + "`json:\"email\" binding:\"required,email\"`" + `
+	Comments []Comment ` + "`gorm:\"foreignKey:RecordID\" json:\"-\"`" + `
+}
+
+type Comment struct {
+	gorm.Model
+	RecordID uint      ` + "`json:\"record_id\" binding:\"required\"`" + `
+	ParentID *uint     ` + "`json:\"parent_id\"`" + `
+	Body     string    ` + "`json:\"body\" binding:\"required\"`" + `
+	Record   Record    ` + "`gorm:\"foreignKey:RecordID\" json:\"-\"`" + `
+	Parent   *Comment  ` + "`gorm:\"foreignKey:ParentID\" json:\"-\"`" + `
+	Children []Comment ` + "`gorm:\"foreignKey:ParentID\" json:\"-\"`" + `
+}
+`
+}
+
+func richScaffoldRouteHookSource(packageName string) string {
+	return `package ` + packageName + `
+
+import ninja "github.com/shijl0925/gin-ninja"
+
+func RegisterScaffoldCommentRoutes(api *ninja.NinjaAPI) {
+	router := ninja.NewRouter("/comments", ninja.WithTags("Comments"))
+	RegisterCommentCRUDRoutes(router)
+	api.AddRouter(router)
+}
+`
+}
+
+func richScaffoldIntegrationTestSource(packageName string) string {
+	return `package ` + packageName + `
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+
+	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/orm"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+func newRichScaffoldAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatalf("gorm.Open: %v", err)
+	}
+	if err := db.AutoMigrate(&Record{}, &Comment{}); err != nil {
+		t.Fatalf("AutoMigrate: %v", err)
+	}
+	orm.Init(db)
+
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	api.UseGin(orm.Middleware(db))
+	RegisterRoutes(api)
+	RegisterScaffoldCommentRoutes(api)
+	return api, db
+}
+
+func performRichScaffoldJSON(t *testing.T, api *ninja.NinjaAPI, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var payload []byte
+	var err error
+	if body != nil {
+		payload, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+	}
+	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	api.Handler().ServeHTTP(rec, req)
+	return rec
+}
+
+func TestScaffoldSupportsGeneratedCommentCRUD(t *testing.T) {
+	api, db := newRichScaffoldAPI(t)
+
+	record := Record{Email: "scaffold@example.com"}
+	if err := db.Create(&record).Error; err != nil {
+		t.Fatalf("db.Create record: %v", err)
+	}
+
+	rootResp := performRichScaffoldJSON(t, api, http.MethodPost, "/comments/", map[string]any{
+		"record_id": record.ID,
+		"body":      "root",
+	})
+	if rootResp.Code != http.StatusCreated {
+		t.Fatalf("create root status=%d body=%s", rootResp.Code, rootResp.Body.String())
+	}
+	var root map[string]any
+	if err := json.Unmarshal(rootResp.Body.Bytes(), &root); err != nil {
+		t.Fatalf("json.Unmarshal root: %v", err)
+	}
+	rootID := uint(root["id"].(float64))
+
+	childResp := performRichScaffoldJSON(t, api, http.MethodPost, "/comments/", map[string]any{
+		"record_id": record.ID,
+		"parent_id": rootID,
+		"body":      "child",
+	})
+	if childResp.Code != http.StatusCreated {
+		t.Fatalf("create child status=%d body=%s", childResp.Code, childResp.Body.String())
+	}
+	var child map[string]any
+	if err := json.Unmarshal(childResp.Body.Bytes(), &child); err != nil {
+		t.Fatalf("json.Unmarshal child: %v", err)
+	}
+	childID := uint(child["id"].(float64))
+
+	detailResp := performRichScaffoldJSON(t, api, http.MethodGet, "/comments/"+strconv.FormatUint(uint64(childID), 10), nil)
+	if detailResp.Code != http.StatusOK {
+		t.Fatalf("detail status=%d body=%s", detailResp.Code, detailResp.Body.String())
+	}
+	var detail map[string]any
+	if err := json.Unmarshal(detailResp.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("json.Unmarshal detail: %v", err)
+	}
+	if got := uint(detail["record_id"].(float64)); got != record.ID {
+		t.Fatalf("expected record_id %d, got %+v", record.ID, detail)
+	}
+	if got := uint(detail["parent_id"].(float64)); got != rootID {
+		t.Fatalf("expected parent_id %d, got %+v", rootID, detail)
+	}
+
+	updateResp := performRichScaffoldJSON(t, api, http.MethodPatch, "/comments/"+strconv.FormatUint(uint64(rootID), 10), map[string]any{
+		"body": "root updated",
+	})
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("update status=%d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+
+	listResp := performRichScaffoldJSON(t, api, http.MethodGet, "/comments/?page=1&size=10", nil)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
+	}
+	var page struct {
+		Items []map[string]any ` + "`json:\"items\"`" + `
+		Total int64            ` + "`json:\"total\"`" + `
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &page); err != nil {
+		t.Fatalf("json.Unmarshal page: %v", err)
+	}
+	if page.Total != 2 || len(page.Items) != 2 {
+		t.Fatalf("expected two generated comments, got %+v", page)
+	}
+}
+`
+}
+
+func runScaffoldModuleGoTest(t *testing.T, dir string) {
+	t.Helper()
+
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve repo root")
+	}
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+
+	goModPath := filepath.Join(dir, "go.mod")
+	content, err := os.ReadFile(goModPath)
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	if !strings.Contains(string(content), "replace github.com/shijl0925/gin-ninja => ") {
+		content = append(content, []byte("\nreplace github.com/shijl0925/gin-ninja => "+repoRoot+"\n")...)
+		if err := os.WriteFile(goModPath, content, 0o644); err != nil {
+			t.Fatalf("write go.mod: %v", err)
+		}
+	}
+
+	modTidy := exec.Command("go", "mod", "tidy")
+	modTidy.Dir = dir
+	if output, err := modTidy.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy scaffold: %v\n%s", err, output)
+	}
+
+	cmd := exec.Command("go", "test", "./...")
+	cmd.Dir = dir
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go test scaffold: %v\n%s", err, output)
 	}
 }

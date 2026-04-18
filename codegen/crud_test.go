@@ -746,6 +746,179 @@ type Comment struct {
 	runGoTest(t, dir)
 }
 
+func TestGenerateCRUDRoutesRunForRichSelfReferentialRelations(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+import "gorm.io/gorm"
+
+type Record struct {
+	gorm.Model
+	Email    string    `+"`json:\"email\" binding:\"required,email\"`"+`
+	Comments []Comment `+"`gorm:\"foreignKey:RecordID\" json:\"-\"`"+`
+}
+
+type Comment struct {
+	gorm.Model
+	RecordID uint      `+"`json:\"record_id\" binding:\"required\"`"+`
+	ParentID *uint     `+"`json:\"parent_id\"`"+`
+	Body     string    `+"`json:\"body\" binding:\"required\"`"+`
+	Record   Record    `+"`gorm:\"foreignKey:RecordID\" json:\"-\"`"+`
+	Parent   *Comment  `+"`gorm:\"foreignKey:ParentID\" json:\"-\"`"+`
+	Children []Comment `+"`gorm:\"foreignKey:ParentID\" json:\"-\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Comment"})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "comment_crud_gen.go"), content, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "route_runtime_test.go"), []byte(`package demo
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+
+	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/orm"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+func newGeneratedCommentAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatalf("gorm.Open: %v", err)
+	}
+	if err := db.AutoMigrate(&Record{}, &Comment{}); err != nil {
+		t.Fatalf("AutoMigrate: %v", err)
+	}
+	orm.Init(db)
+
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	api.UseGin(orm.Middleware(db))
+	router := ninja.NewRouter("/comments")
+	RegisterCommentCRUDRoutes(router)
+	api.AddRouter(router)
+	return api, db
+}
+
+func performGeneratedCommentJSON(t *testing.T, api *ninja.NinjaAPI, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var payload []byte
+	var err error
+	if body != nil {
+		payload, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+	}
+	req := httptest.NewRequest(method, path, bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	api.Handler().ServeHTTP(rec, req)
+	return rec
+}
+
+func TestGeneratedCommentCRUDRoutesRunAgainstSQLite(t *testing.T) {
+	api, db := newGeneratedCommentAPI(t)
+
+	record := Record{Email: "record@example.com"}
+	if err := db.Create(&record).Error; err != nil {
+		t.Fatalf("db.Create record: %v", err)
+	}
+
+	rootResp := performGeneratedCommentJSON(t, api, http.MethodPost, "/comments/", map[string]any{
+		"record_id": record.ID,
+		"body":      "root",
+	})
+	if rootResp.Code != http.StatusCreated {
+		t.Fatalf("create root status=%d body=%s", rootResp.Code, rootResp.Body.String())
+	}
+	var root map[string]any
+	if err := json.Unmarshal(rootResp.Body.Bytes(), &root); err != nil {
+		t.Fatalf("json.Unmarshal root: %v", err)
+	}
+	rootID := uint(root["id"].(float64))
+	if got := uint(root["record_id"].(float64)); got != record.ID {
+		t.Fatalf("expected record_id %d, got %+v", record.ID, root)
+	}
+
+	childResp := performGeneratedCommentJSON(t, api, http.MethodPost, "/comments/", map[string]any{
+		"record_id": record.ID,
+		"parent_id": rootID,
+		"body":      "child",
+	})
+	if childResp.Code != http.StatusCreated {
+		t.Fatalf("create child status=%d body=%s", childResp.Code, childResp.Body.String())
+	}
+	var child map[string]any
+	if err := json.Unmarshal(childResp.Body.Bytes(), &child); err != nil {
+		t.Fatalf("json.Unmarshal child: %v", err)
+	}
+	childID := uint(child["id"].(float64))
+
+	detailResp := performGeneratedCommentJSON(t, api, http.MethodGet, "/comments/"+strconv.FormatUint(uint64(childID), 10), nil)
+	if detailResp.Code != http.StatusOK {
+		t.Fatalf("detail status=%d body=%s", detailResp.Code, detailResp.Body.String())
+	}
+	var detail map[string]any
+	if err := json.Unmarshal(detailResp.Body.Bytes(), &detail); err != nil {
+		t.Fatalf("json.Unmarshal detail: %v", err)
+	}
+	if got := uint(detail["parent_id"].(float64)); got != rootID {
+		t.Fatalf("expected parent_id %d, got %+v", rootID, detail)
+	}
+
+	updateResp := performGeneratedCommentJSON(t, api, http.MethodPatch, "/comments/"+strconv.FormatUint(uint64(rootID), 10), map[string]any{
+		"body": "root updated",
+	})
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("update status=%d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+
+	listResp := performGeneratedCommentJSON(t, api, http.MethodGet, "/comments/?page=1&size=10", nil)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
+	}
+	var page struct {
+		Items []map[string]any `+"`json:\"items\"`"+`
+		Total int64            `+"`json:\"total\"`"+`
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &page); err != nil {
+		t.Fatalf("json.Unmarshal page: %v", err)
+	}
+	if page.Total != 2 || len(page.Items) != 2 {
+		t.Fatalf("expected two comments in page, got %+v", page)
+	}
+
+	deleteResp := performGeneratedCommentJSON(t, api, http.MethodDelete, "/comments/"+strconv.FormatUint(uint64(rootID), 10), nil)
+	if deleteResp.Code != http.StatusNoContent {
+		t.Fatalf("delete status=%d body=%s", deleteResp.Code, deleteResp.Body.String())
+	}
+}
+`), 0o644); err != nil {
+		t.Fatalf("write route runtime test: %v", err)
+	}
+
+	runGoTest(t, dir)
+}
+
 func runGoTest(t *testing.T, dir string) {
 	t.Helper()
 
