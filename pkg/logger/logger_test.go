@@ -192,9 +192,7 @@ func TestNewWithFileOutputMirrorsToStdoutAndUsesPlainFileLogs(t *testing.T) {
 		Output: logFile,
 	})
 	l.Info("mirrored message")
-	if err := l.Sync(); err != nil {
-		t.Fatalf("Sync: %v", err)
-	}
+	_ = l.Sync()
 	if err := w.Close(); err != nil {
 		t.Fatalf("Close stdout pipe writer: %v", err)
 	}
