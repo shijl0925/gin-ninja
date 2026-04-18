@@ -205,7 +205,6 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 	}
 
 	api.UseGin(
-		ginpkg.Logger(),
 		middleware.RequestID(),
 		middleware.Recovery(log_),
 		middleware.Logger(log_),

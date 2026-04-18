@@ -56,7 +56,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, panic recovery, i18n locale negotiation, **HMAC-signed cookie sessions**, **CSRF protection**, **security response headers**, and **upload size/content-type limits**.
 - **Lifecycle hooks** – startup and shutdown hooks with graceful server shutdown.
 - **Settings** – Viper-based YAML/env configuration management with **multi-environment override** support.
-- **Logger** – Zap-based structured logger with console/JSON output.
+- **Logger** – Zap-based structured logger with console/JSON output, file sinks, and size-based log rotation.
 - **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
 - **Business errors** – `BusinessError` type with integer codes integrated into the error pipeline.
 - **Bootstrap helpers** – one-call database and logger initialization.
@@ -416,7 +416,11 @@ jwt:
 log:
   level: "info"
   format: "json"
-  output: "stdout"
+  output: "stdout"      # set a file path such as "logs/app.log" to enable file logging
+  max_size_mb: 100      # rotate after the file reaches 100 MB
+  max_age_days: 7       # keep rotated files for 7 days
+  max_backups: 3        # keep up to 3 rotated files
+  compress: false       # gzip old rotated files when true
 ```
 
 MySQL / PostgreSQL can use the same `database` block:

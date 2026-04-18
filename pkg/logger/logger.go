@@ -15,10 +15,13 @@ package logger
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/shijl0925/gin-ninja/settings"
 )
@@ -30,11 +33,17 @@ var (
 	defaultLogger     *zap.Logger
 )
 
+const (
+	defaultMaxSizeMB  = 100
+	defaultMaxAgeDays = 7
+	defaultMaxBackups = 3
+)
+
 // New creates a new *zap.Logger configured from the supplied LogConfig.
 func New(cfg settings.LogConfig) *zap.Logger {
 	level := parseLevel(cfg.Level)
 	encoder := buildEncoder(cfg.Format)
-	sink := buildSink(cfg.Output)
+	sink := buildSink(cfg)
 
 	core := zapcore.NewCore(encoder, sink, level)
 	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(0))
@@ -125,20 +134,47 @@ func buildEncoder(format string) zapcore.Encoder {
 	return zapcore.NewJSONEncoder(cfg)
 }
 
-func buildSink(output string) zapcore.WriteSyncer {
+func buildSink(cfg settings.LogConfig) zapcore.WriteSyncer {
+	output := strings.TrimSpace(cfg.Output)
 	switch output {
 	case "", "stdout":
 		return zapcore.AddSync(os.Stdout)
 	case "stderr":
 		return zapcore.AddSync(os.Stderr)
 	default:
-		f, err := os.OpenFile(output, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		rotator, err := buildRollingLogger(cfg)
 		if err != nil {
 			// Fall back to stdout if the file cannot be opened.
 			return zapcore.AddSync(os.Stdout)
 		}
-		return zapcore.AddSync(f)
+		return zapcore.AddSync(rotator)
 	}
+}
+
+func buildRollingLogger(cfg settings.LogConfig) (*lumberjack.Logger, error) {
+	filename := strings.TrimSpace(cfg.Output)
+	dir := filepath.Dir(filename)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, err
+		}
+	}
+
+	return &lumberjack.Logger{
+		Filename:   filename,
+		MaxSize:    normalizedRotationValue(cfg.MaxSizeMB, defaultMaxSizeMB),
+		MaxAge:     normalizedRotationValue(cfg.MaxAgeDays, defaultMaxAgeDays),
+		MaxBackups: normalizedRotationValue(cfg.MaxBackups, defaultMaxBackups),
+		Compress:   cfg.Compress,
+		LocalTime:  true,
+	}, nil
+}
+
+func normalizedRotationValue(value, fallback int) int {
+	if value <= 0 {
+		return fallback
+	}
+	return value
 }
 
 func fallbackLogger() *zap.Logger {

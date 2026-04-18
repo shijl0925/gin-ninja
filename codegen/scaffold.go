@@ -653,7 +653,6 @@ DisableGinDefault: true,
 })
 
 api.UseGin(
-ginpkg.Logger(),
 middleware.RequestID(),
 middleware.Recovery(log_),
 middleware.Logger(log_),
@@ -758,7 +757,6 @@ SecuritySchemes: map[string]ninja.SecurityScheme{
 api := ninja.New(apiCfg)
 
 api.UseGin(
-ginpkg.Logger(),
 middleware.RequestID(),
 middleware.Recovery(log_),
 middleware.Logger(log_),

@@ -66,7 +66,7 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "app.log")
 
-	sink := buildSink(logFile)
+	sink := buildSink(settings.LogConfig{Output: logFile})
 	if _, err := sink.Write([]byte("seed")); err != nil {
 		t.Fatalf("sink.Write: %v", err)
 	}
@@ -77,7 +77,15 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 		t.Fatalf("expected sink to write to file, got data=%q err=%v", data, err)
 	}
 
-	cfg := settings.LogConfig{Level: "debug", Format: "json", Output: logFile}
+	cfg := settings.LogConfig{
+		Level:      "debug",
+		Format:     "json",
+		Output:     logFile,
+		MaxSizeMB:  1,
+		MaxAgeDays: 2,
+		MaxBackups: 4,
+		Compress:   true,
+	}
 	l := New(cfg)
 	if l == nil {
 		t.Fatal("expected logger")
@@ -107,8 +115,50 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 		}
 	}
 
-	if sink := buildSink("stderr"); sink == nil {
+	if sink := buildSink(settings.LogConfig{Output: "stderr"}); sink == nil {
 		t.Fatal("expected stderr sink")
+	}
+}
+
+func TestBuildRollingLoggerDefaultsAndDirectories(t *testing.T) {
+	dir := t.TempDir()
+	logFile := filepath.Join(dir, "logs", "app.log")
+
+	rotator, err := buildRollingLogger(settings.LogConfig{
+		Output:     logFile,
+		MaxSizeMB:  0,
+		MaxAgeDays: 0,
+		MaxBackups: 0,
+	})
+	if err != nil {
+		t.Fatalf("buildRollingLogger: %v", err)
+	}
+	if rotator.Filename != logFile {
+		t.Fatalf("expected filename %q, got %q", logFile, rotator.Filename)
+	}
+	if rotator.MaxSize != defaultMaxSizeMB {
+		t.Fatalf("expected default max size %d, got %d", defaultMaxSizeMB, rotator.MaxSize)
+	}
+	if rotator.MaxAge != defaultMaxAgeDays {
+		t.Fatalf("expected default max age %d, got %d", defaultMaxAgeDays, rotator.MaxAge)
+	}
+	if rotator.MaxBackups != defaultMaxBackups {
+		t.Fatalf("expected default max backups %d, got %d", defaultMaxBackups, rotator.MaxBackups)
+	}
+
+	sink := buildSink(settings.LogConfig{Output: logFile})
+	if _, err := sink.Write([]byte("rotating")); err != nil {
+		t.Fatalf("sink.Write: %v", err)
+	}
+	if err := sink.Sync(); err != nil {
+		t.Fatalf("sink.Sync: %v", err)
+	}
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "rotating" {
+		t.Fatalf("expected nested log file write, got %q", string(data))
 	}
 }
 
