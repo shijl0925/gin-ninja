@@ -111,6 +111,11 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .bulk-edit-field { background: var(--admin-surface); border-color: var(--admin-border); }
     [data-theme="dark"] .relation-preview li { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .relation-preview mark { background: #4a4200; }
+    [data-theme="dark"] .multi-relation-dropdown summary,
+    [data-theme="dark"] .multi-relation-menu,
+    [data-theme="dark"] .multi-relation-empty { background: #22253a; border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .multi-relation-option:hover { background: #2a2d42; }
+    [data-theme="dark"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }
     [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
     [data-theme="dark"] label { color: var(--admin-text); }
     [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }

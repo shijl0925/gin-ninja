@@ -978,6 +978,12 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(html, ".topbar-user-avatar { background: #2d3242") {
 		t.Fatalf("expected dark mode topbar-user-avatar override in html: %q", html)
 	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] .multi-relation-dropdown summary,") {
+		t.Fatalf("expected dark mode multi-relation dropdown override in html: %q", html)
+	}
+	if !strings.Contains(html, "[data-theme=\"dark\"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }") {
+		t.Fatalf("expected dark mode multi-relation checkbox accent override in html: %q", html)
+	}
 	if !strings.Contains(html, "button:hover:not(:disabled) { filter: brightness(1.15)") {
 		t.Fatalf("expected dark mode button hover filter reversal in html: %q", html)
 	}
