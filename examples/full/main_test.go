@@ -698,8 +698,14 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(adminHTML, "id=\"openCreateModal\"") {
 		t.Fatalf("expected create modal trigger in html: %q", adminHTML)
 	}
-	if strings.Contains(adminHTML, "Workspace</span>") || strings.Contains(adminHTML, "AdminLTE workspace chrome") || strings.Contains(adminHTML, "Operate resources with dashboard, filters, and table controls in one place.") {
-		t.Fatalf("expected redundant workspace chrome copy to be removed from html: %q", adminHTML)
+	if strings.Contains(adminHTML, "Workspace</span>") {
+		t.Fatalf("expected workspace eyebrow to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "AdminLTE workspace chrome") {
+		t.Fatalf("expected workspace chrome heading to be removed from html: %q", adminHTML)
+	}
+	if strings.Contains(adminHTML, "Operate resources with dashboard, filters, and table controls in one place.") {
+		t.Fatalf("expected workspace chrome description to be removed from html: %q", adminHTML)
 	}
 	if !strings.Contains(adminHTML, "class=\"resource-header-actions\"") {
 		t.Fatalf("expected create action to move into the resource header actions area in html: %q", adminHTML)
