@@ -111,6 +111,12 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .bulk-edit-field { background: var(--admin-surface); border-color: var(--admin-border); }
     [data-theme="dark"] .relation-preview li { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .relation-preview mark { background: #4a4200; }
+    [data-theme="dark"] .multi-relation-dropdown summary,
+    [data-theme="dark"] .multi-relation-menu,
+    [data-theme="dark"] .multi-relation-empty { background: #22253a; border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .multi-relation-option:hover { background: #2a2d42; }
+    [data-theme="dark"] .multi-relation-option.selected { background: #28324a; }
+    [data-theme="dark"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }
     [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
     [data-theme="dark"] label { color: var(--admin-text); }
     [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
@@ -1068,26 +1074,36 @@ const adminPrototypeHTML = `<!doctype html>
       right:0;
       z-index:5;
       display:grid;
-      gap:6px;
-      max-height:240px;
-      overflow:auto;
+      gap:10px;
       border:1px solid var(--admin-border);
       border-radius:12px;
       background:#fff;
       padding:10px;
       box-shadow:0 18px 40px rgba(15, 23, 42, 0.12);
     }
+    .relation-search { width:100%; }
+    .multi-relation-options {
+      display:grid;
+      gap:6px;
+      max-height:190px;
+      overflow:auto;
+    }
     .multi-relation-option {
       display:flex;
       align-items:center;
       gap:10px;
+      width:100%;
       padding:8px 10px;
+      border:0;
+      background:transparent;
       border-radius:10px;
       cursor:pointer;
       font-size:14px;
       color:var(--admin-text);
+      text-align:left;
     }
     .multi-relation-option:hover { background:#f8fafc; }
+    .multi-relation-option.selected { background:#eef4ff; }
     .multi-relation-option input { margin:0; }
     .multi-relation-empty {
       padding:8px 10px;
@@ -2582,42 +2598,71 @@ const adminPrototypeHTML = `<!doctype html>
       return selected.length + ' selected';
     }
 
-    function syncMultiRelationDropdown(field, select, summary, menu, items) {
-      if (!summary || !menu || !isMultiRelationField(field)) return;
+    function syncRelationDropdown(field, select, summary, optionsContainer, items, dropdown) {
+      if (!summary || !optionsContainer || !field?.relation) return;
       summary.textContent = relationSummaryText(field, select);
-      menu.innerHTML = '';
+      optionsContainer.innerHTML = '';
       if (!items.length) {
         const empty = document.createElement('div');
         empty.className = 'multi-relation-empty';
         empty.textContent = 'No matching options.';
-        menu.appendChild(empty);
+        optionsContainer.appendChild(empty);
         return;
       }
-      const selected = new Set(selectedRelationValues(select, field).map((value) => String(value)));
+      const multiRelation = isMultiRelationField(field);
+      const options = document.createElement('div');
+      options.className = 'multi-relation-options';
+      const selected = multiRelation
+        ? new Set(selectedRelationValues(select, field).map((value) => String(value)))
+        : new Set(String(selectedRelationValues(select, field) || '') ? [String(selectedRelationValues(select, field))] : []);
       items.forEach((item) => {
-        const label = document.createElement('label');
-        label.className = 'multi-relation-option';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = String(item.value);
-        checkbox.checked = selected.has(String(item.value));
+        const optionValue = String(item.value);
+        const optionElement = document.createElement(multiRelation ? 'label' : 'button');
+        optionElement.className = 'multi-relation-option';
+        if (!multiRelation) {
+          optionElement.type = 'button';
+          optionElement.setAttribute('aria-pressed', selected.has(optionValue) ? 'true' : 'false');
+        }
+        if (multiRelation) {
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.value = optionValue;
+          checkbox.checked = selected.has(optionValue);
+          checkbox.addEventListener('change', () => {
+            let option = Array.from(select.options).find((candidate) => candidate.value === optionValue);
+            if (!option) {
+              option = document.createElement('option');
+              option.value = optionValue;
+              option.textContent = item.label;
+              select.appendChild(option);
+            }
+            option.selected = checkbox.checked;
+            summary.textContent = relationSummaryText(field, select);
+          });
+          optionElement.appendChild(checkbox);
+        } else {
+          if (selected.has(optionValue)) {
+            optionElement.classList.add('selected');
+          }
+          optionElement.addEventListener('click', () => {
+            let option = Array.from(select.options).find((candidate) => candidate.value === optionValue);
+            if (!option) {
+              option = document.createElement('option');
+              option.value = optionValue;
+              option.textContent = item.label;
+              select.appendChild(option);
+            }
+            select.value = optionValue;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            if (dropdown) dropdown.open = false;
+          });
+        }
         const text = document.createElement('span');
         text.textContent = item.label;
-        checkbox.addEventListener('change', () => {
-          let option = Array.from(select.options).find((candidate) => candidate.value === String(item.value));
-          if (!option) {
-            option = document.createElement('option');
-            option.value = String(item.value);
-            option.textContent = item.label;
-            select.appendChild(option);
-          }
-          option.selected = checkbox.checked;
-          summary.textContent = relationSummaryText(field, select);
-        });
-        label.appendChild(checkbox);
-        label.appendChild(text);
-        menu.appendChild(label);
+        optionElement.appendChild(text);
+        options.appendChild(optionElement);
       });
+      optionsContainer.appendChild(options);
     }
 
     function resetQueryState() {
@@ -3144,17 +3189,17 @@ const adminPrototypeHTML = `<!doctype html>
       });
     }
 
-    function scheduleRelationSearch(field, scopeKey, searchInput, select, preview, summary, menu) {
+    function scheduleRelationSearch(field, scopeKey, searchInput, select, summary, optionsContainer, dropdown, itemsRef) {
       const key = relationStateKey(scopeKey, field);
       clearTimeout(state.relationTimers[key]);
       state.relationTimers[key] = setTimeout(async () => {
         try {
           const term = searchInput.value.trim();
           const items = await loadRelationOptions(field, term, 1, 8);
+          if (itemsRef) itemsRef.items = items;
           const nextValue = resolveRelationSelection(field, items, selectedRelationValues(select, field), term);
           populateRelationSelect(field, select, items, nextValue, field.label);
-          syncMultiRelationDropdown(field, select, summary, menu, items);
-          updateRelationPreview(preview, items, term);
+          syncRelationDropdown(field, select, summary, optionsContainer, items, dropdown);
           setStatus('Loaded ' + items.length + ' relation option(s) for ' + field.name + '.');
         } catch (error) {
           setStatus(String(error.message || error));
@@ -3175,44 +3220,44 @@ const adminPrototypeHTML = `<!doctype html>
         const select = document.createElement('select');
         select.name = field.name;
         select.className = 'custom-select';
-        const preview = isMultiRelationField(field) ? null : document.createElement('ul');
-        if (preview) preview.className = 'relation-preview';
-        const dropdown = isMultiRelationField(field) ? document.createElement('details') : null;
-        const dropdownSummary = dropdown ? document.createElement('summary') : null;
-        const dropdownMenu = dropdown ? document.createElement('div') : null;
-        if (dropdown) {
-          dropdown.className = 'multi-relation-dropdown';
-          dropdownSummary.className = 'multi-relation-summary';
-          dropdownMenu.className = 'multi-relation-menu';
-          dropdown.appendChild(dropdownSummary);
-          dropdown.appendChild(dropdownMenu);
-          select.hidden = true;
-        }
+        const multiRelation = isMultiRelationField(field);
+        const dropdown = document.createElement('details');
+        const dropdownSummary = document.createElement('summary');
+        const dropdownMenu = document.createElement('div');
+        const dropdownOptions = document.createElement('div');
+        dropdown.className = 'multi-relation-dropdown';
+        dropdownSummary.className = 'multi-relation-summary';
+        dropdownMenu.className = 'multi-relation-menu';
+        dropdownOptions.className = 'multi-relation-options';
+        searchInput.classList.add('relation-search');
+        dropdown.appendChild(dropdownSummary);
+        dropdownMenu.appendChild(searchInput);
+        dropdownMenu.appendChild(dropdownOptions);
+        dropdown.appendChild(dropdownMenu);
+        select.hidden = true;
+        dropdown.addEventListener('toggle', () => {
+          if (dropdown.open) {
+            window.requestAnimationFrame(() => searchInput.focus());
+          }
+        });
         const help = document.createElement('div');
         help.className = 'field-help';
-        help.textContent = isMultiRelationField(field)
+        help.textContent = multiRelation
           ? 'Search related records and choose one or more matching options for this field.'
           : 'Search related records and choose the best matching option for this field.';
-        wrapper.appendChild(searchInput);
-        if (dropdown) {
-          wrapper.appendChild(dropdown);
-        } else {
-          wrapper.appendChild(select);
-        }
-        if (preview) wrapper.appendChild(preview);
-        if (dropdown) wrapper.appendChild(select);
+        wrapper.appendChild(dropdown);
+        wrapper.appendChild(select);
         wrapper.appendChild(help);
-        const items = await loadRelationOptions(field, searchInput.value.trim(), 1, 8);
-        const nextValue = resolveRelationSelection(field, items, value, searchInput.value);
-        populateRelationSelect(field, select, items, nextValue, field.label);
-        syncMultiRelationDropdown(field, select, dropdownSummary, dropdownMenu, items);
-        updateRelationPreview(preview, items, searchInput.value.trim());
+        const itemsRef = { items: await loadRelationOptions(field, searchInput.value.trim(), 1, 8) };
+        const nextValue = resolveRelationSelection(field, itemsRef.items, value, searchInput.value);
+        populateRelationSelect(field, select, itemsRef.items, nextValue, field.label);
+        syncRelationDropdown(field, select, dropdownSummary, dropdownOptions, itemsRef.items, dropdown);
         searchInput.addEventListener('input', () => {
           state.relationSearch[searchKey] = searchInput.value;
-          scheduleRelationSearch(field, scopeKey, searchInput, select, preview, dropdownSummary, dropdownMenu);
+          scheduleRelationSearch(field, scopeKey, searchInput, select, dropdownSummary, dropdownOptions, dropdown, itemsRef);
         });
         select.addEventListener('change', () => {
-          syncMultiRelationDropdown(field, select, dropdownSummary, dropdownMenu, items);
+          syncRelationDropdown(field, select, dropdownSummary, dropdownOptions, itemsRef.items, dropdown);
         });
         return wrapper;
       }
