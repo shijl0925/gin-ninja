@@ -1426,6 +1426,7 @@ const adminPrototypeHTML = `<!doctype html>
     }
     .form-field-card textarea {
       min-height:120px;
+      resize:vertical;
       padding-top:12px;
       padding-bottom:12px;
       line-height:1.55;

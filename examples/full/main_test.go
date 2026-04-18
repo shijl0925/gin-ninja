@@ -2248,6 +2248,7 @@ func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {
 		"function scheduleSearchReload()",
 		"state.searchTimer = setTimeout(() => {",
 		"els.search.addEventListener('input', () => {",
+		".form-field-card textarea { min-height:120px; resize:vertical;",
 	} {
 		if !strings.Contains(normalizedHTML, compactWhitespace(needle)) {
 			t.Fatalf("expected live-search integration marker %q in html: %q", needle, html)
