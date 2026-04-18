@@ -876,6 +876,10 @@ log:
   level: "info"
   format: "console"
   output: "stdout"
+  max_size_mb: 100
+  max_age_days: 7
+  max_backups: 3
+  compress: false
 `
 
 const projectConfigLocalTemplate = `app:
@@ -888,6 +892,11 @@ server:
 log:
   level: "debug"
   format: "console"
+  output: "stdout"
+  max_size_mb: 100
+  max_age_days: 7
+  max_backups: 3
+  compress: false
 `
 
 const projectConfigProdTemplate = `app:
@@ -901,6 +910,11 @@ server:
 log:
   level: "info"
   format: "json"
+  output: "stdout"
+  max_size_mb: 100
+  max_age_days: 7
+  max_backups: 3
+  compress: false
 {{- if .Options.WithAuth }}
 
 jwt:

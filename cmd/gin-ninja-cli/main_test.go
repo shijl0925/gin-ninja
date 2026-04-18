@@ -156,6 +156,28 @@ func TestRunStartProjectStandardTemplate(t *testing.T) {
 			t.Fatalf("expected scaffold file %s: %v", path, err)
 		}
 	}
+
+	for _, path := range []string{
+		filepath.Join(outputDir, "config.yaml"),
+		filepath.Join(outputDir, "settings", "config.local.yaml.example"),
+		filepath.Join(outputDir, "settings", "config.prod.yaml.example"),
+	} {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		text := string(content)
+		for _, snippet := range []string{
+			`max_size_mb: 100`,
+			`max_age_days: 7`,
+			`max_backups: 3`,
+			`compress: false`,
+		} {
+			if !strings.Contains(text, snippet) {
+				t.Fatalf("expected %s to contain %q, got:\n%s", path, snippet, text)
+			}
+		}
+	}
 }
 
 func TestRunStartProjectWithoutGormx(t *testing.T) {
