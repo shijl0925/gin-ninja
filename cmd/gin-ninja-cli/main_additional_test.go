@@ -26,8 +26,18 @@ func TestRunUsageAndCommandErrors(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"help"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stdout.String(), "gin-ninja-cli startproject") {
+		if !strings.Contains(stdout.String(), "Scaffold commands:") {
 			t.Fatalf("expected usage in stdout, got %q", stdout.String())
+		}
+	})
+
+	t.Run("help topic", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := run(&stdout, &stderr, []string{"help", "startproject"}); code != 0 {
+			t.Fatalf("run() code = %d, want 0", code)
+		}
+		if !strings.Contains(stdout.String(), "Basic options:") {
+			t.Fatalf("expected topic help in stdout, got %q", stdout.String())
 		}
 	})
 
@@ -70,7 +80,7 @@ func TestRunGenerateAdditionalBranches(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"generate", "crud", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "Flags:") {
+		if !strings.Contains(stderr.String(), "Examples:") {
 			t.Fatalf("expected flag help in stderr, got %q", stderr.String())
 		}
 	})
@@ -121,7 +131,7 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"startproject", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "startproject <name>") {
+		if !strings.Contains(stderr.String(), "Template options:") {
 			t.Fatalf("expected startproject help, got %q", stderr.String())
 		}
 	})
@@ -154,7 +164,7 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"startapp", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "startapp <name>") {
+		if !strings.Contains(stderr.String(), "Advanced overrides:") {
 			t.Fatalf("expected startapp help, got %q", stderr.String())
 		}
 
@@ -187,6 +197,9 @@ func TestPrintUsageHelpers(t *testing.T) {
 
 	if !strings.Contains(usage.String(), "generate crud") {
 		t.Fatalf("expected full usage output, got %q", usage.String())
+	}
+	if !strings.Contains(usage.String(), "Scaffold commands:") {
+		t.Fatalf("expected grouped usage output, got %q", usage.String())
 	}
 	if !strings.Contains(generate.String(), "generate crud") {
 		t.Fatalf("expected generate usage output, got %q", generate.String())

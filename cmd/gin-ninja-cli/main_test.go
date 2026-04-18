@@ -211,6 +211,81 @@ func TestRunStartProjectWithoutGormx(t *testing.T) {
 	}
 }
 
+func TestRunStartProjectWithConfigPreset(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "preset-project")
+	configPath := filepath.Join(dir, "scaffold.yaml")
+	if err := os.WriteFile(configPath, []byte(`
+name: preset-project
+module: github.com/acme/preset-project
+output: `+outputDir+`
+app_dir: internal/app
+template: admin
+with_tests: true
+`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{"startproject", "-config", configPath})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, path := range []string{
+		filepath.Join(outputDir, "internal", "app", "auth.go"),
+		filepath.Join(outputDir, "internal", "app", "admin.go"),
+		filepath.Join(outputDir, "internal", "app", "scaffold_test.go"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
+	}
+}
+
+func TestRunStartProjectConfigOverriddenByCLI(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "cli-project")
+	configPath := filepath.Join(dir, "scaffold.yaml")
+	if err := os.WriteFile(configPath, []byte(`
+name: preset-project
+module: github.com/acme/preset-project
+output: `+filepath.Join(dir, "preset-project")+`
+template: minimal
+with_tests: false
+`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"cli-project",
+		"-config", configPath,
+		"-module", "github.com/acme/cli-project",
+		"-output", outputDir,
+		"-template", "standard",
+		"-with-tests",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	if _, err := os.Stat(filepath.Join(outputDir, "cmd", "server", "main.go")); err != nil {
+		t.Fatalf("expected standard scaffold file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "app", "scaffold_test.go")); err != nil {
+		t.Fatalf("expected tests from CLI override: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "preset-project")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected preset output dir created, err=%v", err)
+	}
+}
+
 func TestRunStartApp(t *testing.T) {
 	t.Parallel()
 
@@ -304,5 +379,113 @@ func TestRunStartAppWithoutGormx(t *testing.T) {
 	}
 	if strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected native gorm service scaffold, got:\n%s", content)
+	}
+}
+
+func TestRunStartAppWithConfigPreset(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "accounts")
+	configPath := filepath.Join(dir, "scaffold.yaml")
+	if err := os.WriteFile(configPath, []byte(`
+name: accounts
+output: `+outputDir+`
+package: accounts
+model: Account
+template: auth
+with_tests: true
+`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{"startapp", "-config", configPath})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, path := range []string{
+		filepath.Join(outputDir, "auth.go"),
+		filepath.Join(outputDir, "services.go"),
+		filepath.Join(outputDir, "scaffold_test.go"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
+	}
+}
+
+func TestRunInitProjectWizard(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "wizard-project")
+	input := strings.NewReader(strings.Join([]string{
+		"project",
+		"wizard-project",
+		"github.com/acme/wizard-project",
+		outputDir,
+		"internal/app",
+		"standard",
+		"yes",
+		"no",
+		"",
+	}, "\n"))
+
+	var stdout, stderr bytes.Buffer
+	code := runWithInput(input, &stdout, &stderr, []string{"init"})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, path := range []string{
+		filepath.Join(outputDir, "cmd", "server", "main.go"),
+		filepath.Join(outputDir, "internal", "app", "scaffold_test.go"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "internal", "app", "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected native gorm scaffold from wizard choice, got:\n%s", content)
+	}
+}
+
+func TestRunInitAppWizard(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "wizard-app")
+	input := strings.NewReader(strings.Join([]string{
+		"app",
+		"wizard-app",
+		outputDir,
+		"wizardapp",
+		"Widget",
+		"auth",
+		"yes",
+		"yes",
+		"",
+	}, "\n"))
+
+	var stdout, stderr bytes.Buffer
+	code := runWithInput(input, &stdout, &stderr, []string{"init"})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	for _, path := range []string{
+		filepath.Join(outputDir, "auth.go"),
+		filepath.Join(outputDir, "scaffold_test.go"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected scaffold file %s: %v", path, err)
+		}
 	}
 }
