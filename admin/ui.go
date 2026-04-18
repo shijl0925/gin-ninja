@@ -112,24 +112,28 @@ const adminPrototypeHTML = `<!doctype html>
   <style>
     :root {
       color-scheme: light;
-      --admin-body-bg: #f7f8fb;
+      --admin-body-bg: #f4f6f9;
       --admin-grid: rgba(15, 23, 42, 0.045);
-      --admin-surface: rgba(255, 255, 255, 0.82);
-      --admin-sidebar: rgba(15, 23, 42, 0.9);
-      --admin-sidebar-alt: rgba(30, 41, 59, 0.92);
-      --admin-sidebar-text: #cbd5e1;
-      --admin-sidebar-active: #635bff;
-      --admin-topbar: rgba(255, 255, 255, 0.72);
-      --admin-border: rgba(15, 23, 42, 0.08);
-      --admin-text: #0f172a;
-      --admin-muted: #64748b;
-      --admin-primary: #635bff;
-      --admin-primary-dark: #4f46e5;
+      --admin-surface: #ffffff;
+      --admin-sidebar: #343a40;
+      --admin-sidebar-alt: #3f474e;
+      --admin-sidebar-text: #c2c7d0;
+      --admin-sidebar-active: #007bff;
+      --admin-topbar: #ffffff;
+      --admin-border: #dee2e6;
+      --admin-border-strong: rgba(0, 123, 255, 0.24);
+      --admin-text: #212529;
+      --admin-muted: #6c757d;
+      --admin-soft: #f8f9fa;
+      --admin-input-bg: #ffffff;
+      --admin-primary: #007bff;
+      --admin-primary-dark: #0056b3;
       --admin-success: #00a65a;
       --admin-danger: #dd4b39;
       --admin-warning: #f39c12;
-      --admin-shadow: 0 18px 50px rgba(15, 23, 42, 0.09);
-      --admin-radius: 1rem;
+      --admin-shadow: 0 0 1px rgba(0, 0, 0, 0.125), 0 1px 3px rgba(0, 0, 0, 0.08);
+      --admin-radius: 0.375rem;
+      --admin-radius-lg: 0.5rem;
       --admin-grid-size: 48px;
       --admin-topbar-min-height: 64px;
       --admin-topbar-height: calc(var(--admin-topbar-min-height) + 24px);
@@ -140,14 +144,18 @@ const adminPrototypeHTML = `<!doctype html>
       color-scheme: dark;
       --admin-body-bg: #0f1117;
       --admin-surface: #1a1d27;
+      --admin-surface-elevated: #1f2430;
       --admin-sidebar: #111827;
       --admin-sidebar-alt: #1c2535;
       --admin-sidebar-text: #9ca3af;
       --admin-sidebar-active: #007bff;
       --admin-topbar: #1a1d27;
       --admin-border: #2d3242;
+      --admin-border-strong: rgba(102, 176, 255, 0.24);
       --admin-text: #e2e8f0;
       --admin-muted: #9ca3af;
+      --admin-soft: #202433;
+      --admin-input-bg: #202433;
       --admin-primary: #66b0ff;
       --admin-primary-dark: #007bff;
       --admin-success: #22c55e;
@@ -215,6 +223,41 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }
     [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
     [data-theme="dark"] label { color: var(--admin-text); }
+    [data-theme="dark"] .form-field-card,
+    [data-theme="dark"] .form-toggle,
+    [data-theme="dark"] .resource-form-footer,
+    [data-theme="dark"] .table-shell,
+    [data-theme="dark"] .form-section-intro,
+    [data-theme="dark"] .detail-card { background: var(--admin-surface); border-color: var(--admin-border); box-shadow: none; }
+    [data-theme="dark"] .field-tag,
+    [data-theme="dark"] .form-section-meta { background: #22253a; border-color: var(--admin-border); color: var(--admin-muted); }
+    [data-theme="dark"] .field-tag.required { background: rgba(102,176,255,0.15); color: #bfdbfe; border-color: rgba(102,176,255,0.28); }
+    [data-theme="dark"] .field-tag.readonly { background: rgba(148,163,184,0.12); color: #cbd5f5; border-color: rgba(148,163,184,0.24); }
+    [data-theme="dark"] .table-cell-value,
+    [data-theme="dark"] .detail-value-text { color: var(--admin-text); }
+    [data-theme="dark"] .table-cell-hint,
+    [data-theme="dark"] .table-column-key { color: var(--admin-muted); }
+    [data-theme="dark"] .resource-table thead th { background: #202433; border-bottom-color: var(--admin-border); }
+    [data-theme="dark"] .resource-table tbody td { border-bottom-color: var(--admin-border); background: rgba(255,255,255,0.01); }
+    [data-theme="dark"] .resource-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    [data-theme="dark"] .resource-table tbody tr:hover td { background: rgba(102,176,255,0.08); }
+    [data-theme="dark"] .resource-table tbody tr.row-selected td { background: rgba(102,176,255,0.13); }
+    [data-theme="dark"] .resource-table tbody tr.row-selected td:first-child { box-shadow: inset 3px 0 0 var(--admin-primary-dark); }
+    [data-theme="dark"] .table-badge { background: #22253a; border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .table-badge.success { background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.28); color: #bbf7d0; }
+    [data-theme="dark"] .table-badge.danger { background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.28); color: #fecaca; }
+    [data-theme="dark"] .table-badge.info { background: rgba(102,176,255,0.12); border-color: rgba(102,176,255,0.24); color: #bfdbfe; }
+    [data-theme="dark"] .table-badge.neutral { background: rgba(148,163,184,0.12); border-color: rgba(148,163,184,0.24); color: #cbd5e1; }
+    [data-theme="dark"] .table-dot { box-shadow:0 0 0 4px rgba(255,255,255,0.04); }
+    [data-theme="dark"] .filter-field-card,
+    [data-theme="dark"] .form-field-card input,
+    [data-theme="dark"] .form-field-card select,
+    [data-theme="dark"] .form-field-card textarea,
+    [data-theme="dark"] .form-field-card .multi-relation-dropdown summary,
+    [data-theme="dark"] .form-toggle { background: var(--admin-input-bg); border-color: var(--admin-border); }
+    [data-theme="dark"] .badge.badge-muted { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
+    [data-theme="dark"] .form-check-input.switch-input { background: rgba(148,163,184,0.28); }
+    [data-theme="dark"] .form-check-input.switch-input::before { background: #fff; }
     [data-theme="dark"] .modal-dialog { background: var(--admin-surface); border-color: var(--admin-border); }
     [data-theme="dark"] .action-menu-trigger,
     [data-theme="dark"] .action-btn-view,
@@ -237,13 +280,7 @@ const adminPrototypeHTML = `<!doctype html>
       font-family: Inter, system-ui, "Segoe UI", sans-serif;
       margin: 0;
       min-height: 100vh;
-      background:
-        linear-gradient(to right, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
-        linear-gradient(to bottom, transparent 0, transparent calc(var(--admin-grid-size) - 1px), var(--admin-grid) var(--admin-grid-size)),
-        radial-gradient(circle at top left, rgba(99, 91, 255, 0.12), transparent 34%),
-        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.08), transparent 30%),
-        var(--admin-body-bg);
-      background-size: var(--admin-grid-size) var(--admin-grid-size), var(--admin-grid-size) var(--admin-grid-size), auto, auto, auto;
+      background: var(--admin-body-bg);
       color: var(--admin-text);
     }
     a { color: inherit; }
@@ -259,8 +296,7 @@ const adminPrototypeHTML = `<!doctype html>
       padding:0 16px;
       background: var(--admin-topbar);
       border-bottom:1px solid var(--admin-border);
-      box-shadow:0 12px 32px rgba(15, 23, 42, 0.06);
-      backdrop-filter: blur(18px);
+      box-shadow:0 1px 1px rgba(0,0,0,.08);
     }
     .topbar-left, .topbar-brand, .topbar-copy, .topbar-meta, .sidebar-heading { display:grid; gap:6px; }
     .topbar-left {
@@ -320,12 +356,12 @@ const adminPrototypeHTML = `<!doctype html>
       border-radius:14px;
       display:grid;
       place-items:center;
-      background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,244,245,0.92));
-      color:var(--admin-primary-dark);
-      border:1px solid rgba(15, 23, 42, 0.08);
+      background:#e9ecef;
+      color:var(--admin-primary);
+      border:1px solid var(--admin-border);
       font-weight:800;
       letter-spacing:0.08em;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      box-shadow:none;
     }
     .topbar-copy h1, .sidebar-heading h2, .section-title { margin:0; }
     .topbar-copy p, .sidebar-heading p, .section-copy, .login-lead p { margin:0; }
@@ -403,8 +439,8 @@ const adminPrototypeHTML = `<!doctype html>
       min-width:160px;
       background:#fff;
       border:1px solid var(--admin-border);
-      border-radius:0.35rem;
-      box-shadow:0 4px 16px rgba(0,0,0,0.12);
+      border-radius:0.25rem;
+      box-shadow:0 3px 10px rgba(0,0,0,0.12);
       list-style:none;
       margin:0;
       padding:4px 0;
@@ -436,7 +472,7 @@ const adminPrototypeHTML = `<!doctype html>
     .topbar-search-expand.open { display:block; }
     .topbar-search-expand input {
       width:100%;
-      border-radius:0.35rem;
+      border-radius:0.25rem;
       border:1px solid var(--admin-border);
       padding:8px 14px;
       font-size:14px;
@@ -448,8 +484,8 @@ const adminPrototypeHTML = `<!doctype html>
       background:var(--admin-surface);
       border:1px solid var(--admin-border);
       border-top:none;
-      border-radius:0 0 0.35rem 0.35rem;
-      box-shadow:0 4px 12px rgba(0,0,0,0.12);
+      border-radius:0 0 0.25rem 0.25rem;
+      box-shadow:0 3px 10px rgba(0,0,0,0.12);
       max-height:320px;
       overflow-y:auto;
     }
@@ -542,7 +578,7 @@ const adminPrototypeHTML = `<!doctype html>
     .app-main {
       display:grid;
       gap:var(--admin-content-gap);
-      padding:18px 24px 24px;
+      padding:18px 18px 24px;
       align-items:start;
     }
     .panel {
@@ -553,7 +589,6 @@ const adminPrototypeHTML = `<!doctype html>
       border-radius: var(--admin-radius);
       padding:18px;
       box-shadow: var(--admin-shadow);
-      backdrop-filter: blur(18px);
     }
     .stack { display:grid; gap:16px; }
     .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
@@ -566,8 +601,8 @@ const adminPrototypeHTML = `<!doctype html>
       gap:10px;
       border-radius:999px;
       padding:6px 12px;
-      background:rgba(255,255,255,0.72);
-      border:1px solid rgba(15, 23, 42, 0.08);
+      background:#e9ecef;
+      border:1px solid var(--admin-border);
       color:var(--admin-primary-dark);
       font-size:11px;
       font-weight:700;
@@ -580,7 +615,7 @@ const adminPrototypeHTML = `<!doctype html>
       height:6px;
       border-radius:50%;
       background:currentColor;
-      box-shadow:0 0 0 4px rgba(99, 91, 255, 0.10);
+      box-shadow:0 0 0 4px rgba(0, 123, 255, 0.12);
     }
     .eyebrow.subtle { background:#e9ecef; color:#495057; }
     .badge {
@@ -589,10 +624,11 @@ const adminPrototypeHTML = `<!doctype html>
       gap:6px;
       font-size:12px;
       font-weight:700;
-      background:#eaf3f8;
+      background:#e9ecef;
       color:var(--admin-primary-dark);
       border-radius:999px;
       padding:6px 11px;
+      border:1px solid var(--admin-border);
     }
     .visually-hidden { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0, 0, 0, 0); white-space:nowrap; border:0; }
     .login-shell { display:grid; gap:20px; }
@@ -720,14 +756,13 @@ const adminPrototypeHTML = `<!doctype html>
       display:flex;
       flex-direction:column;
       min-height:calc(100vh - var(--admin-topbar-height) - (var(--admin-content-gap) * 2));
-      background:linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.94) 100%);
+      background:var(--admin-sidebar);
       color:var(--admin-sidebar-text);
-      border:1px solid rgba(255,255,255,0.08);
-      border-radius:1.25rem;
-      box-shadow:0 20px 48px rgba(15, 23, 42, 0.2);
+      border:1px solid rgba(0,0,0,.12);
+      border-radius:0.5rem;
+      box-shadow:0 0 1px rgba(0,0,0,.2), 0 4px 18px rgba(0,0,0,.14);
       padding:0;
       overflow:hidden;
-      backdrop-filter: blur(18px);
     }
     .sidebar-brand {
       display:grid;
@@ -743,12 +778,12 @@ const adminPrototypeHTML = `<!doctype html>
       height:48px;
       display:grid;
       place-items:center;
-      border-radius:16px;
-      background:linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,244,245,0.92));
-      color:var(--admin-primary-dark);
+      border-radius:12px;
+      background:#f8f9fa;
+      color:var(--admin-primary);
       font-size:23px;
       font-weight:800;
-      box-shadow:0 12px 24px rgba(15, 23, 42, 0.22);
+      box-shadow:none;
       flex-shrink:0;
     }
     .sidebar-brand-copy { display:grid; gap:2px; min-width:0; }
@@ -779,11 +814,11 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       place-items:center;
       border-radius:50%;
-      background:linear-gradient(135deg, #cfd4da 0%, #f8f9fa 100%);
+      background:#ced4da;
       color:#495057;
       font-size:14px;
       font-weight:700;
-      box-shadow:0 4px 10px rgba(0,0,0,0.24);
+      box-shadow:none;
       flex-shrink:0;
     }
     .sidebar-user-copy { display:grid; gap:2px; min-width:0; }
@@ -1028,7 +1063,7 @@ const adminPrototypeHTML = `<!doctype html>
       display:grid;
       gap:0;
       padding:0;
-      border-top-color:var(--admin-primary);
+      border-top-color:#007bff;
       overflow:hidden;
     }
     .workspace-header-main {
@@ -1038,7 +1073,7 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       flex-wrap:wrap;
       padding:18px 20px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.62) 100%);
+      background:#ffffff;
     }
     .workspace-header-copy { display:grid; gap:4px; flex:1 1 320px; min-width:0; }
     .workspace-header-copy h2,
@@ -1070,25 +1105,16 @@ const adminPrototypeHTML = `<!doctype html>
       justify-content:space-between;
       gap:14px;
       flex-wrap:wrap;
-      padding:16px 18px;
-      background:linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(248,250,252,0.62) 100%);
+      padding:14px 16px;
+      background:#f8f9fa;
     }
     .section-card-header {
-      border-bottom:1px solid rgba(0,0,0,0.06);
+      border-bottom:1px solid var(--admin-border);
       border-top-left-radius:calc(var(--admin-radius) - 1px);
       border-top-right-radius:calc(var(--admin-radius) - 1px);
     }
-    .section-card-body {
-      display:grid;
-      gap:14px;
-      padding:18px;
-      background:var(--admin-surface);
-    }
-    .section-card-footer {
-      align-items:center;
-      border-top:1px solid rgba(0,0,0,0.06);
-      background:rgba(248,250,252,0.7);
-    }
+    .section-card-body { display:grid; gap:16px; padding:16px; background:var(--admin-surface); }
+    .section-card-footer { align-items:center; border-top:1px solid var(--admin-border); background:#f8f9fa; }
     .section-card-tools {
       display:flex;
       align-items:center;
@@ -1100,7 +1126,6 @@ const adminPrototypeHTML = `<!doctype html>
       background:rgba(0,123,255,0.08);
     }
     .two-col { display:grid; gap:20px; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
-    .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .inline-field, .form-field { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
     .field-help, .muted { font-size:13px; color:var(--admin-muted); }
     .relation-control { display:grid; gap:10px; }
@@ -1170,47 +1195,86 @@ const adminPrototypeHTML = `<!doctype html>
     .relation-preview { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
     .relation-preview li { font-size:12px; color:#334155; background:#fff; border:1px solid var(--admin-border); border-radius:8px; padding:8px 10px; }
     .relation-preview mark { background:#fcf8e3; padding:0; }
-    .detail-layout { display:grid; gap:16px; grid-template-columns:minmax(0, 1fr); align-items:start; }
+    .detail-layout { display:grid; gap:16px; grid-template-columns:repeat(2, minmax(0, 1fr)); align-items:start; }
     .content-grid > *, .content-grid form, .detail-layout > *, .detail-layout form, .bulk-edit-field { min-width:0; }
-    .detail-card { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:18px; background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
-    .detail-grid { display:grid; gap:10px; }
-    .detail-row { display:grid; grid-template-columns: 160px 1fr; gap:12px; border-bottom:1px solid #edf1f4; padding-bottom:10px; }
+    .detail-card {
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      padding:16px;
+      background:#fff;
+      box-shadow:0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+    .detail-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .detail-grid { display:grid; gap:8px; }
+    .detail-row {
+      display:grid;
+      grid-template-columns:minmax(120px, 152px) minmax(0, 1fr);
+      gap:14px;
+      align-items:start;
+      padding:10px 0;
+      border-bottom:1px solid #edf1f4;
+    }
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
-    .detail-label { font-size:12px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.06em; }
-    .detail-value { font-size:14px; word-break:break-word; color:var(--admin-text); }
+    .detail-label { font-size:11px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.08em; padding-top:4px; }
+    .detail-value { display:grid; gap:6px; font-size:14px; word-break:break-word; color:var(--admin-text); }
+    .detail-value-text { font-size:14px; line-height:1.55; color:var(--admin-text); }
+    .detail-value-text.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:13px; }
     .bulk-edit-fields { display:grid; gap:12px; }
     .bulk-edit-field { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:14px; background:rgba(255,255,255,0.72); }
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
+    .badge.badge-muted {
+      background:#f2f4f7;
+      color:#667085;
+      border:1px solid rgba(15, 23, 42, 0.06);
+    }
     .pagination-info { font-size:14px; color:var(--admin-muted); }
-    .table-shell { overflow:auto; border:1px solid var(--admin-border); border-radius:var(--admin-radius); background:var(--admin-surface); box-shadow: inset 0 1px 0 rgba(255,255,255,0.65); backdrop-filter: blur(14px); }
+    .table-shell {
+      overflow:auto;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-radius:0.375rem;
+      background:#fff;
+      box-shadow:0 1px 2px rgba(0,0,0,.05);
+    }
     .empty-state { border:1px dashed #c7d0d9; border-radius:var(--admin-radius); padding:28px 20px; background:rgba(255,255,255,0.72); color:var(--admin-muted); text-align:center; }
     .resource-header-actions button { padding-inline:14px; }
-    .modal-overlay { position:fixed; inset:0; background:rgba(17, 24, 39, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
+    .modal-overlay { position:fixed; inset:0; background:rgba(0, 0, 0, 0.48); display:grid; place-items:center; padding:24px; z-index:50; }
     .modal-dialog {
       width:min(720px, 100%);
       max-height:min(85vh, 920px);
       overflow:auto;
-      border-radius:1.1rem;
+      border-radius:0.3rem;
       border:1px solid var(--admin-border);
       border-top:1px solid var(--admin-border);
-      background:rgba(255,255,255,0.88);
-      box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
-      backdrop-filter: blur(18px);
+      background:#fff;
+      box-shadow:0 0.5rem 1rem rgba(0,0,0,.18);
     }
-    .modal-dialog.large { width:min(860px, 100%); }
-    .modal-header { display:flex; gap:16px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; padding:24px 24px 0; }
-    .modal-body { padding:0 24px 24px; }
+    .modal-dialog.large { width:min(1080px, 100%); }
+    .modal-header {
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      padding:12px 16px;
+      border-bottom:1px solid var(--admin-border);
+      background:#f8f9fa;
+    }
+    .modal-body { padding:16px; background:#fff; }
     .modal-close { min-width:44px; min-height:44px; padding:0 14px; }
+    .modal-heading { gap:4px; }
+    .modal-form-heading { gap:2px; }
+    .modal-form-heading .eyebrow { display:none; }
+    .modal-form-heading .section-copy { max-width:34rem; }
     body.modal-open { overflow:hidden; }
     label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
     input, select, textarea, button {
       font: inherit;
-      padding: 11px 14px;
-      border-radius: 0.9rem;
-      border: 1px solid rgba(15, 23, 42, 0.12);
-      background:rgba(255,255,255,0.92);
+      padding: 10px 12px;
+      border-radius: 0.375rem;
+      border: 1px solid #ced4da;
+      background:#fff;
       color:var(--admin-text);
       transition:border-color 120ms ease, box-shadow 120ms ease, background 120ms ease, transform 120ms ease;
     }
@@ -1222,35 +1286,368 @@ const adminPrototypeHTML = `<!doctype html>
     textarea { min-height: 112px; }
     button {
       cursor:pointer;
-      background:linear-gradient(135deg, var(--admin-primary) 0%, #3b82f6 100%);
+      background:var(--admin-primary);
       color:#fff;
-      border-color:rgba(79, 70, 229, 0.6);
+      border-color:var(--admin-primary);
       font-weight:600;
-      box-shadow:0 12px 24px rgba(99, 91, 255, 0.18);
+      box-shadow:none;
     }
-    button.secondary { background:rgba(255,255,255,0.78); color:var(--admin-text); border-color:rgba(15, 23, 42, 0.12); box-shadow:none; }
-    button.secondary:hover { background:#fff; border-color:rgba(15, 23, 42, 0.16); }
+    button.secondary { background:#f8f9fa; color:var(--admin-text); border-color:#ced4da; box-shadow:none; }
+    button.secondary:hover { background:#e9ecef; border-color:#adb5bd; }
     button.danger { background:var(--admin-danger); border-color:#c0392b; }
     button.danger:hover { background:#c0392b; border-color:#a93226; }
-    button:hover:not(:disabled) { filter:none; transform:translateY(-1px); }
+    button:hover:not(:disabled) { filter:none; transform:none; }
     button:disabled, input:disabled, select:disabled, textarea:disabled { opacity:0.6; cursor:not-allowed; }
-    table { width:100%; border-collapse:collapse; min-width:720px; }
-    th, td { border-bottom:1px solid #dee2e6; padding:0.75rem; text-align:left; font-size:14px; vertical-align:top; }
-    th { background:rgba(248,250,252,0.82); color:#475569; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; border-bottom-width:2px; }
-    th.sortable-th { cursor:pointer; user-select:none; white-space:nowrap; }
-    th.sortable-th:hover { background:#e9ecef; color:#212529; }
-    th.sortable-th.sort-asc, th.sortable-th.sort-desc { color:var(--admin-primary); background:#eef2ff; }
-    .sort-icon { display:inline-block; margin-left:4px; font-style:normal; opacity:0.45; font-size:10px; vertical-align:middle; }
-    th.sortable-th.sort-asc .sort-icon,
-    th.sortable-th.sort-desc .sort-icon { opacity:1; }
-    tbody tr:hover { background:rgba(0,0,0,.04); }
-    tbody tr.row-selected { background:#eaf3f8; }
+    .resource-form { display:grid; gap:14px; }
+    .form-section-intro {
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
+      align-items:start;
+      gap:12px;
+      padding:12px 14px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      background:#f8f9fa;
+      box-shadow:none;
+    }
+    .form-section-intro .eyebrow { display:none; }
+    .form-section-copy-wrap { display:grid; gap:4px; min-width:0; }
+    .form-section-title {
+      margin:0;
+      font-size:1rem;
+      font-weight:700;
+      color:var(--admin-text);
+      letter-spacing:-0.02em;
+    }
+    .form-section-copy {
+      margin:0;
+      font-size:12px;
+      line-height:1.45;
+      color:var(--admin-muted);
+    }
+    .form-section-meta {
+      display:inline-flex;
+      align-items:center;
+      min-height:26px;
+      padding:4px 10px;
+      border-radius:999px;
+      background:#fff;
+      border:1px solid var(--admin-border);
+      color:var(--admin-muted);
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .form-grid {
+      display:grid;
+      gap:12px;
+      grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .form-field-card {
+      display:grid;
+      gap:10px;
+      padding:14px 16px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      background:#fff;
+      box-shadow:none;
+    }
+    .form-field-wide { grid-column:1 / -1; }
+    .form-field-header {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .form-field-copy {
+      display:grid;
+      gap:6px;
+      min-width:0;
+      flex:1 1 180px;
+    }
+    .form-field-label {
+      margin:0;
+      font-size:14px;
+      font-weight:700;
+      color:var(--admin-text);
+    }
+    .form-field-description {
+      margin:0;
+      font-size:11px;
+      line-height:1.5;
+      color:var(--admin-muted);
+    }
+    .form-field-meta {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .field-tag {
+      display:inline-flex;
+      align-items:center;
+      min-height:24px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--admin-border);
+      background:var(--admin-soft);
+      color:var(--admin-muted);
+      font-size:11px;
+      font-weight:600;
+      letter-spacing:0.02em;
+    }
+    .field-tag.required {
+      background:rgba(99, 91, 255, 0.08);
+      border-color:rgba(99, 91, 255, 0.16);
+      color:var(--admin-primary-dark);
+    }
+    .field-tag.readonly {
+      background:rgba(100, 116, 139, 0.1);
+      border-color:rgba(100, 116, 139, 0.18);
+      color:#475569;
+    }
+    .form-field-control { min-width:0; }
+    .form-field-control > input,
+    .form-field-control > select,
+    .form-field-control > textarea,
+    .form-field-control > .relation-control,
+    .form-field-control > .form-toggle { width:100%; }
+    .form-field-card input,
+    .form-field-card select,
+    .form-field-card textarea,
+    .form-field-card .multi-relation-dropdown summary {
+      min-height:42px;
+      background:var(--admin-input-bg);
+      border-color:#ced4da;
+      box-shadow:none;
+    }
+    .form-field-card textarea {
+      min-height:120px;
+      resize:vertical;
+      padding-top:12px;
+      padding-bottom:12px;
+      line-height:1.55;
+    }
+    .form-field-checkbox .form-field-control { display:block; }
+    .form-toggle {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      background:var(--admin-input-bg);
+      box-shadow:none;
+    }
+    .form-toggle-copy {
+      display:grid;
+      gap:4px;
+      min-width:0;
+    }
+    .form-toggle-label {
+      font-size:14px;
+      font-weight:700;
+      color:var(--admin-text);
+    }
+    .form-toggle-help {
+      font-size:12px;
+      line-height:1.45;
+      color:var(--admin-muted);
+    }
+    .form-check-input {
+      width:18px;
+      height:18px;
+      margin:0;
+      accent-color:var(--admin-primary);
+      flex-shrink:0;
+    }
+    .form-check-input.switch-input {
+      position:relative;
+      width:48px;
+      height:28px;
+      border-radius:999px;
+      border:none;
+      appearance:none;
+      background:#dbe4f0;
+      transition:background 140ms ease, box-shadow 140ms ease;
+      cursor:pointer;
+      box-shadow:inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+    }
+    .form-check-input.switch-input::before {
+      content:"";
+      position:absolute;
+      top:3px;
+      left:3px;
+      width:22px;
+      height:22px;
+      border-radius:50%;
+      background:#fff;
+      box-shadow:0 2px 6px rgba(15, 23, 42, 0.18);
+      transition:transform 140ms ease;
+    }
+    .form-check-input.switch-input:checked {
+      background:linear-gradient(135deg, var(--admin-primary) 0%, #3b82f6 100%);
+      box-shadow:none;
+    }
+    .form-check-input.switch-input:checked::before { transform:translateX(20px); }
+    .form-check-input.switch-input:focus-visible {
+      outline:none;
+      box-shadow:0 0 0 4px rgba(99, 91, 255, 0.16);
+    }
+    .resource-form-footer {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      padding:12px 14px;
+      border:1px solid var(--admin-border);
+      border-radius:0.375rem;
+      background:#fff;
+      box-shadow:none;
+    }
+    .resource-form-footer .muted {
+      margin:0;
+      max-width:32rem;
+      line-height:1.5;
+    }
+    .filters { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .filter-field-card {
+      gap:10px;
+      padding:10px 0 0;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      border-width:0;
+      border-top-width:1px;
+      border-radius:0;
+      background:transparent;
+    }
+    .filter-field-label {
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+      color:var(--admin-muted);
+    }
+    .filter-field-card input,
+    .filter-field-card select {
+      min-height:44px;
+      background:#fff;
+    }
+    .resource-table { width:100%; min-width:780px; border-collapse:separate; border-spacing:0; }
+    .resource-table th, .resource-table td { border-bottom:1px solid #eef2f7; padding:1rem 1rem; text-align:left; font-size:14px; vertical-align:middle; }
+    .resource-table thead th {
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:#fff;
+      color:#667085;
+      font-size:13px;
+      font-weight:600;
+      border-bottom-width:1px;
+      white-space:nowrap;
+    }
+    .resource-table tbody td { background:#fff; }
+    .resource-table tbody tr:nth-child(even) td { background:#fff; }
+    .resource-table tbody tr:hover td { background:#fbfbff; }
+    .resource-table tbody tr.row-selected td { background:#f6f7ff; }
+    .resource-table tbody tr.row-selected td:first-child { box-shadow: inset 3px 0 0 var(--admin-primary); }
+    .resource-table tbody tr:last-child td { border-bottom:none; }
+    .resource-table th.sortable-th { cursor:pointer; user-select:none; }
+    .resource-table th.sortable-th { position:relative; padding-right:2.6rem; }
+    .resource-table th.sortable-th:hover { background:#f8faff; color:#344054; }
+    .resource-table th.sortable-th.sort-asc, .resource-table th.sortable-th.sort-desc { color:var(--admin-primary); background:#f7f5ff; }
+    .table-column-label { display:block; font-size:13px; font-weight:600; color:inherit; }
+    .table-column-key { display:none; }
+    .sort-icon {
+      position:absolute;
+      top:1.05rem;
+      right:1rem;
+      display:inline-block;
+      margin-left:0;
+      font-style:normal;
+      opacity:0.45;
+      font-size:11px;
+      vertical-align:middle;
+    }
+    .resource-table th.sortable-th.sort-asc .sort-icon,
+    .resource-table th.sortable-th.sort-desc .sort-icon { opacity:1; }
+    .table-cell {
+      display:grid;
+      gap:4px;
+      min-width:0;
+    }
+    .table-cell-value {
+      min-width:0;
+      font-weight:600;
+      color:var(--admin-text);
+      overflow-wrap:anywhere;
+    }
+    .table-cell-value.mono {
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:13px;
+      letter-spacing:-0.01em;
+    }
+    .table-cell-value.numeric { font-variant-numeric:tabular-nums; }
+    .table-cell-hint {
+      font-size:12px;
+      color:var(--admin-muted);
+      line-height:1.4;
+    }
+    .table-dot {
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:currentColor;
+      box-shadow:0 0 0 4px rgba(15, 23, 42, 0.04);
+      flex-shrink:0;
+    }
+    .table-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      justify-content:center;
+      width:max-content;
+      min-height:28px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(15, 23, 42, 0.08);
+      background:var(--admin-soft);
+      font-size:12px;
+      font-weight:600;
+      line-height:1.2;
+    }
+    .table-badge.success {
+      background:rgba(0,166,90,0.12);
+      border-color:rgba(0,166,90,0.2);
+      color:#15803d;
+    }
+    .table-badge.danger {
+      background:rgba(221,75,57,0.12);
+      border-color:rgba(221,75,57,0.2);
+      color:#c2410c;
+    }
+    .table-badge.info {
+      background:rgba(99,91,255,0.12);
+      border-color:rgba(99,91,255,0.18);
+      color:var(--admin-primary-dark);
+    }
+    .table-badge.neutral {
+      background:rgba(100,116,139,0.1);
+      border-color:rgba(100,116,139,0.16);
+      color:#475569;
+    }
+    .table-select-cell { width:52px; }
+    .table-actions-head, .table-actions-cell { width:128px; }
     .action-cell { display:flex; gap:6px; align-items:center; white-space:nowrap; }
     .action-menu { position:relative; display:inline-block; }
     .action-menu-trigger,
-    .action-btn-view { background:#fff; color:var(--admin-text); border:1px solid #ced4da; padding:6px 10px; font-size:13px; font-weight:600; border-radius:0.25rem; cursor:pointer; line-height:1; }
-    .action-menu-trigger:hover { background:#f8f9fa; border-color:#adb5bd; }
-    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid var(--admin-border); border-radius:0.25rem; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
+    .action-btn-view { background:var(--admin-soft); color:var(--admin-text); border:1px solid rgba(15, 23, 42, 0.08); padding:8px 11px; font-size:13px; font-weight:600; border-radius:999px; cursor:pointer; line-height:1; box-shadow:none; }
+    .action-menu-trigger:hover { background:#fff; border-color:rgba(15, 23, 42, 0.12); }
+    .action-menu-list { display:none; position:absolute; right:0; top:calc(100% + 4px); min-width:130px; background:#fff; border:1px solid var(--admin-border); border-radius:0.85rem; box-shadow:0 8px 24px rgba(15,23,42,0.12); z-index:100; overflow:hidden; }
     .action-menu-list.open { display:block; }
     .action-menu-item { display:block; width:100%; text-align:left; background:none; color:var(--admin-text); border:none; border-radius:0; padding:10px 14px; font-size:14px; font-weight:500; cursor:pointer; transition:background 80ms; }
     .action-menu-item:hover { background:#f1f3f5; }
@@ -1258,8 +1655,17 @@ const adminPrototypeHTML = `<!doctype html>
     .action-menu-divider { border:none; border-top:1px solid var(--admin-border); margin:4px 0; }
     .action-menu-item.danger { background:transparent; color:var(--admin-danger); border-color:transparent; }
     .action-menu-item.danger:hover { background:#fdf1ef; }
-    .action-btn-view:hover { background:#f8f9fa; border-color:#adb5bd; }
+    .action-btn-view:hover { background:#fff; border-color:rgba(15, 23, 42, 0.12); }
     pre { margin:0; white-space:pre-wrap; word-break:break-word; background:#1f2d3d; color:#e9ecef; padding:14px; border-radius:0.65rem; }
+    pre#detail {
+      padding:16px 18px;
+      border-radius:18px;
+      background:#111827;
+      color:#e5eefb;
+      font-size:12px;
+      line-height:1.6;
+      overflow:auto;
+    }
     @keyframes spin { to { transform:rotate(360deg); } }
     .list-loading {
       display:none;
@@ -1503,13 +1909,39 @@ const adminPrototypeHTML = `<!doctype html>
     [data-theme="dark"] .content-wrapper,
     [data-theme="dark"] .card,
     [data-theme="dark"] .brand-link { background:var(--admin-surface); color:var(--admin-text); }
+    [data-theme="dark"] .modal-header,
     [data-theme="dark"] .workspace-header-main,
     [data-theme="dark"] .section-card-header,
     [data-theme="dark"] .section-card-footer {
-      background:#1f2430;
+      background:var(--admin-surface-elevated);
       border-color:var(--admin-border);
       box-shadow:none;
     }
+    [data-theme="dark"] .modal-body,
+    [data-theme="dark"] .detail-card,
+    [data-theme="dark"] .form-section-intro,
+    [data-theme="dark"] .form-field-card,
+    [data-theme="dark"] .resource-form-footer,
+    [data-theme="dark"] .bulk-edit-field { background:var(--admin-surface); border-color:var(--admin-border); box-shadow:none; }
+    [data-theme="dark"] .filter-field-card input,
+    [data-theme="dark"] .filter-field-card select,
+    [data-theme="dark"] .resource-table thead th,
+    [data-theme="dark"] .resource-table tbody td,
+    [data-theme="dark"] .badge.badge-muted {
+      background:#22253a;
+      border-color:var(--admin-border);
+      color:var(--admin-text);
+    }
+    [data-theme="dark"] .resource-table tbody tr:nth-child(even) td { background:#1c2030; }
+    [data-theme="dark"] .resource-table tbody tr:hover td { background:#273047; }
+    [data-theme="dark"] .resource-table tbody tr.row-selected td { background:#25354b; }
+    [data-theme="dark"] .resource-table th.sortable-th:hover { background:#293246; color:#f8fafc; }
+    [data-theme="dark"] .resource-table th.sortable-th.sort-asc,
+    [data-theme="dark"] .resource-table th.sortable-th.sort-desc { background:#31415f; color:#9dc7ff; }
+    [data-theme="dark"] .resource-table th.sortable-th .sort-icon { color:inherit; }
+    [data-theme="dark"] .form-section-meta,
+    [data-theme="dark"] .field-tag,
+    [data-theme="dark"] .table-badge { background:#252b3b; border-color:#364055; }
     [data-theme="dark"] .section-shell .table-shell { border-color:var(--admin-border); }
     [data-theme="dark"] .dashboard-tile.small-box {
       background:
@@ -1642,6 +2074,10 @@ const adminPrototypeHTML = `<!doctype html>
         min-height:0;
       }
     }
+    @media (max-width: 1180px) {
+      .detail-layout { grid-template-columns:minmax(0, 1fr); }
+      .modal-dialog.large { width:min(920px, 100%); }
+    }
     @media (max-width: 960px) {
       body.standalone-login-page .login-shell { grid-template-columns:1fr; }
       .login-metrics { grid-template-columns:1fr; }
@@ -1653,7 +2089,10 @@ const adminPrototypeHTML = `<!doctype html>
       .workspace-header-main,
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
+      .form-section-intro { grid-template-columns:minmax(0, 1fr); }
       .table-toolbar .row-actions { flex-basis:100%; }
+      .form-grid { grid-template-columns:minmax(0, 1fr); }
+      .resource-form-footer { align-items:flex-start; }
     }
   </style>
 </head>
@@ -1914,9 +2353,10 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="createModal" class="modal-overlay" hidden>
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
             <div class="modal-header">
-              <div class="section-heading">
+              <div class="section-heading modal-heading modal-form-heading">
+                <span class="eyebrow subtle">Create</span>
                 <h3 id="createModalTitle" class="section-title">Create record</h3>
-                <p class="section-copy muted">Use the same admin layout to add a new record to the active resource.</p>
+                <p class="section-copy muted">Create a record for the active resource.</p>
               </div>
               <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
             </div>
@@ -1928,31 +2368,39 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="recordModal" class="modal-overlay" hidden>
           <div class="modal-dialog large" role="dialog" aria-modal="true" aria-labelledby="recordModalTitle">
             <div class="modal-header">
-              <div class="section-heading">
+              <div class="section-heading modal-heading">
                 <div class="row-actions">
-                  <h3 id="recordModalTitle" class="section-title">Open record</h3>
-                  <span id="detailObjectBadge" class="badge">Draft view</span>
+                  <span class="eyebrow subtle">Details</span>
+                  <span id="detailObjectBadge" class="badge badge-muted">Draft view</span>
                 </div>
-                <p class="section-copy muted">Inspect the selected record and review the reference payload in a focused dialog.</p>
+                <h3 id="recordModalTitle" class="section-title">Open record</h3>
+                <p class="section-copy muted">Inspect the selected record and its raw payload.</p>
               </div>
               <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">Close</button>
             </div>
             <div class="modal-body">
               <div class="detail-layout">
-                <section class="stack">
-                  <div class="detail-card stack card card-outline card-primary">
-                    <div class="toolbar">
+                <div class="detail-card stack card card-outline card-primary">
+                  <div class="detail-card-header">
+                    <div class="section-heading">
+                      <span class="eyebrow subtle">Overview</span>
                       <strong id="detailTitle">No record selected</strong>
                     </div>
-                    <div id="detailFields" class="detail-grid">
-                      <p class="muted">No record selected.</p>
+                  </div>
+                  <div id="detailFields" class="detail-grid">
+                    <p class="muted">No record selected.</p>
+                  </div>
+                </div>
+                <div class="detail-card stack card card-outline card-secondary">
+                  <div class="detail-card-header">
+                    <div class="section-heading">
+                      <span class="eyebrow subtle">Payload</span>
+                      <strong>Reference payload</strong>
+                      <p class="section-copy muted">Use the raw payload for quick inspection or copy/paste during debugging.</p>
                     </div>
                   </div>
-                  <div class="detail-card stack card card-outline card-secondary">
-                    <strong>Reference payload</strong>
-                    <pre id="detail">No record selected.</pre>
-                  </div>
-                </section>
+                  <pre id="detail">No record selected.</pre>
+                </div>
               </div>
             </div>
           </div>
@@ -1960,9 +2408,10 @@ const adminPrototypeHTML = `<!doctype html>
         <section id="editModal" class="modal-overlay" hidden>
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
             <div class="modal-header">
-              <div class="section-heading">
+              <div class="section-heading modal-heading modal-form-heading">
+                <span class="eyebrow subtle">Edit</span>
                 <h3 id="editModalTitle" class="section-title">Edit record</h3>
-                <p class="section-copy muted" id="editHint">Select a row to open the change form.</p>
+                <p class="section-copy muted" id="editHint">Update the selected record.</p>
               </div>
               <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">Close</button>
             </div>
@@ -2000,6 +2449,7 @@ const adminPrototypeHTML = `<!doctype html>
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
     const stringLikeComponents = new Set(['text', 'textarea', 'email']);
+    const formControlTagNames = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
     const adminPagePath = __GIN_NINJA_ADMIN_PAGE_PATH__;
     const adminLoginPath = __GIN_NINJA_ADMIN_LOGIN_PATH__;
     const prototypePagePath = __GIN_NINJA_ADMIN_PROTOTYPE_PATH__;
@@ -2592,6 +3042,10 @@ const adminPrototypeHTML = `<!doctype html>
       return (state.meta?.fields || []).find((field) => field.name === name);
     }
 
+    function fieldLabel(name) {
+      return fieldMeta(name)?.label || name;
+    }
+
     function fieldValue(name) {
       return els.filtersForm.elements.namedItem(name);
     }
@@ -2647,6 +3101,170 @@ const adminPrototypeHTML = `<!doctype html>
       if (typeof value === 'boolean') return value ? 'Yes' : 'No';
       if (typeof value === 'object') return JSON.stringify(value);
       return String(value);
+    }
+
+    function isDateLikeValue(field, value) {
+      if (value == null || value === '') return false;
+      if (field?.component === 'datetime') return true;
+      if (typeof value !== 'string') return false;
+      return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
+    }
+
+    function formatDateTimeParts(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) {
+        return { primary: String(value), secondary: '' };
+      }
+      return {
+        primary: new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date),
+        secondary: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date),
+      };
+    }
+
+    function fieldControlID(scopeKey, field) {
+      return 'field-' + scopeKey + '-' + field.name;
+    }
+
+    function shouldSpanFullWidth(field) {
+      if (!field) return false;
+      return field.component === 'textarea' || field.component === 'text' || field.component === 'array' || isMultiRelationField(field);
+    }
+
+    function isFieldRequiredForForm(field, scopeKey) {
+      if (!field?.required) return false;
+      // Update forms allow blank passwords so users only re-enter one when changing it.
+      return !(scopeKey === 'update' && field.component === 'password');
+    }
+
+    function applyFieldControlState(control, field, scopeKey) {
+      if (!control || !field) return;
+      const controlID = fieldControlID(scopeKey, field);
+      const directControl = formControlTagNames.has(control.tagName)
+        ? control
+        : control.querySelector('input[name="' + field.name + '"], select[name="' + field.name + '"], textarea[name="' + field.name + '"]');
+      if (directControl) {
+        directControl.id = controlID;
+        if (isFieldRequiredForForm(field, scopeKey) && !field.read_only && directControl.type !== 'checkbox') {
+          directControl.required = true;
+        }
+        if (field.read_only) {
+          directControl.disabled = true;
+        }
+      }
+    }
+
+    function createFieldTag(text, tone) {
+      const badge = document.createElement('span');
+      badge.className = 'field-tag' + (tone ? ' ' + tone : '');
+      badge.textContent = text;
+      return badge;
+    }
+
+    function buildTableCellContent(fieldName, value) {
+      const field = fieldMeta(fieldName);
+      const wrap = document.createElement('div');
+      wrap.className = 'table-cell';
+      if (value == null || value === '') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge neutral';
+        badge.textContent = 'Empty';
+        wrap.appendChild(badge);
+        return wrap;
+      }
+      if (typeof value === 'boolean') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge ' + (value ? 'success' : 'danger');
+        const dot = document.createElement('span');
+        dot.className = 'table-dot';
+        badge.appendChild(dot);
+        badge.appendChild(document.createTextNode(value ? 'Yes' : 'No'));
+        wrap.appendChild(badge);
+        return wrap;
+      }
+      if (Array.isArray(value)) {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge info';
+        badge.textContent = value.length + ' item' + (value.length === 1 ? '' : 's');
+        wrap.appendChild(badge);
+        if (value.length) {
+          const hint = document.createElement('span');
+          hint.className = 'table-cell-hint';
+          hint.textContent = value.map((item) => formatValue(item)).join(', ');
+          wrap.appendChild(hint);
+        }
+        return wrap;
+      }
+      const primary = document.createElement('span');
+      primary.className = 'table-cell-value';
+      if (isDateLikeValue(field, value)) {
+        const formattedDate = formatDateTimeParts(value);
+        primary.textContent = formattedDate.primary;
+        const secondary = document.createElement('span');
+        secondary.className = 'table-cell-hint';
+        secondary.textContent = formattedDate.secondary;
+        wrap.appendChild(primary);
+        if (formattedDate.secondary) {
+          wrap.appendChild(secondary);
+        }
+      } else {
+        primary.textContent = formatValue(value);
+        wrap.appendChild(primary);
+      }
+      if (fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+        primary.classList.add('mono');
+      }
+      if (field?.component === 'number' || field?.type === 'number' || field?.type === 'integer') {
+        primary.classList.add('numeric');
+      }
+      if (field?.unique) {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge neutral';
+        badge.textContent = 'Unique';
+        wrap.appendChild(badge);
+      }
+      return wrap;
+    }
+
+    function buildDetailValueContent(fieldName, value) {
+      const field = fieldMeta(fieldName);
+      const fragment = document.createDocumentFragment();
+      if (value == null || value === '') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge neutral';
+        badge.textContent = 'Empty';
+        fragment.appendChild(badge);
+        return fragment;
+      }
+      if (typeof value === 'boolean') {
+        const badge = document.createElement('span');
+        badge.className = 'table-badge ' + (value ? 'success' : 'danger');
+        const dot = document.createElement('span');
+        dot.className = 'table-dot';
+        badge.appendChild(dot);
+        badge.appendChild(document.createTextNode(value ? 'Yes' : 'No'));
+        fragment.appendChild(badge);
+        return fragment;
+      }
+      const primary = document.createElement('span');
+      primary.className = 'detail-value-text';
+      if (fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+        primary.classList.add('mono');
+      }
+      if (isDateLikeValue(field, value)) {
+        const formattedDate = formatDateTimeParts(value);
+        primary.textContent = formattedDate.primary;
+        fragment.appendChild(primary);
+        if (formattedDate.secondary) {
+          const secondary = document.createElement('span');
+          secondary.className = 'table-cell-hint';
+          secondary.textContent = formattedDate.secondary;
+          fragment.appendChild(secondary);
+        }
+        return fragment;
+      }
+      primary.textContent = formatValue(value);
+      fragment.appendChild(primary);
+      return fragment;
     }
 
     function relationStateKey(scopeKey, field) {
@@ -3120,9 +3738,11 @@ const adminPrototypeHTML = `<!doctype html>
     }
 
     function buildFilterControl(field) {
-      const wrapper = document.createElement('label');
-      wrapper.className = 'inline-field form-group';
-      wrapper.textContent = field.label;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'inline-field form-group filter-field-card';
+      const label = document.createElement('label');
+      label.className = 'filter-field-label';
+      label.textContent = field.label;
       let input;
       if (field.component === 'checkbox') {
         input = document.createElement('select');
@@ -3148,6 +3768,9 @@ const adminPrototypeHTML = `<!doctype html>
       }
       input.name = field.name;
       input.placeholder = 'Filter by ' + field.label;
+      input.id = 'filter-' + field.name;
+      label.setAttribute('for', input.id);
+      wrapper.appendChild(label);
       wrapper.appendChild(input);
       els.filtersForm.appendChild(wrapper);
     }
@@ -3345,7 +3968,7 @@ const adminPrototypeHTML = `<!doctype html>
         input.type = 'checkbox';
         input.name = field.name;
         input.checked = Boolean(value);
-        input.className = 'form-check-input';
+        input.className = 'form-check-input switch-input';
         return input;
       }
       if (field.component === 'array' || field.component === 'text' || field.component === 'textarea') {
@@ -3367,25 +3990,122 @@ const adminPrototypeHTML = `<!doctype html>
 
     async function renderForm(target, fieldNames, mode, values, scopeKey) {
       target.innerHTML = '';
+      target.className = 'stack resource-form';
       if (!state.meta || !fieldNames.length) {
         target.innerHTML = '<p class="muted">' + mode + ' is not available for this resource.</p>';
         return;
       }
+      const intro = document.createElement('div');
+      intro.className = 'form-section-intro';
+      const introCopyWrap = document.createElement('div');
+      introCopyWrap.className = 'form-section-copy-wrap';
+      const introTitle = document.createElement('h4');
+      introTitle.className = 'form-section-title';
+      introTitle.textContent = mode === 'update' ? 'Edit form' : 'Create form';
+      const introCopy = document.createElement('p');
+      introCopy.className = 'form-section-copy';
+      introCopy.textContent = mode === 'update'
+        ? 'Review the fields below and save the changes when ready.'
+        : 'Fill in the fields below and submit to create the record.';
+      const introMeta = document.createElement('span');
+      introMeta.className = 'form-section-meta';
+      introMeta.textContent = fieldNames.length + ' field' + (fieldNames.length === 1 ? '' : 's');
+      introCopyWrap.appendChild(introTitle);
+      introCopyWrap.appendChild(introCopy);
+      intro.appendChild(introCopyWrap);
+      intro.appendChild(introMeta);
+      target.appendChild(intro);
+      const grid = document.createElement('div');
+      grid.className = 'form-grid';
       for (const name of fieldNames) {
         const field = fieldMeta(name);
         if (!field) continue;
-        const wrapper = document.createElement('label');
-        wrapper.className = 'form-field form-group';
-        wrapper.textContent = field.label;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'form-field-card';
+        if (shouldSpanFullWidth(field)) {
+          wrapper.classList.add('form-field-wide');
+        }
+        if (field.component === 'checkbox') {
+          wrapper.classList.add('form-field-checkbox');
+        }
         const control = await buildFieldControl(field, values[name], scopeKey);
-        wrapper.appendChild(control);
-        target.appendChild(wrapper);
+        applyFieldControlState(control, field, scopeKey);
+        const header = document.createElement('div');
+        header.className = 'form-field-header';
+        const copy = document.createElement('div');
+        copy.className = 'form-field-copy';
+        if (field.component !== 'checkbox') {
+          const label = document.createElement('label');
+          label.className = 'form-field-label';
+          label.setAttribute('for', fieldControlID(scopeKey, field));
+          label.textContent = field.label;
+          copy.appendChild(label);
+        }
+        if (field.description) {
+          const description = document.createElement('p');
+          description.className = 'form-field-description';
+          description.textContent = field.description;
+          copy.appendChild(description);
+        }
+        const meta = document.createElement('div');
+        meta.className = 'form-field-meta';
+        if (isFieldRequiredForForm(field, scopeKey)) {
+          meta.appendChild(createFieldTag('Required', 'required'));
+        }
+        if (field.read_only) {
+          meta.appendChild(createFieldTag('Read only', 'readonly'));
+        }
+        if (field.relation) {
+          meta.appendChild(createFieldTag('Relation', ''));
+        }
+        if (copy.childNodes.length || meta.childNodes.length) {
+          if (copy.childNodes.length) {
+            header.appendChild(copy);
+          }
+          if (meta.childNodes.length) {
+            header.appendChild(meta);
+          }
+          wrapper.appendChild(header);
+        }
+        const controlWrap = document.createElement('div');
+        controlWrap.className = 'form-field-control';
+        if (field.component === 'checkbox') {
+          const toggle = document.createElement('label');
+          toggle.className = 'form-toggle';
+          const toggleCopy = document.createElement('span');
+          toggleCopy.className = 'form-toggle-copy';
+          const toggleLabel = document.createElement('span');
+          toggleLabel.className = 'form-toggle-label';
+          toggleLabel.textContent = field.label;
+          const toggleHelp = document.createElement('span');
+          toggleHelp.className = 'form-toggle-help';
+          toggleHelp.textContent = field.description || 'Enable or disable this option.';
+          toggleCopy.appendChild(toggleLabel);
+          toggleCopy.appendChild(toggleHelp);
+          toggle.appendChild(toggleCopy);
+          toggle.appendChild(control);
+          controlWrap.appendChild(toggle);
+        } else {
+          controlWrap.appendChild(control);
+        }
+        wrapper.appendChild(controlWrap);
+        grid.appendChild(wrapper);
       }
+      target.appendChild(grid);
+      const footer = document.createElement('div');
+      footer.className = 'resource-form-footer';
+      const footerCopy = document.createElement('p');
+      footerCopy.className = 'muted';
+      footerCopy.textContent = mode === 'update'
+        ? 'Review the changes before saving.'
+        : 'Only required fields need values to create the record.';
       const submit = document.createElement('button');
       submit.type = 'submit';
       submit.textContent = mode === 'update' ? 'Update' : 'Create';
       submit.className = 'btn btn-primary';
-      target.appendChild(submit);
+      footer.appendChild(footerCopy);
+      footer.appendChild(submit);
+      target.appendChild(footer);
     }
 
     async function renderCreateForm() {
@@ -3395,28 +4115,28 @@ const adminPrototypeHTML = `<!doctype html>
     async function renderUpdateForm() {
       if (!state.selected) {
         els.updateForm.innerHTML = '<p class="muted">Select a row to edit it.</p>';
-        els.editHint.textContent = 'Select a row to open the change form.';
+        els.editHint.textContent = 'Select a row to edit.';
         return;
       }
       els.editHint.textContent = 'Editing record #' + recordPrimaryKey(state.selected.item) + '.';
       await renderForm(els.updateForm, state.meta?.update_fields || [], 'update', state.selected.item || {}, 'update');
     }
 
-     function renderSelectedRecord() {
-       els.detailFields.innerHTML = '';
-       if (!state.selected) {
-         els.detailTitle.textContent = 'No record selected';
-         els.detailObjectBadge.textContent = 'Draft view';
-         els.detail.textContent = 'No record selected.';
+    function renderSelectedRecord() {
+      els.detailFields.innerHTML = '';
+      if (!state.selected) {
+        els.detailTitle.textContent = 'No record selected';
+        els.detailObjectBadge.textContent = 'Draft view';
+        els.detail.textContent = 'No record selected.';
         els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
         highlightSelectedRow();
         return;
-       }
-       const record = state.selected.item || {};
-       const recordID = recordPrimaryKey(record);
-       els.detailTitle.textContent = state.meta.label + ' #' + recordID;
-       els.detailObjectBadge.textContent = 'Record overview';
-       els.detail.textContent = JSON.stringify(record, null, 2);
+      }
+      const record = state.selected.item || {};
+      const recordID = recordPrimaryKey(record);
+      els.detailTitle.textContent = state.meta.label + ' #' + recordID;
+      els.detailObjectBadge.textContent = 'Record overview';
+      els.detail.textContent = JSON.stringify(record, null, 2);
       const detailFields = state.meta?.detail_fields || Object.keys(record);
       detailFields.forEach((name) => {
         const row = document.createElement('div');
@@ -3426,7 +4146,7 @@ const adminPrototypeHTML = `<!doctype html>
         label.textContent = fieldMeta(name)?.label || name;
         const value = document.createElement('div');
         value.className = 'detail-value';
-        value.textContent = formatValue(record[name]);
+        value.appendChild(buildDetailValueContent(name, record[name]));
         row.appendChild(label);
         row.appendChild(value);
         els.detailFields.appendChild(row);
@@ -3550,14 +4270,16 @@ const adminPrototypeHTML = `<!doctype html>
         els.list.innerHTML = '<div class="empty-state">No records matched the current filters.</div>';
         return;
       }
+      const listFragment = document.createDocumentFragment();
       const tableShell = document.createElement('div');
       tableShell.className = 'table-shell table-responsive p-0';
       const table = document.createElement('table');
-      table.className = 'table table-bordered table-striped table-hover';
+      table.className = 'resource-table table table-bordered table-striped table-hover';
       const thead = document.createElement('thead');
       thead.className = 'thead-light';
       const headRow = document.createElement('tr');
       const bulkCell = document.createElement('th');
+      bulkCell.className = 'table-select-cell';
       const selectAll = document.createElement('input');
       selectAll.type = 'checkbox';
       selectAll.className = 'form-check-input position-static';
@@ -3573,25 +4295,34 @@ const adminPrototypeHTML = `<!doctype html>
       const { field: sortField, dir: sortDir } = activeSortField();
       fields.forEach((field) => {
         const th = document.createElement('th');
+        const label = fieldLabel(field);
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'table-column-label';
+        labelSpan.textContent = label;
+        const keySpan = document.createElement('span');
+        keySpan.className = 'table-column-key';
+        keySpan.textContent = field;
         if (sortable.has(field)) {
           th.className = 'sortable-th' + (sortField === field ? ' sort-' + sortDir : '');
           th.setAttribute('aria-sort', sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
-          th.setAttribute('title', 'Click to sort by ' + field);
-          const labelSpan = document.createElement('span');
-          labelSpan.textContent = field;
+          th.setAttribute('title', 'Click to sort by ' + label);
+          th.setAttribute('aria-label', 'Sort by ' + label);
           const iconSpan = document.createElement('span');
           iconSpan.className = 'sort-icon';
           iconSpan.setAttribute('aria-hidden', 'true');
           iconSpan.textContent = sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅';
           th.appendChild(labelSpan);
+          th.appendChild(keySpan);
           th.appendChild(iconSpan);
           th.onclick = () => applySortFromHeader(field);
         } else {
-          th.textContent = field;
+          th.appendChild(labelSpan);
+          th.appendChild(keySpan);
         }
         headRow.appendChild(th);
       });
       const actionHead = document.createElement('th');
+      actionHead.className = 'table-actions-head';
       actionHead.textContent = 'Actions';
       headRow.appendChild(actionHead);
       thead.appendChild(headRow);
@@ -3602,6 +4333,7 @@ const adminPrototypeHTML = `<!doctype html>
         const id = recordPrimaryKey(row);
         tr.dataset.recordId = String(id);
         const checkCell = document.createElement('td');
+        checkCell.className = 'table-select-cell';
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'form-check-input position-static';
@@ -3614,10 +4346,11 @@ const adminPrototypeHTML = `<!doctype html>
         tr.appendChild(checkCell);
         fields.forEach((field) => {
           const td = document.createElement('td');
-          td.textContent = formatValue(row[field]);
+          td.appendChild(buildTableCellContent(field, row[field]));
           tr.appendChild(td);
         });
         const actionCell = document.createElement('td');
+        actionCell.className = 'table-actions-cell';
         const actionWrap = document.createElement('div');
         actionWrap.className = 'action-cell';
         // View button
@@ -3649,7 +4382,8 @@ const adminPrototypeHTML = `<!doctype html>
       table.appendChild(tbody);
       tableShell.appendChild(table);
       els.list.innerHTML = '';
-      els.list.appendChild(tableShell);
+      listFragment.appendChild(tableShell);
+      els.list.appendChild(listFragment);
       highlightSelectedRow();
     }
 

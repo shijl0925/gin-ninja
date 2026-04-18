@@ -1942,6 +1942,38 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 	waitForBrowserText(t, ctx, "#detailFields", "[2]")
 }
 
+func TestFullExampleAdminPrototypeTextareaResizeDirection(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d", register.StatusCode)
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForBrowserEnabled(t, ctx, "#openCreateModal")
+	clickBrowser(t, ctx, "#openCreateModal")
+	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserExists(t, ctx, "#createForm textarea[name='name']")
+	waitForBrowserCondition(t, ctx, "create textarea uses vertical resize", `(() => {
+		const textarea = document.querySelector("#createForm textarea[name='name']");
+		return !!textarea && window.getComputedStyle(textarea).resize === "vertical";
+	})()`)
+}
+
 func TestFullExampleAdminPrototypeActionMenuPortal(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
@@ -2248,6 +2280,7 @@ func TestFullExampleAdminPrototypeLiveSearchScript(t *testing.T) {
 		"function scheduleSearchReload()",
 		"state.searchTimer = setTimeout(() => {",
 		"els.search.addEventListener('input', () => {",
+		".form-field-card textarea { min-height:120px; resize:vertical;",
 	} {
 		if !strings.Contains(normalizedHTML, compactWhitespace(needle)) {
 			t.Fatalf("expected live-search integration marker %q in html: %q", needle, html)
