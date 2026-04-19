@@ -14,19 +14,20 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	ginpkg "github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
-	"github.com/shijl0925/go-toolkits/gormx"
 	gormdriver "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 var runBasicMain = run
 var fatalBasic = func(v ...any) { log.Fatal(v...) }
+var basicDB *gorm.DB
 
 // ---------------------------------------------------------------------------
 // Model
@@ -77,13 +78,8 @@ type DeleteUserInput struct {
 }
 
 // ---------------------------------------------------------------------------
-// Repository
+// Data access
 // ---------------------------------------------------------------------------
-
-type IUserRepo interface{ gormx.IBaseRepo[User] }
-type userRepo struct{ gormx.BaseRepo[User] }
-
-func newUserRepo() IUserRepo { return &userRepo{} }
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -95,21 +91,37 @@ func userDB(ctx *ninja.Context) *gorm.DB {
 	if ctx != nil && ctx.Context != nil {
 		return orm.WithContext(ctx.Context)
 	}
-	return gormx.GetDb()
+	return basicDB
+}
+
+func loadUserByID(db *gorm.DB, id uint) (User, error) {
+	var user User
+	if err := db.Where("id = ?", id).First(&user).Error; err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+func escapeLike(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(value)
 }
 
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	db := userDB(ctx)
-	r := newUserRepo()
-	q, u := gormx.NewQuery[User]()
-	cq, cu := gormx.NewQuery[User]()
+	query := db.Model(&User{})
 	if in.Search != "" {
-		q.Like(&u.Name, in.Search)
-		cq.Like(&cu.Name, in.Search)
+		query = query.Where("name LIKE ? ESCAPE '\\'", "%"+escapeLike(strings.TrimSpace(in.Search))+"%")
 	}
-	q.Limit(in.GetSize()).Offset(in.Offset())
-	items, _ := r.SelectListByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, q.ToOptions()...)...)
-	total, _ := r.SelectCount(append([]gormx.DBOption{gormx.UseDB(db)}, cq.ToOptions()...)...)
+	countQuery := query.Session(&gorm.Session{})
+	var total int64
+	if err := countQuery.Count(&total).Error; err != nil {
+		return nil, err
+	}
+	var items []User
+	if err := query.Limit(in.GetSize()).Offset(in.Offset()).Find(&items).Error; err != nil {
+		return nil, err
+	}
 	out := make([]UserOut, len(items))
 	for i, v := range items {
 		out[i] = toOut(v)
@@ -119,7 +131,7 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 	db := userDB(ctx)
-	u, err := newUserRepo().SelectOneById(int(in.UserID), gormx.UseDB(db))
+	u, err := loadUserByID(db, in.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -133,7 +145,7 @@ func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
 	db := userDB(ctx)
 	u := &User{Name: in.Name, Email: in.Email, Age: in.Age}
-	if err := newUserRepo().Insert(u, gormx.UseDB(db)); err != nil {
+	if err := db.Create(u).Error; err != nil {
 		return nil, err
 	}
 	out := toOut(*u)
@@ -142,8 +154,7 @@ func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
 
 func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 	db := userDB(ctx)
-	r := newUserRepo()
-	if _, err := r.SelectOneById(int(in.UserID), gormx.UseDB(db)); err != nil {
+	if _, err := loadUserByID(db, in.UserID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
 		}
@@ -160,11 +171,11 @@ func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 		upd["age"] = in.Age
 	}
 	if len(upd) > 0 {
-		if err := r.UpdateById(int(in.UserID), upd, gormx.UseDB(db)); err != nil {
+		if err := db.Model(&User{}).Where("id = ?", in.UserID).Updates(upd).Error; err != nil {
 			return nil, err
 		}
 	}
-	u, err := r.SelectOneById(int(in.UserID), gormx.UseDB(db))
+	u, err := loadUserByID(db, in.UserID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -177,7 +188,7 @@ func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 
 func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
 	db := userDB(ctx)
-	return newUserRepo().DeleteById(int(in.UserID), gormx.UseDB(db))
+	return db.Model(&User{}).Where("id = ?", in.UserID).Delete(&User{}).Error
 }
 
 func initDB(dsn string) (*gorm.DB, error) {
@@ -188,6 +199,7 @@ func initDB(dsn string) (*gorm.DB, error) {
 	if err := db.AutoMigrate(&User{}); err != nil {
 		return nil, err
 	}
+	basicDB = db
 	orm.Init(db)
 	return db, nil
 }

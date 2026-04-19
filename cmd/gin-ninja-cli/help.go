@@ -85,7 +85,7 @@ func printGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model User -model-file ./app/models.go")
-	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model Account -model-file ./app/models.go -with-gormx=false")
+	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model Account -model-file ./app/models.go -with-gormx")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Options:")
 	printFlagGroup(w, []flagHelp{
@@ -94,7 +94,7 @@ func printGenerateUsage(w io.Writer) {
 		{name: "-output <path>", usage: "Output file path (defaults next to the model file)"},
 		{name: "-package <name>", usage: "Override the generated package name"},
 		{name: "-tag <name>", usage: "Override the generated router tag name"},
-		{name: "-with-gormx", usage: "Generate gormx-based CRUD code (default: true)"},
+		{name: "-with-gormx", usage: "Generate gormx-based CRUD code (default: false)"},
 	})
 }
 

@@ -205,6 +205,7 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		"Dockerfile",
 		"docker-compose.yml",
 		filepath.Join("internal", "app", "services.go"),
+		filepath.Join("internal", "app", "errors.go"),
 	} {
 		if _, ok := standardProjectFiles[name]; !ok {
 			t.Fatalf("expected standard project file %q", name)

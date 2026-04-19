@@ -169,6 +169,9 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	if strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected native gorm repo scaffold, got:\n%s", content)
 	}
+	if !strings.Contains(string(content), "type IExampleRepo interface") {
+		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
+	}
 
 	runScaffoldGoTest(t, outputDir)
 }
@@ -270,13 +273,18 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
 
-	for _, rel := range []string{"repos.go", "services.go"} {
+	for _, rel := range []string{"repos.go", "apis.go"} {
 		content, err := os.ReadFile(filepath.Join(outputDir, rel))
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
 		}
 		if strings.Contains(string(content), "gormx") {
 			t.Fatalf("expected %s to avoid gormx, got:\n%s", rel, content)
+		}
+	}
+	for _, rel := range []string{"services.go", "errors.go"} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("did not expect %s for plain standard scaffold, err=%v", rel, err)
 		}
 	}
 
@@ -327,8 +335,8 @@ func TestWriteAppScaffoldForceAllowsNonEmptyDirectory(t *testing.T) {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outputDir, "services.go")); err != nil {
-		t.Fatalf("expected services.go: %v", err)
+	if _, err := os.Stat(filepath.Join(outputDir, "apis.go")); err != nil {
+		t.Fatalf("expected apis.go: %v", err)
 	}
 }
 

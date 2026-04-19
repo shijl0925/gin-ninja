@@ -369,7 +369,7 @@ func appFiles(data appTemplateData) (map[string][]byte, error) {
 	} else {
 		templates["repos.go"] = appReposNativeTemplate
 	}
-	if data.Options.Standard {
+	if data.Options.Standard && (data.Options.WithAuth || data.Options.WithAdmin) {
 		if data.Options.WithGormx {
 			templates["services.go"] = appServicesTemplate
 		} else {
@@ -1081,7 +1081,7 @@ type I{{ .RepoName }} interface {
 gormx.IBaseRepo[{{ .ModelName }}]
 }
 
-type {{ .RepoName | printf "%sImpl" }} struct {
+type {{ .RepoName }}Impl struct {
 gormx.BaseRepo[{{ .ModelName }}]
 }
 
@@ -1102,7 +1102,7 @@ UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error
 DeleteByID(id uint, db *gorm.DB) error
 }
 
-type {{ .RepoName | printf "%sImpl" }} struct{}
+type {{ .RepoName }}Impl struct{}
 
 func New{{ .RepoName }}() I{{ .RepoName }} {
 return &{{ .RepoName }}Impl{}
@@ -1825,7 +1825,7 @@ func TestScaffoldConstructors(t *testing.T) {
 if New{{ .RepoName }}() == nil {
 t.Fatal("expected repository constructor to return a value")
 }
-{{- if .Options.Standard }}
+{{- if and .Options.Standard (or .Options.WithAuth .Options.WithAdmin) }}
 if New{{ .ServiceName }}() == nil {
 t.Fatal("expected service constructor to return a value")
 }

@@ -167,6 +167,22 @@ func main() {
 如果你希望首页展示后台入口按钮，可以在 `ninja.Config` 中设置 `AdminURL`。
 如果你希望保留 Swagger UI 路由，但在生产环境隐藏首页里的 API Docs 快捷方式，可以设置 `HideDocsShortcut: true`。
 
+## 轻量模式推荐
+
+如果你是在做中小型 CRUD / 内部 API，建议先走最短路径，再按需加层：
+
+- 代码结构优先参考 [examples/basic](./examples/basic/)：`New + Router + Handler + orm.Middleware`
+- 脚手架优先直接用默认 `minimal`：`gin-ninja-cli startproject mysite -module github.com/acme/mysite`
+- 脚手架仍保留内置的 repo interface 分层，但对中小型 CRUD 项目依然推荐先从默认 `minimal` 起步
+- 只有在你明确需要 auth / admin / 更完整基础设施时，再切到 `-template standard|auth|admin`
+
+推荐的最小 app 目录通常是：
+
+- `app/models.go`
+- `app/schemas.go`
+- `app/apis.go`
+- `app/routers.go`
+
 ## 项目 / 应用脚手架命令
 
 gin-ninja 也提供了类似 Django 的脚手架命令，可快速创建可运行的项目骨架和新的 app 包。
@@ -194,6 +210,7 @@ make build-cli
 gin-ninja-cli --help
 gin-ninja-cli help startproject
 
+# 小中型 CRUD 项目：默认 minimal 即可
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli makemigrations
@@ -205,14 +222,14 @@ gin-ninja-cli startapp blog
 gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
 gin-ninja-cli migrate
 
-# 更丰富的模板 / 可选功能
+# 更丰富的模板 / 可选功能（只有确实需要时再开启）
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx=false
+gin-ninja-cli startapp accounts -template standard -with-gormx
 
 # 交互式向导
 gin-ninja-cli init
@@ -255,12 +272,16 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 `startapp` 会在新的 app package 目录中生成相同的核心 CRUD 文件；更丰富的模板还会额外生成：
 
 - `migrations.go`
-- `services.go`
-- `errors.go`
 - `scaffold_test.go`
 - `auth.go`
 - `admin.go`
 - `permissions.go`
+
+其中：
+
+- 默认 `minimal` 只保留最短 CRUD 路径
+- `standard` 主要增加项目级基础设施文件；当未启用 `auth/admin` 时，不再强制生成 `services.go` / `errors.go`
+- `auth` / `admin` 模板会额外生成更完整的 service / error / 权限相关代码
 
 常用脚手架参数：
 
@@ -268,7 +289,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
-- `-with-gormx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
+- `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
@@ -282,7 +303,7 @@ output: ./mysite
 app_dir: internal/app
 template: admin
 with_tests: true
-with_gormx: true
+with_gormx: false
 ```
 
 标准风格项目脚手架还会内置官方 [air](https://github.com/air-verse/air) 预设，方便本地热重载开发：
@@ -884,6 +905,7 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 - [examples/features](./examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、SSE、WebSocket、上传、下载等能力演示
 - [examples/admin](./examples/admin/)：JWT 保护的 admin 资源 API 与独立 admin 页面
 - [examples/full](./examples/full/)：把以上能力组合到一个完整应用中
+- [examples/compact](./examples/compact/)：`examples/full` 的压缩版对照实现，用更少的本地文件展示同一套能力
 
 完整应用可查看 [examples/full](./examples/full/)：
 
