@@ -209,7 +209,7 @@ For a small or medium CRUD/internal API, start with the shortest path and add la
 
 - Follow [examples/basic](./examples/basic/): `New + Router + Handler + orm.Middleware`
 - Start scaffolding with the default `minimal` template: `gin-ninja-cli startproject mysite -module github.com/acme/mysite`
-- Generated scaffolds now default to **concrete repo structs**; only opt into repo interfaces when you actually need them via `-with-repo-interface`
+- Scaffolded repos keep the built-in repo interface layer, while `minimal` still stays the recommended starting point for small CRUD services
 - Move to `-template standard|auth|admin` only when you need the extra infrastructure, auth, or admin surface
 
 A good minimal app package usually contains only:
@@ -328,7 +328,6 @@ Useful scaffold flags:
 - `-with-auth`
 - `-with-admin`
 - `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
-- `-with-repo-interface` (default `false`; enable it only when you want repo interfaces generated)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
@@ -343,7 +342,6 @@ app_dir: internal/app
 template: admin
 with_tests: true
 with_gormx: true
-with_repo_interface: false
 ```
 
 Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:

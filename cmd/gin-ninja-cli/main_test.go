@@ -124,8 +124,8 @@ func TestRunStartProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repos.go: %v", err)
 	}
-	if strings.Contains(string(content), "type IExampleRepo interface") {
-		t.Fatalf("did not expect repo interface by default, got:\n%s", content)
+	if !strings.Contains(string(content), "type IExampleRepo interface") {
+		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
 	}
 }
 
@@ -215,34 +215,6 @@ func TestRunStartProjectWithoutGormx(t *testing.T) {
 	}
 	if strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected native gorm scaffold, got:\n%s", content)
-	}
-}
-
-func TestRunStartProjectWithRepoInterface(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	outputDir := filepath.Join(dir, "mysite")
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	code := run(&stdout, &stderr, []string{
-		"startproject",
-		"mysite",
-		"-module", "github.com/acme/mysite",
-		"-output", outputDir,
-		"-with-repo-interface",
-	})
-	if code != 0 {
-		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
-	}
-
-	content, err := os.ReadFile(filepath.Join(outputDir, "app", "repos.go"))
-	if err != nil {
-		t.Fatalf("read repos.go: %v", err)
-	}
-	if !strings.Contains(string(content), "type IExampleRepo interface") {
-		t.Fatalf("expected repo interface when enabled, got:\n%s", content)
 	}
 }
 
@@ -353,8 +325,8 @@ func TestRunStartApp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repos.go: %v", err)
 	}
-	if strings.Contains(string(content), "type IPostRepo interface") {
-		t.Fatalf("did not expect repo interface by default, got:\n%s", content)
+	if !strings.Contains(string(content), "type IPostRepo interface") {
+		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
 	}
 }
 
@@ -477,7 +449,6 @@ func TestRunInitProjectWizard(t *testing.T) {
 		"standard",
 		"yes",
 		"no",
-		"no",
 		"",
 	}, "\n"))
 
@@ -519,7 +490,6 @@ func TestRunInitAppWizard(t *testing.T) {
 		"auth",
 		"yes",
 		"yes",
-		"no",
 		"",
 	}, "\n"))
 

@@ -99,11 +99,11 @@ func TestScaffoldFallbackAndWriteCoverage(t *testing.T) {
 func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 	t.Parallel()
 
-	minimalOpts, err := resolveScaffoldOptions("minimal", false, false, false, boolPtr(false), boolPtr(false))
+	minimalOpts, err := resolveScaffoldOptions("minimal", false, false, false, boolPtr(false))
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(minimal): %v", err)
 	}
-	standardOpts, err := resolveScaffoldOptions("admin", true, false, false, boolPtr(true), boolPtr(false))
+	standardOpts, err := resolveScaffoldOptions("admin", true, false, false, boolPtr(true))
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(admin): %v", err)
 	}

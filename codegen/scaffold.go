@@ -24,40 +24,37 @@ const (
 
 // ProjectScaffoldConfig defines the inputs for a new project scaffold.
 type ProjectScaffoldConfig struct {
-	Name              string
-	Module            string
-	AppDir            string
-	Template          string
-	WithTests         bool
-	WithAuth          bool
-	WithAdmin         bool
-	WithGormx         *bool
-	WithRepoInterface *bool
-	Force             bool
+	Name      string
+	Module    string
+	AppDir    string
+	Template  string
+	WithTests bool
+	WithAuth  bool
+	WithAdmin bool
+	WithGormx *bool
+	Force     bool
 }
 
 // AppScaffoldConfig defines the inputs for a new app scaffold.
 type AppScaffoldConfig struct {
-	Name              string
-	PackageName       string
-	ModelName         string
-	Template          string
-	WithTests         bool
-	WithAuth          bool
-	WithAdmin         bool
-	WithGormx         *bool
-	WithRepoInterface *bool
-	Force             bool
+	Name        string
+	PackageName string
+	ModelName   string
+	Template    string
+	WithTests   bool
+	WithAuth    bool
+	WithAdmin   bool
+	WithGormx   *bool
+	Force       bool
 }
 
 type scaffoldOptions struct {
-	Template          ScaffoldTemplate
-	WithTests         bool
-	WithAuth          bool
-	WithAdmin         bool
-	WithGormx         bool
-	WithRepoInterface bool
-	Standard          bool
+	Template  ScaffoldTemplate
+	WithTests bool
+	WithAuth  bool
+	WithAdmin bool
+	WithGormx bool
+	Standard  bool
 }
 
 // WriteProjectScaffold creates a new project scaffold in outputDir.
@@ -70,7 +67,7 @@ func WriteProjectScaffold(cfg ProjectScaffoldConfig, outputDir string) error {
 		return fmt.Errorf("output directory is required")
 	}
 
-	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin, cfg.WithGormx, cfg.WithRepoInterface)
+	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin, cfg.WithGormx)
 	if err != nil {
 		return err
 	}
@@ -129,7 +126,7 @@ func WriteAppScaffold(cfg AppScaffoldConfig, outputDir string) error {
 	if strings.TrimSpace(outputDir) == "" {
 		return fmt.Errorf("output directory is required")
 	}
-	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin, cfg.WithGormx, cfg.WithRepoInterface)
+	opts, err := resolveScaffoldOptions(cfg.Template, cfg.WithTests, cfg.WithAuth, cfg.WithAdmin, cfg.WithGormx)
 	if err != nil {
 		return err
 	}
@@ -175,7 +172,7 @@ type appTemplateData struct {
 	Options     scaffoldOptions
 }
 
-func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool, withGormx, withRepoInterface *bool) (scaffoldOptions, error) {
+func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool, withGormx *bool) (scaffoldOptions, error) {
 	templateName = strings.ToLower(strings.TrimSpace(templateName))
 	if templateName == "" {
 		templateName = string(ScaffoldTemplateMinimal)
@@ -189,12 +186,11 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 	}
 
 	opts := scaffoldOptions{
-		Template:          templateKind,
-		WithTests:         withTests,
-		WithAuth:          withAuth,
-		WithAdmin:         withAdmin,
-		WithGormx:         boolValueOrDefault(withGormx, true),
-		WithRepoInterface: boolValueOrDefault(withRepoInterface, false),
+		Template:  templateKind,
+		WithTests: withTests,
+		WithAuth:  withAuth,
+		WithAdmin: withAdmin,
+		WithGormx: boolValueOrDefault(withGormx, true),
 	}
 	if templateKind == ScaffoldTemplateAuth {
 		opts.WithAuth = true
@@ -1081,32 +1077,23 @@ const appReposTemplate = `package {{ .PackageName }}
 
 import "github.com/shijl0925/go-toolkits/gormx"
 
-{{- if .Options.WithRepoInterface }}
 type I{{ .RepoName }} interface {
 gormx.IBaseRepo[{{ .ModelName }}]
 }
-{{ end }}
 
-type {{ .RepoName }} struct {
+type {{ .RepoName }}Impl struct {
 gormx.BaseRepo[{{ .ModelName }}]
 }
 
-{{- if .Options.WithRepoInterface }}
 func New{{ .RepoName }}() I{{ .RepoName }} {
-return &{{ .RepoName }}{}
+return &{{ .RepoName }}Impl{}
 }
-{{- else }}
-func New{{ .RepoName }}() *{{ .RepoName }} {
-return &{{ .RepoName }}{}
-}
-{{- end }}
 `
 
 const appReposNativeTemplate = `package {{ .PackageName }}
 
 import "gorm.io/gorm"
 
-{{- if .Options.WithRepoInterface }}
 type I{{ .RepoName }} interface {
 SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error)
 SelectOneByID(id uint, db *gorm.DB) ({{ .ModelName }}, error)
@@ -1114,21 +1101,14 @@ Insert(item *{{ .ModelName }}, db *gorm.DB) error
 UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error
 DeleteByID(id uint, db *gorm.DB) error
 }
-{{ end }}
 
-type {{ .RepoName }} struct{}
+type {{ .RepoName }}Impl struct{}
 
-{{- if .Options.WithRepoInterface }}
 func New{{ .RepoName }}() I{{ .RepoName }} {
-return &{{ .RepoName }}{}
+return &{{ .RepoName }}Impl{}
 }
-{{- else }}
-func New{{ .RepoName }}() *{{ .RepoName }} {
-return &{{ .RepoName }}{}
-}
-{{- end }}
 
-func (r *{{ .RepoName }}) SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error) {
+func (r *{{ .RepoName }}Impl) SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error) {
 if db == nil {
 return nil, 0, gorm.ErrInvalidDB
 }
@@ -1149,7 +1129,7 @@ return nil, 0, err
 return items, total, nil
 }
 
-func (r *{{ .RepoName }}) SelectOneByID(id uint, db *gorm.DB) ({{ .ModelName }}, error) {
+func (r *{{ .RepoName }}Impl) SelectOneByID(id uint, db *gorm.DB) ({{ .ModelName }}, error) {
 if db == nil {
 return {{ .ModelName }}{}, gorm.ErrInvalidDB
 }
@@ -1160,14 +1140,14 @@ return {{ .ModelName }}{}, err
 return item, nil
 }
 
-func (r *{{ .RepoName }}) Insert(item *{{ .ModelName }}, db *gorm.DB) error {
+func (r *{{ .RepoName }}Impl) Insert(item *{{ .ModelName }}, db *gorm.DB) error {
 if db == nil {
 return gorm.ErrInvalidDB
 }
 return db.Create(item).Error
 }
 
-func (r *{{ .RepoName }}) UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error {
+func (r *{{ .RepoName }}Impl) UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error {
 if db == nil {
 return gorm.ErrInvalidDB
 }
@@ -1181,7 +1161,7 @@ return gorm.ErrRecordNotFound
 return nil
 }
 
-func (r *{{ .RepoName }}) DeleteByID(id uint, db *gorm.DB) error {
+func (r *{{ .RepoName }}Impl) DeleteByID(id uint, db *gorm.DB) error {
 if db == nil {
 return gorm.ErrInvalidDB
 }
@@ -1253,11 +1233,7 @@ ninja "github.com/shijl0925/gin-ninja"
 )
 
 type {{ .ServiceName }} struct {
-{{- if .Options.WithRepoInterface }}
 repo I{{ .RepoName }}
-{{- else }}
-repo *{{ .RepoName }}
-{{- end }}
 }
 
 func New{{ .ServiceName }}() *{{ .ServiceName }} {
@@ -1374,11 +1350,7 @@ ninja "github.com/shijl0925/gin-ninja"
 )
 
 type {{ .ServiceName }} struct {
-{{- if .Options.WithRepoInterface }}
 repo I{{ .RepoName }}
-{{- else }}
-repo *{{ .RepoName }}
-{{- end }}
 }
 
 func New{{ .ServiceName }}() *{{ .ServiceName }} {

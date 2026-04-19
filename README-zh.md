@@ -173,7 +173,7 @@ func main() {
 
 - 代码结构优先参考 [examples/basic](./examples/basic/)：`New + Router + Handler + orm.Middleware`
 - 脚手架优先直接用默认 `minimal`：`gin-ninja-cli startproject mysite -module github.com/acme/mysite`
-- 默认生成**具体 repo struct**，不额外引入单实现 repo interface；只有确实需要时再显式加 `-with-repo-interface`
+- 脚手架仍保留内置的 repo interface 分层，但对中小型 CRUD 项目依然推荐先从默认 `minimal` 起步
 - 只有在你明确需要 auth / admin / 更完整基础设施时，再切到 `-template standard|auth|admin`
 
 推荐的最小 app 目录通常是：
@@ -290,7 +290,6 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `-with-auth`
 - `-with-admin`
 - `-with-gormx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
-- `-with-repo-interface`（默认 `false`；仅在你需要接口隔离时才生成 repo interface）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
@@ -305,7 +304,6 @@ app_dir: internal/app
 template: admin
 with_tests: true
 with_gormx: true
-with_repo_interface: false
 ```
 
 标准风格项目脚手架还会内置官方 [air](https://github.com/air-verse/air) 预设，方便本地热重载开发：
