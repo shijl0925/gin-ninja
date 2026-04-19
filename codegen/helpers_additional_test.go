@@ -165,7 +165,7 @@ func TestCRUDAndScaffoldErrorCoverage(t *testing.T) {
 			t.Fatalf("expected create output dir error, got %v", err)
 		}
 
-		if _, err := resolveScaffoldOptions("unknown", false, false, false, nil); err == nil {
+		if _, err := resolveScaffoldOptions("unknown", false, false, false, nil, nil); err == nil {
 			t.Fatal("expected unknown scaffold template error")
 		}
 		for _, tc := range []struct {

@@ -14,18 +14,19 @@ import (
 )
 
 type scaffoldPreset struct {
-	Name        string `json:"name" yaml:"name"`
-	Module      string `json:"module" yaml:"module"`
-	Output      string `json:"output" yaml:"output"`
-	AppDir      string `json:"app_dir" yaml:"app_dir"`
-	PackageName string `json:"package" yaml:"package"`
-	ModelName   string `json:"model" yaml:"model"`
-	Template    string `json:"template" yaml:"template"`
-	WithTests   *bool  `json:"with_tests" yaml:"with_tests"`
-	WithAuth    *bool  `json:"with_auth" yaml:"with_auth"`
-	WithAdmin   *bool  `json:"with_admin" yaml:"with_admin"`
-	WithGormx   *bool  `json:"with_gormx" yaml:"with_gormx"`
-	Force       *bool  `json:"force" yaml:"force"`
+	Name              string `json:"name" yaml:"name"`
+	Module            string `json:"module" yaml:"module"`
+	Output            string `json:"output" yaml:"output"`
+	AppDir            string `json:"app_dir" yaml:"app_dir"`
+	PackageName       string `json:"package" yaml:"package"`
+	ModelName         string `json:"model" yaml:"model"`
+	Template          string `json:"template" yaml:"template"`
+	WithTests         *bool  `json:"with_tests" yaml:"with_tests"`
+	WithAuth          *bool  `json:"with_auth" yaml:"with_auth"`
+	WithAdmin         *bool  `json:"with_admin" yaml:"with_admin"`
+	WithGormx         *bool  `json:"with_gormx" yaml:"with_gormx"`
+	WithRepoInterface *bool  `json:"with_repo_interface" yaml:"with_repo_interface"`
+	Force             *bool  `json:"force" yaml:"force"`
 }
 
 const defaultScaffoldAppDir = "app"
@@ -100,6 +101,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
 	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
+	withRepoInterface := fs.Bool("with-repo-interface", false, "Generate repo interfaces in addition to concrete repo structs")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -135,15 +137,16 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	mod := mergeStringFlag(strings.TrimSpace(*module), set["module"], strings.TrimSpace(preset.Module), name)
 
 	if err := codegen.WriteProjectScaffold(codegen.ProjectScaffoldConfig{
-		Name:      name,
-		Module:    mod,
-		AppDir:    mergeStringFlag(strings.TrimSpace(*appDir), set["app-dir"], strings.TrimSpace(preset.AppDir), ""),
-		Template:  mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
-		WithTests: mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
-		WithAuth:  mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
-		WithAdmin: mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
-		WithGormx: boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, true)),
-		Force:     mergeBoolFlag(*force, set["force"], preset.Force, false),
+		Name:              name,
+		Module:            mod,
+		AppDir:            mergeStringFlag(strings.TrimSpace(*appDir), set["app-dir"], strings.TrimSpace(preset.AppDir), ""),
+		Template:          mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
+		WithTests:         mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
+		WithAuth:          mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
+		WithAdmin:         mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
+		WithGormx:         boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, true)),
+		WithRepoInterface: boolPtr(mergeBoolFlag(*withRepoInterface, set["with-repo-interface"], preset.WithRepoInterface, false)),
+		Force:             mergeBoolFlag(*force, set["force"], preset.Force, false),
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
 		return 1
@@ -169,6 +172,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
 	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
+	withRepoInterface := fs.Bool("with-repo-interface", false, "Generate repo interfaces in addition to concrete repo structs")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -202,15 +206,16 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	out := mergeStringFlag(strings.TrimSpace(*output), set["output"], strings.TrimSpace(preset.Output), name)
 
 	if err := codegen.WriteAppScaffold(codegen.AppScaffoldConfig{
-		Name:        name,
-		PackageName: mergeStringFlag(strings.TrimSpace(*packageName), set["package"], strings.TrimSpace(preset.PackageName), ""),
-		ModelName:   mergeStringFlag(strings.TrimSpace(*modelName), set["model"], strings.TrimSpace(preset.ModelName), ""),
-		Template:    mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
-		WithTests:   mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
-		WithAuth:    mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
-		WithAdmin:   mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
-		WithGormx:   boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, true)),
-		Force:       mergeBoolFlag(*force, set["force"], preset.Force, false),
+		Name:              name,
+		PackageName:       mergeStringFlag(strings.TrimSpace(*packageName), set["package"], strings.TrimSpace(preset.PackageName), ""),
+		ModelName:         mergeStringFlag(strings.TrimSpace(*modelName), set["model"], strings.TrimSpace(preset.ModelName), ""),
+		Template:          mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
+		WithTests:         mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
+		WithAuth:          mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
+		WithAdmin:         mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
+		WithGormx:         boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, true)),
+		WithRepoInterface: boolPtr(mergeBoolFlag(*withRepoInterface, set["with-repo-interface"], preset.WithRepoInterface, false)),
+		Force:             mergeBoolFlag(*force, set["force"], preset.Force, false),
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
 		return 1
@@ -306,14 +311,20 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read gormx preference: %v\n", err)
 		return 1
 	}
+	withRepoInterface, err := promptBool(stdout, reader, "Generate repo interfaces?", boolValueOrDefault(preset.WithRepoInterface, false))
+	if err != nil {
+		fmt.Fprintf(stderr, "read repo interface preference: %v\n", err)
+		return 1
+	}
 
 	if err := codegen.WriteProjectScaffold(codegen.ProjectScaffoldConfig{
-		Name:      name,
-		Module:    module,
-		AppDir:    appDir,
-		Template:  templateName,
-		WithTests: withTests,
-		WithGormx: boolPtr(withGormx),
+		Name:              name,
+		Module:            module,
+		AppDir:            appDir,
+		Template:          templateName,
+		WithTests:         withTests,
+		WithGormx:         boolPtr(withGormx),
+		WithRepoInterface: boolPtr(withRepoInterface),
 	}, output); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
 		return 1
@@ -363,14 +374,20 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		fmt.Fprintf(stderr, "read gormx preference: %v\n", err)
 		return 1
 	}
+	withRepoInterface, err := promptBool(stdout, reader, "Generate repo interfaces?", boolValueOrDefault(preset.WithRepoInterface, false))
+	if err != nil {
+		fmt.Fprintf(stderr, "read repo interface preference: %v\n", err)
+		return 1
+	}
 
 	if err := codegen.WriteAppScaffold(codegen.AppScaffoldConfig{
-		Name:        name,
-		PackageName: packageName,
-		ModelName:   modelName,
-		Template:    templateName,
-		WithTests:   withTests,
-		WithGormx:   boolPtr(withGormx),
+		Name:              name,
+		PackageName:       packageName,
+		ModelName:         modelName,
+		Template:          templateName,
+		WithTests:         withTests,
+		WithGormx:         boolPtr(withGormx),
+		WithRepoInterface: boolPtr(withRepoInterface),
 	}, output); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
 		return 1
@@ -384,6 +401,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Quick start:")
 	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -module github.com/acme/mysite")
+	fmt.Fprintln(w, "  # minimal is the default and recommended for small CRUD apps")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Common templates:")
 	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -template standard")
@@ -403,7 +421,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Template options:")
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; start here for small/medium CRUD apps)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
@@ -413,6 +431,7 @@ func printStartProjectUsage(w io.Writer) {
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: true)"},
+		{name: "-with-repo-interface", usage: "Opt into repo interfaces; concrete repos are generated by default"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)
@@ -424,6 +443,7 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Quick start:")
 	fmt.Fprintln(w, "  gin-ninja-cli startapp blog")
+	fmt.Fprintln(w, "  # minimal is the default and recommended for small CRUD apps")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Common templates:")
 	fmt.Fprintln(w, "  gin-ninja-cli startapp accounts -template standard")
@@ -444,7 +464,7 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Template options:")
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; start here for small/medium CRUD apps)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
@@ -453,6 +473,7 @@ func printStartAppUsage(w io.Writer) {
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: true)"},
+		{name: "-with-repo-interface", usage: "Opt into repo interfaces; concrete repos are generated by default"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)

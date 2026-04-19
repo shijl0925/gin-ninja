@@ -120,6 +120,13 @@ func TestRunStartProject(t *testing.T) {
 	if !strings.Contains(stdout.String(), outputDir) {
 		t.Fatalf("stdout missing scaffold path: %s", stdout.String())
 	}
+	content, err := os.ReadFile(filepath.Join(outputDir, "app", "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if strings.Contains(string(content), "type IExampleRepo interface") {
+		t.Fatalf("did not expect repo interface by default, got:\n%s", content)
+	}
 }
 
 func TestRunStartProjectStandardTemplate(t *testing.T) {
@@ -208,6 +215,34 @@ func TestRunStartProjectWithoutGormx(t *testing.T) {
 	}
 	if strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected native gorm scaffold, got:\n%s", content)
+	}
+}
+
+func TestRunStartProjectWithRepoInterface(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"mysite",
+		"-module", "github.com/acme/mysite",
+		"-output", outputDir,
+		"-with-repo-interface",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "app", "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if !strings.Contains(string(content), "type IExampleRepo interface") {
+		t.Fatalf("expected repo interface when enabled, got:\n%s", content)
 	}
 }
 
@@ -314,6 +349,13 @@ func TestRunStartApp(t *testing.T) {
 	if !strings.Contains(stdout.String(), outputDir) {
 		t.Fatalf("stdout missing scaffold path: %s", stdout.String())
 	}
+	content, err := os.ReadFile(filepath.Join(outputDir, "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if strings.Contains(string(content), "type IPostRepo interface") {
+		t.Fatalf("did not expect repo interface by default, got:\n%s", content)
+	}
 }
 
 func TestRunStartAppWithForceAndTemplate(t *testing.T) {
@@ -373,12 +415,17 @@ func TestRunStartAppWithoutGormx(t *testing.T) {
 		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
 	}
 
-	content, err := os.ReadFile(filepath.Join(outputDir, "services.go"))
+	content, err := os.ReadFile(filepath.Join(outputDir, "apis.go"))
 	if err != nil {
-		t.Fatalf("read services.go: %v", err)
+		t.Fatalf("read apis.go: %v", err)
 	}
 	if strings.Contains(string(content), "gormx") {
-		t.Fatalf("expected native gorm service scaffold, got:\n%s", content)
+		t.Fatalf("expected native gorm scaffold, got:\n%s", content)
+	}
+	for _, rel := range []string{"services.go", "errors.go"} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("did not expect %s for plain standard scaffold, err=%v", rel, err)
+		}
 	}
 }
 
@@ -430,6 +477,7 @@ func TestRunInitProjectWizard(t *testing.T) {
 		"standard",
 		"yes",
 		"no",
+		"no",
 		"",
 	}, "\n"))
 
@@ -471,6 +519,7 @@ func TestRunInitAppWizard(t *testing.T) {
 		"auth",
 		"yes",
 		"yes",
+		"no",
 		"",
 	}, "\n"))
 

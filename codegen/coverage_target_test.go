@@ -99,11 +99,11 @@ func TestScaffoldFallbackAndWriteCoverage(t *testing.T) {
 func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 	t.Parallel()
 
-	minimalOpts, err := resolveScaffoldOptions("minimal", false, false, false, boolPtr(false))
+	minimalOpts, err := resolveScaffoldOptions("minimal", false, false, false, boolPtr(false), boolPtr(false))
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(minimal): %v", err)
 	}
-	standardOpts, err := resolveScaffoldOptions("admin", true, false, false, boolPtr(true))
+	standardOpts, err := resolveScaffoldOptions("admin", true, false, false, boolPtr(true), boolPtr(false))
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(admin): %v", err)
 	}
@@ -205,6 +205,7 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		"Dockerfile",
 		"docker-compose.yml",
 		filepath.Join("internal", "app", "services.go"),
+		filepath.Join("internal", "app", "errors.go"),
 	} {
 		if _, ok := standardProjectFiles[name]; !ok {
 			t.Fatalf("expected standard project file %q", name)

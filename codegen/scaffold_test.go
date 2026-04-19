@@ -16,8 +16,9 @@ func TestWriteProjectScaffold(t *testing.T) {
 	dir := t.TempDir()
 	outputDir := filepath.Join(dir, "mysite")
 	if err := WriteProjectScaffold(ProjectScaffoldConfig{
-		Name:   "mysite",
-		Module: "github.com/acme/mysite",
+		Name:              "mysite",
+		Module:            "github.com/acme/mysite",
+		WithRepoInterface: boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteProjectScaffold: %v", err)
 	}
@@ -47,11 +48,12 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 	dir := t.TempDir()
 	outputDir := filepath.Join(dir, "mysite")
 	if err := WriteProjectScaffold(ProjectScaffoldConfig{
-		Name:      "mysite",
-		Module:    "github.com/acme/mysite",
-		AppDir:    "internal/app",
-		Template:  "admin",
-		WithTests: true,
+		Name:              "mysite",
+		Module:            "github.com/acme/mysite",
+		AppDir:            "internal/app",
+		Template:          "admin",
+		WithTests:         true,
+		WithRepoInterface: boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteProjectScaffold: %v", err)
 	}
@@ -154,10 +156,11 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	dir := t.TempDir()
 	outputDir := filepath.Join(dir, "mysite")
 	if err := WriteProjectScaffold(ProjectScaffoldConfig{
-		Name:      "mysite",
-		Module:    "github.com/acme/mysite",
-		Template:  "standard",
-		WithGormx: boolPtr(false),
+		Name:              "mysite",
+		Module:            "github.com/acme/mysite",
+		Template:          "standard",
+		WithGormx:         boolPtr(false),
+		WithRepoInterface: boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteProjectScaffold: %v", err)
 	}
@@ -168,6 +171,9 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	}
 	if strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected native gorm repo scaffold, got:\n%s", content)
+	}
+	if strings.Contains(string(content), "type IExampleRepo interface") {
+		t.Fatalf("did not expect repo interface by default, got:\n%s", content)
 	}
 
 	runScaffoldGoTest(t, outputDir)
@@ -184,9 +190,10 @@ func TestWriteAppScaffold(t *testing.T) {
 
 	outputDir := filepath.Join(dir, "blog")
 	if err := WriteAppScaffold(AppScaffoldConfig{
-		Name:        "blog",
-		PackageName: "blog",
-		ModelName:   "Post",
+		Name:              "blog",
+		PackageName:       "blog",
+		ModelName:         "Post",
+		WithRepoInterface: boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
@@ -216,11 +223,12 @@ func TestWriteAppScaffoldStandardTemplate(t *testing.T) {
 
 	outputDir := filepath.Join(dir, "blog")
 	if err := WriteAppScaffold(AppScaffoldConfig{
-		Name:        "blog",
-		PackageName: "blog",
-		ModelName:   "Post",
-		Template:    "admin",
-		WithTests:   true,
+		Name:              "blog",
+		PackageName:       "blog",
+		ModelName:         "Post",
+		Template:          "admin",
+		WithTests:         true,
+		WithRepoInterface: boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
@@ -260,17 +268,18 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 
 	outputDir := filepath.Join(dir, "blog")
 	if err := WriteAppScaffold(AppScaffoldConfig{
-		Name:        "blog",
-		PackageName: "blog",
-		ModelName:   "Post",
-		Template:    "standard",
-		WithTests:   true,
-		WithGormx:   boolPtr(false),
+		Name:              "blog",
+		PackageName:       "blog",
+		ModelName:         "Post",
+		Template:          "standard",
+		WithTests:         true,
+		WithGormx:         boolPtr(false),
+		WithRepoInterface: boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
 
-	for _, rel := range []string{"repos.go", "services.go"} {
+	for _, rel := range []string{"repos.go", "apis.go"} {
 		content, err := os.ReadFile(filepath.Join(outputDir, rel))
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
@@ -279,8 +288,41 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 			t.Fatalf("expected %s to avoid gormx, got:\n%s", rel, content)
 		}
 	}
+	for _, rel := range []string{"services.go", "errors.go"} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("did not expect %s for plain standard scaffold, err=%v", rel, err)
+		}
+	}
 
 	runScaffoldGoTest(t, dir)
+}
+
+func TestWriteAppScaffoldWithRepoInterface(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	goMod := "module demo\n\ngo 1.26\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	outputDir := filepath.Join(dir, "blog")
+	if err := WriteAppScaffold(AppScaffoldConfig{
+		Name:              "blog",
+		PackageName:       "blog",
+		ModelName:         "Post",
+		WithRepoInterface: boolPtr(true),
+	}, outputDir); err != nil {
+		t.Fatalf("WriteAppScaffold: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "repos.go"))
+	if err != nil {
+		t.Fatalf("read repos.go: %v", err)
+	}
+	if !strings.Contains(string(content), "type IPostRepo interface") {
+		t.Fatalf("expected repo interface when enabled, got:\n%s", content)
+	}
 }
 
 func TestWriteAppScaffoldRejectsNonEmptyDirectory(t *testing.T) {
@@ -319,16 +361,17 @@ func TestWriteAppScaffoldForceAllowsNonEmptyDirectory(t *testing.T) {
 	}
 
 	if err := WriteAppScaffold(AppScaffoldConfig{
-		Name:      "blog",
-		Template:  "standard",
-		WithTests: true,
-		Force:     true,
+		Name:              "blog",
+		Template:          "standard",
+		WithTests:         true,
+		WithRepoInterface: boolPtr(false),
+		Force:             true,
 	}, outputDir); err != nil {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outputDir, "services.go")); err != nil {
-		t.Fatalf("expected services.go: %v", err)
+	if _, err := os.Stat(filepath.Join(outputDir, "apis.go")); err != nil {
+		t.Fatalf("expected apis.go: %v", err)
 	}
 }
 

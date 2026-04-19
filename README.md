@@ -203,6 +203,24 @@ If you want to keep Swagger UI enabled but hide the homepage shortcut in product
 
 ---
 
+## Lightweight path recommendation
+
+For a small or medium CRUD/internal API, start with the shortest path and add layers only when needed:
+
+- Follow [examples/basic](./examples/basic/): `New + Router + Handler + orm.Middleware`
+- Start scaffolding with the default `minimal` template: `gin-ninja-cli startproject mysite -module github.com/acme/mysite`
+- Generated scaffolds now default to **concrete repo structs**; only opt into repo interfaces when you actually need them via `-with-repo-interface`
+- Move to `-template standard|auth|admin` only when you need the extra infrastructure, auth, or admin surface
+
+A good minimal app package usually contains only:
+
+- `app/models.go`
+- `app/schemas.go`
+- `app/apis.go`
+- `app/routers.go`
+
+---
+
 ## Project / App Scaffold Commands
 
 gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
@@ -230,6 +248,7 @@ make build-cli
 gin-ninja-cli --help
 gin-ninja-cli help startproject
 
+# small/medium CRUD services: default minimal is usually enough
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli makemigrations
@@ -241,7 +260,7 @@ gin-ninja-cli startapp blog
 gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
 gin-ninja-cli migrate
 
-# richer templates / optional features
+# richer templates / optional features (opt in only when you need them)
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
@@ -291,12 +310,16 @@ When you opt into `-template standard`, `-template auth`, `-template admin`, or 
 `startapp` creates a new app package directory with the same core CRUD files, and richer templates can additionally generate:
 
 - `migrations.go`
-- `services.go`
-- `errors.go`
 - `scaffold_test.go`
 - `auth.go`
 - `admin.go`
 - `permissions.go`
+
+In practice:
+
+- `minimal` keeps the shortest CRUD path
+- `standard` mainly adds project-level infrastructure; when `auth/admin` are not enabled it no longer forces `services.go` / `errors.go`
+- `auth` / `admin` templates add the fuller service, error, and permission scaffolding
 
 Useful scaffold flags:
 
@@ -305,6 +328,7 @@ Useful scaffold flags:
 - `-with-auth`
 - `-with-admin`
 - `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
+- `-with-repo-interface` (default `false`; enable it only when you want repo interfaces generated)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
@@ -319,6 +343,7 @@ app_dir: internal/app
 template: admin
 with_tests: true
 with_gormx: true
+with_repo_interface: false
 ```
 
 Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:
@@ -1419,6 +1444,7 @@ Split examples are available by feature:
 - [examples/features](./examples/features/) — request metadata, cache / ETag, rate limit, timeout, versioned routing, SSE, WebSocket, upload, and download demos
 - [examples/admin](./examples/admin/) — JWT-protected admin resource APIs plus the standalone admin pages
 - [examples/full](./examples/full/) — the combined application with every feature above in one app
+- [examples/compact](./examples/compact/) — a compact counterpart to `examples/full` that shows the same feature set with fewer local files
 
 The combined [examples/full](./examples/full/) application includes:
 - Settings from `config.yaml`

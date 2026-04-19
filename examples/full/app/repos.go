@@ -2,16 +2,11 @@ package app
 
 import "github.com/shijl0925/go-toolkits/gormx"
 
-// IUserRepo extends the base gormx repository with the User model.
-type IUserRepo interface {
-	gormx.IBaseRepo[User]
-}
-
 type userRepo struct {
 	gormx.BaseRepo[User]
 }
 
-// NewUserRepo creates a new IUserRepo instance.
-func NewUserRepo() IUserRepo {
+// NewUserRepo creates a concrete user repository instance.
+func NewUserRepo() *userRepo {
 	return &userRepo{}
 }

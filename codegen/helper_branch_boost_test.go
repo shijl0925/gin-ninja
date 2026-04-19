@@ -98,7 +98,7 @@ func TestCodegenHelperBranchBoost(t *testing.T) {
 		if _, err := buildAppTemplateData(AppScaffoldConfig{}, scaffoldOptions{}); err == nil || !strings.Contains(err.Error(), "name is required") {
 			t.Fatalf("expected missing name error, got %v", err)
 		}
-		if _, err := resolveScaffoldOptions("standard", false, false, false, nil); err != nil {
+		if _, err := resolveScaffoldOptions("standard", false, false, false, nil, nil); err != nil {
 			t.Fatalf("expected standard template to resolve: %v", err)
 		}
 		if err := WriteAppScaffold(AppScaffoldConfig{Name: "blog"}, " "); err == nil || !strings.Contains(err.Error(), "output directory is required") {

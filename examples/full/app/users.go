@@ -200,7 +200,7 @@ func checkPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-func createUser(repo IUserRepo, db *gorm.DB, name, email, password string, age int) (*UserOut, error) {
+func createUser(repo *userRepo, db *gorm.DB, name, email, password string, age int) (*UserOut, error) {
 	u := &User{
 		Name:     name,
 		Email:    email,
