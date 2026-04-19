@@ -102,11 +102,16 @@ func loadUserByID(db *gorm.DB, id uint) (User, error) {
 	return user, nil
 }
 
+func escapeLike(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(value)
+}
+
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	db := userDB(ctx)
 	query := db.Model(&User{})
 	if in.Search != "" {
-		query = query.Where("name LIKE ?", "%"+strings.TrimSpace(in.Search)+"%")
+		query = query.Where("name LIKE ? ESCAPE '\\'", "%"+escapeLike(strings.TrimSpace(in.Search))+"%")
 	}
 	countQuery := query.Session(&gorm.Session{})
 	var total int64
