@@ -51,7 +51,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	output := fs.String("output", "", "Output file path (defaults next to the model file)")
 	packageName := fs.String("package", "", "Override generated package name")
 	tag := fs.String("tag", "", "Override generated router tag name")
-	withGormX := fs.Bool("with-gormx", false, "Generate gormx-based CRUD code (default: false)")
+	withGormX := fs.Bool("with-gormx", false, "Generate gormx-based CRUD code")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
