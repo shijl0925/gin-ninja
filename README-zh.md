@@ -229,7 +229,7 @@ gin-ninja-cli startproject mysite \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx=false
+gin-ninja-cli startapp accounts -template standard -with-gormx
 
 # 交互式向导
 gin-ninja-cli init
@@ -289,7 +289,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
-- `-with-gormx`（默认 `true`；设为 `false` 时生成原生 GORM repo/service，而不是基于 gormx 的代码）
+- `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
@@ -303,7 +303,7 @@ output: ./mysite
 app_dir: internal/app
 template: admin
 with_tests: true
-with_gormx: true
+with_gormx: false
 ```
 
 标准风格项目脚手架还会内置官方 [air](https://github.com/air-verse/air) 预设，方便本地热重载开发：

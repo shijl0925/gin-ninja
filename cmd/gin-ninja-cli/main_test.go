@@ -32,6 +32,12 @@ func TestRunGenerateCRUD(t *testing.T) {
 	if !strings.Contains(string(content), "func RegisterUserCRUDRoutes") {
 		t.Fatalf("unexpected generated content\n%s", content)
 	}
+	if strings.Contains(string(content), "gormx.") {
+		t.Fatalf("expected native GORM output by default\n%s", content)
+	}
+	if !strings.Contains(string(content), `query := db.Model(&User{})`) {
+		t.Fatalf("expected native GORM query code by default\n%s", content)
+	}
 	if !strings.Contains(stdout.String(), outputFile) {
 		t.Fatalf("stdout missing generated path: %s", stdout.String())
 	}
@@ -124,6 +130,9 @@ func TestRunStartProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repos.go: %v", err)
 	}
+	if strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected native gorm scaffold by default, got:\n%s", content)
+	}
 	if !strings.Contains(string(content), "type IExampleRepo interface") {
 		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
 	}
@@ -189,7 +198,7 @@ func TestRunStartProjectStandardTemplate(t *testing.T) {
 	}
 }
 
-func TestRunStartProjectWithoutGormx(t *testing.T) {
+func TestRunStartProjectWithGormx(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -203,7 +212,7 @@ func TestRunStartProjectWithoutGormx(t *testing.T) {
 		"-module", "github.com/acme/mysite",
 		"-output", outputDir,
 		"-template", "standard",
-		"-with-gormx=false",
+		"-with-gormx",
 	})
 	if code != 0 {
 		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
@@ -213,8 +222,8 @@ func TestRunStartProjectWithoutGormx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repos.go: %v", err)
 	}
-	if strings.Contains(string(content), "gormx") {
-		t.Fatalf("expected native gorm scaffold, got:\n%s", content)
+	if !strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected gormx scaffold, got:\n%s", content)
 	}
 }
 
@@ -325,6 +334,9 @@ func TestRunStartApp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read repos.go: %v", err)
 	}
+	if strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected native gorm scaffold by default, got:\n%s", content)
+	}
 	if !strings.Contains(string(content), "type IPostRepo interface") {
 		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
 	}
@@ -366,7 +378,7 @@ func TestRunStartAppWithForceAndTemplate(t *testing.T) {
 	}
 }
 
-func TestRunStartAppWithoutGormx(t *testing.T) {
+func TestRunStartAppWithGormx(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -381,7 +393,7 @@ func TestRunStartAppWithoutGormx(t *testing.T) {
 		"-package", "blog",
 		"-model", "Post",
 		"-template", "standard",
-		"-with-gormx=false",
+		"-with-gormx",
 	})
 	if code != 0 {
 		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
@@ -391,13 +403,8 @@ func TestRunStartAppWithoutGormx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read apis.go: %v", err)
 	}
-	if strings.Contains(string(content), "gormx") {
-		t.Fatalf("expected native gorm scaffold, got:\n%s", content)
-	}
-	for _, rel := range []string{"services.go", "errors.go"} {
-		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
-			t.Fatalf("did not expect %s for plain standard scaffold, err=%v", rel, err)
-		}
+	if !strings.Contains(string(content), "gormx") {
+		t.Fatalf("expected gormx scaffold, got:\n%s", content)
 	}
 }
 

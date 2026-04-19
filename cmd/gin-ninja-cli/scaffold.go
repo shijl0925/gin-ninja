@@ -51,7 +51,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	output := fs.String("output", "", "Output file path (defaults next to the model file)")
 	packageName := fs.String("package", "", "Override generated package name")
 	tag := fs.String("tag", "", "Override generated router tag name")
-	withGormX := fs.Bool("with-gormx", true, "Generate gormx-based CRUD code (set false for native GORM)")
+	withGormX := fs.Bool("with-gormx", false, "Generate gormx-based CRUD code (default: false)")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -99,7 +99,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
-	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
+	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -142,7 +142,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		WithTests: mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:  mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
 		WithAdmin: mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
-		WithGormx: boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, true)),
+		WithGormx: boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, false)),
 		Force:     mergeBoolFlag(*force, set["force"], preset.Force, false),
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
@@ -168,7 +168,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
-	withGormx := fs.Bool("with-gormx", true, "Generate scaffold code using gormx repositories")
+	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -209,7 +209,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		WithTests:   mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:    mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
 		WithAdmin:   mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
-		WithGormx:   boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, true)),
+		WithGormx:   boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, false)),
 		Force:       mergeBoolFlag(*force, set["force"], preset.Force, false),
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
@@ -301,7 +301,7 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read test preference: %v\n", err)
 		return 1
 	}
-	withGormx, err := promptBool(stdout, reader, "Use gormx repositories/services?", boolValueOrDefault(preset.WithGormx, true))
+	withGormx, err := promptBool(stdout, reader, "Use gormx repositories/services?", boolValueOrDefault(preset.WithGormx, false))
 	if err != nil {
 		fmt.Fprintf(stderr, "read gormx preference: %v\n", err)
 		return 1
@@ -357,7 +357,7 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		fmt.Fprintf(stderr, "read test preference: %v\n", err)
 		return 1
 	}
-	withGormx, err := promptBool(stdout, reader, "Use gormx repositories/services?", boolValueOrDefault(preset.WithGormx, true))
+	withGormx, err := promptBool(stdout, reader, "Use gormx repositories/services?", boolValueOrDefault(preset.WithGormx, false))
 	if err != nil {
 		fmt.Fprintf(stderr, "read gormx preference: %v\n", err)
 		return 1
@@ -411,7 +411,7 @@ func printStartProjectUsage(w io.Writer) {
 		{name: "-app-dir <path>", usage: fmt.Sprintf("Relative app package directory inside the project (default: %s)", defaultScaffoldAppDir)},
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
-		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: true)"},
+		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)
@@ -452,7 +452,7 @@ func printStartAppUsage(w io.Writer) {
 	printFlagGroup(w, []flagHelp{
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
-		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: true)"},
+		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)

@@ -267,7 +267,7 @@ gin-ninja-cli startproject mysite \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx=false
+gin-ninja-cli startapp accounts -template standard -with-gormx
 
 # interactive wizard
 gin-ninja-cli init
@@ -327,7 +327,7 @@ Useful scaffold flags:
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
-- `-with-gormx` (default `true`; set to `false` to generate native GORM repos/services instead of gormx-based code)
+- `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
@@ -341,7 +341,7 @@ output: ./mysite
 app_dir: internal/app
 template: admin
 with_tests: true
-with_gormx: true
+with_gormx: false
 ```
 
 Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:
