@@ -18,8 +18,11 @@ type ScaffoldTemplate string
 const (
 	ScaffoldTemplateMinimal  ScaffoldTemplate = "minimal"
 	ScaffoldTemplateStandard ScaffoldTemplate = "standard"
-	ScaffoldTemplateAuth     ScaffoldTemplate = "auth"
-	ScaffoldTemplateAdmin    ScaffoldTemplate = "admin"
+	// ScaffoldTemplateFull is the consolidated full-stack scenario template (auth + admin + full
+	// project infrastructure). Use this as the primary "richer" template.
+	ScaffoldTemplateFull  ScaffoldTemplate = "full"
+	ScaffoldTemplateAuth  ScaffoldTemplate = "auth"  // backward-compat alias for full (auth-only subset)
+	ScaffoldTemplateAdmin ScaffoldTemplate = "admin" // backward-compat alias for full
 )
 
 // ProjectScaffoldConfig defines the inputs for a new project scaffold.
@@ -54,7 +57,11 @@ type scaffoldOptions struct {
 	WithAuth  bool
 	WithAdmin bool
 	WithGormx bool
-	Standard  bool
+	// Standard is true for the standard and full tiers; it enables settings/dev files.
+	Standard bool
+	// Full is true only for the full-stack tier (full/auth/admin templates); it enables
+	// heavy project infrastructure (cmd/server, internal/server, bootstrap, Docker, Make).
+	Full bool
 }
 
 // WriteProjectScaffold creates a new project scaffold in outputDir.
@@ -180,7 +187,7 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 
 	templateKind := ScaffoldTemplate(templateName)
 	switch templateKind {
-	case ScaffoldTemplateMinimal, ScaffoldTemplateStandard, ScaffoldTemplateAuth, ScaffoldTemplateAdmin:
+	case ScaffoldTemplateMinimal, ScaffoldTemplateStandard, ScaffoldTemplateFull, ScaffoldTemplateAuth, ScaffoldTemplateAdmin:
 	default:
 		return scaffoldOptions{}, fmt.Errorf("unknown scaffold template %q", templateName)
 	}
@@ -192,17 +199,33 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		WithAdmin: withAdmin,
 		WithGormx: boolValueOrDefault(withGormx, true),
 	}
-	if templateKind == ScaffoldTemplateAuth {
-		opts.WithAuth = true
-	}
-	if templateKind == ScaffoldTemplateAdmin {
+
+	// Template is the primary driver of structural tiers.
+	// full / auth / admin → Standard + Full infra; auth/admin are backward-compat aliases.
+	switch templateKind {
+	case ScaffoldTemplateFull, ScaffoldTemplateAdmin:
 		opts.WithAuth = true
 		opts.WithAdmin = true
+		opts.Standard = true
+		opts.Full = true
+	case ScaffoldTemplateAuth:
+		opts.WithAuth = true
+		opts.Standard = true
+		opts.Full = true
+	case ScaffoldTemplateStandard:
+		opts.Standard = true
+		// Full=false: standard adds settings/dev files but not heavy infra.
 	}
+
+	// Flag overrides for capability files (auth.go, admin.go, services.go, etc.).
+	// These do not change project-level structure; they only affect app-level files.
 	if opts.WithAdmin {
 		opts.WithAuth = true
 	}
-	opts.Standard = templateKind != ScaffoldTemplateMinimal || opts.WithAuth || opts.WithAdmin
+	if withAdmin && templateKind == ScaffoldTemplateMinimal {
+		return scaffoldOptions{}, fmt.Errorf("-with-admin is not supported for the minimal template; use -template standard or -template full instead")
+	}
+
 	return opts, nil
 }
 
@@ -295,54 +318,75 @@ func projectFiles(data projectTemplateData) (map[string][]byte, error) {
 	}
 
 	if data.Options.Standard {
-		mainGo, err := executeGoTemplate("main.go", projectMainWrapperTemplate, data)
-		if err != nil {
-			return nil, err
-		}
-		files["main.go"] = mainGo
-
-		serverGo, err := executeGoTemplate("internal/server/server.go", projectInternalServerTemplate, data)
-		if err != nil {
-			return nil, err
-		}
-		files[filepath.Join("internal", "server", "server.go")] = serverGo
-
-		cmdServerGo, err := executeGoTemplate("cmd/server/main.go", projectCmdServerTemplate, data)
-		if err != nil {
-			return nil, err
-		}
-		files[filepath.Join("cmd", "server", "main.go")] = cmdServerGo
-
+		// Standard tier: settings/dev files are always included for both standard and full.
 		for name, tpl := range map[string]string{
-			filepath.Join("bootstrap", "db.go"):                    projectBootstrapDBTemplate,
-			filepath.Join("bootstrap", "logger.go"):                projectBootstrapLoggerTemplate,
-			filepath.Join("bootstrap", "cache.go"):                 projectBootstrapCacheTemplate,
 			filepath.Join("settings", "config.local.yaml.example"): projectConfigLocalTemplate,
 			filepath.Join("settings", "config.prod.yaml.example"):  projectConfigProdTemplate,
 			".air.toml":                             projectAirTemplate,
-			"README.md":                             projectREADMETemplate,
 			".env.example":                          projectEnvTemplate,
-			"Makefile":                              projectMakefileTemplate,
-			"Dockerfile":                            projectDockerfileTemplate,
-			"docker-compose.yml":                    projectDockerComposeTemplate,
 			filepath.Join("migrations", ".gitkeep"): "",
 			filepath.Join("scripts", ".gitkeep"):    "",
 		} {
-			if strings.HasSuffix(name, ".go") {
-				content, err := executeGoTemplate(name, tpl, data)
-				if err != nil {
-					return nil, err
-				}
-				files[name] = content
-				continue
-			}
 			rendered, err := executeTextTemplate(tpl, data)
 			if err != nil {
 				return nil, err
 			}
 			files[name] = []byte(rendered)
 		}
+
+		if data.Options.Full {
+			// Full tier: heavy project infrastructure on top of standard settings files.
+			mainGo, err := executeGoTemplate("main.go", projectMainWrapperTemplate, data)
+			if err != nil {
+				return nil, err
+			}
+			files["main.go"] = mainGo
+
+			serverGo, err := executeGoTemplate("internal/server/server.go", projectInternalServerTemplate, data)
+			if err != nil {
+				return nil, err
+			}
+			files[filepath.Join("internal", "server", "server.go")] = serverGo
+
+			cmdServerGo, err := executeGoTemplate("cmd/server/main.go", projectCmdServerTemplate, data)
+			if err != nil {
+				return nil, err
+			}
+			files[filepath.Join("cmd", "server", "main.go")] = cmdServerGo
+
+			for name, tpl := range map[string]string{
+				filepath.Join("bootstrap", "db.go"):     projectBootstrapDBTemplate,
+				filepath.Join("bootstrap", "logger.go"): projectBootstrapLoggerTemplate,
+				filepath.Join("bootstrap", "cache.go"):  projectBootstrapCacheTemplate,
+				"README.md":                             projectREADMETemplate,
+				"Dockerfile":                            projectDockerfileTemplate,
+				"docker-compose.yml":                    projectDockerComposeTemplate,
+				"Makefile":                              projectMakefileTemplate,
+			} {
+				if strings.HasSuffix(name, ".go") {
+					content, err := executeGoTemplate(name, tpl, data)
+					if err != nil {
+						return nil, err
+					}
+					files[name] = content
+					continue
+				}
+				rendered, err := executeTextTemplate(tpl, data)
+				if err != nil {
+					return nil, err
+				}
+				files[name] = []byte(rendered)
+			}
+		} else {
+			// Standard (non-full): simple standalone main.go without heavy infra.
+			mainGo, err := executeGoTemplate("main.go", projectMainTemplate, data)
+			if err != nil {
+				return nil, err
+			}
+			files["main.go"] = mainGo
+		}
 	} else {
+		// Minimal: simple standalone main.go only.
 		mainGo, err := executeGoTemplate("main.go", projectMainTemplate, data)
 		if err != nil {
 			return nil, err
@@ -651,6 +695,11 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
+{{- if .Options.WithAuth }}
+SecuritySchemes: map[string]ninja.SecurityScheme{
+"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
+},
+{{- end }}
 })
 
 api.UseGin(
@@ -662,6 +711,12 @@ orm.Middleware(db),
 )
 
 app.RegisterRoutes(api)
+{{- if .Options.WithAuth }}
+app.RegisterAuthRoutes(api)
+{{- end }}
+{{- if .Options.WithAdmin }}
+app.RegisterAdminRoutes(api)
+{{- end }}
 api.Engine().GET("/health", func(c *ginpkg.Context) {
 c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 })
@@ -680,7 +735,10 @@ return api.Run(cfg.Server.Addr())
 }
 
 func main() {
-cfg := settings.MustLoad("config.yaml")
+// MustLoadWithOverrides silently skips missing override files, so this
+// works for all tiers: minimal (no settings/ dir) and standard (settings/
+// config.local.yaml optionally created from the .example file).
+cfg := settings.MustLoadWithOverrides("config.yaml", "settings/config.local.yaml")
 log_ := ginbootstrap.InitLogger(&cfg.Log)
 defer logger.Sync()
 
@@ -1026,13 +1084,15 @@ make install-air
 make dev
 ~~~
 
-Alternative entrypoint:
+Configuration overrides can be placed in {{ bt }}settings/config.local.yaml{{ bt }} (copy from {{ bt }}settings/config.local.yaml.example{{ bt }}).
+{{- end }}
+
+{{- if .Options.Full }}
+Alternative entrypoint (delegates to internal/server):
 
 ~~~bash
 go run ./cmd/server
 ~~~
-
-Configuration overrides can be placed in {{ bt }}settings/config.local.yaml{{ bt }} (copy from {{ bt }}settings/config.local.yaml.example{{ bt }}).
 {{- end }}
 
 ## Generated structure
@@ -1040,10 +1100,12 @@ Configuration overrides can be placed in {{ bt }}settings/config.local.yaml{{ bt
 - {{ bt }}config.yaml{{ bt }}
 - {{ bt }}{{ .AppDir }}{{ bt }}
 {{- if .Options.Standard }}
-- {{ bt }}internal/server{{ bt }}
-- {{ bt }}bootstrap{{ bt }}
 - {{ bt }}.air.toml{{ bt }}
 - {{ bt }}settings/*.yaml.example{{ bt }}
+{{- end }}
+{{- if .Options.Full }}
+- {{ bt }}internal/server{{ bt }}
+- {{ bt }}bootstrap{{ bt }}
 - {{ bt }}Dockerfile{{ bt }} / {{ bt }}docker-compose.yml{{ bt }}
 {{- end }}
 {{- if .Options.WithAuth }}

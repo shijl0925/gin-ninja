@@ -174,7 +174,7 @@ func main() {
 - 代码结构优先参考 [examples/basic](./examples/basic/)：`New + Router + Handler + orm.Middleware`
 - 脚手架优先直接用默认 `minimal`：`gin-ninja-cli startproject mysite -module github.com/acme/mysite`
 - 脚手架仍保留内置的 repo interface 分层，但对中小型 CRUD 项目依然推荐先从默认 `minimal` 起步
-- 只有在你明确需要 auth / admin / 更完整基础设施时，再切到 `-template standard|auth|admin`
+- 只有在你明确需要 auth / admin / 更完整基础设施时，再切到 `-template standard|full`
 
 推荐的最小 app 目录通常是：
 
@@ -210,7 +210,7 @@ make build-cli
 gin-ninja-cli --help
 gin-ninja-cli help startproject
 
-# 小中型 CRUD 项目：默认 minimal 即可
+# 快速起步：minimal 是默认值，也是推荐起点
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli makemigrations
@@ -221,15 +221,6 @@ go run .
 gin-ninja-cli startapp blog
 gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
 gin-ninja-cli migrate
-
-# 更丰富的模板 / 可选功能（只有确实需要时再开启）
-gin-ninja-cli startproject mysite \
-  -module github.com/acme/mysite \
-  -template admin \
-  -app-dir internal/app \
-  -with-tests
-gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx
 
 # 交互式向导
 gin-ninja-cli init
@@ -251,47 +242,70 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `app/apis.go`
 - `app/routers.go`
 
-当你启用 `-template standard`、`-template auth`、`-template admin` 时，脚手架还会额外生成更完整的起步文件，例如：
+### 脚手架模板
 
-- `.air.toml`
-- `cmd/server/main.go`
-- `internal/server/server.go`
-- `bootstrap/db.go`
-- `bootstrap/logger.go`
-- `bootstrap/cache.go`
-- `settings/config.local.yaml.example`
-- `settings/config.prod.yaml.example`
-- `.env.example`
-- `Makefile`
-- `Dockerfile`
-- `docker-compose.yml`
-- `README.md`
-- `migrations/.gitkeep`
-- `scripts/.gitkeep`
+提供两个主要模板：
 
-`startapp` 会在新的 app package 目录中生成相同的核心 CRUD 文件；更丰富的模板还会额外生成：
+| 模板 | 适用场景 |
+|------|----------|
+| `minimal` | **默认值，推荐起点。** 最小 CRUD 骨架，从这里开始，按需增加。 |
+| `full` | 全栈场景模板，包含 auth、admin 和完整项目基础设施。只有在确实需要时再选用。 |
 
-- `migrations.go`
-- `scaffold_test.go`
+`standard` 是中间层选项，在 `minimal` 基础上增加了配置文件和 `.air.toml` 热重载支持，不包含 `full` 的重基础设施。`auth` 和 `admin` 模板是 `full` 的向后兼容别名。
+
+**`minimal` 项目（默认）：**
+
+- `main.go`、`go.mod`、`config.yaml`、`app/` 核心 CRUD 文件
+- 扁平结构，你自己决定架构
+
+**`standard` 项目额外增加：**
+
+- `.air.toml`（热重载预设）
+- `settings/config.local.yaml.example`、`settings/config.prod.yaml.example`
+- `.env.example`、`migrations/.gitkeep`、`scripts/.gitkeep`
+
+**`full` 项目在 `standard` 基础上还增加：**
+
+- `cmd/server/main.go`、`internal/server/server.go`
+- `bootstrap/db.go`、`bootstrap/logger.go`、`bootstrap/cache.go`
+- `Makefile`、`Dockerfile`、`docker-compose.yml`、`README.md`
+- auth 和 admin 相关 app 脚手架文件
+
+```bash
+# 进阶：全栈场景模板（只有在确实需要 auth + admin + 完整基础设施时再使用）
+gin-ninja-cli startproject mysite \
+  -module github.com/acme/mysite \
+  -template full \
+  -app-dir internal/app \
+  -with-tests
+gin-ninja-cli startapp accounts -template full -with-tests
+gin-ninja-cli startapp accounts -template standard -with-gormx
+```
+
+`startapp` 会在新的 app package 目录中生成核心 CRUD 文件；`full` 模板还额外生成：
+
 - `auth.go`
 - `admin.go`
 - `permissions.go`
+- `services.go`、`errors.go`（当启用 auth 或 admin 时）
+- `scaffold_test.go`（当启用 `-with-tests` 时）
 
-以模板为主的规则：
+模板规则：
 
-- 默认 `minimal` 是推荐起点，只保留最短 CRUD 路径
-- `standard` 主要增加项目级基础设施文件；当未启用 `auth/admin` 时，不强制生成 `services.go` / `errors.go`
-- `auth` / `admin` 是场景化模板；`admin` 默认会同时带上 auth 相关脚手架
-- `-with-tests` 只在所选模板上额外生成测试文件，不会把 `minimal` 提升为 `standard`
+- `minimal` 是默认推荐起点 — 从这里开始，按需添加
+- `standard` 增加了配置和开发工具文件，不预设项目分层结构
+- `full` 是全栈场景模板；只有在确实需要 auth、admin 及其配套基础设施时才选用
+- `-with-tests` 在当前模板上追加测试文件，不会切换模板层级
+- `-with-auth` 和 `-with-admin` 添加能力文件；`-with-admin` 需要至少使用 `standard`（不支持 `minimal`）
 
 常用脚手架参数：
 
-- `-template minimal|standard|auth|admin`
+- `-template minimal|standard|full`（首选；`auth`/`admin` 是 `full` 的兼容别名）
 - `-with-tests`
-- `-with-auth`（兼容性覆盖参数，主要用于 `minimal` / `standard`）
-- `-with-admin`（兼容性覆盖参数，主要用于 `minimal` / `standard`；同时启用 auth）
-- `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
-- `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
+- `-with-auth`（需要 `standard` 或 `full`）
+- `-with-admin`（需要 `standard` 或 `full`；同时启用 auth）
+- `-with-gormx`（默认 `false`；开启后生成基于 gormx 的 repo/service）
+- `-config <path>`（从 YAML/JSON preset 加载；命令行参数优先）
 - `-app-dir <path>`（仅 `startproject` 支持）
 - `-force`
 
@@ -302,12 +316,12 @@ name: mysite
 module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
-template: admin
+template: full
 with_tests: true
 with_gormx: false
 ```
 
-标准风格项目脚手架还会内置官方 [air](https://github.com/air-verse/air) 预设，方便本地热重载开发：
+`full` 风格的项目脚手架内置 [air](https://github.com/air-verse/air) 热重载预设：
 
 ```bash
 cd mysite
@@ -315,7 +329,7 @@ make install-air
 make dev
 ```
 
-生成的代码定位为起步骨架，能够作为最小 CRUD 风格模板直接编译；后续你仍可按业务需要继续补充模型、校验、中间件、路由和业务逻辑。
+生成的代码是项目起点——你可以按业务需要自由定制模型、校验、中间件、路由和业务逻辑。脚手架不规定架构，它给你一个起点。
 
 ## 数据库迁移命令
 

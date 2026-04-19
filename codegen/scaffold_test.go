@@ -176,6 +176,129 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	runScaffoldGoTest(t, outputDir)
 }
 
+// TestWriteProjectScaffoldStandardNoHeavyInfra verifies that the standard template
+// no longer generates the heavy project infrastructure (cmd/server, internal/server,
+// bootstrap, Dockerfile, docker-compose.yml, Makefile) that is now reserved for the
+// full template tier.
+func TestWriteProjectScaffoldStandardNoHeavyInfra(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+	if err := WriteProjectScaffold(ProjectScaffoldConfig{
+		Name:     "mysite",
+		Module:   "github.com/acme/mysite",
+		Template: "standard",
+	}, outputDir); err != nil {
+		t.Fatalf("WriteProjectScaffold: %v", err)
+	}
+
+	// Standard tier should include settings/dev files.
+	for _, rel := range []string{
+		".air.toml",
+		filepath.Join("settings", "config.local.yaml.example"),
+		filepath.Join("settings", "config.prod.yaml.example"),
+	} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
+			t.Fatalf("expected standard file %s: %v", rel, err)
+		}
+	}
+
+	// Standard tier must NOT include heavy project infra.
+	for _, rel := range []string{
+		filepath.Join("cmd", "server", "main.go"),
+		filepath.Join("internal", "server", "server.go"),
+		filepath.Join("bootstrap", "db.go"),
+		filepath.Join("bootstrap", "cache.go"),
+		"Dockerfile",
+		"docker-compose.yml",
+		"Makefile",
+		"README.md",
+	} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("standard template must not generate %s (use -template full for heavy infra), err=%v", rel, err)
+		}
+	}
+
+	runScaffoldGoTest(t, outputDir)
+}
+
+// TestWriteProjectScaffoldFullTemplate verifies that the new "full" template produces
+// all the heavy project infrastructure previously associated with the standard/auth/admin
+// templates, and that "admin" continues to work as a backward-compat alias.
+func TestWriteProjectScaffoldFullTemplate(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+	if err := WriteProjectScaffold(ProjectScaffoldConfig{
+		Name:      "mysite",
+		Module:    "github.com/acme/mysite",
+		AppDir:    "internal/app",
+		Template:  "full",
+		WithTests: true,
+	}, outputDir); err != nil {
+		t.Fatalf("WriteProjectScaffold: %v", err)
+	}
+
+	for _, rel := range []string{
+		"main.go",
+		filepath.Join("cmd", "server", "main.go"),
+		filepath.Join("internal", "server", "server.go"),
+		filepath.Join("bootstrap", "db.go"),
+		filepath.Join("bootstrap", "logger.go"),
+		filepath.Join("bootstrap", "cache.go"),
+		".air.toml",
+		filepath.Join("settings", "config.local.yaml.example"),
+		"README.md",
+		"Dockerfile",
+		"docker-compose.yml",
+		filepath.Join("internal", "app", "auth.go"),
+		filepath.Join("internal", "app", "admin.go"),
+		filepath.Join("internal", "app", "scaffold_test.go"),
+	} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
+			t.Fatalf("expected full scaffold file %s: %v", rel, err)
+		}
+	}
+
+	runScaffoldGoTest(t, outputDir)
+}
+
+// TestResolveScaffoldOptionsMinimalWithAdminRejected verifies that combining the
+// minimal template with -with-admin is rejected with a clear error.
+func TestResolveScaffoldOptionsMinimalWithAdminRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := resolveScaffoldOptions("minimal", false, false, true, nil)
+	if err == nil {
+		t.Fatal("expected error for minimal + with-admin, got nil")
+	}
+	if !strings.Contains(err.Error(), "with-admin") {
+		t.Fatalf("expected error message to mention with-admin, got: %v", err)
+	}
+}
+
+// TestResolveScaffoldOptionsMinimalWithAuthStaysMinimal verifies that -with-auth on a
+// minimal project does not promote the project to the standard infra tier.
+func TestResolveScaffoldOptionsMinimalWithAuthStaysMinimal(t *testing.T) {
+	t.Parallel()
+
+	opts, err := resolveScaffoldOptions("minimal", false, true, false, nil)
+	if err != nil {
+		t.Fatalf("resolveScaffoldOptions(minimal+with-auth): %v", err)
+	}
+	if opts.Standard {
+		t.Fatal("minimal + with-auth must not set Standard=true; project structure should remain minimal")
+	}
+	if opts.Full {
+		t.Fatal("minimal + with-auth must not set Full=true")
+	}
+	if !opts.WithAuth {
+		t.Fatal("expected WithAuth=true")
+	}
+}
+
 func TestWriteProjectScaffoldMinimalWithTestsStaysMinimal(t *testing.T) {
 	t.Parallel()
 
@@ -330,10 +453,11 @@ func TestWriteAppScaffoldWithAdminFlagEnablesAuth(t *testing.T) {
 		t.Fatalf("write go.mod: %v", err)
 	}
 
+	// with-admin requires at least the standard template (minimal rejects it).
 	outputDir := filepath.Join(dir, "blog")
 	if err := WriteAppScaffold(AppScaffoldConfig{
 		Name:      "blog",
-		Template:  "minimal",
+		Template:  "standard",
 		WithAdmin: true,
 	}, outputDir); err != nil {
 		t.Fatalf("WriteAppScaffold: %v", err)

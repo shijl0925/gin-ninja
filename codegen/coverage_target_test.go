@@ -103,9 +103,11 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(minimal): %v", err)
 	}
-	standardOpts, err := resolveScaffoldOptions("admin", true, false, false, boolPtr(true))
+	// fullOpts uses the "full" template (the new consolidated full-stack template;
+	// "admin" continues to work as a backward-compat alias with identical behavior).
+	fullOpts, err := resolveScaffoldOptions("full", true, false, false, boolPtr(true))
 	if err != nil {
-		t.Fatalf("resolveScaffoldOptions(admin): %v", err)
+		t.Fatalf("resolveScaffoldOptions(full): %v", err)
 	}
 
 	minimalApp, err := buildAppTemplateData(AppScaffoldConfig{
@@ -120,13 +122,13 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		t.Fatalf("unexpected normalized app data: %+v", minimalApp)
 	}
 
-	standardApp, err := buildAppTemplateData(AppScaffoldConfig{
+	fullApp, err := buildAppTemplateData(AppScaffoldConfig{
 		Name:        "admin blog",
 		PackageName: "admin_blog",
 		ModelName:   "Entry",
-	}, standardOpts)
+	}, fullOpts)
 	if err != nil {
-		t.Fatalf("buildAppTemplateData(standard): %v", err)
+		t.Fatalf("buildAppTemplateData(full): %v", err)
 	}
 
 	minimalFiles, err := appFiles(minimalApp)
@@ -150,17 +152,17 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		t.Fatalf("expected minimal native apis template, got:\n%s", minimalFiles["apis.go"])
 	}
 
-	standardFiles, err := appFiles(standardApp)
+	fullAppFiles, err := appFiles(fullApp)
 	if err != nil {
-		t.Fatalf("appFiles(standard): %v", err)
+		t.Fatalf("appFiles(full): %v", err)
 	}
 	for _, name := range []string{"models.go", "migrations.go", "schemas.go", "routers.go", "repos.go", "apis.go", "services.go", "errors.go", "auth.go", "admin.go", "permissions.go", "scaffold_test.go"} {
-		if _, ok := standardFiles[name]; !ok {
-			t.Fatalf("expected standard app file %q", name)
+		if _, ok := fullAppFiles[name]; !ok {
+			t.Fatalf("expected full app file %q", name)
 		}
 	}
-	if !strings.Contains(string(standardFiles["repos.go"]), "gormx") || !strings.Contains(string(standardFiles["services.go"]), "gormx") {
-		t.Fatalf("expected gormx-backed standard templates")
+	if !strings.Contains(string(fullAppFiles["repos.go"]), "gormx") || !strings.Contains(string(fullAppFiles["services.go"]), "gormx") {
+		t.Fatalf("expected gormx-backed full templates")
 	}
 
 	minimalProjectFiles, err := projectFiles(projectTemplateData{
@@ -179,20 +181,23 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		t.Fatal("expected minimal main.go")
 	}
 	if _, ok := minimalProjectFiles[filepath.Join("cmd", "server", "main.go")]; ok {
-		t.Fatal("did not expect standard cmd/server/main.go in minimal project")
+		t.Fatal("did not expect cmd/server/main.go in minimal project")
+	}
+	if _, ok := minimalProjectFiles[filepath.Join("bootstrap", "db.go")]; ok {
+		t.Fatal("did not expect bootstrap/db.go in minimal project")
 	}
 
-	standardProjectFiles, err := projectFiles(projectTemplateData{
+	fullProjectFiles, err := projectFiles(projectTemplateData{
 		Module:        "github.com/acme/blog",
 		AppName:       "Blog",
 		DatabaseFile:  "blog.db",
 		AppDir:        "internal/app",
 		AppImportPath: "github.com/acme/blog/internal/app",
-		App:           standardApp,
-		Options:       standardOpts,
+		App:           fullApp,
+		Options:       fullOpts,
 	})
 	if err != nil {
-		t.Fatalf("projectFiles(standard): %v", err)
+		t.Fatalf("projectFiles(full): %v", err)
 	}
 	for _, name := range []string{
 		"main.go",
@@ -207,8 +212,8 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		filepath.Join("internal", "app", "services.go"),
 		filepath.Join("internal", "app", "errors.go"),
 	} {
-		if _, ok := standardProjectFiles[name]; !ok {
-			t.Fatalf("expected standard project file %q", name)
+		if _, ok := fullProjectFiles[name]; !ok {
+			t.Fatalf("expected full project file %q", name)
 		}
 	}
 }

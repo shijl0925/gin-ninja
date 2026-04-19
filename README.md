@@ -248,7 +248,7 @@ make build-cli
 gin-ninja-cli --help
 gin-ninja-cli help startproject
 
-# small/medium CRUD services: default minimal is usually enough
+# Quick start: minimal is the default and recommended starting point
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
 gin-ninja-cli makemigrations
@@ -259,15 +259,6 @@ go run .
 gin-ninja-cli startapp blog
 gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
 gin-ninja-cli migrate
-
-# richer templates / optional features (opt in only when you need them)
-gin-ninja-cli startproject mysite \
-  -module github.com/acme/mysite \
-  -template admin \
-  -app-dir internal/app \
-  -with-tests
-gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx
 
 # interactive wizard
 gin-ninja-cli init
@@ -289,46 +280,69 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `app/apis.go`
 - `app/routers.go`
 
-When you opt into `-template standard`, `-template auth`, or `-template admin`, the scaffold also adds richer starter files, including:
+### Scaffold templates
 
-- `.air.toml`
-- `cmd/server/main.go`
-- `internal/server/server.go`
-- `bootstrap/db.go`
-- `bootstrap/logger.go`
-- `bootstrap/cache.go`
-- `settings/config.local.yaml.example`
-- `settings/config.prod.yaml.example`
-- `.env.example`
-- `Makefile`
-- `Dockerfile`
-- `docker-compose.yml`
-- `README.md`
-- `migrations/.gitkeep`
-- `scripts/.gitkeep`
+There are two primary templates to choose from:
 
-`startapp` creates a new app package directory with the same core CRUD files, and richer templates can additionally generate:
+| Template | When to use |
+|----------|-------------|
+| `minimal` | **Default and recommended.** Smallest CRUD starter. Use this unless you have a specific reason not to. |
+| `full` | Full-stack scenario template with auth, admin, and project infrastructure. Use only when you need all of it. |
 
-- `migrations.go`
-- `scaffold_test.go`
+The `standard` template is an intermediate option that adds settings/config files and `.air.toml` for hot reload, without the heavy infrastructure of `full`. The `auth` and `admin` templates are backward-compatible aliases for `full`.
+
+**`minimal` project (default):**
+
+- `main.go`, `go.mod`, `config.yaml`, `app/` core CRUD files
+- Simple, flat structure — you own the architecture
+
+**`standard` project adds:**
+
+- `.air.toml` (hot reload preset)
+- `settings/config.local.yaml.example`, `settings/config.prod.yaml.example`
+- `.env.example`, `migrations/.gitkeep`, `scripts/.gitkeep`
+
+**`full` project adds everything in `standard`, plus:**
+
+- `cmd/server/main.go`, `internal/server/server.go`
+- `bootstrap/db.go`, `bootstrap/logger.go`, `bootstrap/cache.go`
+- `Makefile`, `Dockerfile`, `docker-compose.yml`, `README.md`
+- Auth and admin app scaffolding
+
+```bash
+# Advanced: full-stack scenario template (opt in only when you need auth + admin + infra)
+gin-ninja-cli startproject mysite \
+  -module github.com/acme/mysite \
+  -template full \
+  -app-dir internal/app \
+  -with-tests
+gin-ninja-cli startapp accounts -template full -with-tests
+gin-ninja-cli startapp accounts -template standard -with-gormx
+```
+
+`startapp` creates a new app package directory. The `full` template additionally generates:
+
 - `auth.go`
 - `admin.go`
 - `permissions.go`
+- `services.go`, `errors.go` (when auth or admin is enabled)
+- `scaffold_test.go` (when `-with-tests` is set)
 
-Template-first rules:
+Template rules:
 
-- `minimal` is the default and recommended starting point; it keeps the shortest CRUD path
-- `standard` mainly adds project-level infrastructure; when `auth/admin` are not enabled it does not force `services.go` / `errors.go`
-- `auth` / `admin` are scenario templates; `admin` includes auth scaffolding by default
-- `-with-tests` only adds starter tests on top of the selected template and does not promote `minimal` to `standard`
+- `minimal` is the default and recommended starting point — start here and add what you need
+- `standard` adds settings and dev tooling without prescribing a project layout
+- `full` is the full-stack scenario template; use it only when you need auth, admin, and all the infrastructure it ships with
+- `-with-tests` adds starter tests without switching the template tier
+- `-with-auth` and `-with-admin` add capability files; `-with-admin` requires at least `standard` (not `minimal`)
 
 Useful scaffold flags:
 
-- `-template minimal|standard|auth|admin`
+- `-template minimal|standard|full` (primary choices; `auth`/`admin` are compat aliases for `full`)
 - `-with-tests`
-- `-with-auth` (compatibility override, mainly for `minimal` / `standard`)
-- `-with-admin` (compatibility override, mainly for `minimal` / `standard`; also enables auth)
-- `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
+- `-with-auth` (adds auth app files; requires `standard` or `full`)
+- `-with-admin` (adds admin app files; requires `standard` or `full`; also enables auth)
+- `-with-gormx` (default `false`; generates gormx-based repos/services instead of native GORM)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
 - `-force`
@@ -340,12 +354,12 @@ name: mysite
 module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
-template: admin
+template: full
 with_tests: true
 with_gormx: false
 ```
 
-Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:
+Full-style project scaffolds ship with an [air](https://github.com/air-verse/air) preset for hot reload during development:
 
 ```bash
 cd mysite
@@ -353,7 +367,7 @@ make install-air
 make dev
 ```
 
-The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
+The generated code is a starting point — you are expected to customize models, validation, middleware, routing, and business logic for your own project. The scaffold does not prescribe an architecture; it gives you a starting point.
 
 ### Database migrations
 

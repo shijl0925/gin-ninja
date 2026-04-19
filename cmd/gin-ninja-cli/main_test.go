@@ -284,7 +284,7 @@ with_tests: false
 		"-config", configPath,
 		"-module", "github.com/acme/cli-project",
 		"-output", outputDir,
-		"-template", "standard",
+		"-template", "full",
 		"-with-tests",
 	})
 	if code != 0 {
@@ -292,7 +292,7 @@ with_tests: false
 	}
 
 	if _, err := os.Stat(filepath.Join(outputDir, "cmd", "server", "main.go")); err != nil {
-		t.Fatalf("expected standard scaffold file: %v", err)
+		t.Fatalf("expected full scaffold file: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(outputDir, "app", "scaffold_test.go")); err != nil {
 		t.Fatalf("expected tests from CLI override: %v", err)
@@ -453,7 +453,7 @@ func TestRunInitProjectWizard(t *testing.T) {
 		"github.com/acme/wizard-project",
 		outputDir,
 		"internal/app",
-		"standard",
+		"full",
 		"yes",
 		"no",
 		"",
