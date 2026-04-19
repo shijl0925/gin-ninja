@@ -80,9 +80,11 @@ type DeleteUserInput struct {
 // Repository
 // ---------------------------------------------------------------------------
 
-type userRepo struct{ gormx.BaseRepo[User] }
+type IUserRepo interface{ gormx.IBaseRepo[User] }
 
-func newUserRepo() *userRepo { return &userRepo{} }
+type UserRepoImpl struct{ gormx.BaseRepo[User] }
+
+func newUserRepo() IUserRepo { return &UserRepoImpl{} }
 
 // ---------------------------------------------------------------------------
 // Handlers
