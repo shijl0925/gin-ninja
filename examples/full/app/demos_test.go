@@ -141,6 +141,8 @@ func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 }
 
 func TestDemoEndpoints_PaginatedCacheRateLimitedAndTimeout(t *testing.T) {
+	requireIntegration(t)
+
 	api := newDemoAPI()
 
 	w := doDemoRequest(api, http.MethodGet, "/api/v1/examples/features?search=timeout", nil)
@@ -260,6 +262,8 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 }
 
 func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
+	requireIntegration(t)
+
 	api := newDemoAPI()
 
 	v1 := doDemoRequest(api, http.MethodGet, "/api/v1/examples/versioned/info", nil)
