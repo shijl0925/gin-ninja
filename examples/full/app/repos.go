@@ -10,7 +10,7 @@ type userRepo struct {
 	gormx.BaseRepo[User]
 }
 
-// NewUserRepo creates a concrete user repository instance.
+// NewUserRepo returns an implementation of IUserRepo.
 func NewUserRepo() IUserRepo {
 	return &userRepo{}
 }
