@@ -214,7 +214,7 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		opts.Full = true
 	case ScaffoldTemplateStandard:
 		opts.Standard = true
-		// Full=false: standard adds settings/dev files but not heavy infra.
+		// standard adds settings/dev files but not heavy infra.
 	}
 
 	// Flag overrides for capability files (auth.go, admin.go, services.go, etc.).
@@ -736,8 +736,8 @@ return api.Run(cfg.Server.Addr())
 
 func main() {
 // MustLoadWithOverrides silently skips missing override files, so this
-// works for all tiers: minimal (no settings/ dir) and standard (settings/
-// config.local.yaml optionally created from the .example file).
+// works for all three tiers: minimal (no settings/ dir), standard, and
+// full (settings/config.local.yaml optionally created from the .example file).
 cfg := settings.MustLoadWithOverrides("config.yaml", "settings/config.local.yaml")
 log_ := ginbootstrap.InitLogger(&cfg.Log)
 defer logger.Sync()
