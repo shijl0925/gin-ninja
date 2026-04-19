@@ -199,7 +199,10 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		opts.WithAuth = true
 		opts.WithAdmin = true
 	}
-	opts.Standard = templateKind != ScaffoldTemplateMinimal || opts.WithTests || opts.WithAuth || opts.WithAdmin
+	if opts.WithAdmin {
+		opts.WithAuth = true
+	}
+	opts.Standard = templateKind != ScaffoldTemplateMinimal || opts.WithAuth || opts.WithAdmin
 	return opts, nil
 }
 

@@ -97,8 +97,8 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	configPath := fs.String("config", "", "Load scaffold preset from YAML or JSON")
 	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
-	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
-	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	withAuth := fs.Bool("with-auth", false, "Compatibility override: include JWT auth scaffold files")
+	withAdmin := fs.Bool("with-admin", false, "Compatibility override: include admin scaffold files (also enables auth)")
 	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
@@ -166,8 +166,8 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	configPath := fs.String("config", "", "Load scaffold preset from YAML or JSON")
 	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
-	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
-	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	withAuth := fs.Bool("with-auth", false, "Compatibility override: include JWT auth scaffold files")
+	withAdmin := fs.Bool("with-admin", false, "Compatibility override: include admin scaffold files (also enables auth)")
 	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
@@ -402,15 +402,15 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Template options:")
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; start here for small/medium CRUD apps)"},
-		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; recommended start point)"},
+		{name: "-with-tests", usage: "Add starter tests on top of the selected template (does not switch template preset)"},
 	})
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Advanced overrides:")
 	printFlagGroup(w, []flagHelp{
 		{name: "-app-dir <path>", usage: fmt.Sprintf("Relative app package directory inside the project (default: %s)", defaultScaffoldAppDir)},
-		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
-		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
+		{name: "-with-auth", usage: "Compatibility override for minimal/standard to include auth scaffold files"},
+		{name: "-with-admin", usage: "Compatibility override for minimal/standard to include admin scaffold files (also enables auth)"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
@@ -444,14 +444,14 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Template options:")
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; start here for small/medium CRUD apps)"},
-		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; recommended start point)"},
+		{name: "-with-tests", usage: "Add starter tests on top of the selected template (does not switch template preset)"},
 	})
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Advanced overrides:")
 	printFlagGroup(w, []flagHelp{
-		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
-		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
+		{name: "-with-auth", usage: "Compatibility override for minimal/standard to include auth scaffold files"},
+		{name: "-with-admin", usage: "Compatibility override for minimal/standard to include admin scaffold files (also enables auth)"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})

@@ -289,7 +289,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `app/apis.go`
 - `app/routers.go`
 
-When you opt into `-template standard`, `-template auth`, `-template admin`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
+When you opt into `-template standard`, `-template auth`, or `-template admin`, the scaffold also adds richer starter files, including:
 
 - `.air.toml`
 - `cmd/server/main.go`
@@ -315,18 +315,19 @@ When you opt into `-template standard`, `-template auth`, `-template admin`, or 
 - `admin.go`
 - `permissions.go`
 
-In practice:
+Template-first rules:
 
-- `minimal` keeps the shortest CRUD path
-- `standard` mainly adds project-level infrastructure; when `auth/admin` are not enabled it no longer forces `services.go` / `errors.go`
-- `auth` / `admin` templates add the fuller service, error, and permission scaffolding
+- `minimal` is the default and recommended starting point; it keeps the shortest CRUD path
+- `standard` mainly adds project-level infrastructure; when `auth/admin` are not enabled it does not force `services.go` / `errors.go`
+- `auth` / `admin` are scenario templates; `admin` includes auth scaffolding by default
+- `-with-tests` only adds starter tests on top of the selected template and does not promote `minimal` to `standard`
 
 Useful scaffold flags:
 
 - `-template minimal|standard|auth|admin`
 - `-with-tests`
-- `-with-auth`
-- `-with-admin`
+- `-with-auth` (compatibility override, mainly for `minimal` / `standard`)
+- `-with-admin` (compatibility override, mainly for `minimal` / `standard`; also enables auth)
 - `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)

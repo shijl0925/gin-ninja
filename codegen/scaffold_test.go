@@ -176,6 +176,36 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	runScaffoldGoTest(t, outputDir)
 }
 
+func TestWriteProjectScaffoldMinimalWithTestsStaysMinimal(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+	if err := WriteProjectScaffold(ProjectScaffoldConfig{
+		Name:      "mysite",
+		Module:    "github.com/acme/mysite",
+		Template:  "minimal",
+		WithTests: true,
+	}, outputDir); err != nil {
+		t.Fatalf("WriteProjectScaffold: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(outputDir, "app", "scaffold_test.go")); err != nil {
+		t.Fatalf("expected app/scaffold_test.go: %v", err)
+	}
+	for _, rel := range []string{
+		filepath.Join("cmd", "server", "main.go"),
+		filepath.Join("internal", "server", "server.go"),
+		filepath.Join("bootstrap", "db.go"),
+	} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
+			t.Fatalf("did not expect %s for minimal template with tests, err=%v", rel, err)
+		}
+	}
+
+	runScaffoldGoTest(t, outputDir)
+}
+
 func TestWriteAppScaffold(t *testing.T) {
 	t.Parallel()
 
@@ -285,6 +315,38 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 	for _, rel := range []string{"services.go", "errors.go"} {
 		if _, err := os.Stat(filepath.Join(outputDir, rel)); !os.IsNotExist(err) {
 			t.Fatalf("did not expect %s for plain standard scaffold, err=%v", rel, err)
+		}
+	}
+
+	runScaffoldGoTest(t, dir)
+}
+
+func TestWriteAppScaffoldWithAdminFlagEnablesAuth(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	goMod := "module demo\n\ngo 1.26\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	outputDir := filepath.Join(dir, "blog")
+	if err := WriteAppScaffold(AppScaffoldConfig{
+		Name:      "blog",
+		Template:  "minimal",
+		WithAdmin: true,
+	}, outputDir); err != nil {
+		t.Fatalf("WriteAppScaffold: %v", err)
+	}
+
+	for _, rel := range []string{"admin.go", "permissions.go", "auth.go"} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
+			t.Fatalf("expected %s when with-admin is enabled: %v", rel, err)
+		}
+	}
+	for _, rel := range []string{"services.go", "errors.go"} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
+			t.Fatalf("expected %s for admin scaffold path: %v", rel, err)
 		}
 	}
 

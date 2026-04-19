@@ -251,7 +251,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `app/apis.go`
 - `app/routers.go`
 
-当你启用 `-template standard`、`-template auth`、`-template admin`，或 `-with-tests` 等功能开关时，脚手架还会额外生成更完整的起步文件，例如：
+当你启用 `-template standard`、`-template auth`、`-template admin` 时，脚手架还会额外生成更完整的起步文件，例如：
 
 - `.air.toml`
 - `cmd/server/main.go`
@@ -277,18 +277,19 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `admin.go`
 - `permissions.go`
 
-其中：
+以模板为主的规则：
 
-- 默认 `minimal` 只保留最短 CRUD 路径
-- `standard` 主要增加项目级基础设施文件；当未启用 `auth/admin` 时，不再强制生成 `services.go` / `errors.go`
-- `auth` / `admin` 模板会额外生成更完整的 service / error / 权限相关代码
+- 默认 `minimal` 是推荐起点，只保留最短 CRUD 路径
+- `standard` 主要增加项目级基础设施文件；当未启用 `auth/admin` 时，不强制生成 `services.go` / `errors.go`
+- `auth` / `admin` 是场景化模板；`admin` 默认会同时带上 auth 相关脚手架
+- `-with-tests` 只在所选模板上额外生成测试文件，不会把 `minimal` 提升为 `standard`
 
 常用脚手架参数：
 
 - `-template minimal|standard|auth|admin`
 - `-with-tests`
-- `-with-auth`
-- `-with-admin`
+- `-with-auth`（兼容性覆盖参数，主要用于 `minimal` / `standard`）
+- `-with-admin`（兼容性覆盖参数，主要用于 `minimal` / `standard`；同时启用 auth）
 - `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
