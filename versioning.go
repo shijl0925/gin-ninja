@@ -33,7 +33,9 @@ type VersionConfig struct {
 	SunsetTime time.Time
 	// MigrationURL is a URL pointing to migration documentation.  When set,
 	// a `Link: <url>; rel="deprecation"` header is emitted.
-	MigrationURL      string
+	MigrationURL string
+	// sunsetHeaderValue caches the normalized header string derived from
+	// SunsetTime or the backward-compatible Sunset field.
 	sunsetHeaderValue string
 }
 
