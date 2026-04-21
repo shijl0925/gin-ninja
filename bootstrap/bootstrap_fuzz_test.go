@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"testing"
 
+	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects"
 	"github.com/shijl0925/gin-ninja/settings"
 )
 
@@ -17,6 +18,6 @@ func FuzzMySQLDialector(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		_, _ = mysqlDialector(settings.DatabaseConfig{DSN: raw})
+		_, _ = internaldialects.MySQL(settings.DatabaseConfig{DSN: raw})
 	})
 }
