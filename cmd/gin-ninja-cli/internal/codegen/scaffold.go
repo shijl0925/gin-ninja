@@ -800,9 +800,10 @@ fatalMain(err)
 const projectBootstrapDBTemplate = `package bootstrap
 
 import (
-ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
-"github.com/shijl0925/gin-ninja/settings"
-"gorm.io/gorm"
+ ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
+ _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+ "github.com/shijl0925/gin-ninja/settings"
+ "gorm.io/gorm"
 )
 
 func InitDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {

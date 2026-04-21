@@ -1,4 +1,4 @@
-package bootstrap
+package internaldialects
 
 import (
 	"fmt"
@@ -17,18 +17,18 @@ import (
 	"gorm.io/gorm"
 )
 
-func sqliteDialector(dsn string) (gorm.Dialector, error) {
-	if dsn == "" {
+func SQLite(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
+	if strings.TrimSpace(cfg.DSN) == "" {
 		return nil, fmt.Errorf("bootstrap: sqlite DSN must not be empty")
 	}
-	return sqlite.Open(dsn), nil
+	return sqlite.Open(cfg.DSN), nil
 }
 
-func mysqlDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
+func MySQL(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
 	const defaultStringSize uint = 191
 
 	if useRawMySQLDSN(cfg) {
-		dsn, err := mysqlDSN(cfg)
+		dsn, err := MySQLDSN(cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -41,40 +41,40 @@ func mysqlDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
 			DefaultStringSize: defaultStringSize,
 		}), nil
 	}
-	dsnCfg, err := mysqlDriverConfig(cfg)
+
+	dsnCfg, err := mySQLDriverConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return gormmysql.New(gormmysql.Config{
-		DSNConfig:          dsnCfg,
+		DSNConfig:         dsnCfg,
 		DefaultStringSize: defaultStringSize,
 	}), nil
 }
 
-func postgresDialector(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
-	dsn, err := postgresDSN(cfg)
+func Postgres(cfg settings.DatabaseConfig) (gorm.Dialector, error) {
+	dsn, err := PostgresDSN(cfg)
 	if err != nil {
 		return nil, err
 	}
 	return postgres.Open(dsn), nil
 }
 
-func mysqlDSN(cfg settings.DatabaseConfig) (string, error) {
+func MySQLDSN(cfg settings.DatabaseConfig) (string, error) {
 	if useRawMySQLDSN(cfg) {
 		return cfg.DSN, nil
 	}
-	dsnCfg, err := mysqlDriverConfig(cfg)
+	dsnCfg, err := mySQLDriverConfig(cfg)
 	if err != nil {
 		return "", err
 	}
 	return dsnCfg.FormatDSN(), nil
 }
 
-func mysqlDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error) {
-	if !hasMySQLConfig(cfg.MySQL) {
+func mySQLDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error) {
+	if !cfg.MySQL.IsConfigured() {
 		return nil, fmt.Errorf("bootstrap: mysql DSN must not be empty")
 	}
-
 	if strings.TrimSpace(cfg.MySQL.Host) == "" {
 		return nil, fmt.Errorf("bootstrap: mysql host must not be empty")
 	}
@@ -96,7 +96,7 @@ func mysqlDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error)
 		AllowNativePasswords: true,
 		ParseTime:            cfg.MySQL.ParseTime,
 		Loc:                  timeLocation(cfg.MySQL.Loc),
-		Params:               sanitizeParams(cfg.MySQL.Params),
+		Params:               SanitizeParams(cfg.MySQL.Params),
 	}
 	if charset := strings.TrimSpace(cfg.MySQL.Charset); charset != "" {
 		dsnCfg.Params["charset"] = charset
@@ -104,11 +104,11 @@ func mysqlDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error)
 	return dsnCfg, nil
 }
 
-func postgresDSN(cfg settings.DatabaseConfig) (string, error) {
+func PostgresDSN(cfg settings.DatabaseConfig) (string, error) {
 	if useRawPostgresDSN(cfg) {
 		return cfg.DSN, nil
 	}
-	if !hasPostgresConfig(cfg.Postgres) {
+	if !cfg.Postgres.IsConfigured() {
 		return "", fmt.Errorf("bootstrap: postgres DSN must not be empty")
 	}
 	if strings.TrimSpace(cfg.Postgres.Host) == "" {
@@ -131,7 +131,6 @@ func postgresDSN(cfg settings.DatabaseConfig) (string, error) {
 		postgresDSNPair("port", strconv.Itoa(port)),
 		postgresDSNPair("dbname", strings.TrimSpace(cfg.Postgres.Name)),
 	}
-
 	if user := strings.TrimSpace(cfg.Postgres.User); user != "" {
 		parts = append(parts, postgresDSNPair("user", user))
 	}
@@ -145,7 +144,7 @@ func postgresDSN(cfg settings.DatabaseConfig) (string, error) {
 		parts = append(parts, postgresDSNPair("TimeZone", timeZone))
 	}
 
-	params := sanitizeParams(cfg.Postgres.Params)
+	params := SanitizeParams(cfg.Postgres.Params)
 	if len(params) > 0 {
 		keys := make([]string, 0, len(params))
 		for key := range params {
@@ -160,7 +159,7 @@ func postgresDSN(cfg settings.DatabaseConfig) (string, error) {
 	return strings.Join(parts, " "), nil
 }
 
-func sanitizeParams(params map[string]string) map[string]string {
+func SanitizeParams(params map[string]string) map[string]string {
 	values := make(map[string]string, len(params))
 	for key, value := range params {
 		trimmedKey := strings.TrimSpace(key)
@@ -172,11 +171,7 @@ func sanitizeParams(params map[string]string) map[string]string {
 	return values
 }
 
-func postgresDSNPair(key, value string) string {
-	return key + "=" + postgresDSNValue(value)
-}
-
-func postgresDSNValue(value string) string {
+func PostgresDSNValue(value string) string {
 	if value == "" {
 		return "''"
 	}
@@ -186,6 +181,18 @@ func postgresDSNValue(value string) string {
 		return "'" + escaped + "'"
 	}
 	return value
+}
+
+func DecodeRawMySQLDSN(dsn string) (string, error) {
+	return decodeRawMySQLDSN(dsn)
+}
+
+func TimeLocation(raw string) *time.Location {
+	return timeLocation(raw)
+}
+
+func ShouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
+	return shouldIgnoreImplicitDefaultDSN(dsn, driver, hasStructuredConfig)
 }
 
 func decodeRawMySQLDSN(dsn string) (string, error) {
@@ -200,6 +207,10 @@ func decodeRawMySQLDSN(dsn string) (string, error) {
 	return prefix + dsn[at:], nil
 }
 
+func postgresDSNPair(key, value string) string {
+	return key + "=" + PostgresDSNValue(value)
+}
+
 func timeLocation(raw string) *time.Location {
 	name := strings.TrimSpace(raw)
 	if name == "" {
@@ -211,22 +222,15 @@ func timeLocation(raw string) *time.Location {
 	return time.Local
 }
 
-func hasMySQLConfig(cfg settings.MySQLConfig) bool {
-	return cfg.IsConfigured()
-}
-
-func hasPostgresConfig(cfg settings.PostgresConfig) bool {
-	return cfg.IsConfigured()
-}
-
 func useRawMySQLDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, hasMySQLConfig(cfg.MySQL))
+	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.MySQL.IsConfigured())
 }
 
 func useRawPostgresDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, hasPostgresConfig(cfg.Postgres))
+	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.Postgres.IsConfigured())
 }
 
 func shouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
-	return hasStructuredConfig && strings.TrimSpace(driver) != "sqlite" && strings.TrimSpace(driver) != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
+	trimmedDriver := strings.TrimSpace(driver)
+	return hasStructuredConfig && trimmedDriver != "sqlite" && trimmedDriver != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
 }

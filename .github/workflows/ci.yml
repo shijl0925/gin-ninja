@@ -29,6 +29,10 @@ jobs:
             cd cmd/gin-ninja-cli
             go test ./... -coverprofile=coverage-cli.out
           )
+          (
+            cd examples/full/browsertests
+            go test ./...
+          )
           {
             echo 'mode: set'
             tail -n +2 coverage.out

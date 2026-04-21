@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/chromedp/chromedp"
 	"github.com/shijl0925/gin-ninja/bootstrap"
+	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+	"github.com/shijl0925/gin-ninja/examples/internal/fullapp"
 	"github.com/shijl0925/gin-ninja/settings"
 	"io"
 	"net/http"
@@ -40,12 +42,12 @@ func newFullTestServer(t *testing.T) *httptest.Server {
 	settings.Global.JWT = cfg.JWT
 
 	log := bootstrap.InitLogger(&cfg.Log)
-	db, err := initDB(&cfg.Database)
+	db, err := fullapp.InitDB(&cfg.Database)
 	if err != nil {
 		t.Fatalf("initDB: %v", err)
 	}
 
-	return httptest.NewServer(buildAPI(cfg, db, log).Handler())
+	return httptest.NewServer(fullapp.BuildAPI(cfg, db, log, fullapp.FullOptions()).Handler())
 }
 
 func doFullJSON(t *testing.T, server *httptest.Server, method, path string, body any, token string) *http.Response {

@@ -592,6 +592,7 @@ Only keys present in the override file are changed; all other keys keep their ba
 ```go
 import (
     "github.com/shijl0925/gin-ninja/bootstrap"
+    _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
     "github.com/shijl0925/gin-ninja/pkg/logger"
 )
@@ -607,7 +608,11 @@ db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
 ```
 
-`bootstrap.MustInitDB` now supports `sqlite`, `mysql`, and `postgres` directly.
+`bootstrap.MustInitDB` resolves drivers through registration packages. Import the matching package for the driver you configure, for example:
+
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
 
 `examples/full/config.yaml` already includes ready-to-copy MySQL and PostgreSQL DSN examples.
 

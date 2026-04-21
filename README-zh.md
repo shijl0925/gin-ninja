@@ -560,6 +560,7 @@ log:
 ```go
 import (
     "github.com/shijl0925/gin-ninja/bootstrap"
+    _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
     "github.com/shijl0925/gin-ninja/pkg/logger"
 )
@@ -572,7 +573,10 @@ db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
 ```
 
-- `bootstrap.MustInitDB` 直接支持 `sqlite`、`mysql`、`postgres`
+- `bootstrap.MustInitDB` 通过驱动注册包解析数据库驱动，按需引入即可，例如：
+  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
+  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
+  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
 - `orm.Middleware(db)` 可把数据库句柄注入请求上下文
 - 事务场景可以在操作上使用 `ninja.WithTransaction()`
 
