@@ -36,6 +36,13 @@ const (
 	defaultAppScaffoldDatabase     = string(codegen.ScaffoldDatabaseNone)
 )
 
+var scaffoldTemplateChoices = []helpItem{
+	{name: "minimal", usage: "Basic CRUD structure"},
+	{name: "standard", usage: "Broader starter structure for everyday development"},
+	{name: "auth", usage: "Adds auth-oriented scaffold files"},
+	{name: "admin", usage: "Adds admin-oriented scaffold files"},
+}
+
 func runGenerate(stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		printGenerateUsage(stderr)
@@ -428,12 +435,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template choices"))
-	printHelpItems(w, p.command, []helpItem{
-		{name: "minimal", usage: "Default and recommended for small or medium CRUD setups"},
-		{name: "standard", usage: "Adds a fuller project layout for everyday service development"},
-		{name: "auth", usage: "Adds auth-oriented scaffold files"},
-		{name: "admin", usage: "Adds admin-oriented scaffold files"},
-	})
+	printHelpItems(w, p.command, scaffoldTemplateChoices)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Key options"))
 	printFlagGroup(w, []flagHelp{
@@ -482,12 +484,7 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template choices"))
-	printHelpItems(w, p.command, []helpItem{
-		{name: "minimal", usage: "Default and recommended for small or medium CRUD setups"},
-		{name: "standard", usage: "Adds a fuller package layout for everyday app development"},
-		{name: "auth", usage: "Adds auth-oriented scaffold files"},
-		{name: "admin", usage: "Adds admin-oriented scaffold files"},
-	})
+	printHelpItems(w, p.command, scaffoldTemplateChoices)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Key options"))
 	printFlagGroup(w, []flagHelp{
