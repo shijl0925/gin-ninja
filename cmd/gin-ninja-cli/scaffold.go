@@ -429,7 +429,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template choices"))
 	printHelpItems(w, p.command, []helpItem{
-		{name: "minimal", usage: "Default and recommended for small or medium CRUD services"},
+		{name: "minimal", usage: "Default and recommended for small or medium CRUD setups"},
 		{name: "standard", usage: "Adds a fuller project layout for everyday service development"},
 		{name: "auth", usage: "Adds auth-oriented scaffold files"},
 		{name: "admin", usage: "Adds admin-oriented scaffold files"},
@@ -483,7 +483,7 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template choices"))
 	printHelpItems(w, p.command, []helpItem{
-		{name: "minimal", usage: "Default and recommended for small or medium CRUD apps"},
+		{name: "minimal", usage: "Default and recommended for small or medium CRUD setups"},
 		{name: "standard", usage: "Adds a fuller package layout for everyday app development"},
 		{name: "auth", usage: "Adds auth-oriented scaffold files"},
 		{name: "admin", usage: "Adds admin-oriented scaffold files"},

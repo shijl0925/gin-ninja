@@ -60,10 +60,10 @@ func printRootUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Start here"))
 	printHelpItems(w, p.command, []helpItem{
-		{name: "New project", usage: "gin-ninja-cli startproject mysite -module github.com/acme/mysite"},
-		{name: "Add app", usage: "gin-ninja-cli startapp blog"},
-		{name: "Generate CRUD", usage: "gin-ninja-cli generate crud -model User -model-file ./app/models.go"},
-		{name: "Interactive", usage: "gin-ninja-cli init"},
+		{name: "startproject", usage: "gin-ninja-cli startproject mysite -module github.com/acme/mysite"},
+		{name: "startapp", usage: "gin-ninja-cli startapp blog"},
+		{name: "generate crud", usage: "gin-ninja-cli generate crud -model User -model-file ./app/models.go"},
+		{name: "init", usage: "gin-ninja-cli init"},
 	})
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Decision guide"))
