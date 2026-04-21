@@ -44,6 +44,6 @@ Use this skill when the user specifically wants to scaffold a new gin-ninja proj
 
 - CLI implementation: `cmd/gin-ninja-cli/`
 - Scaffold command help: `cmd/gin-ninja-cli/scaffold.go`, `cmd/gin-ninja-cli/help.go`
-- Generated code templates: `codegen/`
+- Generated code templates: `cmd/gin-ninja-cli/internal/codegen/`
 - Closest examples: `examples/basic`, `examples/users`, `examples/admin`, `examples/full`
 - Reference: `references/startproject-and-startapp.md`

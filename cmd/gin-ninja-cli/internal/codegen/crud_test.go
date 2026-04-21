@@ -696,7 +696,7 @@ func runGoTest(t *testing.T, dir string) {
 	if !ok {
 		t.Fatal("resolve repo root")
 	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), ".."))
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", "..", ".."))
 	goMod := "module demo\n\ngo 1.26\n\nrequire github.com/shijl0925/gin-ninja v0.0.0\n\nreplace github.com/shijl0925/gin-ninja => " + repoRoot + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)

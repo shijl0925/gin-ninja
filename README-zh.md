@@ -193,6 +193,8 @@ CLI 现在采用渐进式帮助：
 - `gin-ninja-cli help startproject` 或 `gin-ninja-cli startproject -h` 再查看完整参数
 - `gin-ninja-cli init` 可通过交互式向导完成首次创建
 
+运行时框架继续保留在根模块，`cmd/gin-ninja-cli` 则作为独立工具模块维护，这样应用构建时不会把 CLI / codegen 视为运行时模块边界的一部分。
+
 CLI 会安装到 Go 的可执行目录（优先使用 `$GOBIN`，未设置时使用 `$GOPATH/bin`）：
 
 ```bash

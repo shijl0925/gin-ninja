@@ -231,6 +231,8 @@ The CLI now follows a progressive-help model:
 - `gin-ninja-cli help startproject` or `gin-ninja-cli startproject -h` shows full command details
 - `gin-ninja-cli init` starts an interactive wizard for new users
 
+The runtime framework stays in the root module, while `cmd/gin-ninja-cli` is maintained as a separate tool module so app builds do not inherit CLI/codegen package boundaries.
+
 Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
 
 ```bash

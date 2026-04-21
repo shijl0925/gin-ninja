@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/shijl0925/gin-ninja/codegen"
+	"github.com/shijl0925/gin-ninja/cmd/gin-ninja-cli/internal/codegen"
 	"go.yaml.in/yaml/v3"
 )
 

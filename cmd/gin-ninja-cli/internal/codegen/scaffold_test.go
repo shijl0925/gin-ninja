@@ -347,7 +347,7 @@ func runScaffoldGoTest(t *testing.T, dir string) {
 	if !ok {
 		t.Fatal("resolve repo root")
 	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), ".."))
+	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", "..", ".."))
 
 	goModPath := filepath.Join(dir, "go.mod")
 	content, err := os.ReadFile(goModPath)
