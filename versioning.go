@@ -63,6 +63,9 @@ func normalizeVersionSunset(cfg VersionConfig) VersionConfig {
 	return cfg
 }
 
+// normalizedSunsetHeaderValue tolerates raw VersionConfig values that did not
+// pass through normalizeVersionConfig yet (for example direct middleware or
+// OpenAPI helper tests).
 func (cfg VersionConfig) normalizedSunsetHeaderValue() string {
 	if cfg.sunsetHeaderValue != "" {
 		return cfg.sunsetHeaderValue
@@ -155,6 +158,9 @@ func joinDescription(parts ...string) string {
 }
 
 func versionDeprecationMiddleware(cfg VersionConfig) gin.HandlerFunc {
+	// The middleware is also used directly in tests and by package consumers,
+	// so normalize sunset compatibility fields here instead of assuming callers
+	// always came through lookupVersion/normalizeVersionConfig.
 	cfg = normalizeVersionSunset(cfg)
 	return func(c *gin.Context) {
 		if cfg.Deprecated {
