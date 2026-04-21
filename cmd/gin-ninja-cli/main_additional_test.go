@@ -17,7 +17,7 @@ func TestRunUsageAndCommandErrors(t *testing.T) {
 		if code := run(&stdout, &stderr, nil); code != 2 {
 			t.Fatalf("run() code = %d, want 2", code)
 		}
-		if !strings.Contains(stderr.String(), "Usage:") {
+		if !strings.Contains(stderr.String(), "USAGE") {
 			t.Fatalf("expected usage in stderr, got %q", stderr.String())
 		}
 	})
