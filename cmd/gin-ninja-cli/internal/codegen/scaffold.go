@@ -22,11 +22,21 @@ const (
 	ScaffoldTemplateAdmin    ScaffoldTemplate = "admin"
 )
 
+type ScaffoldDatabase string
+
+const (
+	ScaffoldDatabaseNone     ScaffoldDatabase = "none"
+	ScaffoldDatabaseSQLite   ScaffoldDatabase = "sqlite"
+	ScaffoldDatabaseMySQL    ScaffoldDatabase = "mysql"
+	ScaffoldDatabasePostgres ScaffoldDatabase = "postgres"
+)
+
 // ProjectScaffoldConfig defines the inputs for a new project scaffold.
 type ProjectScaffoldConfig struct {
 	Name      string
 	Module    string
 	AppDir    string
+	Database  string
 	Template  string
 	WithTests bool
 	WithAuth  bool
@@ -40,6 +50,7 @@ type AppScaffoldConfig struct {
 	Name        string
 	PackageName string
 	ModelName   string
+	Database    string
 	Template    string
 	WithTests   bool
 	WithAuth    bool
@@ -91,28 +102,37 @@ func WriteProjectScaffold(cfg ProjectScaffoldConfig, outputDir string) error {
 	if err != nil {
 		return err
 	}
+	database, err := normalizeScaffoldDatabase(cfg.Database, ScaffoldDatabaseSQLite)
+	if err != nil {
+		return err
+	}
 	appPackage := scaffoldNormalizePackageName(filepath.Base(appDir))
 	appData, err := buildAppTemplateData(AppScaffoldConfig{
 		Name:        "example",
 		PackageName: appPackage,
 		ModelName:   "Example",
-	}, opts)
+		Database:    string(database),
+	}, opts, false)
 	if err != nil {
 		return err
 	}
 
 	data := projectTemplateData{
-		Module:        module,
-		AppName:       scaffoldJoinTitle(words),
-		DatabaseFile:  scaffoldToSeparated(words, "_", true) + ".db",
-		AppDir:        filepath.ToSlash(appDir),
-		AppImportPath: module + "/" + filepath.ToSlash(appDir),
-		App:           appData,
-		Options:       opts,
+		Module:             module,
+		AppName:            scaffoldJoinTitle(words),
+		DatabaseFile:       scaffoldToSeparated(words, "_", true) + ".db",
+		Database:           database,
+		DatabaseImportPath: scaffoldDatabaseImportPath(database),
+		AppDir:             filepath.ToSlash(appDir),
+		AppImportPath:      module + "/" + filepath.ToSlash(appDir),
+		App:                appData,
+		Options:            opts,
 	}
 	if data.DatabaseFile == ".db" {
 		data.DatabaseFile = "app.db"
 	}
+	data.DatabaseConfig = scaffoldProjectDatabaseConfig(database, data.DatabaseFile)
+	data.DatabaseEnv = scaffoldProjectDatabaseEnv(database, data.DatabaseFile)
 
 	files, err := projectFiles(data)
 	if err != nil {
@@ -133,7 +153,7 @@ func WriteAppScaffold(cfg AppScaffoldConfig, outputDir string) error {
 	if err := ensureScaffoldDir(outputDir, cfg.Force); err != nil {
 		return err
 	}
-	data, err := buildAppTemplateData(cfg, opts)
+	data, err := buildAppTemplateData(cfg, opts, true)
 	if err != nil {
 		return err
 	}
@@ -145,31 +165,38 @@ func WriteAppScaffold(cfg AppScaffoldConfig, outputDir string) error {
 }
 
 type projectTemplateData struct {
-	Module        string
-	AppName       string
-	DatabaseFile  string
-	AppDir        string
-	AppImportPath string
-	App           appTemplateData
-	Options       scaffoldOptions
+	Module             string
+	AppName            string
+	DatabaseFile       string
+	Database           ScaffoldDatabase
+	DatabaseImportPath string
+	DatabaseConfig     string
+	DatabaseEnv        string
+	AppDir             string
+	AppImportPath      string
+	App                appTemplateData
+	Options            scaffoldOptions
 }
 
 type appTemplateData struct {
-	PackageName string
-	ModelName   string
-	ModelPlural string
-	ModelLower  string
-	RepoName    string
-	ServiceName string
-	OutName     string
-	ListName    string
-	GetName     string
-	CreateName  string
-	UpdateName  string
-	DeleteName  string
-	RouteBase   string
-	RouteTag    string
-	Options     scaffoldOptions
+	PackageName            string
+	ModelName              string
+	ModelPlural            string
+	ModelLower             string
+	RepoName               string
+	ServiceName            string
+	OutName                string
+	ListName               string
+	GetName                string
+	CreateName             string
+	UpdateName             string
+	DeleteName             string
+	RouteBase              string
+	RouteTag               string
+	Database               ScaffoldDatabase
+	DatabaseImportPath     string
+	EmitDatabaseDriverFile bool
+	Options                scaffoldOptions
 }
 
 func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool, withGormx *bool) (scaffoldOptions, error) {
@@ -210,6 +237,108 @@ func boolValueOrDefault(value *bool, fallback bool) bool {
 	return *value
 }
 
+func normalizeScaffoldDatabase(value string, fallback ScaffoldDatabase) (ScaffoldDatabase, error) {
+	database := strings.ToLower(strings.TrimSpace(value))
+	if database == "" {
+		database = string(fallback)
+	}
+	switch database {
+	case string(ScaffoldDatabaseNone), string(ScaffoldDatabaseSQLite), string(ScaffoldDatabaseMySQL):
+		return ScaffoldDatabase(database), nil
+	case string(ScaffoldDatabasePostgres), "postgresql":
+		return ScaffoldDatabasePostgres, nil
+	default:
+		return "", fmt.Errorf("unknown scaffold database %q", value)
+	}
+}
+
+func scaffoldDatabaseImportPath(database ScaffoldDatabase) string {
+	switch database {
+	case ScaffoldDatabaseSQLite:
+		return "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+	case ScaffoldDatabaseMySQL:
+		return "github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql"
+	case ScaffoldDatabasePostgres:
+		return "github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres"
+	default:
+		return ""
+	}
+}
+
+func scaffoldProjectDatabaseConfig(database ScaffoldDatabase, databaseFile string) string {
+	switch database {
+	case ScaffoldDatabaseMySQL:
+		return `database:
+  driver: "mysql"
+  dsn: ""
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    user: "root"
+    password: "secret"
+    name: "app"
+    charset: "utf8mb4"
+    parse_time: true
+    loc: "Local"
+  max_idle_conns: 5
+  max_open_conns: 10`
+	case ScaffoldDatabasePostgres:
+		return `database:
+  driver: "postgres"
+  dsn: ""
+  postgres:
+    host: "127.0.0.1"
+    port: 5432
+    user: "postgres"
+    password: "secret"
+    name: "app"
+    sslmode: "disable"
+    time_zone: "UTC"
+  max_idle_conns: 5
+  max_open_conns: 10`
+	case ScaffoldDatabaseNone:
+		return `database:
+  # Choose sqlite/mysql/postgres later and import the matching bootstrap/drivers package.
+  driver: ""
+  dsn: ""
+  max_idle_conns: 5
+  max_open_conns: 10`
+	default:
+		return fmt.Sprintf(`database:
+  driver: "sqlite"
+  dsn: %q
+  max_idle_conns: 5
+  max_open_conns: 10`, databaseFile)
+	}
+}
+
+func scaffoldProjectDatabaseEnv(database ScaffoldDatabase, databaseFile string) string {
+	switch database {
+	case ScaffoldDatabaseMySQL:
+		return `APP__DATABASE__DRIVER=mysql
+APP__DATABASE__MYSQL__HOST=127.0.0.1
+APP__DATABASE__MYSQL__PORT=3306
+APP__DATABASE__MYSQL__USER=root
+APP__DATABASE__MYSQL__PASSWORD=secret
+APP__DATABASE__MYSQL__NAME=app`
+	case ScaffoldDatabasePostgres:
+		return `APP__DATABASE__DRIVER=postgres
+APP__DATABASE__POSTGRES__HOST=127.0.0.1
+APP__DATABASE__POSTGRES__PORT=5432
+APP__DATABASE__POSTGRES__USER=postgres
+APP__DATABASE__POSTGRES__PASSWORD=secret
+APP__DATABASE__POSTGRES__NAME=app
+APP__DATABASE__POSTGRES__SSLMODE=disable
+APP__DATABASE__POSTGRES__TIME_ZONE=UTC`
+	case ScaffoldDatabaseNone:
+		return `APP__DATABASE__DRIVER=
+APP__DATABASE__DSN=`
+	default:
+		return fmt.Sprintf(`APP__DATABASE__DRIVER=sqlite
+APP__DATABASE__DSN=%s`, databaseFile)
+	}
+}
+
 func normalizeScaffoldSubdir(value, fallback string) (string, error) {
 	dir := strings.TrimSpace(value)
 	if dir == "" {
@@ -228,7 +357,7 @@ func normalizeScaffoldSubdir(value, fallback string) (string, error) {
 	return dir, nil
 }
 
-func buildAppTemplateData(cfg AppScaffoldConfig, opts scaffoldOptions) (appTemplateData, error) {
+func buildAppTemplateData(cfg AppScaffoldConfig, opts scaffoldOptions, emitDatabaseDriverFile bool) (appTemplateData, error) {
 	name := strings.TrimSpace(cfg.Name)
 	if name == "" {
 		return appTemplateData{}, fmt.Errorf("name is required")
@@ -256,23 +385,30 @@ func buildAppTemplateData(cfg AppScaffoldConfig, opts scaffoldOptions) (appTempl
 		pluralWords = append([]string(nil), words...)
 		pluralWords = append(pluralWords, "items")
 	}
+	database, err := normalizeScaffoldDatabase(cfg.Database, ScaffoldDatabaseNone)
+	if err != nil {
+		return appTemplateData{}, err
+	}
 
 	return appTemplateData{
-		PackageName: packageName,
-		ModelName:   modelName,
-		ModelPlural: modelPlural,
-		ModelLower:  strings.ToLower(modelName),
-		RepoName:    modelName + "Repo",
-		ServiceName: modelName + "Service",
-		OutName:     modelName + "Out",
-		ListName:    "List" + modelPlural + "Input",
-		GetName:     "Get" + modelName + "Input",
-		CreateName:  "Create" + modelName + "Input",
-		UpdateName:  "Update" + modelName + "Input",
-		DeleteName:  "Delete" + modelName + "Input",
-		RouteBase:   scaffoldToSeparated(pluralWords, "-", true),
-		RouteTag:    scaffoldJoinTitle(pluralWords),
-		Options:     opts,
+		PackageName:            packageName,
+		ModelName:              modelName,
+		ModelPlural:            modelPlural,
+		ModelLower:             strings.ToLower(modelName),
+		RepoName:               modelName + "Repo",
+		ServiceName:            modelName + "Service",
+		OutName:                modelName + "Out",
+		ListName:               "List" + modelPlural + "Input",
+		GetName:                "Get" + modelName + "Input",
+		CreateName:             "Create" + modelName + "Input",
+		UpdateName:             "Update" + modelName + "Input",
+		DeleteName:             "Delete" + modelName + "Input",
+		RouteBase:              scaffoldToSeparated(pluralWords, "-", true),
+		RouteTag:               scaffoldJoinTitle(pluralWords),
+		Database:               database,
+		DatabaseImportPath:     scaffoldDatabaseImportPath(database),
+		EmitDatabaseDriverFile: emitDatabaseDriverFile,
+		Options:                opts,
 	}, nil
 }
 
@@ -393,6 +529,9 @@ func appFiles(data appTemplateData) (map[string][]byte, error) {
 	}
 	if data.Options.WithTests {
 		templates["scaffold_test.go"] = appTestsTemplate
+	}
+	if data.EmitDatabaseDriverFile && data.DatabaseImportPath != "" {
+		templates["drivers.go"] = appDriversTemplate
 	}
 
 	files := make(map[string][]byte, len(templates))
@@ -801,7 +940,9 @@ const projectBootstrapDBTemplate = `package bootstrap
 
 import (
  ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
- _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+ {{- if .DatabaseImportPath }}
+ _ "{{ .DatabaseImportPath }}"
+ {{- end }}
  "github.com/shijl0925/gin-ninja/settings"
  "gorm.io/gorm"
 )
@@ -855,11 +996,7 @@ server:
   read_timeout: 60
   write_timeout: 60
 
-database:
-  driver: "sqlite"
-  dsn: "{{ .DatabaseFile }}"
-  max_idle_conns: 5
-  max_open_conns: 10
+{{ .DatabaseConfig }}
 {{- if .Options.WithAuth }}
 
 jwt:
@@ -922,7 +1059,7 @@ jwt:
 const projectEnvTemplate = `APP__NAME={{ .AppName }}
 APP__ENV=development
 APP__SERVER__PORT=8080
-APP__DATABASE__DSN={{ .DatabaseFile }}
+{{ .DatabaseEnv }}
 {{- if .Options.WithAuth }}
 APP__JWT__SECRET=replace-with-a-strong-random-secret
 APP__JWT__ISSUER={{ .Module }}
@@ -1033,6 +1170,12 @@ go run ./cmd/server
 Configuration overrides can be placed in {{ bt }}settings/config.local.yaml{{ bt }} (copy from {{ bt }}settings/config.local.yaml.example{{ bt }}).
 {{- end }}
 
+{{- if .DatabaseImportPath }}
+This scaffold preselects the {{ bt }}{{ .Database }}{{ bt }} driver and wires its registration import for you.
+{{- else }}
+This scaffold does not preselect a database driver. Choose one later and import the matching {{ bt }}bootstrap/drivers/*{{ bt }} package before starting the app.
+{{- end }}
+
 ## Generated structure
 
 - {{ bt }}config.yaml{{ bt }}
@@ -1072,6 +1215,11 @@ return []any{
 &{{ .ModelName }}{},
 }
 }
+`
+
+const appDriversTemplate = `package {{ .PackageName }}
+
+import _ "{{ .DatabaseImportPath }}"
 `
 
 const appReposTemplate = `package {{ .PackageName }}

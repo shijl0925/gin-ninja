@@ -131,7 +131,7 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"startproject", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "Template options:") {
+		if !strings.Contains(stderr.String(), "Template options:") || !strings.Contains(stderr.String(), "-database <driver>") {
 			t.Fatalf("expected startproject help, got %q", stderr.String())
 		}
 	})
@@ -164,7 +164,7 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"startapp", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "Advanced overrides:") {
+		if !strings.Contains(stderr.String(), "Advanced overrides:") || !strings.Contains(stderr.String(), "-database <driver>") {
 			t.Fatalf("expected startapp help, got %q", stderr.String())
 		}
 
@@ -184,6 +184,16 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 			if !strings.Contains(stderr.String(), tc.msg) {
 				t.Fatalf("expected %q in stderr, got %q", tc.msg, stderr.String())
 			}
+		}
+	})
+
+	t.Run("database validation", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		if code := run(&stdout, &stderr, []string{"startproject", "demo", "-module", "github.com/acme/demo", "-output", filepath.Join(t.TempDir(), "demo"), "-database", "oracle"}); code != 1 {
+			t.Fatalf("run() code = %d, want 1 stderr=%q", code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "unknown scaffold database") {
+			t.Fatalf("expected database validation error, got %q", stderr.String())
 		}
 	})
 }

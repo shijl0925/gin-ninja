@@ -179,7 +179,7 @@ func TestCRUDAndScaffoldErrorCoverage(t *testing.T) {
 				t.Fatalf("expected normalizeScaffoldSubdir(%q) to fail", tc.value)
 			}
 		}
-		if _, err := buildAppTemplateData(AppScaffoldConfig{Name: "!!!"}, scaffoldOptions{}); err == nil {
+		if _, err := buildAppTemplateData(AppScaffoldConfig{Name: "!!!"}, scaffoldOptions{}, true); err == nil {
 			t.Fatal("expected invalid app name error")
 		}
 		if err := ensureScaffoldDir(blocker, false); err == nil || !strings.Contains(err.Error(), "not a directory") {

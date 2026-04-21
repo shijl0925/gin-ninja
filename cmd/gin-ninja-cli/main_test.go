@@ -136,6 +136,10 @@ func TestRunStartProject(t *testing.T) {
 	if !strings.Contains(string(content), "type IExampleRepo interface") {
 		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
 	}
+	dbBootstrap, err := os.ReadFile(filepath.Join(outputDir, "bootstrap", "db.go"))
+	if err == nil && strings.Contains(string(dbBootstrap), `bootstrap/drivers/`) {
+		t.Fatalf("did not expect standard bootstrap file in minimal scaffold, got:\n%s", dbBootstrap)
+	}
 }
 
 func TestRunStartProjectStandardTemplate(t *testing.T) {
@@ -224,6 +228,43 @@ func TestRunStartProjectWithGormx(t *testing.T) {
 	}
 	if !strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected gormx scaffold, got:\n%s", content)
+	}
+}
+
+func TestRunStartProjectWithDatabaseSelection(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "mysite")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startproject",
+		"mysite",
+		"-module", "github.com/acme/mysite",
+		"-output", outputDir,
+		"-template", "standard",
+		"-database", "mysql",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	dbBootstrap, err := os.ReadFile(filepath.Join(outputDir, "bootstrap", "db.go"))
+	if err != nil {
+		t.Fatalf("read bootstrap/db.go: %v", err)
+	}
+	if !strings.Contains(string(dbBootstrap), `bootstrap/drivers/mysql`) {
+		t.Fatalf("expected mysql driver import, got:\n%s", dbBootstrap)
+	}
+
+	configYAML, err := os.ReadFile(filepath.Join(outputDir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("read config.yaml: %v", err)
+	}
+	if !strings.Contains(string(configYAML), `driver: "mysql"`) {
+		t.Fatalf("expected mysql config, got:\n%s", configYAML)
 	}
 }
 
@@ -340,6 +381,9 @@ func TestRunStartApp(t *testing.T) {
 	if !strings.Contains(string(content), "type IPostRepo interface") {
 		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
 	}
+	if _, err := os.Stat(filepath.Join(outputDir, "drivers.go")); !os.IsNotExist(err) {
+		t.Fatalf("did not expect drivers.go by default, err=%v", err)
+	}
 }
 
 func TestRunStartAppWithForceAndTemplate(t *testing.T) {
@@ -408,6 +452,35 @@ func TestRunStartAppWithGormx(t *testing.T) {
 	}
 }
 
+func TestRunStartAppWithDatabaseSelection(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	outputDir := filepath.Join(dir, "blog")
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{
+		"startapp",
+		"blog",
+		"-output", outputDir,
+		"-package", "blog",
+		"-model", "Post",
+		"-database", "postgres",
+	})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	driversGo, err := os.ReadFile(filepath.Join(outputDir, "drivers.go"))
+	if err != nil {
+		t.Fatalf("read drivers.go: %v", err)
+	}
+	if !strings.Contains(string(driversGo), `bootstrap/drivers/postgres`) {
+		t.Fatalf("expected postgres driver import, got:\n%s", driversGo)
+	}
+}
+
 func TestRunStartAppWithConfigPreset(t *testing.T) {
 	t.Parallel()
 
@@ -420,6 +493,7 @@ output: `+outputDir+`
 package: accounts
 model: Account
 template: auth
+database: sqlite
 with_tests: true
 `), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -435,6 +509,7 @@ with_tests: true
 		filepath.Join(outputDir, "auth.go"),
 		filepath.Join(outputDir, "services.go"),
 		filepath.Join(outputDir, "scaffold_test.go"),
+		filepath.Join(outputDir, "drivers.go"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected scaffold file %s: %v", path, err)
@@ -454,6 +529,7 @@ func TestRunInitProjectWizard(t *testing.T) {
 		outputDir,
 		"internal/app",
 		"standard",
+		"mysql",
 		"yes",
 		"no",
 		"",
@@ -481,6 +557,13 @@ func TestRunInitProjectWizard(t *testing.T) {
 	if strings.Contains(string(content), "gormx") {
 		t.Fatalf("expected native gorm scaffold from wizard choice, got:\n%s", content)
 	}
+	dbBootstrap, err := os.ReadFile(filepath.Join(outputDir, "bootstrap", "db.go"))
+	if err != nil {
+		t.Fatalf("read bootstrap/db.go: %v", err)
+	}
+	if !strings.Contains(string(dbBootstrap), `bootstrap/drivers/mysql`) {
+		t.Fatalf("expected mysql driver import from wizard, got:\n%s", dbBootstrap)
+	}
 }
 
 func TestRunInitAppWizard(t *testing.T) {
@@ -495,6 +578,7 @@ func TestRunInitAppWizard(t *testing.T) {
 		"wizardapp",
 		"Widget",
 		"auth",
+		"postgres",
 		"yes",
 		"yes",
 		"",
@@ -509,6 +593,7 @@ func TestRunInitAppWizard(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join(outputDir, "auth.go"),
 		filepath.Join(outputDir, "scaffold_test.go"),
+		filepath.Join(outputDir, "drivers.go"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected scaffold file %s: %v", path, err)

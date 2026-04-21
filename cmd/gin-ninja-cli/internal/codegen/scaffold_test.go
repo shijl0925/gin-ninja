@@ -175,6 +175,74 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	runScaffoldGoTest(t, outputDir)
 }
 
+func TestWriteProjectScaffoldDatabaseSelection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("mysql", func(t *testing.T) {
+		dir := t.TempDir()
+		outputDir := filepath.Join(dir, "mysite")
+		if err := WriteProjectScaffold(ProjectScaffoldConfig{
+			Name:     "mysite",
+			Module:   "github.com/acme/mysite",
+			Template: "standard",
+			Database: "mysql",
+		}, outputDir); err != nil {
+			t.Fatalf("WriteProjectScaffold(mysql): %v", err)
+		}
+
+		dbBootstrap, err := os.ReadFile(filepath.Join(outputDir, "bootstrap", "db.go"))
+		if err != nil {
+			t.Fatalf("read bootstrap/db.go: %v", err)
+		}
+		if !strings.Contains(string(dbBootstrap), `bootstrap/drivers/mysql`) {
+			t.Fatalf("expected mysql driver import, got:\n%s", dbBootstrap)
+		}
+
+		configYAML, err := os.ReadFile(filepath.Join(outputDir, "config.yaml"))
+		if err != nil {
+			t.Fatalf("read config.yaml: %v", err)
+		}
+		text := string(configYAML)
+		if !strings.Contains(text, `driver: "mysql"`) || !strings.Contains(text, `mysql:`) {
+			t.Fatalf("expected mysql config block, got:\n%s", text)
+		}
+
+		runScaffoldGoTest(t, outputDir)
+	})
+
+	t.Run("none", func(t *testing.T) {
+		dir := t.TempDir()
+		outputDir := filepath.Join(dir, "mysite")
+		if err := WriteProjectScaffold(ProjectScaffoldConfig{
+			Name:     "mysite",
+			Module:   "github.com/acme/mysite",
+			Template: "standard",
+			Database: "none",
+		}, outputDir); err != nil {
+			t.Fatalf("WriteProjectScaffold(none): %v", err)
+		}
+
+		dbBootstrap, err := os.ReadFile(filepath.Join(outputDir, "bootstrap", "db.go"))
+		if err != nil {
+			t.Fatalf("read bootstrap/db.go: %v", err)
+		}
+		if strings.Contains(string(dbBootstrap), `bootstrap/drivers/`) {
+			t.Fatalf("did not expect driver import, got:\n%s", dbBootstrap)
+		}
+
+		configYAML, err := os.ReadFile(filepath.Join(outputDir, "config.yaml"))
+		if err != nil {
+			t.Fatalf("read config.yaml: %v", err)
+		}
+		text := string(configYAML)
+		if !strings.Contains(text, `driver: ""`) {
+			t.Fatalf("expected empty driver placeholder, got:\n%s", text)
+		}
+
+		runScaffoldGoTest(t, outputDir)
+	})
+}
+
 func TestWriteAppScaffold(t *testing.T) {
 	t.Parallel()
 
@@ -288,6 +356,62 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 	}
 
 	runScaffoldGoTest(t, dir)
+}
+
+func TestWriteAppScaffoldDatabaseSelection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("selected driver", func(t *testing.T) {
+		dir := t.TempDir()
+		goMod := "module demo\n\ngo 1.26\n"
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+			t.Fatalf("write go.mod: %v", err)
+		}
+
+		outputDir := filepath.Join(dir, "blog")
+		if err := WriteAppScaffold(AppScaffoldConfig{
+			Name:        "blog",
+			PackageName: "blog",
+			ModelName:   "Post",
+			Database:    "postgres",
+		}, outputDir); err != nil {
+			t.Fatalf("WriteAppScaffold(postgres): %v", err)
+		}
+
+		driversGo, err := os.ReadFile(filepath.Join(outputDir, "drivers.go"))
+		if err != nil {
+			t.Fatalf("read drivers.go: %v", err)
+		}
+		if !strings.Contains(string(driversGo), `bootstrap/drivers/postgres`) {
+			t.Fatalf("expected postgres driver import, got:\n%s", driversGo)
+		}
+
+		runScaffoldGoTest(t, dir)
+	})
+
+	t.Run("none", func(t *testing.T) {
+		dir := t.TempDir()
+		goMod := "module demo\n\ngo 1.26\n"
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+			t.Fatalf("write go.mod: %v", err)
+		}
+
+		outputDir := filepath.Join(dir, "blog")
+		if err := WriteAppScaffold(AppScaffoldConfig{
+			Name:        "blog",
+			PackageName: "blog",
+			ModelName:   "Post",
+			Database:    "none",
+		}, outputDir); err != nil {
+			t.Fatalf("WriteAppScaffold(none): %v", err)
+		}
+
+		if _, err := os.Stat(filepath.Join(outputDir, "drivers.go")); !os.IsNotExist(err) {
+			t.Fatalf("expected drivers.go to be omitted, err=%v", err)
+		}
+
+		runScaffoldGoTest(t, dir)
+	})
 }
 
 func TestWriteAppScaffoldRejectsNonEmptyDirectory(t *testing.T) {

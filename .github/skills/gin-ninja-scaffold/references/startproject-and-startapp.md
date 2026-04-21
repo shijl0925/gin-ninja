@@ -29,6 +29,7 @@ Common flags:
 - `-output <path>` -> output directory, defaulting to the project name
 - `-config <path>` -> load YAML/JSON scaffold presets
 - `-template <minimal|standard|auth|admin>`
+- `-database <sqlite|mysql|postgres|none>`
 - `-with-tests`
 
 Advanced overrides:
@@ -54,6 +55,7 @@ Common flags:
 - `-model <name>` -> override the generated model name
 - `-config <path>` -> load YAML/JSON scaffold presets
 - `-template <minimal|standard|auth|admin>`
+- `-database <sqlite|mysql|postgres|none>`
 - `-with-tests`
 
 Advanced overrides:

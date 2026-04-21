@@ -266,10 +266,11 @@ gin-ninja-cli migrate
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
+  -database postgres \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx
+gin-ninja-cli startapp accounts -template standard -with-gormx -database mysql
 
 # interactive wizard
 gin-ninja-cli init
@@ -329,6 +330,7 @@ Useful scaffold flags:
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
+- `-database <sqlite|mysql|postgres|none>` (`startproject` defaults to `sqlite`; `startapp` defaults to `none`; selecting a driver wires the matching registration import)
 - `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
@@ -341,6 +343,7 @@ name: mysite
 module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
+database: postgres
 template: admin
 with_tests: true
 with_gormx: false

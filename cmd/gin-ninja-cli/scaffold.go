@@ -20,6 +20,7 @@ type scaffoldPreset struct {
 	AppDir      string `json:"app_dir" yaml:"app_dir"`
 	PackageName string `json:"package" yaml:"package"`
 	ModelName   string `json:"model" yaml:"model"`
+	Database    string `json:"database" yaml:"database"`
 	Template    string `json:"template" yaml:"template"`
 	WithTests   *bool  `json:"with_tests" yaml:"with_tests"`
 	WithAuth    *bool  `json:"with_auth" yaml:"with_auth"`
@@ -29,6 +30,11 @@ type scaffoldPreset struct {
 }
 
 const defaultScaffoldAppDir = "app"
+
+const (
+	defaultProjectScaffoldDatabase = string(codegen.ScaffoldDatabaseSQLite)
+	defaultAppScaffoldDatabase     = string(codegen.ScaffoldDatabaseNone)
+)
 
 func runGenerate(stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
@@ -94,6 +100,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	module := fs.String("module", "", "Go module path for the generated project")
 	output := fs.String("output", "", "Output directory (defaults to the project name)")
 	appDir := fs.String("app-dir", "", "Relative app package directory inside the generated project")
+	database := fs.String("database", "", "Database driver scaffold: sqlite, mysql, postgres, or none")
 	configPath := fs.String("config", "", "Load scaffold preset from YAML or JSON")
 	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
@@ -138,6 +145,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		Name:      name,
 		Module:    mod,
 		AppDir:    mergeStringFlag(strings.TrimSpace(*appDir), set["app-dir"], strings.TrimSpace(preset.AppDir), ""),
+		Database:  mergeStringFlag(strings.TrimSpace(*database), set["database"], strings.TrimSpace(preset.Database), defaultProjectScaffoldDatabase),
 		Template:  mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
 		WithTests: mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:  mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
@@ -163,6 +171,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	output := fs.String("output", "", "Output directory (defaults to the app name)")
 	packageName := fs.String("package", "", "Override the generated Go package name")
 	modelName := fs.String("model", "", "Override the generated model name")
+	database := fs.String("database", "", "Database driver import to add: sqlite, mysql, postgres, or none")
 	configPath := fs.String("config", "", "Load scaffold preset from YAML or JSON")
 	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
@@ -205,6 +214,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		Name:        name,
 		PackageName: mergeStringFlag(strings.TrimSpace(*packageName), set["package"], strings.TrimSpace(preset.PackageName), ""),
 		ModelName:   mergeStringFlag(strings.TrimSpace(*modelName), set["model"], strings.TrimSpace(preset.ModelName), ""),
+		Database:    mergeStringFlag(strings.TrimSpace(*database), set["database"], strings.TrimSpace(preset.Database), defaultAppScaffoldDatabase),
 		Template:    mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
 		WithTests:   mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:    mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
@@ -296,6 +306,16 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read template preset: %v\n", err)
 		return 1
 	}
+	database, err := promptChoice(stdout, reader, "Database driver", mergeStringFlag("", false, strings.TrimSpace(preset.Database), defaultProjectScaffoldDatabase), []string{
+		string(codegen.ScaffoldDatabaseSQLite),
+		string(codegen.ScaffoldDatabaseMySQL),
+		string(codegen.ScaffoldDatabasePostgres),
+		string(codegen.ScaffoldDatabaseNone),
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "read database driver: %v\n", err)
+		return 1
+	}
 	withTests, err := promptBool(stdout, reader, "Add starter tests?", boolValueOrDefault(preset.WithTests, false))
 	if err != nil {
 		fmt.Fprintf(stderr, "read test preference: %v\n", err)
@@ -310,6 +330,7 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		Name:      name,
 		Module:    module,
 		AppDir:    appDir,
+		Database:  database,
 		Template:  templateName,
 		WithTests: withTests,
 		WithGormx: boolPtr(withGormx),
@@ -352,6 +373,16 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		fmt.Fprintf(stderr, "read template preset: %v\n", err)
 		return 1
 	}
+	database, err := promptChoice(stdout, reader, "Database driver import", mergeStringFlag("", false, strings.TrimSpace(preset.Database), defaultAppScaffoldDatabase), []string{
+		string(codegen.ScaffoldDatabaseSQLite),
+		string(codegen.ScaffoldDatabaseMySQL),
+		string(codegen.ScaffoldDatabasePostgres),
+		string(codegen.ScaffoldDatabaseNone),
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "read database driver import: %v\n", err)
+		return 1
+	}
 	withTests, err := promptBool(stdout, reader, "Add starter tests?", boolValueOrDefault(preset.WithTests, false))
 	if err != nil {
 		fmt.Fprintf(stderr, "read test preference: %v\n", err)
@@ -366,6 +397,7 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		Name:        name,
 		PackageName: packageName,
 		ModelName:   modelName,
+		Database:    database,
 		Template:    templateName,
 		WithTests:   withTests,
 		WithGormx:   boolPtr(withGormx),
@@ -391,12 +423,13 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -config ./scaffold.yaml")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-config <path>] [-template <minimal|standard|auth|admin>]")
+	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Basic options:")
 	printFlagGroup(w, []flagHelp{
 		{name: "-module <module>", usage: "Go module path (defaults to the project name)"},
 		{name: "-output <path>", usage: "Output directory (defaults to the project name)"},
+		{name: "-database <driver>", usage: "Database scaffold to wire: sqlite, mysql, postgres, or none (default: sqlite)"},
 		{name: "-config <path>", usage: "Load scaffold preset from YAML or JSON"},
 	})
 	fmt.Fprintln(w)
@@ -432,13 +465,14 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w, "  gin-ninja-cli startapp accounts -config ./scaffold.yaml")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-config <path>] [-template <minimal|standard|auth|admin>]")
+	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Basic options:")
 	printFlagGroup(w, []flagHelp{
 		{name: "-output <path>", usage: "Output directory (defaults to the app name)"},
 		{name: "-package <name>", usage: "Override the generated Go package name"},
 		{name: "-model <name>", usage: "Override the generated model name"},
+		{name: "-database <driver>", usage: "Add a matching driver import file for sqlite, mysql, postgres, or none (default: none)"},
 		{name: "-config <path>", usage: "Load scaffold preset from YAML or JSON"},
 	})
 	fmt.Fprintln(w)

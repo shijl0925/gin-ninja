@@ -112,7 +112,7 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		Name:        "123 blog",
 		PackageName: "123 blog",
 		ModelName:   "123 post",
-	}, minimalOpts)
+	}, minimalOpts, true)
 	if err != nil {
 		t.Fatalf("buildAppTemplateData(minimal): %v", err)
 	}
@@ -124,7 +124,7 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 		Name:        "admin blog",
 		PackageName: "admin_blog",
 		ModelName:   "Entry",
-	}, standardOpts)
+	}, standardOpts, true)
 	if err != nil {
 		t.Fatalf("buildAppTemplateData(standard): %v", err)
 	}

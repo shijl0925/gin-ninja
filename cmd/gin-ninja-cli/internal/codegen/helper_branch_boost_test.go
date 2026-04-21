@@ -90,12 +90,12 @@ func TestCodegenHelperBranchBoost(t *testing.T) {
 		if scaffoldNormalizeExportedName("123 api") != "App123Api" {
 			t.Fatalf("unexpected normalized exported name")
 		}
-		if data, err := buildAppTemplateData(AppScaffoldConfig{Name: "post category"}, scaffoldOptions{}); err != nil {
+		if data, err := buildAppTemplateData(AppScaffoldConfig{Name: "post category"}, scaffoldOptions{}, true); err != nil {
 			t.Fatalf("expected default app template data, got %v", err)
 		} else if data.PackageName != "post_category" || data.ModelName != "PostCategory" || data.ModelPlural != "PostCategories" || data.RouteBase != "post-categories" {
 			t.Fatalf("unexpected default app template data: %+v", data)
 		}
-		if _, err := buildAppTemplateData(AppScaffoldConfig{}, scaffoldOptions{}); err == nil || !strings.Contains(err.Error(), "name is required") {
+		if _, err := buildAppTemplateData(AppScaffoldConfig{}, scaffoldOptions{}, true); err == nil || !strings.Contains(err.Error(), "name is required") {
 			t.Fatalf("expected missing name error, got %v", err)
 		}
 		if _, err := resolveScaffoldOptions("standard", false, false, false, nil); err != nil {

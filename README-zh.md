@@ -228,10 +228,11 @@ gin-ninja-cli migrate
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
+  -database postgres \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx
+gin-ninja-cli startapp accounts -template standard -with-gormx -database mysql
 
 # 交互式向导
 gin-ninja-cli init
@@ -291,6 +292,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
+- `-database <sqlite|mysql|postgres|none>`（`startproject` 默认 `sqlite`；`startapp` 默认 `none`；选中驱动时会自动生成对应注册导入）
 - `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
@@ -303,6 +305,7 @@ name: mysite
 module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
+database: postgres
 template: admin
 with_tests: true
 with_gormx: false
