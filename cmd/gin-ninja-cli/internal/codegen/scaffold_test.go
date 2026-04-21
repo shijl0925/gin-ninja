@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -343,11 +342,7 @@ func TestWriteAppScaffoldForceAllowsNonEmptyDirectory(t *testing.T) {
 func runScaffoldGoTest(t *testing.T, dir string) {
 	t.Helper()
 
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve repo root")
-	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", "..", ".."))
+	repoRoot := repoRoot(t)
 
 	goModPath := filepath.Join(dir, "go.mod")
 	content, err := os.ReadFile(goModPath)
