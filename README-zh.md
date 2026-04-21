@@ -193,6 +193,8 @@ CLI 现在采用渐进式帮助：
 - `gin-ninja-cli help startproject` 或 `gin-ninja-cli startproject -h` 再查看完整参数
 - `gin-ninja-cli init` 可通过交互式向导完成首次创建
 
+运行时框架继续保留在根模块，`cmd/gin-ninja-cli` 则作为独立工具模块维护，这样应用构建时不会把 CLI / codegen 视为运行时模块边界的一部分。
+
 CLI 会安装到 Go 的可执行目录（优先使用 `$GOBIN`，未设置时使用 `$GOPATH/bin`）：
 
 ```bash
@@ -226,10 +228,11 @@ gin-ninja-cli migrate
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
+  -database postgres \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx
+gin-ninja-cli startapp accounts -template standard -with-gormx -database mysql
 
 # 交互式向导
 gin-ninja-cli init
@@ -289,6 +292,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
+- `-database <sqlite|mysql|postgres|none>`（`startproject` 默认 `sqlite`；`startapp` 默认 `none`；选中驱动时会自动生成对应注册导入）
 - `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
 - `-app-dir <path>`（仅 `startproject` 支持）
@@ -301,6 +305,7 @@ name: mysite
 module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
+database: postgres
 template: admin
 with_tests: true
 with_gormx: false
@@ -558,6 +563,7 @@ log:
 ```go
 import (
     "github.com/shijl0925/gin-ninja/bootstrap"
+    _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
     "github.com/shijl0925/gin-ninja/pkg/logger"
 )
@@ -570,7 +576,10 @@ db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
 ```
 
-- `bootstrap.MustInitDB` 直接支持 `sqlite`、`mysql`、`postgres`
+- `bootstrap.MustInitDB` 通过驱动注册包解析数据库驱动，按需引入即可，例如：
+  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
+  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
+  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
 - `orm.Middleware(db)` 可把数据库句柄注入请求上下文
 - 事务场景可以在操作上使用 `ninja.WithTransaction()`
 

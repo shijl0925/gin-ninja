@@ -9,6 +9,9 @@
 //
 //	orm.Init(db)
 //	logger.SetGlobal(log)
+//
+// Import the matching bootstrap/drivers package for the configured database
+// driver before calling InitDB or MustInitDB.
 package bootstrap
 
 import (

@@ -4,32 +4,33 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects"
 	"github.com/shijl0925/gin-ninja/settings"
 )
 
 func TestSQLiteAndPostgresHelpers(t *testing.T) {
 	t.Parallel()
 
-	if _, err := sqliteDialector(""); err == nil || !strings.Contains(err.Error(), "must not be empty") {
+	if _, err := internaldialects.SQLite(settings.DatabaseConfig{}); err == nil || !strings.Contains(err.Error(), "must not be empty") {
 		t.Fatalf("expected sqlite DSN validation error, got %v", err)
 	}
 
-	if loc := timeLocation(""); loc == nil {
+	if loc := internaldialects.TimeLocation(""); loc == nil {
 		t.Fatal("expected default location")
 	}
-	if loc := timeLocation("Definitely/Invalid"); loc == nil {
+	if loc := internaldialects.TimeLocation("Definitely/Invalid"); loc == nil {
 		t.Fatal("expected fallback location")
 	}
 
-	params := sanitizeParams(map[string]string{" a ": "1", "": "skip"})
+	params := internaldialects.SanitizeParams(map[string]string{" a ": "1", "": "skip"})
 	if len(params) != 1 || params["a"] != "1" {
 		t.Fatalf("unexpected sanitized params: %+v", params)
 	}
 
-	if got := postgresDSNValue(""); got != "''" {
+	if got := internaldialects.PostgresDSNValue(""); got != "''" {
 		t.Fatalf("unexpected empty postgres DSN value %q", got)
 	}
-	if got := postgresDSNValue(`a b'c\`); !strings.HasPrefix(got, "'") {
+	if got := internaldialects.PostgresDSNValue(`a b'c\`); !strings.HasPrefix(got, "'") {
 		t.Fatalf("expected quoted postgres DSN value, got %q", got)
 	}
 
@@ -40,15 +41,15 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 			Password: "secret",
 		},
 	}
-	if _, err := postgresDSN(cfg); err == nil || !strings.Contains(err.Error(), "user must not be empty") {
+	if _, err := internaldialects.PostgresDSN(cfg); err == nil || !strings.Contains(err.Error(), "user must not be empty") {
 		t.Fatalf("expected postgres user validation error, got %v", err)
 	}
 
-	if _, err := decodeRawMySQLDSN("root:bad%zz@tcp(localhost:3306)/app"); err == nil {
+	if _, err := internaldialects.DecodeRawMySQLDSN("root:bad%zz@tcp(localhost:3306)/app"); err == nil {
 		t.Fatal("expected mysql decode error")
 	}
 
-	if !shouldIgnoreImplicitDefaultDSN("app.db", "mysql", true) {
+	if !internaldialects.ShouldIgnoreImplicitDefaultDSN("app.db", "mysql", true) {
 		t.Fatal("expected implicit sqlite dsn to be ignored for structured mysql config")
 	}
 
@@ -65,7 +66,7 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 			Params:    map[string]string{"tls": "skip-verify", " ": "ignored"},
 		},
 	}
-	dsn, err := mysqlDSN(mysqlCfg)
+	dsn, err := internaldialects.MySQLDSN(mysqlCfg)
 	if err != nil {
 		t.Fatalf("mysqlDSN: %v", err)
 	}
@@ -74,23 +75,23 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 			t.Fatalf("expected mysql DSN to contain %q, got %q", want, dsn)
 		}
 	}
-	if _, err := mysqlDialector(mysqlCfg); err != nil {
+	if _, err := internaldialects.MySQL(mysqlCfg); err != nil {
 		t.Fatalf("mysqlDialector structured: %v", err)
 	}
 
 	rawMySQL := settings.DatabaseConfig{Driver: "mysql", DSN: "root:secret%21@tcp(localhost:3306)/app"}
-	if _, err := mysqlDialector(rawMySQL); err != nil {
+	if _, err := internaldialects.MySQL(rawMySQL); err != nil {
 		t.Fatalf("mysqlDialector raw: %v", err)
 	}
 
-	if _, err := mysqlDriverConfig(settings.DatabaseConfig{MySQL: settings.MySQLConfig{Name: "app"}}); err == nil || !strings.Contains(err.Error(), "host must not be empty") {
+	if _, err := internaldialects.MySQLDSN(settings.DatabaseConfig{MySQL: settings.MySQLConfig{Name: "app"}}); err == nil || !strings.Contains(err.Error(), "host must not be empty") {
 		t.Fatalf("expected mysql host validation error, got %v", err)
 	}
-	if _, err := mysqlDriverConfig(settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1"}}); err == nil || !strings.Contains(err.Error(), "database name must not be empty") {
+	if _, err := internaldialects.MySQLDSN(settings.DatabaseConfig{MySQL: settings.MySQLConfig{Host: "127.0.0.1"}}); err == nil || !strings.Contains(err.Error(), "database name must not be empty") {
 		t.Fatalf("expected mysql database validation error, got %v", err)
 	}
 
-	if _, err := postgresDSN(settings.DatabaseConfig{
+	if _, err := internaldialects.PostgresDSN(settings.DatabaseConfig{
 		Postgres: settings.PostgresConfig{
 			Host: "127.0.0.1",
 			User: "postgres",
@@ -100,10 +101,10 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 	}
 
 	pgRaw := settings.DatabaseConfig{Driver: "postgres", DSN: "postgres://localhost/app"}
-	if dsn, err := postgresDSN(pgRaw); err != nil || dsn != pgRaw.DSN {
+	if dsn, err := internaldialects.PostgresDSN(pgRaw); err != nil || dsn != pgRaw.DSN {
 		t.Fatalf("expected raw postgres dsn passthrough, got %q err=%v", dsn, err)
 	}
-	if _, err := postgresDialector(pgRaw); err != nil {
+	if _, err := internaldialects.Postgres(pgRaw); err != nil {
 		t.Fatalf("postgresDialector raw: %v", err)
 	}
 
@@ -119,7 +120,7 @@ func TestSQLiteAndPostgresHelpers(t *testing.T) {
 			Params:   map[string]string{"application_name": "gin ninja", "search_path": "public"},
 		},
 	}
-	pgDSN, err := postgresDSN(pgStructured)
+	pgDSN, err := internaldialects.PostgresDSN(pgStructured)
 	if err != nil {
 		t.Fatalf("postgresDSN structured: %v", err)
 	}

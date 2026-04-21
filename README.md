@@ -231,6 +231,8 @@ The CLI now follows a progressive-help model:
 - `gin-ninja-cli help startproject` or `gin-ninja-cli startproject -h` shows full command details
 - `gin-ninja-cli init` starts an interactive wizard for new users
 
+The runtime framework stays in the root module, while `cmd/gin-ninja-cli` is maintained as a separate tool module so app builds do not inherit CLI/codegen package boundaries.
+
 Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
 
 ```bash
@@ -264,10 +266,11 @@ gin-ninja-cli migrate
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template admin \
+  -database postgres \
   -app-dir internal/app \
   -with-tests
 gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx
+gin-ninja-cli startapp accounts -template standard -with-gormx -database mysql
 
 # interactive wizard
 gin-ninja-cli init
@@ -327,6 +330,7 @@ Useful scaffold flags:
 - `-with-tests`
 - `-with-auth`
 - `-with-admin`
+- `-database <sqlite|mysql|postgres|none>` (`startproject` defaults to `sqlite`; `startapp` defaults to `none`; selecting a driver wires the matching registration import)
 - `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
 - `-app-dir <path>` (`startproject` only)
@@ -339,6 +343,7 @@ name: mysite
 module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
+database: postgres
 template: admin
 with_tests: true
 with_gormx: false
@@ -590,6 +595,7 @@ Only keys present in the override file are changed; all other keys keep their ba
 ```go
 import (
     "github.com/shijl0925/gin-ninja/bootstrap"
+    _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
     "github.com/shijl0925/gin-ninja/pkg/logger"
 )
@@ -605,7 +611,11 @@ db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
 ```
 
-`bootstrap.MustInitDB` now supports `sqlite`, `mysql`, and `postgres` directly.
+`bootstrap.MustInitDB` resolves drivers through registration packages. Import the matching package for the driver you configure, for example:
+
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
 
 `examples/full/config.yaml` already includes ready-to-copy MySQL and PostgreSQL DSN examples.
 

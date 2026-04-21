@@ -13,6 +13,7 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	admin "github.com/shijl0925/gin-ninja/admin"
 	"github.com/shijl0925/gin-ninja/bootstrap"
+	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 	"github.com/shijl0925/gin-ninja/examples/full/app"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"

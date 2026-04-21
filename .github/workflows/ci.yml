@@ -23,18 +23,37 @@ jobs:
           cache: true
 
       - name: Test with coverage
-        run: go test ./... -coverprofile=coverage.out
+        run: |
+          go test ./... -coverprofile=coverage.out
+          (
+            cd cmd/gin-ninja-cli
+            go test ./... -coverprofile=coverage-cli.out
+          )
+          (
+            cd examples/full/browsertests
+            go test ./...
+          )
+          {
+            echo 'mode: set'
+            tail -n +2 coverage.out
+            tail -n +2 cmd/gin-ninja-cli/coverage-cli.out
+          } > coverage-all.out
 
       - name: Install DeepSource CLI
         run: curl -fsSL https://cli.deepsource.com/install | BINDIR=./bin sh
 
       - name: Upload coverage to DeepSource
-        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage.out
+        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage-all.out
         env:
           DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
 
       - name: Build
-        run: go build ./...
+        run: |
+          go build ./...
+          (
+            cd cmd/gin-ninja-cli
+            go build ./...
+          )
 
   postgres-migration-integration:
     if: github.event_name == 'pull_request'
@@ -73,7 +92,9 @@ jobs:
           GIN_NINJA_TEST_POSTGRES_DB: gin_ninja
           GIN_NINJA_TEST_POSTGRES_SSLMODE: disable
           GIN_NINJA_TEST_POSTGRES_TIME_ZONE: UTC
-        run: go test ./cmd/gin-ninja-cli -run '^TestRunMigrationCommandsHandleMultiStepSchemaEvolutionPostgres$' -count=1
+        run: |
+          cd cmd/gin-ninja-cli
+          go test ./... -run '^TestRunMigrationCommandsHandleMultiStepSchemaEvolutionPostgres$' -count=1
 
   mysql-migration-integration:
     if: github.event_name == 'pull_request'
@@ -111,4 +132,6 @@ jobs:
           GIN_NINJA_TEST_MYSQL_DB: gin_ninja
           GIN_NINJA_TEST_MYSQL_CHARSET: utf8mb4
           GIN_NINJA_TEST_MYSQL_LOC: UTC
-        run: go test ./cmd/gin-ninja-cli -run '^TestRunMigrationCommandsHandleMultiStepSchemaEvolutionMySQL$' -count=1
+        run: |
+          cd cmd/gin-ninja-cli
+          go test ./... -run '^TestRunMigrationCommandsHandleMultiStepSchemaEvolutionMySQL$' -count=1

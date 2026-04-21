@@ -12,8 +12,8 @@ CLI_INSTALL_PATH := $(GOBIN)/$(CLI_NAME)
 
 build-cli:
 	mkdir -p $(CLI_BUILD_DIR)
-	go build -o $(CLI_BUILD_PATH) ./cmd/gin-ninja-cli
+	cd ./cmd/gin-ninja-cli && go build -o $(CLI_BUILD_PATH) .
 
 install-cli:
 	mkdir -p $(GOBIN)
-	go build -o $(CLI_INSTALL_PATH) ./cmd/gin-ninja-cli
+	cd ./cmd/gin-ninja-cli && go build -o $(CLI_INSTALL_PATH) .

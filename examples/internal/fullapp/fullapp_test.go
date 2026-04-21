@@ -163,7 +163,7 @@ func TestFullappBuildAPIAndRunCoverage(t *testing.T) {
 	}
 
 	if _, err := InitDB(&settings.DatabaseConfig{Driver: "oracle"}); err == nil {
-		t.Fatal("expected InitDB to fail for unsupported driver")
+		t.Fatal("expected InitDB to fail for missing driver registration")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects"
 	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
 	gormmysql "gorm.io/driver/mysql"
@@ -13,6 +14,12 @@ import (
 )
 
 const wantMySQLDefaultStringSize uint = 191
+
+func init() {
+	MustRegisterDialector(internaldialects.SQLite, "sqlite", "sqlite3")
+	MustRegisterDialector(internaldialects.MySQL, "mysql")
+	MustRegisterDialector(internaldialects.Postgres, "postgres", "postgresql")
+}
 
 func TestBuildDialector(t *testing.T) {
 	cases := []struct {
@@ -33,8 +40,8 @@ func TestBuildDialector(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dialector, err := buildDialector(&tc.cfg)
 			if tc.wantErr {
-				if err == nil {
-					t.Fatal("expected error")
+				if err == nil || !strings.Contains(err.Error(), "not registered") {
+					t.Fatalf("expected missing registration error, got %v", err)
 				}
 				return
 			}
@@ -62,13 +69,13 @@ func TestBuildDialector(t *testing.T) {
 }
 
 func TestSQLiteDialectorRequiresDSN(t *testing.T) {
-	if _, err := sqliteDialector(""); err == nil {
+	if _, err := internaldialects.SQLite(settings.DatabaseConfig{}); err == nil {
 		t.Fatal("expected sqlite dsn validation error")
 	}
 }
 
 func TestMySQLDialectorRequiresDSN(t *testing.T) {
-	if _, err := mysqlDialector(settings.DatabaseConfig{}); err == nil {
+	if _, err := internaldialects.MySQL(settings.DatabaseConfig{}); err == nil {
 		t.Fatal("expected mysql dsn validation error")
 	}
 }
@@ -148,7 +155,7 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dialector, err := mysqlDialector(tc.cfg)
+			dialector, err := internaldialects.MySQL(tc.cfg)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
@@ -177,13 +184,13 @@ func TestMySQLDialectorHandlesBoundaryDSNs(t *testing.T) {
 }
 
 func TestPostgresDialectorRequiresDSN(t *testing.T) {
-	if _, err := postgresDialector(settings.DatabaseConfig{}); err == nil {
+	if _, err := internaldialects.Postgres(settings.DatabaseConfig{}); err == nil {
 		t.Fatal("expected postgres dsn validation error")
 	}
 }
 
 func TestPostgresDialectorBuildsStructuredDSN(t *testing.T) {
-	dialector, err := postgresDialector(settings.DatabaseConfig{
+	dialector, err := internaldialects.Postgres(settings.DatabaseConfig{
 		Postgres: settings.PostgresConfig{
 			Host:     "localhost",
 			User:     "postgres",
