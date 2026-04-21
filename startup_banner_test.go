@@ -32,7 +32,7 @@ func TestSanitizeStartupDSN(t *testing.T) {
 		{
 			name: "postgres keyword dsn",
 			dsn:  "host=localhost port=5432 user=app password='secret value' dbname=demo sslmode=disable",
-			want: "host=localhost port=5432 user=app password=xxxxx dbname=demo sslmode=disable",
+			want: "host=localhost port=5432 user=app password='xxxxx' dbname=demo sslmode=disable",
 		},
 		{
 			name: "query password redacted",
@@ -100,7 +100,7 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 		},
 	})
 
-	api := New(Config{Title: "Banner Test", Version: "0.12.2", DisableGinDefault: true})
+	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true})
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -148,7 +148,7 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 		"dsn: postgres://app:xxxxx@localhost:5432/demo?sslmode=disable",
 		"port: " + port,
 		"env: demo",
-		"version: 0.12.2",
+		"version: 1.0.0-test",
 		" ██████╗ ██╗███╗   ██╗",
 	} {
 		if !strings.Contains(banner, want) {

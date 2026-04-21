@@ -22,7 +22,7 @@ const startupLogo = ` ██████╗ ██╗███╗   ██╗   
  ╚═════╝ ╚═╝╚═╝  ╚═══╝      ╚═╝  ╚═══╝╚═╝╚═╝  ╚═══╝ ╚════╝ ╚═╝  ╚═╝
 `
 
-var startupSensitiveKVPattern = regexp.MustCompile(`(?i)\b(password|passwd|pwd|pass|secret|token)\s*=\s*('[^']*'|"[^"]*"|[^ ]+)`)
+var startupSensitiveKVPattern = regexp.MustCompile(`(?i)\b((?:password|passwd|pwd|pass|secret|token)\s*=\s*)('[^']*'|"[^"]*"|[^ ]+)`)
 
 func (api *NinjaAPI) printStartupBanner(listener net.Listener) {
 	_, _ = io.WriteString(os.Stdout, api.startupBanner(listener))
@@ -147,9 +147,25 @@ func sanitizeStartupDSN(dsn string) string {
 	if sanitized, ok := sanitizeStartupDSNURL(trimmed); ok {
 		return sanitized
 	}
-	trimmed = startupSensitiveKVPattern.ReplaceAllString(trimmed, "${1}=xxxxx")
+	trimmed = startupSensitiveKVPattern.ReplaceAllStringFunc(trimmed, redactStartupKeyValue)
 	trimmed = sanitizeStartupMySQLCredentials(trimmed)
 	return sanitizeStartupQuery(trimmed)
+}
+
+func redactStartupKeyValue(match string) string {
+	submatches := startupSensitiveKVPattern.FindStringSubmatch(match)
+	if len(submatches) != 3 {
+		return match
+	}
+	prefix := submatches[1]
+	value := submatches[2]
+	if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+		return prefix + "'xxxxx'"
+	}
+	if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
+		return prefix + `"xxxxx"`
+	}
+	return prefix + "xxxxx"
 }
 
 func sanitizeStartupDSNURL(dsn string) (string, bool) {
@@ -181,7 +197,7 @@ func sanitizeStartupDSNURL(dsn string) (string, bool) {
 
 func sanitizeStartupMySQLCredentials(dsn string) string {
 	at := strings.IndexByte(dsn, '@')
-	if at <= 0 {
+	if at < 0 {
 		return dsn
 	}
 	credentials := dsn[:at]
