@@ -6,9 +6,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql"
-	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres"
-	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects"
 	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
@@ -17,6 +14,12 @@ import (
 )
 
 const wantMySQLDefaultStringSize uint = 191
+
+func init() {
+	MustRegisterDialector(internaldialects.SQLite, "sqlite", "sqlite3")
+	MustRegisterDialector(internaldialects.MySQL, "mysql")
+	MustRegisterDialector(internaldialects.Postgres, "postgres", "postgresql")
+}
 
 func TestBuildDialector(t *testing.T) {
 	cases := []struct {

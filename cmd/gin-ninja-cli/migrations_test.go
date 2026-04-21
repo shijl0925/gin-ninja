@@ -515,6 +515,9 @@ func writeMigrationTestProject(t *testing.T, backend migrationTestBackend) (stri
 
 import (
 _ "github.com/shijl0925/gin-ninja/bootstrap"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 _ "github.com/shijl0925/gin-ninja/settings"
 )
 `
