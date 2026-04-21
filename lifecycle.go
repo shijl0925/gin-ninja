@@ -60,6 +60,7 @@ func (api *NinjaAPI) serve(listener net.Listener, startupCtx context.Context) er
 
 	api.setServer(server)
 	defer api.clearServer()
+	api.printStartupBanner(listener)
 
 	err := server.Serve(listener)
 	shutdownCtx, cancel := api.shutdownContext(context.Background())
