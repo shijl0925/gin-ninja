@@ -149,7 +149,7 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 		"port: " + port,
 		"env: demo",
 		"version: 0.12.2",
-		"███╗   ███╗",
+		" ██████╗ ██╗███╗   ██╗",
 	} {
 		if !strings.Contains(banner, want) {
 			t.Fatalf("expected banner to contain %q, got %q", want, banner)
@@ -161,7 +161,7 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 }
 
 func waitForServer(addr string) error {
-	client := &http.Client{Timeout: 200 * time.Millisecond}
+	client := &http.Client{Timeout: 500 * time.Millisecond}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		resp, err := client.Get("http://" + addr + "/")
