@@ -454,6 +454,9 @@ import (
 
 app %q
 ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 "github.com/shijl0925/gin-ninja/settings"
 "gorm.io/gorm"
 gormlogger "gorm.io/gorm/logger"
