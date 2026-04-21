@@ -294,7 +294,7 @@ func (s *openAPISpec) responseHeadersForOperation(op *operation) map[string]head
 			Description: "Version deprecation signal",
 			Schema:      &Schema{Type: "string"},
 		}
-		if op.versionInfo.Sunset != "" || !op.versionInfo.SunsetTime.IsZero() {
+		if op.versionInfo.normalizedSunsetHeaderValue() != "" {
 			headers["Sunset"] = headerSpec{
 				Description: "Version sunset timestamp",
 				Schema:      &Schema{Type: "string"},

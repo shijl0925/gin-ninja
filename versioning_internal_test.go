@@ -85,6 +85,25 @@ func TestVersionDeprecationMiddleware_Headers(t *testing.T) {
 		}
 	})
 
+	t.Run("deprecated version emits sunset header from compatibility string", func(t *testing.T) {
+		router := gin.New()
+		router.Use(versionDeprecationMiddleware(VersionConfig{
+			Deprecated: true,
+			Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
+		}))
+		router.GET("/", func(c *gin.Context) {
+			c.Status(http.StatusNoContent)
+		})
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		router.ServeHTTP(w, req)
+
+		if got := w.Header().Get("Sunset"); got != "Wed, 31 Dec 2026 23:59:59 GMT" {
+			t.Fatalf("expected Sunset header from Sunset string, got %q", got)
+		}
+	})
+
 	t.Run("non-deprecated version emits no deprecation headers", func(t *testing.T) {
 		router := gin.New()
 		router.Use(versionDeprecationMiddleware(VersionConfig{
@@ -135,6 +154,19 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 		}
 	})
 
+	t.Run("deprecated version documents sunset header from compatibility string", func(t *testing.T) {
+		headers := spec.responseHeadersForOperation(&operation{
+			versionInfo: &VersionConfig{
+				Deprecated: true,
+				Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
+			},
+		})
+
+		if _, ok := headers["Sunset"]; !ok {
+			t.Fatalf("expected Sunset header, got %v", headers)
+		}
+	})
+
 	t.Run("non-deprecated version does not document deprecation headers", func(t *testing.T) {
 		headers := spec.responseHeadersForOperation(&operation{
 			versionInfo: &VersionConfig{
@@ -148,4 +180,32 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 			t.Fatalf("expected no documented headers, got %v", headers)
 		}
 	})
+}
+
+func TestNormalizeVersionConfig_NormalizesSunsetCompatibilityField(t *testing.T) {
+	cfg := normalizeVersionConfig("v1", VersionConfig{
+		Sunset: "Wed, 31 Dec 2026 23:59:59 GMT",
+	})
+
+	if cfg.SunsetTime.IsZero() {
+		t.Fatal("expected SunsetTime to be populated from Sunset")
+	}
+	if got := cfg.normalizedSunsetHeaderValue(); got != cfg.Sunset {
+		t.Fatalf("expected normalized sunset header %q, got %q", cfg.Sunset, got)
+	}
+}
+
+func TestNormalizeVersionConfig_PrefersSunsetTime(t *testing.T) {
+	sunsetTime := time.Date(2027, time.January, 2, 3, 4, 5, 0, time.UTC)
+	cfg := normalizeVersionConfig("v1", VersionConfig{
+		Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
+		SunsetTime: sunsetTime,
+	})
+
+	if !cfg.SunsetTime.Equal(sunsetTime) {
+		t.Fatalf("expected SunsetTime to be preserved, got %v", cfg.SunsetTime)
+	}
+	if got := cfg.normalizedSunsetHeaderValue(); got != sunsetTime.Format(http.TimeFormat) {
+		t.Fatalf("expected SunsetTime header %q, got %q", sunsetTime.Format(http.TimeFormat), got)
+	}
 }
