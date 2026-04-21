@@ -12,12 +12,12 @@ import (
 
 // VersionConfig configures a named API version namespace.
 type VersionConfig struct {
-	Prefix       string
-	Description  string
+	Prefix      string
+	Description string
 	// Deprecated marks the API version as deprecated.  Requests to deprecated
 	// routes receive a `Deprecation: true` response header (and a date-formatted
 	// `Deprecation` header when DeprecatedSince is set).
-	Deprecated   bool
+	Deprecated bool
 	// DeprecatedSince is the optional RFC 1123 date at which deprecation was
 	// announced.  When set, the `Deprecation` header is emitted as an HTTP-date
 	// (e.g. "Mon, 01 Jan 2024 00:00:00 GMT") instead of the literal "true".
@@ -26,14 +26,14 @@ type VersionConfig struct {
 	// version will be removed (e.g. "Mon, 01 Jul 2025 00:00:00 GMT").  Prefer
 	// SunsetTime for new code.  When set, the `Sunset` response header is
 	// emitted.
-	Sunset       string
+	Sunset string
 	// SunsetTime is the preferred structured form of Sunset.  If non-zero it
 	// takes precedence over the compatibility Sunset string and is formatted as
 	// an HTTP-date.
-	SunsetTime   time.Time
+	SunsetTime time.Time
 	// MigrationURL is a URL pointing to migration documentation.  When set,
 	// a `Link: <url>; rel="deprecation"` header is emitted.
-	MigrationURL string
+	MigrationURL      string
 	sunsetHeaderValue string
 }
 
