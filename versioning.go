@@ -12,26 +12,31 @@ import (
 
 // VersionConfig configures a named API version namespace.
 type VersionConfig struct {
-	Prefix       string
-	Description  string
+	Prefix      string
+	Description string
 	// Deprecated marks the API version as deprecated.  Requests to deprecated
 	// routes receive a `Deprecation: true` response header (and a date-formatted
 	// `Deprecation` header when DeprecatedSince is set).
-	Deprecated   bool
+	Deprecated bool
 	// DeprecatedSince is the optional RFC 1123 date at which deprecation was
 	// announced.  When set, the `Deprecation` header is emitted as an HTTP-date
 	// (e.g. "Mon, 01 Jan 2024 00:00:00 GMT") instead of the literal "true".
 	DeprecatedSince time.Time
-	// Sunset is an RFC 1123 date string indicating when the version will be
-	// removed (e.g. "Mon, 01 Jul 2025 00:00:00 GMT").  When set, the
-	// `Sunset` response header is emitted.
-	Sunset       string
-	// SunsetTime is an optional parsed form of Sunset.  If non-zero it takes
-	// precedence over the Sunset string and is formatted as an HTTP-date.
-	SunsetTime   time.Time
+	// Sunset is a backward-compatible RFC 1123 date string indicating when the
+	// version will be removed (e.g. "Mon, 01 Jul 2025 00:00:00 GMT").  Prefer
+	// SunsetTime for new code.  When set, the `Sunset` response header is
+	// emitted.
+	Sunset string
+	// SunsetTime is the preferred structured form of Sunset.  If non-zero it
+	// takes precedence over the compatibility Sunset string and is formatted as
+	// an HTTP-date.
+	SunsetTime time.Time
 	// MigrationURL is a URL pointing to migration documentation.  When set,
 	// a `Link: <url>; rel="deprecation"` header is emitted.
 	MigrationURL string
+	// sunsetHeaderValue caches the normalized header string derived from
+	// SunsetTime or the backward-compatible Sunset field.
+	sunsetHeaderValue string
 }
 
 func normalizeVersionConfig(name string, cfg VersionConfig) VersionConfig {
@@ -41,7 +46,33 @@ func normalizeVersionConfig(name string, cfg VersionConfig) VersionConfig {
 	if !strings.HasPrefix(cfg.Prefix, "/") {
 		cfg.Prefix = "/" + cfg.Prefix
 	}
+	cfg = normalizeVersionSunset(cfg)
 	return cfg
+}
+
+func normalizeVersionSunset(cfg VersionConfig) VersionConfig {
+	if !cfg.SunsetTime.IsZero() {
+		cfg.SunsetTime = cfg.SunsetTime.UTC()
+		cfg.sunsetHeaderValue = cfg.SunsetTime.Format(http.TimeFormat)
+		return cfg
+	}
+	if cfg.Sunset != "" {
+		cfg.sunsetHeaderValue = cfg.Sunset
+		if parsed, err := time.Parse(time.RFC1123, cfg.Sunset); err == nil {
+			cfg.SunsetTime = parsed.UTC()
+		}
+	}
+	return cfg
+}
+
+// normalizedSunsetHeaderValue tolerates raw VersionConfig values that did not
+// pass through normalizeVersionConfig yet (for example direct middleware or
+// OpenAPI helper tests).
+func (cfg VersionConfig) normalizedSunsetHeaderValue() string {
+	if cfg.sunsetHeaderValue != "" {
+		return cfg.sunsetHeaderValue
+	}
+	return normalizeVersionSunset(cfg).sunsetHeaderValue
 }
 
 func versionSpecConfig(base Config, name string, version VersionConfig) Config {
@@ -129,6 +160,10 @@ func joinDescription(parts ...string) string {
 }
 
 func versionDeprecationMiddleware(cfg VersionConfig) gin.HandlerFunc {
+	// The middleware is also used directly in tests and by package consumers,
+	// so normalize sunset compatibility fields here instead of assuming callers
+	// always came through lookupVersion/normalizeVersionConfig.
+	cfg = normalizeVersionSunset(cfg)
 	return func(c *gin.Context) {
 		if cfg.Deprecated {
 			// Emit the Deprecation header.  Use an HTTP-date when DeprecatedSince
@@ -139,14 +174,8 @@ func versionDeprecationMiddleware(cfg VersionConfig) gin.HandlerFunc {
 				c.Header("Deprecation", "true")
 			}
 
-			// Emit the Sunset header.  SunsetTime takes precedence over the raw
-			// Sunset string.
-			sunsetValue := ""
-			if !cfg.SunsetTime.IsZero() {
-				sunsetValue = cfg.SunsetTime.UTC().Format(http.TimeFormat)
-			} else if cfg.Sunset != "" {
-				sunsetValue = cfg.Sunset
-			}
+			// Emit the normalized Sunset header value.
+			sunsetValue := cfg.normalizedSunsetHeaderValue()
 			if sunsetValue != "" {
 				c.Header("Sunset", sunsetValue)
 			}
