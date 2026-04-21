@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ func TestRunUsageAndCommandErrors(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"help"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stdout.String(), "Scaffold commands:") {
+		if !strings.Contains(stdout.String(), "DECISION GUIDE") {
 			t.Fatalf("expected usage in stdout, got %q", stdout.String())
 		}
 	})
@@ -36,7 +37,7 @@ func TestRunUsageAndCommandErrors(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"help", "startproject"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stdout.String(), "Basic options:") {
+		if !strings.Contains(stdout.String(), "KEY OPTIONS") {
 			t.Fatalf("expected topic help in stdout, got %q", stdout.String())
 		}
 	})
@@ -80,7 +81,7 @@ func TestRunGenerateAdditionalBranches(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"generate", "crud", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "Examples:") {
+		if !strings.Contains(stderr.String(), "RECOMMENDED FLOW") {
 			t.Fatalf("expected flag help in stderr, got %q", stderr.String())
 		}
 	})
@@ -131,7 +132,7 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"startproject", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "Template options:") || !strings.Contains(stderr.String(), "-database <driver>") {
+		if !strings.Contains(stderr.String(), "TEMPLATE CHOICES") || !strings.Contains(stderr.String(), "-database <driver>") {
 			t.Fatalf("expected startproject help, got %q", stderr.String())
 		}
 	})
@@ -164,7 +165,7 @@ func TestRunStartProjectAndAppValidation(t *testing.T) {
 		if code := run(&stdout, &stderr, []string{"startapp", "-h"}); code != 0 {
 			t.Fatalf("run() code = %d, want 0", code)
 		}
-		if !strings.Contains(stderr.String(), "Advanced overrides:") || !strings.Contains(stderr.String(), "-database <driver>") {
+		if !strings.Contains(stderr.String(), "ADVANCED OPTIONS") || !strings.Contains(stderr.String(), "-database <driver>") {
 			t.Fatalf("expected startapp help, got %q", stderr.String())
 		}
 
@@ -208,13 +209,31 @@ func TestPrintUsageHelpers(t *testing.T) {
 	if !strings.Contains(usage.String(), "generate crud") {
 		t.Fatalf("expected full usage output, got %q", usage.String())
 	}
-	if !strings.Contains(usage.String(), "Scaffold commands:") {
+	if !strings.Contains(usage.String(), "START HERE") {
 		t.Fatalf("expected grouped usage output, got %q", usage.String())
 	}
 	if !strings.Contains(generate.String(), "generate crud") {
 		t.Fatalf("expected generate usage output, got %q", generate.String())
 	}
+	if strings.Contains(usage.String(), "\x1b[") || strings.Contains(generate.String(), "\x1b[") {
+		t.Fatalf("expected plain text usage for non-terminal writers, got usage=%q generate=%q", usage.String(), generate.String())
+	}
 	if got := boolPtr(true); got == nil || !*got {
 		t.Fatalf("expected boolPtr(true) to return a true pointer, got %v", got)
+	}
+}
+
+func TestPrintUsageHelpersWithColor(t *testing.T) {
+	previous := helpColorEnabled
+	helpColorEnabled = func(io.Writer) bool { return true }
+	t.Cleanup(func() {
+		helpColorEnabled = previous
+	})
+
+	var usage bytes.Buffer
+	printRootUsage(&usage)
+
+	if !strings.Contains(usage.String(), "\x1b[") {
+		t.Fatalf("expected ANSI styling when color is enabled, got %q", usage.String())
 	}
 }
