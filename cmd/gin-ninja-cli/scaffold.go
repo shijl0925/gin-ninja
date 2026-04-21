@@ -36,6 +36,13 @@ const (
 	defaultAppScaffoldDatabase     = string(codegen.ScaffoldDatabaseNone)
 )
 
+var scaffoldTemplateChoices = []helpItem{
+	{name: "minimal", usage: "Basic CRUD structure"},
+	{name: "standard", usage: "Broader starter structure for everyday development"},
+	{name: "auth", usage: "Adds auth-oriented scaffold files"},
+	{name: "admin", usage: "Adds admin-oriented scaffold files"},
+}
+
 func runGenerate(stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		printGenerateUsage(stderr)
@@ -410,36 +417,41 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 }
 
 func printStartProjectUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("startproject"))
 	fmt.Fprintln(w, "Create a new gin-ninja project scaffold.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Quick start:")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -module github.com/acme/mysite")
-	fmt.Fprintln(w, "  # minimal is the default and recommended for small CRUD apps")
+	fmt.Fprintln(w, p.section("Best for"))
+	fmt.Fprintln(w, "  Bootstrapping a brand-new service; the minimal template is the recommended default.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Common templates:")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -template standard")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -template auth")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -template admin")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -config ./scaffold.yaml")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]")
+	fmt.Fprintln(w, p.section("Recommended flow"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -module github.com/acme/mysite"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template standard"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template auth"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template admin"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Basic options:")
+	fmt.Fprintln(w, p.section("Template choices"))
+	printHelpItems(w, p.command, scaffoldTemplateChoices)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, p.section("Key options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-module <module>", usage: "Go module path (defaults to the project name)"},
 		{name: "-output <path>", usage: "Output directory (defaults to the project name)"},
 		{name: "-database <driver>", usage: "Database scaffold to wire: sqlite, mysql, postgres, or none (default: sqlite)"},
-		{name: "-config <path>", usage: "Load scaffold preset from YAML or JSON"},
+		{name: "-config <path>", usage: "Load options from a YAML or JSON preset file"},
 	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Template options:")
+	fmt.Fprintln(w, p.section("Template options"))
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; start here for small/medium CRUD apps)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Advanced overrides:")
+	fmt.Fprintln(w, p.section("Advanced options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-app-dir <path>", usage: fmt.Sprintf("Relative app package directory inside the project (default: %s)", defaultScaffoldAppDir)},
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
@@ -448,41 +460,48 @@ func printStartProjectUsage(w io.Writer) {
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "CLI flags override values loaded from -config.")
+	fmt.Fprintln(w, p.section("Tips"))
+	fmt.Fprintln(w, "  CLI flags override values loaded from -config.")
+	fmt.Fprintln(w, "  Use startapp later to add more domain packages inside the generated project.")
 }
 
 func printStartAppUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("startapp"))
 	fmt.Fprintln(w, "Create a new gin-ninja app scaffold.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Quick start:")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp blog")
-	fmt.Fprintln(w, "  # minimal is the default and recommended for small CRUD apps")
+	fmt.Fprintln(w, p.section("Best for"))
+	fmt.Fprintln(w, "  Existing projects that need a new domain package; the minimal template is the recommended default.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Common templates:")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp accounts -template standard")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp accounts -template auth")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp accounts -template admin")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp accounts -config ./scaffold.yaml")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]")
+	fmt.Fprintln(w, p.section("Recommended flow"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp blog"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template standard"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template auth"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template admin"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Basic options:")
+	fmt.Fprintln(w, p.section("Template choices"))
+	printHelpItems(w, p.command, scaffoldTemplateChoices)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, p.section("Key options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-output <path>", usage: "Output directory (defaults to the app name)"},
 		{name: "-package <name>", usage: "Override the generated Go package name"},
 		{name: "-model <name>", usage: "Override the generated model name"},
 		{name: "-database <driver>", usage: "Add a matching driver import file for sqlite, mysql, postgres, or none (default: none)"},
-		{name: "-config <path>", usage: "Load scaffold preset from YAML or JSON"},
+		{name: "-config <path>", usage: "Load options from a YAML or JSON preset file"},
 	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Template options:")
+	fmt.Fprintln(w, p.section("Template options"))
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal; start here for small/medium CRUD apps)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Advanced overrides:")
+	fmt.Fprintln(w, p.section("Advanced options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
@@ -490,25 +509,35 @@ func printStartAppUsage(w io.Writer) {
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "CLI flags override values loaded from -config.")
+	fmt.Fprintln(w, p.section("Tips"))
+	fmt.Fprintln(w, "  CLI flags override values loaded from -config.")
+	fmt.Fprintln(w, "  Use generate crud after scaffolding when you already have a model and want CRUD handlers.")
 }
 
 func printInitUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("init"))
 	fmt.Fprintln(w, "Run an interactive scaffold wizard for a project or app.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli init [-kind <project|app>] [-config <path>]")
+	fmt.Fprintln(w, p.section("Best for"))
+	fmt.Fprintln(w, "  Users who want guided prompts instead of remembering scaffold flags.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Examples:")
-	fmt.Fprintln(w, "  gin-ninja-cli init")
-	fmt.Fprintln(w, "  gin-ninja-cli init -kind project")
-	fmt.Fprintln(w, "  gin-ninja-cli init -kind app -config ./scaffold.yaml")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli init [-kind <project|app>] [-config <path>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, p.section("Recommended flow"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli init"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli init -kind project"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli init -kind app -config ./scaffold.yaml"))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, p.section("Options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-kind <project|app>", usage: "Skip the first prompt and choose the scaffold flow up front"},
-		{name: "-config <path>", usage: "Seed wizard answers from a YAML or JSON preset"},
+		{name: "-config <path>", usage: "Seed wizard answers from a YAML or JSON preset file"},
 	})
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, p.section("Tips"))
+	fmt.Fprintln(w, "  Use -kind when you already know whether you want a project scaffold or an app scaffold.")
 }
 
 func loadScaffoldPreset(path string) (scaffoldPreset, error) {

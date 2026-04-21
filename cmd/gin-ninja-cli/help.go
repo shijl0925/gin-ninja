@@ -51,43 +51,56 @@ func runHelp(stdout, stderr io.Writer, args []string) int {
 }
 
 func printRootUsage(w io.Writer) {
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli <command> [arguments]")
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("gin-ninja-cli"))
+	fmt.Fprintln(w, "Build projects, apps, CRUD scaffolds, and migrations for gin-ninja.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Scaffold commands:")
-	fmt.Fprintln(w, "  startproject   Create a new gin-ninja project scaffold")
-	fmt.Fprintln(w, "  startapp       Create a new app scaffold inside a project")
-	fmt.Fprintln(w, "  init           Run an interactive scaffold wizard")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli <command> [arguments]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Migration commands:")
-	fmt.Fprintln(w, "  makemigrations Generate a SQL migration from MigrationModels()")
-	fmt.Fprintln(w, "  migrate        Apply or roll back migrations")
-	fmt.Fprintln(w, "  showmigrations Show migration status")
-	fmt.Fprintln(w, "  sqlmigrate     Print SQL for a migration file")
+	fmt.Fprintln(w, p.section("Start here"))
+	printHelpItems(w, p.command, []helpItem{
+		{name: "startproject", usage: "gin-ninja-cli startproject mysite -module github.com/acme/mysite"},
+		{name: "startapp", usage: "gin-ninja-cli startapp blog"},
+		{name: "generate crud", usage: "gin-ninja-cli generate crud -model User -model-file ./app/models.go"},
+		{name: "init", usage: "gin-ninja-cli init"},
+	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Code generation:")
-	fmt.Fprintln(w, "  generate crud  Generate CRUD handlers from a model struct")
+	fmt.Fprintln(w, p.section("Decision guide"))
+	printHelpItems(w, p.command, []helpItem{
+		{name: "startproject", usage: "Create a new project scaffold; recommended first step for a new service"},
+		{name: "startapp", usage: "Add a new app inside an existing gin-ninja project"},
+		{name: "generate crud", usage: "Generate CRUD handlers from an existing model struct"},
+		{name: "init", usage: "Use the interactive wizard when you want prompts instead of flags"},
+	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Recommended paths:")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -module github.com/acme/mysite")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -template standard")
-	fmt.Fprintln(w, "  gin-ninja-cli startproject mysite -template admin")
-	fmt.Fprintln(w, "  gin-ninja-cli init")
+	fmt.Fprintln(w, p.section("Other commands"))
+	printHelpItems(w, p.command, []helpItem{
+		{name: "makemigrations", usage: "Generate a SQL migration from MigrationModels()"},
+		{name: "migrate", usage: "Apply or roll back migrations"},
+		{name: "showmigrations", usage: "Show migration status"},
+		{name: "sqlmigrate", usage: "Print SQL for a migration file"},
+	})
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Run 'gin-ninja-cli help <command>' for command details.")
+	fmt.Fprintln(w, p.note("Run 'gin-ninja-cli help <command>' for command details."))
 }
 
 func printGenerateUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("generate crud"))
 	fmt.Fprintln(w, "Generate CRUD scaffold code from an existing model struct.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]")
+	fmt.Fprintln(w, p.section("Best for"))
+	fmt.Fprintln(w, "  Existing projects that already have a model and want typed CRUD handlers quickly.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Examples:")
-	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model User -model-file ./app/models.go")
-	fmt.Fprintln(w, "  gin-ninja-cli generate crud -model Account -model-file ./app/models.go -with-gormx")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, p.section("Recommended flow"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli generate crud -model User -model-file ./app/models.go"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli generate crud -model Account -model-file ./app/models.go -with-gormx"))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, p.section("Key options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-model <Name>", usage: "Go struct name to scaffold"},
 		{name: "-model-file <path>", usage: "Go source file containing the model struct"},
@@ -96,15 +109,20 @@ func printGenerateUsage(w io.Writer) {
 		{name: "-tag <name>", usage: "Override the generated router tag name"},
 		{name: "-with-gormx", usage: "Generate gormx-based CRUD code (default: false)"},
 	})
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, p.section("Tips"))
+	fmt.Fprintln(w, "  Use startproject or startapp first when you need a scaffolded package before CRUD generation.")
 }
 
 func printMakeMigrationsUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("makemigrations"))
 	fmt.Fprintln(w, "Generate a timestamped SQL migration from MigrationModels().")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli makemigrations [-config <path>] [-app-dir <path>] [-migrations-dir <path>] [-name <name>]")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli makemigrations [-config <path>] [-app-dir <path>] [-migrations-dir <path>] [-name <name>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, p.section("Options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-config <path>", usage: "Project config file path (default: config.yaml)"},
 		{name: "-app-dir <path>", usage: "Relative app package directory containing MigrationModels()"},
@@ -114,12 +132,14 @@ func printMakeMigrationsUsage(w io.Writer) {
 }
 
 func printMigrateUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("migrate"))
 	fmt.Fprintln(w, "Apply pending migrations or roll back to a target version.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli migrate [target|zero] [-config <path>] [-migrations-dir <path>]")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli migrate [target|zero] [-config <path>] [-migrations-dir <path>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, p.section("Options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-config <path>", usage: "Project config file path (default: config.yaml)"},
 		{name: "-migrations-dir <path>", usage: "Relative migrations directory (default: migrations)"},
@@ -127,12 +147,14 @@ func printMigrateUsage(w io.Writer) {
 }
 
 func printShowMigrationsUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("showmigrations"))
 	fmt.Fprintln(w, "List migration files and whether each one has been applied.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli showmigrations [-config <path>] [-migrations-dir <path>]")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli showmigrations [-config <path>] [-migrations-dir <path>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, p.section("Options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-config <path>", usage: "Project config file path (default: config.yaml)"},
 		{name: "-migrations-dir <path>", usage: "Relative migrations directory (default: migrations)"},
@@ -140,12 +162,14 @@ func printShowMigrationsUsage(w io.Writer) {
 }
 
 func printSQLMigrateUsage(w io.Writer) {
+	p := newHelpPrinter(w)
+	fmt.Fprintln(w, p.title("sqlmigrate"))
 	fmt.Fprintln(w, "Print SQL for an existing migration file.")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  gin-ninja-cli sqlmigrate <migration> [-config <path>] [-migrations-dir <path>] [-direction <up|down|all>]")
+	fmt.Fprintln(w, p.section("Usage"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli sqlmigrate <migration> [-config <path>] [-migrations-dir <path>] [-direction <up|down|all>]"))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, p.section("Options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-config <path>", usage: "Project config file path (default: config.yaml)"},
 		{name: "-migrations-dir <path>", usage: "Relative migrations directory (default: migrations)"},
@@ -159,7 +183,8 @@ type flagHelp struct {
 }
 
 func printFlagGroup(w io.Writer, flags []flagHelp) {
+	p := newHelpPrinter(w)
 	for _, item := range flags {
-		fmt.Fprintf(w, "  %-28s %s\n", item.name, item.usage)
+		fmt.Fprintf(w, "  %s %s\n", p.command(fmt.Sprintf("%-28s", item.name)), item.usage)
 	}
 }
