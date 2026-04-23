@@ -685,16 +685,7 @@ func TestAddController_RoutesRegistered(t *testing.T) {
 		ID int `path:"id"`
 	}
 
-	ctrl := &struct{ called int }{}
-	_ = ctrl
-
 	api := ninja.New(ninja.Config{DisableGinDefault: true})
-
-	type myController struct {
-		tag string
-	}
-	mc := &myController{tag: "test"}
-	_ = mc
 
 	// Use an anonymous struct implementing Controller directly.
 	var handlerCalled bool
