@@ -44,6 +44,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
 - **Swagger UI** – available at `/docs` out of the box.
 - **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
+- **API Controller** – group all routes for a resource into a struct with dependency injection via `Controller` interface and `api.AddController`.
 - **Gin middleware support** – `UseGin()` on both the API and individual routers.
 - **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
 - **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
@@ -200,6 +201,138 @@ After startup you can visit:
 
 If you want the homepage to include a shortcut to your admin backend, set `AdminURL` in `ninja.Config`.
 If you want to keep Swagger UI enabled but hide the homepage shortcut in production, set `HideDocsShortcut: true`.
+
+---
+
+## API Controller
+
+The `Controller` interface lets you group all routes for a single resource into one struct, injecting shared dependencies (database, service layer) once at construction time and reusing them across every handler — the same pattern as django-ninja's `APIController`.
+
+### Interface
+
+```go
+type Controller interface {
+    Register(r *ninja.Router)
+}
+```
+
+Implement `Register` to wire all endpoints onto the provided `Router`. Then mount it with `api.AddController`.
+
+### Example
+
+```go
+import (
+    ninja "github.com/shijl0925/gin-ninja"
+    "github.com/shijl0925/gin-ninja/pagination"
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+)
+
+// Book is a GORM model — gorm.Model provides auto-increment ID, CreatedAt,
+// UpdatedAt, and soft-delete (DeletedAt) fields automatically.
+type Book struct {
+    gorm.Model
+    Title  string `gorm:"not null"`
+    Author string `gorm:"not null"`
+}
+
+// --- request / response schemas ---
+
+type BookOut struct {
+    ID     uint   `json:"id"`
+    Title  string `json:"title"`
+    Author string `json:"author"`
+}
+
+type ListBooksInput  struct{ pagination.PageInput }
+type GetBookInput    struct{ BookID uint `path:"id" binding:"required"` }
+type CreateBookInput struct {
+    Title  string `json:"title"  binding:"required"`
+    Author string `json:"author" binding:"required"`
+}
+type UpdateBookInput struct {
+    BookID uint   `path:"id"     binding:"required"`
+    Title  string `json:"title"  binding:"omitempty"`
+    Author string `json:"author" binding:"omitempty"`
+}
+type DeleteBookInput struct{ BookID uint `path:"id" binding:"required"` }
+
+// --- controller ---
+
+type BookController struct {
+    db *gorm.DB   // injected once, shared by all handlers
+}
+
+// Register wires every CRUD endpoint onto the router.
+func (c *BookController) Register(r *ninja.Router) {
+    ninja.Get(r,    "/",    c.List,   ninja.Summary("List books"), ninja.Paginated[BookOut]())
+    ninja.Get(r,    "/:id", c.Get,    ninja.Summary("Get book"))
+    ninja.Post(r,   "/",    c.Create, ninja.Summary("Create book"))
+    ninja.Put(r,    "/:id", c.Update, ninja.Summary("Update book"))
+    ninja.Delete(r, "/:id", c.Delete, ninja.Summary("Delete book"))
+}
+
+func (c *BookController) List(_ *ninja.Context, in *ListBooksInput) (*pagination.Page[BookOut], error) {
+    var books []Book
+    c.db.Find(&books)
+    // ... paginate and return ...
+}
+
+func (c *BookController) Get(_ *ninja.Context, in *GetBookInput) (*BookOut, error) {
+    var book Book
+    if err := c.db.First(&book, in.BookID).Error; err != nil {
+        return nil, ninja.NotFoundError()
+    }
+    return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
+}
+
+func (c *BookController) Create(_ *ninja.Context, in *CreateBookInput) (*BookOut, error) {
+    book := Book{Title: in.Title, Author: in.Author}
+    c.db.Create(&book)
+    return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
+}
+
+// Update and Delete follow the same pattern.
+
+// --- wiring ---
+
+func main() {
+    db, _ := gorm.Open(sqlite.Open("app.db"), &gorm.Config{})
+    db.AutoMigrate(&Book{})
+
+    api := ninja.New(ninja.Config{Title: "Books API", Version: "1.0.0"})
+
+    // All router options (tags, auth, middleware) are set here.
+    // BookController.Register handles every route internally.
+    api.AddController("/books", &BookController{db: db},
+        ninja.WithTags("Books"),
+        ninja.WithTagDescription("Books", "CRUD endpoints for the book catalogue"),
+    )
+
+    api.Run(":8080")
+}
+```
+
+### Inline controller with `ControllerFunc`
+
+For small or test scenarios where a full struct is unnecessary, use the `ControllerFunc` adapter:
+
+```go
+api.AddController("/items", ninja.ControllerFunc(func(r *ninja.Router) {
+    ninja.Get(r,  "/",    listItems,  ninja.Summary("List items"))
+    ninja.Post(r, "/",    createItem, ninja.Summary("Create item"))
+}), ninja.WithTags("Items"))
+```
+
+### When to use Controller vs. Router
+
+| Scenario | Recommended approach |
+|---|---|
+| A group of routes that share one dependency (DB, service) | `Controller` — dependency injected once in the struct |
+| Independent utility routes with no shared state | `NewRouter` + `api.AddRouter` |
+| Inline / test routes with no struct needed | `ControllerFunc` |
+
+> See [examples/controller](./examples/controller/) for a fully runnable example with GORM SQLite.
 
 ---
 
