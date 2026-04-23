@@ -18,13 +18,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"sync"
-	"sync/atomic"
 
 	ginpkg "github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 var runControllerMain = run
@@ -34,10 +34,13 @@ var fatalController = func(v ...any) { log.Fatal(v...) }
 // Model
 // ---------------------------------------------------------------------------
 
+// Book is a GORM model. gorm.Model provides ID (auto-increment primary key),
+// CreatedAt, UpdatedAt, and DeletedAt (soft-delete) fields automatically —
+// no manual mutex or sequence counter needed.
 type Book struct {
-	ID     uint   `json:"id"`
-	Title  string `json:"title"`
-	Author string `json:"author"`
+	gorm.Model
+	Title  string `gorm:"not null"`
+	Author string `gorm:"not null"`
 }
 
 // ---------------------------------------------------------------------------
@@ -74,80 +77,13 @@ type DeleteBookInput struct {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory store (stand-in for a real service / database layer)
-// ---------------------------------------------------------------------------
-
-type bookStore struct {
-	mu     sync.RWMutex
-	seq    atomic.Uint64
-	books  map[uint]*Book
-}
-
-func newBookStore() *bookStore {
-	return &bookStore{books: map[uint]*Book{}}
-}
-
-func (s *bookStore) list() []*Book {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]*Book, 0, len(s.books))
-	for _, b := range s.books {
-		out = append(out, b)
-	}
-	return out
-}
-
-func (s *bookStore) get(id uint) (*Book, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	b, ok := s.books[id]
-	return b, ok
-}
-
-func (s *bookStore) create(title, author string) *Book {
-	id := uint(s.seq.Add(1))
-	b := &Book{ID: id, Title: title, Author: author}
-	s.mu.Lock()
-	s.books[id] = b
-	s.mu.Unlock()
-	return b
-}
-
-func (s *bookStore) update(id uint, title, author string) (*Book, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	b, ok := s.books[id]
-	if !ok {
-		return nil, false
-	}
-	if title != "" {
-		b.Title = title
-	}
-	if author != "" {
-		b.Author = author
-	}
-	return b, true
-}
-
-func (s *bookStore) delete(id uint) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, ok := s.books[id]
-	if ok {
-		delete(s.books, id)
-	}
-	return ok
-}
-
-// ---------------------------------------------------------------------------
 // BookController — implements ninja.Controller
 // ---------------------------------------------------------------------------
 
-// BookController groups all book-related handlers and holds the store
-// dependency.  It implements ninja.Controller so it can be mounted via
-// api.AddController.
+// BookController groups all book-related handlers and holds a *gorm.DB
+// dependency injected at construction time.
 type BookController struct {
-	store *bookStore
+	db *gorm.DB
 }
 
 // Register wires up the CRUD endpoints onto the provided router.
@@ -172,8 +108,11 @@ func (c *BookController) Register(r *ninja.Router) {
 }
 
 func (c *BookController) List(_ *ninja.Context, in *ListBooksInput) (*pagination.Page[BookOut], error) {
-	all := c.store.list()
-	total := int64(len(all))
+	var books []Book
+	if err := c.db.Find(&books).Error; err != nil {
+		return nil, err
+	}
+	total := int64(len(books))
 
 	page := in.GetPage()
 	size := in.GetSize()
@@ -186,35 +125,57 @@ func (c *BookController) List(_ *ninja.Context, in *ListBooksInput) (*pagination
 		end = int(total)
 	}
 	out := make([]BookOut, 0, end-start)
-	for _, b := range all[start:end] {
+	for _, b := range books[start:end] {
 		out = append(out, BookOut{ID: b.ID, Title: b.Title, Author: b.Author})
 	}
 	return pagination.NewPage(out, total, in.PageInput), nil
 }
 
 func (c *BookController) Get(_ *ninja.Context, in *GetBookInput) (*BookOut, error) {
-	b, ok := c.store.get(in.BookID)
-	if !ok {
-		return nil, ninja.NotFoundError()
+	var book Book
+	if err := c.db.First(&book, in.BookID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
 	}
-	return &BookOut{ID: b.ID, Title: b.Title, Author: b.Author}, nil
+	return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
 }
 
 func (c *BookController) Create(_ *ninja.Context, in *CreateBookInput) (*BookOut, error) {
-	b := c.store.create(in.Title, in.Author)
-	return &BookOut{ID: b.ID, Title: b.Title, Author: b.Author}, nil
+	book := Book{Title: in.Title, Author: in.Author}
+	if err := c.db.Create(&book).Error; err != nil {
+		return nil, err
+	}
+	return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
 }
 
 func (c *BookController) Update(_ *ninja.Context, in *UpdateBookInput) (*BookOut, error) {
-	b, ok := c.store.update(in.BookID, in.Title, in.Author)
-	if !ok {
-		return nil, ninja.NotFoundError()
+	var book Book
+	if err := c.db.First(&book, in.BookID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NotFoundError()
+		}
+		return nil, err
 	}
-	return &BookOut{ID: b.ID, Title: b.Title, Author: b.Author}, nil
+	if in.Title != "" {
+		book.Title = in.Title
+	}
+	if in.Author != "" {
+		book.Author = in.Author
+	}
+	if err := c.db.Save(&book).Error; err != nil {
+		return nil, err
+	}
+	return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
 }
 
 func (c *BookController) Delete(_ *ninja.Context, in *DeleteBookInput) error {
-	if !c.store.delete(in.BookID) {
+	result := c.db.Delete(&Book{}, in.BookID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
 		return ninja.NotFoundError()
 	}
 	return nil
@@ -225,6 +186,18 @@ func (c *BookController) Delete(_ *ninja.Context, in *DeleteBookInput) error {
 // ---------------------------------------------------------------------------
 
 func buildAPI() *ninja.NinjaAPI {
+	// Open an in-memory SQLite database. Each call to buildAPI gets a fresh,
+	// isolated DB — ideal for tests. In production replace this with a
+	// persistent driver, e.g. gorm.Open(postgres.Open(dsn), &gorm.Config{}).
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		panic("failed to open database: " + err.Error())
+	}
+	// AutoMigrate creates the books table from the Book model definition.
+	if err := db.AutoMigrate(&Book{}); err != nil {
+		panic("failed to migrate: " + err.Error())
+	}
+
 	api := ninja.New(ninja.Config{
 		Title:             "Gin Ninja Controller Example",
 		Version:           "1.0.0",
@@ -242,7 +215,7 @@ func buildAPI() *ninja.NinjaAPI {
 
 	// Mount the BookController.  Dependencies are injected here; the
 	// controller's Register method handles all route wiring internally.
-	api.AddController("/books", &BookController{store: newBookStore()},
+	api.AddController("/books", &BookController{db: db},
 		ninja.WithTags("Books"),
 		ninja.WithTagDescription("Books", "CRUD endpoints for the book catalogue"),
 	)
