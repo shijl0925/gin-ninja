@@ -38,10 +38,45 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 			`const prototypePagePath = "/console/prototype";`,
 			`await request("/custom/api/auth/login", {`,
 			`Paste a token from /custom/api/auth/login`,
+			// default extract expressions
+			`function extractLoginToken(payload) { return payload.token; }`,
+			`function extractLoginName(payload) { return payload.name; }`,
+			`function extractLoginUserID(payload) { return payload.user_id || payload.userID; }`,
 		} {
 			if !strings.Contains(body, snippet) {
 				t.Fatalf("GET %s missing %q", path, snippet)
 			}
+		}
+	}
+}
+
+func TestMountUICustomTokenExtract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	MountUI(router, UIConfig{
+		AdminPath:           "/admin",
+		LoginPath:           "/admin/login",
+		PrototypePath:       "/admin-prototype",
+		TokenExtractExpr:    "payload.data && payload.data.accessToken",
+		UserNameExtractExpr: "payload.data && payload.data.userName",
+		UserIDExtractExpr:   "payload.data && payload.data.id",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /admin status = %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, snippet := range []string{
+		`function extractLoginToken(payload) { return payload.data && payload.data.accessToken; }`,
+		`function extractLoginName(payload) { return payload.data && payload.data.userName; }`,
+		`function extractLoginUserID(payload) { return payload.data && payload.data.id; }`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("GET /admin missing %q", snippet)
 		}
 	}
 }
