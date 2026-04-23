@@ -35,8 +35,10 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -88,7 +90,7 @@ func (s ServerConfig) Addr() string {
 	if port == 0 {
 		port = 8080
 	}
-	return fmt.Sprintf("%s:%d", host, port)
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 // ReadTimeoutDuration returns the read timeout as a time.Duration.

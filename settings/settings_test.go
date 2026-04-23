@@ -163,6 +163,13 @@ func TestServerConfig_Addr(t *testing.T) {
 	}
 }
 
+func TestServerConfig_Addr_IPv6(t *testing.T) {
+	s := settings.ServerConfig{Host: "::1", Port: 8080}
+	if s.Addr() != "[::1]:8080" {
+		t.Errorf("unexpected addr for IPv6: %s", s.Addr())
+	}
+}
+
 func TestServerConfig_Addr_Defaults(t *testing.T) {
 	s := settings.ServerConfig{}
 	if s.Addr() != "0.0.0.0:8080" {
