@@ -17,6 +17,28 @@ type UIConfig struct {
 	AdminPath     string
 	LoginPath     string
 	PrototypePath string
+
+	// TokenExtractExpr is a JavaScript expression that receives the login
+	// response payload and returns the token string.  It is injected verbatim
+	// into the generated page as the body of a function, so it must be valid JS
+	// and must come from a trusted source (not from user-supplied input).
+	// Default: "payload.token"
+	// Example for {"data":{"accessToken":"…"}}: "payload.data && payload.data.accessToken"
+	TokenExtractExpr string
+
+	// UserNameExtractExpr is a JavaScript expression that receives the login
+	// response payload and returns the display name string (may be empty).
+	// Like TokenExtractExpr, it is injected verbatim and must come from a
+	// trusted source.
+	// Default: "payload.name"
+	UserNameExtractExpr string
+
+	// UserIDExtractExpr is a JavaScript expression that receives the login
+	// response payload and returns the user ID (may be null).
+	// Like TokenExtractExpr, it is injected verbatim and must come from a
+	// trusted source.
+	// Default: "payload.user_id || payload.userID"
+	UserIDExtractExpr string
 }
 
 // DefaultUIConfig returns the built-in admin UI route and API defaults.
@@ -51,6 +73,15 @@ func normalizeUIConfig(cfg UIConfig) UIConfig {
 	if strings.TrimSpace(cfg.PrototypePath) == "" {
 		cfg.PrototypePath = defaults.PrototypePath
 	}
+	if strings.TrimSpace(cfg.TokenExtractExpr) == "" {
+		cfg.TokenExtractExpr = "payload.token"
+	}
+	if strings.TrimSpace(cfg.UserNameExtractExpr) == "" {
+		cfg.UserNameExtractExpr = "payload.name"
+	}
+	if strings.TrimSpace(cfg.UserIDExtractExpr) == "" {
+		cfg.UserIDExtractExpr = "payload.user_id || payload.userID"
+	}
 	return cfg
 }
 
@@ -64,6 +95,9 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_PAGE_PATH__", jsonString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_LOGIN_PATH__", jsonString(cfg.LoginPath),
 		"__GIN_NINJA_ADMIN_PROTOTYPE_PATH__", jsonString(cfg.PrototypePath),
+		"__GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__", cfg.TokenExtractExpr,
+		"__GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__", cfg.UserNameExtractExpr,
+		"__GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__", cfg.UserIDExtractExpr,
 	)
 	return replacer.Replace(adminPrototypeHTML)
 }
@@ -2453,6 +2487,9 @@ const adminPrototypeHTML = `<!doctype html>
     const adminPagePath = __GIN_NINJA_ADMIN_PAGE_PATH__;
     const adminLoginPath = __GIN_NINJA_ADMIN_LOGIN_PATH__;
     const prototypePagePath = __GIN_NINJA_ADMIN_PROTOTYPE_PATH__;
+    function extractLoginToken(payload) { return __GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__; }
+    function extractLoginName(payload) { return __GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__; }
+    function extractLoginUserID(payload) { return __GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__; }
     const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
     const dashboardCountPlaceholder = '—';
     let pendingConfirmCallback = null;
@@ -4520,14 +4557,15 @@ const adminPrototypeHTML = `<!doctype html>
           }),
           skipAuthRedirect: true
         });
-        if (!payload || !payload.token) {
+        const extractedToken = extractLoginToken(payload);
+        if (!payload || !extractedToken) {
           throw new Error('Login response did not include a token.');
         }
         state.auth = {
-          name: payload.name || '',
-          userID: payload.user_id || payload.userID || null
+          name: extractLoginName(payload) || '',
+          userID: extractLoginUserID(payload) || null
         };
-        els.token.value = payload.token;
+        els.token.value = extractedToken;
         persistToken();
         els.loginPassword.value = '';
         renderAuthState();
