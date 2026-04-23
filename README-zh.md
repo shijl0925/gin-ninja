@@ -558,6 +558,47 @@ log:
 - `MustLoadForEnv` 会根据 `app.env` 自动合并 `config.<env>.yaml`
 - MySQL/PostgreSQL 既支持原始 DSN，也支持结构化字段配置
 
+### 配置值中的密码与环境变量占位符
+
+将明文密码写入 `config.yaml` 存在安全风险，尤其在容器化或云原生部署中文件可能被提交到代码仓库。gin-ninja 支持在任意字符串配置值中使用 Spring 风格的 `${VAR}` / `${VAR:默认值}` 占位符。YAML 文件解析完成后，框架会自动将每个占位符替换为对应的环境变量值；若环境变量未设置或为空，则使用 `:` 后面的默认值（不写默认值则字段变为空字符串）。
+
+```yaml
+database:
+  driver: "postgres"
+  # 整条 DSN 来自环境变量，未设置时回退到本地开发连接。
+  dsn: "${DATASOURCE_URL:host=localhost user=postgres dbname=myapp sslmode=disable}"
+
+  # 也可以用结构化字段，每个凭证对应独立的环境变量。
+  postgres:
+    host:     "${DB_HOST:localhost}"
+    user:     "${DB_USER:postgres}"
+    password: "${DB_PASSWORD}"          # 无默认值 → 未设置时为空字符串
+
+redis:
+  password: "${REDIS_PASSWORD}"
+
+jwt:
+  secret: "${JWT_SECRET:change-me-in-production}"
+```
+
+单个值中可同时使用多个占位符：
+
+```yaml
+database:
+  dsn: "${DB_USER:root}:${DB_PASSWORD}@tcp(${DB_HOST:127.0.0.1}:3306)/${DB_NAME:app}"
+```
+
+**优先级（由低到高）**
+
+| 来源 | 示例 |
+|---|---|
+| `config.yaml` 中的字面值 | `password: "fallback"` |
+| 占位符内的默认值 | `password: "${DB_PASSWORD:fallback}"` |
+| 占位符对应的环境变量 | `DB_PASSWORD=real-pass` |
+| 双下划线环境变量覆盖 | `DATABASE__POSTGRES__PASSWORD=top` |
+
+双下划线覆盖（Viper `AutomaticEnv`）优先级最高，在占位符展开之后生效。对于没有占位符的字段，仍可通过双下划线环境变量直接覆盖。
+
 ## Bootstrap 与 ORM
 
 ```go

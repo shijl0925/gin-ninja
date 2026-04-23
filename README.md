@@ -552,6 +552,55 @@ database:
 
 If you still provide a raw MySQL DSN and the password contains reserved characters such as `@`, `:`, `/`, `?`, `#`, or `+`, URL-encode the password segment first. Structured `database.mysql` / `database.postgres` fields avoid that manual escaping step.
 
+### Secrets and environment-variable placeholders
+
+Storing plaintext passwords in `config.yaml` is a security risk, especially in
+containerised or cloud deployments where the file may be committed to source control.
+gin-ninja supports Spring-style `${VAR}` / `${VAR:default}` placeholders in any string
+config value.  After the YAML file is parsed, every token is replaced by the value of
+the named environment variable.  If the variable is unset or empty the text after the
+first `:` is used as the default; omitting the default causes the field to become an
+empty string.
+
+```yaml
+database:
+  driver: "postgres"
+  # Entire DSN from environment; fall back to a local dev connection if unset.
+  dsn: "${DATASOURCE_URL:host=localhost user=postgres dbname=myapp sslmode=disable}"
+
+  # Or use structured fields – each credential can come from its own variable.
+  postgres:
+    host:     "${DB_HOST:localhost}"
+    user:     "${DB_USER:postgres}"
+    password: "${DB_PASSWORD}"          # no default → empty string when unset
+
+redis:
+  password: "${REDIS_PASSWORD}"
+
+jwt:
+  secret: "${JWT_SECRET:change-me-in-production}"
+```
+
+Multiple placeholders in a single value are supported:
+
+```yaml
+database:
+  dsn: "${DB_USER:root}:${DB_PASSWORD}@tcp(${DB_HOST:127.0.0.1}:3306)/${DB_NAME:app}"
+```
+
+**Precedence (lowest → highest)**
+
+| Source | Example |
+|---|---|
+| `config.yaml` default value | `password: "fallback"` |
+| `${VAR:default}` default | `password: "${DB_PASSWORD:fallback}"` |
+| Env var named in placeholder | `DB_PASSWORD=real-pass` |
+| Double-underscore env override | `DATABASE__POSTGRES__PASSWORD=top` |
+
+Double-underscore overrides (Viper `AutomaticEnv`) are applied last and therefore
+take precedence over placeholders.  Use them when you need to override a key that
+does not already contain a placeholder.
+
 Environment variables override file settings using double-underscore separators:
 ```bash
 export SERVER__PORT=9090
