@@ -151,6 +151,42 @@ func registerTypedOperation(r *Router, op *operation, opts ...OperationOption) {
 	r.operations = append(r.operations, op)
 }
 
+// Controller groups related routes for a single domain resource.
+// Implement Register to wire all of its endpoints onto the provided Router.
+//
+// Use api.AddController to create the router, call Register, and mount it in
+// one step:
+//
+//	type BookController struct{ db *gorm.DB }
+//
+//	func (c *BookController) Register(r *ninja.Router) {
+//	    ninja.Get(r,    "/",    c.List,   ninja.Summary("List books"))
+//	    ninja.Post(r,   "/",    c.Create, ninja.Summary("Create book"))
+//	    ninja.Get(r,    "/:id", c.Get,    ninja.Summary("Get book"))
+//	    ninja.Put(r,    "/:id", c.Update, ninja.Summary("Update book"))
+//	    ninja.Delete(r, "/:id", c.Delete, ninja.Summary("Delete book"))
+//	}
+//
+//	api.AddController("/books", &BookController{db: db},
+//	    ninja.WithTags("Books"),
+//	    ninja.WithBearerAuth(),
+//	)
+type Controller interface {
+	Register(r *Router)
+}
+
+// ControllerFunc is an adapter that lets a plain function serve as a
+// [Controller].  It is useful for small, inline controllers and in tests.
+//
+//	api.AddController("/items", ninja.ControllerFunc(func(r *ninja.Router) {
+//	    ninja.Get(r, "/", listItems)
+//	    ninja.Post(r, "/", createItem)
+//	}), ninja.WithTags("Items"))
+type ControllerFunc func(r *Router)
+
+// Register calls f(r), satisfying the [Controller] interface.
+func (f ControllerFunc) Register(r *Router) { f(r) }
+
 // Delete registers a DELETE endpoint with a typed input but no response body.
 //
 //	type DeleteUserInput struct {
