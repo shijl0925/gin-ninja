@@ -515,3 +515,89 @@ func TestLoadWithOverrides_MalformedBaseReturnsError(t *testing.T) {
 		t.Fatal("expected malformed base config error")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// ${VAR} / ${VAR:default} placeholder expansion
+// ---------------------------------------------------------------------------
+
+func TestLoad_PlaceholderExpansion(t *testing.T) {
+	yaml := `
+database:
+  driver: "postgres"
+  dsn: "${NINJA_IT_DSN:host=localhost user=postgres dbname=app}"
+  postgres:
+    host:     "${NINJA_IT_DB_HOST:127.0.0.1}"
+    user:     "${NINJA_IT_DB_USER:pguser}"
+    password: "${NINJA_IT_DB_PASS}"
+redis:
+  enabled: true
+  password: "${NINJA_IT_REDIS_PASS:redissecret}"
+jwt:
+  secret: "${NINJA_IT_JWT_SECRET:fallback-secret}"
+`
+	// Set some variables; leave others unset so defaults kick in.
+	t.Setenv("NINJA_IT_DB_PASS", "hunter2")
+	t.Setenv("NINJA_IT_JWT_SECRET", "env-jwt-secret")
+	// NINJA_IT_DSN, NINJA_IT_DB_HOST, NINJA_IT_DB_USER, NINJA_IT_REDIS_PASS unset → defaults
+
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// DSN gets the default value (env var not set).
+	if cfg.Database.DSN != "host=localhost user=postgres dbname=app" {
+		t.Errorf("unexpected DSN: %q", cfg.Database.DSN)
+	}
+	// Structured postgres fields: host and user use defaults; password from env.
+	if cfg.Database.Postgres.Host != "127.0.0.1" {
+		t.Errorf("unexpected postgres host: %q", cfg.Database.Postgres.Host)
+	}
+	if cfg.Database.Postgres.User != "pguser" {
+		t.Errorf("unexpected postgres user: %q", cfg.Database.Postgres.User)
+	}
+	if cfg.Database.Postgres.Password != "hunter2" {
+		t.Errorf("unexpected postgres password: %q", cfg.Database.Postgres.Password)
+	}
+	// Redis password uses default (env var not set).
+	if cfg.Redis.Password != "redissecret" {
+		t.Errorf("unexpected redis password: %q", cfg.Redis.Password)
+	}
+	// JWT secret comes from env.
+	if cfg.JWT.Secret != "env-jwt-secret" {
+		t.Errorf("unexpected jwt secret: %q", cfg.JWT.Secret)
+	}
+}
+
+func TestLoad_PlaceholderNoDefaultBecomesEmpty(t *testing.T) {
+	yaml := `
+jwt:
+  secret: "${NINJA_IT_UNSET_SECRET}"
+`
+	t.Setenv("NINJA_IT_UNSET_SECRET", "")
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.JWT.Secret != "" {
+		t.Errorf("expected empty string when env var unset and no default, got %q", cfg.JWT.Secret)
+	}
+}
+
+func TestLoad_PlaceholderEnvOverridesDefault(t *testing.T) {
+	yaml := `
+redis:
+  password: "${NINJA_IT_REDIS_PW:default-pass}"
+`
+	t.Setenv("NINJA_IT_REDIS_PW", "real-pass")
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Redis.Password != "real-pass" {
+		t.Errorf("expected env value to win over default, got %q", cfg.Redis.Password)
+	}
+}

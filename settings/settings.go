@@ -30,6 +30,36 @@
 //	  level: "info"
 //	  format: "json"
 //	  output: "stdout"
+//
+// # Environment variable placeholders
+//
+// Any string value in the YAML file may contain ${VAR} or ${VAR:default}
+// tokens.  After the file is parsed, each token is replaced by the value of
+// the named environment variable.  If the variable is unset or empty, the
+// text after the first ':' is used; if no default is given the token is
+// replaced with an empty string.  This lets you keep sensitive credentials
+// out of source-controlled config files:
+//
+//	database:
+//	  driver: "postgres"
+//	  dsn:    "${DATASOURCE_URL:host=localhost user=postgres dbname=myapp sslmode=disable}"
+//	  postgres:
+//	    host:     "${DB_HOST:localhost}"
+//	    user:     "${DB_USER:postgres}"
+//	    password: "${DB_PASSWORD}"
+//
+//	redis:
+//	  password: "${REDIS_PASSWORD}"
+//
+//	jwt:
+//	  secret: "${JWT_SECRET}"
+//
+// # Environment variable overrides
+//
+// In addition to placeholders, entire keys can be overridden via environment
+// variables using the double-underscore separator pattern (APP__SERVER__PORT
+// maps to app.server.port).  Environment variable overrides take effect after
+// placeholder expansion and therefore take the highest precedence.
 package settings
 
 import (
@@ -264,6 +294,7 @@ func Load(cfgFile string) (*Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
+	expandConfigStrings(&cfg)
 	normalizeDatabaseConfig(&cfg.Database)
 
 	SetGlobal(cfg)
@@ -335,6 +366,7 @@ func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
+	expandConfigStrings(&cfg)
 	normalizeDatabaseConfig(&cfg.Database)
 
 	SetGlobal(cfg)

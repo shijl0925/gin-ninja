@@ -17,10 +17,10 @@ database:
   # driver: "mysql"
   # dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
   # mysql:
-  #   host: "127.0.0.1"
+  #   host: "${DB_HOST:127.0.0.1}"
   #   port: 3306
-  #   user: "root"
-  #   password: "p@ss:word+plus"
+  #   user: "${DB_USER:root}"
+  #   password: "${DB_PASSWORD}"          # 从环境变量读取，避免明文
   #   name: "gin_ninja"
   #   charset: "utf8mb4"
   #   parse_time: true
@@ -30,14 +30,14 @@ database:
   #
   # 切换到 PostgreSQL:
   # driver: "postgres"
-  # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+  # dsn: "${DATASOURCE_URL:host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable}"
   # postgres:
-  #   host: "127.0.0.1"
-  #   port: 5432
-  #   user: "postgres"
-  #   password: "p@ss word"
-  #   name: "gin_ninja"
-  #   sslmode: "disable"
+  #   host:     "${DB_HOST:127.0.0.1}"
+  #   port:     5432
+  #   user:     "${DB_USER:postgres}"
+  #   password: "${DB_PASSWORD}"          # 从环境变量读取，避免明文
+  #   name:     "gin_ninja"
+  #   sslmode:  "disable"
   #   time_zone: "Asia/Shanghai"
   max_idle_conns: 5
   max_open_conns: 10
@@ -46,13 +46,13 @@ redis:
   enabled: false
   addr: "127.0.0.1:6379"
   username: ""
-  password: ""
+  password: "${REDIS_PASSWORD}"          # 从环境变量读取，避免明文；未设置则为空
   db: 0
   prefix: "gin-ninja:example:"
   # 启用后，/api/v1/examples/cache 会优先使用 Redis 作为响应缓存后端。
 
 jwt:
-  secret: "change-me-in-production-please"
+  secret: "${JWT_SECRET:change-me-in-production-please}"   # 生产环境请通过环境变量注入
   expire_hours: 24
   issuer: "gin-ninja-example"
 
