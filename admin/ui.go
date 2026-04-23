@@ -20,18 +20,23 @@ type UIConfig struct {
 
 	// TokenExtractExpr is a JavaScript expression that receives the login
 	// response payload and returns the token string.  It is injected verbatim
-	// into the generated page, so it must be valid JS.
+	// into the generated page as the body of a function, so it must be valid JS
+	// and must come from a trusted source (not from user-supplied input).
 	// Default: "payload.token"
 	// Example for {"data":{"accessToken":"…"}}: "payload.data && payload.data.accessToken"
 	TokenExtractExpr string
 
 	// UserNameExtractExpr is a JavaScript expression that receives the login
 	// response payload and returns the display name string (may be empty).
+	// Like TokenExtractExpr, it is injected verbatim and must come from a
+	// trusted source.
 	// Default: "payload.name"
 	UserNameExtractExpr string
 
 	// UserIDExtractExpr is a JavaScript expression that receives the login
 	// response payload and returns the user ID (may be null).
+	// Like TokenExtractExpr, it is injected verbatim and must come from a
+	// trusted source.
 	// Default: "payload.user_id || payload.userID"
 	UserIDExtractExpr string
 }
