@@ -271,6 +271,88 @@ func main() {
 }
 ```
 
+### 为什么需要依赖注入？
+
+将依赖在构造时传入结构体字段（而非直接读取包级全局变量），有三个核心好处：
+
+| 关注点 | 使用依赖注入 | 不使用（全局变量） |
+|---|---|---|
+| **单元测试** | 传入内存 DB，各测试完全隔离 | 所有测试共享同一个全局，setup/teardown 容易相互污染 |
+| **多实例挂载** | 同一个 Controller 类型可以用不同 DB 挂载（主库 + 只读副本） | 全局变量只能指向一个 DB |
+| **依赖可见性** | 结构体定义即文档，依赖一目了然 | 隐式全局状态，难以追踪来源 |
+
+对于小型脚本或快速原型而言，如果可测试性不是优先级，使用包级全局变量完全没问题。
+
+### 不使用依赖注入（包级全局变量）
+
+如果你更倾向于把共享数据库句柄放在包级别，而不是线程化传入结构体，Controller 依然可以正常编译和工作——`Controller` 接口对处理器如何访问其状态没有任何要求。
+
+```go
+package main
+
+import (
+    "sync"
+
+    ninja "github.com/shijl0925/gin-ninja"
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+)
+
+// db 在 main() 中初始化一次，所有处理器共享访问。
+// Controller 结构体中不存储任何指针。
+var (
+    db     *gorm.DB
+    dbOnce sync.Once
+)
+
+func initDB() {
+    dbOnce.Do(func() {
+        var err error
+        db, err = gorm.Open(sqlite.Open("app.db"), &gorm.Config{})
+        if err != nil {
+            panic(err)
+        }
+        db.AutoMigrate(&Book{})
+    })
+}
+
+// StaticBookController 没有任何字段——直接访问包级 `db` 变量。
+type StaticBookController struct{}
+
+func (c *StaticBookController) Register(r *ninja.Router) {
+    ninja.Get(r,    "/",    c.List,   ninja.Summary("列出书籍"))
+    ninja.Get(r,    "/:id", c.Get,    ninja.Summary("查询书籍"))
+    ninja.Post(r,   "/",    c.Create, ninja.Summary("创建书籍"))
+    ninja.Delete(r, "/:id", c.Delete, ninja.Summary("删除书籍"))
+}
+
+func (c *StaticBookController) Get(_ *ninja.Context, in *GetBookInput) (*BookOut, error) {
+    var book Book
+    if err := db.First(&book, in.BookID).Error; err != nil {
+        return nil, ninja.NotFoundError()
+    }
+    return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
+}
+
+func (c *StaticBookController) Create(_ *ninja.Context, in *CreateBookInput) (*BookOut, error) {
+    book := Book{Title: in.Title, Author: in.Author}
+    db.Create(&book)
+    return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
+}
+
+// List / Delete 结构相同，直接访问 `db`，此处省略。
+
+func main() {
+    initDB()
+
+    api := ninja.New(ninja.Config{Title: "Books API", Version: "1.0.0"})
+    api.AddController("/books", &StaticBookController{}, ninja.WithTags("Books"))
+    api.Run(":8080")
+}
+```
+
+> **权衡** — `StaticBookController` 的接线更简单，但孤立测试更难：替换数据库需要修改全局变量，需要各自独立 DB 的并行测试会变得难以管理。生产服务推荐使用依赖注入形式。
+
 ### 使用 `ControllerFunc` 内联 Controller
 
 如果不需要结构体，也可以用函数适配器快速定义：

@@ -313,6 +313,88 @@ func main() {
 }
 ```
 
+### Why dependency injection?
+
+Passing dependencies into the struct at construction time (rather than reading package-level globals) gives three concrete advantages:
+
+| Concern | With DI | Without DI (global) |
+|---|---|---|
+| **Unit tests** | Pass an in-memory DB; no shared state between tests | Every test touches the same global; setup/teardown is fragile |
+| **Multiple instances** | Same controller type can be mounted with different DBs (primary + read replica) | Only one DB reachable from the handler |
+| **Explicit dependencies** | All requirements visible in the struct definition | Hidden global state; harder to reason about |
+
+For small scripts or quick prototypes where testability is not a priority, a package-level global is perfectly fine.
+
+### Without dependency injection (package-level variable)
+
+If you prefer to keep a shared database handle at the package level instead of threading it through the struct, the controller still compiles and works — the `Controller` interface has no opinion on how the handler accesses its state.
+
+```go
+package main
+
+import (
+    "sync"
+
+    ninja "github.com/shijl0925/gin-ninja"
+    "gorm.io/driver/sqlite"
+    "gorm.io/gorm"
+)
+
+// db is initialized once in main() and shared across all handlers.
+// No pointer is stored in the controller struct.
+var (
+    db     *gorm.DB
+    dbOnce sync.Once
+)
+
+func initDB() {
+    dbOnce.Do(func() {
+        var err error
+        db, err = gorm.Open(sqlite.Open("app.db"), &gorm.Config{})
+        if err != nil {
+            panic(err)
+        }
+        db.AutoMigrate(&Book{})
+    })
+}
+
+// StaticBookController has no fields — it accesses the global `db` directly.
+type StaticBookController struct{}
+
+func (c *StaticBookController) Register(r *ninja.Router) {
+    ninja.Get(r,    "/",    c.List,   ninja.Summary("List books"))
+    ninja.Get(r,    "/:id", c.Get,    ninja.Summary("Get book"))
+    ninja.Post(r,   "/",    c.Create, ninja.Summary("Create book"))
+    ninja.Delete(r, "/:id", c.Delete, ninja.Summary("Delete book"))
+}
+
+func (c *StaticBookController) Get(_ *ninja.Context, in *GetBookInput) (*BookOut, error) {
+    var book Book
+    if err := db.First(&book, in.BookID).Error; err != nil {
+        return nil, ninja.NotFoundError()
+    }
+    return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
+}
+
+func (c *StaticBookController) Create(_ *ninja.Context, in *CreateBookInput) (*BookOut, error) {
+    book := Book{Title: in.Title, Author: in.Author}
+    db.Create(&book)
+    return &BookOut{ID: book.ID, Title: book.Title, Author: book.Author}, nil
+}
+
+// List and Delete follow the same pattern, accessing `db` directly.
+
+func main() {
+    initDB()
+
+    api := ninja.New(ninja.Config{Title: "Books API", Version: "1.0.0"})
+    api.AddController("/books", &StaticBookController{}, ninja.WithTags("Books"))
+    api.Run(":8080")
+}
+```
+
+> **Trade-off** — `StaticBookController` is simpler to wire but harder to test in isolation: swapping the database requires changing the global, and parallel tests that each need a fresh DB become difficult to manage. For production services, prefer the dependency-injected form.
+
 ### Inline controller with `ControllerFunc`
 
 For small or test scenarios where a full struct is unnecessary, use the `ControllerFunc` adapter:
