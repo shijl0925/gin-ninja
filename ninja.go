@@ -163,6 +163,20 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 	api.engine.Use(mw...)
 }
 
+// AddController is a convenience wrapper that creates a Router with the given
+// prefix and options, delegates route registration to the controller, and
+// mounts the router via AddRouter.
+//
+//	api.AddController("/books", &BookController{db: db},
+//	    ninja.WithTags("Books"),
+//	    ninja.WithBearerAuth(),
+//	)
+func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOption) {
+	r := NewRouter(prefix, opts...)
+	c.Register(r)
+	api.AddRouter(r)
+}
+
 // AddRouter mounts a Router under the API.
 // All operations defined on the router (and any nested sub-routers) are
 // registered with the gin engine and included in the OpenAPI spec.

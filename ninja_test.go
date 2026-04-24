@@ -674,6 +674,75 @@ func TestNestedRouters_InheritParentMiddleware(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Controller pattern
+// ---------------------------------------------------------------------------
+
+func TestAddController_RoutesRegistered(t *testing.T) {
+	type itemOut struct {
+		ID int `json:"id"`
+	}
+	type getIn struct {
+		ID int `path:"id"`
+	}
+
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+
+	// Use an anonymous struct implementing Controller directly.
+	var handlerCalled bool
+	type listIn struct{}
+	api.AddController("/items", ninja.ControllerFunc(func(r *ninja.Router) {
+		ninja.Get(r, "/", func(_ *ninja.Context, _ *listIn) (*itemOut, error) {
+			handlerCalled = true
+			return &itemOut{ID: 42}, nil
+		})
+		ninja.Get(r, "/:id", func(_ *ninja.Context, in *getIn) (*itemOut, error) {
+			return &itemOut{ID: in.ID}, nil
+		})
+	}), ninja.WithTags("Items"))
+
+	w := doRequest(api, http.MethodGet, "/items/", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if !handlerCalled {
+		t.Fatal("expected handler to be called")
+	}
+
+	w2 := doRequest(api, http.MethodGet, "/items/7", nil)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w2.Code, w2.Body.String())
+	}
+	var out itemOut
+	if err := json.Unmarshal(w2.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse response: %v", err)
+	}
+	if out.ID != 7 {
+		t.Errorf("expected ID=7, got %d", out.ID)
+	}
+}
+
+func TestAddController_AppearsInOpenAPI(t *testing.T) {
+	type listIn struct{}
+	type itemOut struct{ ID int `json:"id"` }
+
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	api.AddController("/widgets", ninja.ControllerFunc(func(r *ninja.Router) {
+		ninja.Get(r, "/", func(_ *ninja.Context, _ *listIn) (*itemOut, error) { return nil, nil },
+			ninja.Summary("List widgets"))
+	}), ninja.WithTags("Widgets"))
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("parse openapi JSON: %v", err)
+	}
+	paths, _ := spec["paths"].(map[string]interface{})
+	if _, ok := paths["/widgets/"]; !ok {
+		t.Errorf("expected /widgets/ in OpenAPI paths, got: %v", paths)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // OpenAPI spec content
 // ---------------------------------------------------------------------------
 
