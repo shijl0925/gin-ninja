@@ -1,9 +1,9 @@
 package ninja
 
 import (
-	"encoding/json"
 	"fmt"
 	"html"
+	htmltemplate "html/template"
 	"net/http"
 	"reflect"
 	"sort"
@@ -481,10 +481,6 @@ func (s *openAPISpec) registerTags(tags []string, descriptions map[string]string
 // ---------------------------------------------------------------------------
 
 func swaggerUIHTML(openapiURL, title string) string {
-	openAPIURLJSON, err := json.Marshal(openapiURL)
-	if err != nil {
-		openAPIURLJSON = []byte(`""`)
-	}
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -500,7 +496,7 @@ func swaggerUIHTML(openapiURL, title string) string {
 <script>
 window.onload = function() {
   const ui = SwaggerUIBundle({
-    url: %s,
+    url: "%s",
     dom_id: '#swagger-ui',
     presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
     layout: "StandaloneLayout"
@@ -509,7 +505,7 @@ window.onload = function() {
 }
 </script>
 </body>
-</html>`, html.EscapeString(title), string(openAPIURLJSON))
+</html>`, html.EscapeString(title), htmltemplate.JSEscapeString(openapiURL))
 }
 
 // homepageHTML returns the HTML for the Gin Ninja welcome homepage.
