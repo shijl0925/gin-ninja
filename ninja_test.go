@@ -1832,51 +1832,6 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BusinessError
-// ---------------------------------------------------------------------------
-
-func TestBusinessError_WrittenAsHTTP200(t *testing.T) {
-	api := newTestAPI()
-	r := ninja.NewRouter("/biz")
-
-	type emptyIn struct{}
-	ninja.Get(r, "/error", func(ctx *ninja.Context, in *emptyIn) (*emptyIn, error) {
-		return nil, ninja.NewBusinessError(10001, "account disabled")
-	})
-	api.AddRouter(r)
-
-	w := doRequest(api, http.MethodGet, "/biz/error", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("BusinessError should use HTTP 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var body map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("parse body: %v", err)
-	}
-	if code, _ := body["code"].(float64); int(code) != 10001 {
-		t.Errorf("expected code=10001, got %v", body["code"])
-	}
-	if msg, _ := body["message"].(string); msg != "account disabled" {
-		t.Errorf("expected message='account disabled', got %q", msg)
-	}
-}
-
-func TestBusinessError_IsComparison(t *testing.T) {
-	err := ninja.NewBusinessError(10001, "disabled")
-	target := ninja.NewBusinessError(10001, "something else")
-
-	if !errors.Is(err, target) {
-		t.Error("expected errors.Is to match on same code")
-	}
-
-	other := ninja.NewBusinessError(10002, "disabled")
-	if errors.Is(err, other) {
-		t.Error("expected errors.Is to NOT match on different code")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Version deprecation headers (enhanced)
 // ---------------------------------------------------------------------------
 

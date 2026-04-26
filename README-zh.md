@@ -39,7 +39,7 @@ gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发�
 - **文件传输**：支持 multipart 上传与下载响应
 - **配置与引导**：内置 settings、bootstrap、logger、ORM 集成
 - **内置中间件**：CORS、JWT、i18n、Session、CSRF、安全头、请求日志、Request ID、上传限制、Recovery
-- **统一错误模型**：支持协议级错误和业务错误
+- **统一错误模型**：支持协议级 HTTP 错误与验证错误
 
 ## 架构与请求流程
 
@@ -697,22 +697,12 @@ func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
 - `exclude:"..."` 用于排除敏感字段
 - 过滤规则同时作用于 JSON 响应和 OpenAPI schema
 
-### 业务错误与协议错误
+### 协议错误与验证错误
 
-`gin-ninja` 区分两类错误：
-
-1. **`*ninja.Error`**：协议级错误，使用对应 HTTP 状态码返回
-2. **`*ninja.BusinessError`**：业务级错误，始终返回 HTTP 200，响应体为标准业务信封
+`*ninja.Error` 表示协议级错误，使用对应 HTTP 状态码返回。
 
 ```go
-return nil, ninja.NewBusinessError(10001, "account is disabled")
-return nil, ninja.NewBusinessErrorWithDetail(10002, "quota exceeded", map[string]int{"limit": 100})
-```
-
-响应示例：
-
-```json
-{"code": 10001, "message": "account is disabled", "data": null}
+return nil, ninja.NewErrorWithCode(http.StatusForbidden, "ACCOUNT_DISABLED", "account is disabled")
 ```
 
 `ValidationError` 会返回 HTTP 422。

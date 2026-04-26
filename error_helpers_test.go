@@ -90,21 +90,6 @@ func TestBuiltinErrorHelpers(t *testing.T) {
 	}
 }
 
-func TestBusinessErrorHelpers(t *testing.T) {
-	t.Parallel()
-
-	err := NewBusinessErrorWithDetail(1001, "invalid", map[string]string{"field": "name"})
-	if got := err.Error(); got != "[business:1001] invalid" {
-		t.Fatalf("BusinessError.Error() = %q", got)
-	}
-	if !err.Is(NewBusinessError(1001, "other")) {
-		t.Fatal("expected business errors with same code to match")
-	}
-	if err.Is(NewBusinessError(1002, "invalid")) {
-		t.Fatal("expected business errors with different code not to match")
-	}
-}
-
 func TestErrorFactoryAndCloneHelpers(t *testing.T) {
 	t.Parallel()
 

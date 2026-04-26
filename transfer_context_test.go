@@ -258,9 +258,4 @@ func TestContextHelpersAndErrorUtilities(t *testing.T) {
 		t.Fatalf("expected BadRequestError() to return a clone, got %q", fresh.Message)
 	}
 
-	detail := map[string]any{"field": "email"}
-	businessErr := NewBusinessErrorWithDetail(1001, "invalid", detail)
-	if businessErr.Detail == nil {
-		t.Fatal("expected business error detail to be preserved")
-	}
 }

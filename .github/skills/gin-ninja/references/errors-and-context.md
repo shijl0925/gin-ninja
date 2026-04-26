@@ -19,17 +19,6 @@
   - `ninja.IsConflict(err)`
   - `ninja.IsInternal(err)`
 
-## Business errors
-
-- `ninja.BusinessError` is for domain or application-level failures that should still return HTTP 200.
-- Prefer it for business rule failures such as disabled accounts, quota limits, or state-machine violations.
-- Create them with:
-  - `ninja.NewBusinessError(code, message)`
-  - `ninja.NewBusinessErrorWithDetail(code, message, detail)`
-- Response envelope:
-  - `{"code": <non-zero int>, "message": "...", "data": ...}`
-- Use `*ninja.Error` instead when the failure should change the HTTP status code.
-
 ## Validation errors
 
 - `ninja.ValidationError` represents request validation failures.
@@ -74,7 +63,6 @@
 ## Good defaults
 
 1. Return framework errors instead of writing ad-hoc JSON error bodies in handlers.
-2. Use `BusinessError` only when the contract intentionally keeps HTTP 200 for business failures.
-3. Let typed request structs and binding tags produce validation behavior automatically.
-4. Prefer `ctx.T(...)` and `ctx.Locale()` over custom locale plumbing.
-5. Prefer `api.RegisterErrorMapper(...)` when the same translation rule appears in multiple handlers.
+2. Let typed request structs and binding tags produce validation behavior automatically.
+3. Prefer `ctx.T(...)` and `ctx.Locale()` over custom locale plumbing.
+4. Prefer `api.RegisterErrorMapper(...)` when the same translation rule appears in multiple handlers.

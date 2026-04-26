@@ -600,6 +600,9 @@ func executeTextTemplate(source string, data any) (string, error) {
 	tpl, err := template.New("scaffold").Funcs(template.FuncMap{
 		"bt":    func() string { return "`" },
 		"lower": strings.ToLower,
+		"upperSnake": func(input string) string {
+			return strings.ToUpper(scaffoldToSeparated(scaffoldSplitWords(input), "_", false))
+		},
 	}).Parse(source)
 	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
@@ -1361,10 +1364,10 @@ const appErrorsTemplate = `package {{ .PackageName }}
 
 import ninja "github.com/shijl0925/gin-ninja"
 
-const {{ .ModelName }}NameRequiredCode = 10001
+const {{ .ModelName }}NameRequiredCode = "{{ upperSnake .ModelName }}_NAME_REQUIRED"
 
 func New{{ .ModelName }}NameRequiredError() error {
-return ninja.NewBusinessError({{ .ModelName }}NameRequiredCode, "{{ lower .ModelName }} name is required")
+return ninja.NewErrorWithCode(400, {{ .ModelName }}NameRequiredCode, "{{ lower .ModelName }} name is required")
 }
 `
 
