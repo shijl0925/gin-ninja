@@ -21,8 +21,9 @@ type lifecycleState struct {
 }
 
 type serverState struct {
-	mu     sync.RWMutex
-	server *http.Server
+	mu        sync.RWMutex
+	server    *http.Server
+	accepting bool
 }
 
 // OnStartup registers a hook that runs before the HTTP server starts accepting traffic.
@@ -50,6 +51,8 @@ func (api *NinjaAPI) serve(listener net.Listener, startupCtx context.Context) er
 	}
 
 	server := api.newHTTPServer()
+	api.setServer(server)
+	defer api.clearServer()
 	if err := api.runStartupHooks(startupCtx); err != nil {
 		shutdownCtx, cancel := api.shutdownContext(context.Background())
 		defer cancel()
@@ -58,8 +61,7 @@ func (api *NinjaAPI) serve(listener net.Listener, startupCtx context.Context) er
 		return errors.Join(err, cleanupErr)
 	}
 
-	api.startServer(server)
-	defer api.clearServer()
+	api.startAccepting()
 	api.printStartupBanner(listener)
 
 	err := server.Serve(listener)
@@ -153,17 +155,24 @@ func (api *NinjaAPI) shutdownContext(parent context.Context) (context.Context, c
 	return context.WithTimeout(parent, api.config.GracefulShutdownTimeout)
 }
 
-func (api *NinjaAPI) startServer(server *http.Server) {
+func (api *NinjaAPI) setServer(server *http.Server) {
+	api.serverState.mu.Lock()
+	api.serverState.server = server
+	api.serverState.mu.Unlock()
+}
+
+func (api *NinjaAPI) startAccepting() {
 	api.routesMu.Lock()
 	defer api.routesMu.Unlock()
 	api.serverState.mu.Lock()
-	api.serverState.server = server
+	api.serverState.accepting = true
 	api.serverState.mu.Unlock()
 }
 
 func (api *NinjaAPI) clearServer() {
 	api.serverState.mu.Lock()
 	api.serverState.server = nil
+	api.serverState.accepting = false
 	api.serverState.mu.Unlock()
 }
 
@@ -171,4 +180,10 @@ func (api *NinjaAPI) currentServer() *http.Server {
 	api.serverState.mu.RLock()
 	defer api.serverState.mu.RUnlock()
 	return api.serverState.server
+}
+
+func (api *NinjaAPI) isAccepting() bool {
+	api.serverState.mu.RLock()
+	defer api.serverState.mu.RUnlock()
+	return api.serverState.accepting
 }

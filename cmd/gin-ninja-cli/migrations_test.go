@@ -146,6 +146,35 @@ func TestApplyMigrationRollsBackSQLAndRecordTogether(t *testing.T) {
 	}
 }
 
+func TestApplyEmptyMigrationRecordsMigration(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "empty.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	defer db.Close()
+	if err := ensureMigrationTable(db); err != nil {
+		t.Fatalf("ensure migration table: %v", err)
+	}
+
+	file := migrationFile{
+		Version: "20260426134440",
+		Name:    "empty",
+	}
+	if err := applyMigration(db, "sqlite", file); err != nil {
+		t.Fatalf("apply empty migration: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM `+migrationTableName+` WHERE version = ?`, file.Version).Scan(&count); err != nil {
+		t.Fatalf("query migration record: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected empty migration to be recorded, got %d", count)
+	}
+}
+
 func TestRunMakeMigrations(t *testing.T) {
 	t.Parallel()
 

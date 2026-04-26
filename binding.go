@@ -54,7 +54,8 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	}
 
 	// Use the framework binder instead of gin's generic form binder so request
-	// sources keep gin-ninja's documented precedence and conversion rules.
+	// sources keep gin-ninja's documented precedence: path/header/cookie/query
+	// and form values are restored if a JSON body binds the same field.
 	if hasFormFields(t) {
 		values, err := formValues(c, method)
 		if err != nil {

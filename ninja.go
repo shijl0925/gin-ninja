@@ -190,7 +190,7 @@ func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOp
 func (api *NinjaAPI) AddRouter(router *Router) {
 	api.routesMu.Lock()
 	defer api.routesMu.Unlock()
-	if api.currentServer() != nil {
+	if api.isAccepting() {
 		panic("gin-ninja: cannot add router while server is running")
 	}
 	api.routers = append(api.routers, router)
