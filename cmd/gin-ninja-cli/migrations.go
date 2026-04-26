@@ -939,15 +939,21 @@ func splitSQLStatements(section string) []string {
 		}
 		current.Reset()
 	}
-	for i, r := range trimmed {
+	for i := 0; i < len(trimmed); {
 		if dollarTag != "" {
-			current.WriteRune(r)
-			if strings.HasSuffix(current.String(), dollarTag) {
+			if strings.HasPrefix(trimmed[i:], dollarTag) {
+				current.WriteString(dollarTag)
+				i += len(dollarTag)
 				dollarTag = ""
+				continue
 			}
+			current.WriteByte(trimmed[i])
+			i++
 			continue
 		}
-		switch r {
+
+		ch := trimmed[i]
+		switch ch {
 		case '\'':
 			if !inDouble && !inBacktick && (i == 0 || trimmed[i-1] != '\\') {
 				inSingle = !inSingle
@@ -964,6 +970,9 @@ func splitSQLStatements(section string) []string {
 			if !inSingle && !inDouble && !inBacktick {
 				if tag := readDollarQuoteTag(trimmed[i:]); tag != "" {
 					dollarTag = tag
+					current.WriteString(tag)
+					i += len(tag)
+					continue
 				}
 			}
 		case ';':
@@ -972,7 +981,8 @@ func splitSQLStatements(section string) []string {
 				continue
 			}
 		}
-		current.WriteRune(r)
+		current.WriteByte(ch)
+		i++
 	}
 	flush()
 	return statements
