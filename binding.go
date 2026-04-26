@@ -56,12 +56,13 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	// Use the framework binder instead of gin's generic form binder so request
 	// sources keep gin-ninja's documented precedence: path/header/cookie/query
 	// and form values are restored if a JSON body binds the same field.
+	formBody := isBodyMethod(method) && isFormURLEncodedRequest(c)
 	if hasFormFields(t) {
 		values, err := formValues(c, method)
 		if err != nil {
 			return err
 		}
-		if err := bindFormFields(t, v, values); err != nil {
+		if err := bindFormFields(t, v, values, formBody); err != nil {
 			return err
 		}
 	}
@@ -152,12 +153,12 @@ func formValues(c *gin.Context, method string) (url.Values, error) {
 	return values, nil
 }
 
-func bindFormFields(t reflect.Type, v reflect.Value, values url.Values) error {
+func bindFormFields(t reflect.Type, v reflect.Value, values url.Values, formBody bool) error {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		fv := v.Field(i)
 		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			if err := bindFormFields(deref(field.Type), derefValue(fv), values); err != nil {
+			if err := bindFormFields(deref(field.Type), derefValue(fv), values, formBody); err != nil {
 				return err
 			}
 			continue
@@ -174,9 +175,13 @@ func bindFormFields(t reflect.Type, v reflect.Value, values url.Values) error {
 			continue
 		}
 		if err := setFieldFromStrings(fv, raw); err != nil {
+			code := "INVALID_QUERY"
+			if formBody {
+				code = "INVALID_FORM"
+			}
 			return &Error{
 				Status:  http.StatusBadRequest,
-				Code:    "INVALID_QUERY",
+				Code:    code,
 				Message: fmt.Sprintf("form field '%s': %s", formTag, err.Error()),
 			}
 		}
@@ -193,8 +198,8 @@ func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
 			continue
 		}
 
-		if field.Anonymous && field.Type.Kind() == reflect.Struct {
-			if err := applyDefaults(c, field.Type, fv); err != nil {
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			if err := applyDefaults(c, deref(field.Type), derefValue(fv)); err != nil {
 				return err
 			}
 			continue
@@ -254,8 +259,8 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 			continue
 		}
 
-		if field.Anonymous && field.Type.Kind() == reflect.Struct {
-			if err := bindMultipartValue(field.Type, fv, form); err != nil {
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			if err := bindMultipartValue(deref(field.Type), derefValue(fv), form); err != nil {
 				return err
 			}
 			continue
@@ -304,8 +309,8 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 		}
 
 		// Handle embedded / anonymous structs recursively.
-		if field.Anonymous && field.Type.Kind() == reflect.Struct {
-			if err := bindSpecialFields(c, field.Type, fv); err != nil {
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			if err := bindSpecialFields(c, deref(field.Type), derefValue(fv)); err != nil {
 				return err
 			}
 			continue

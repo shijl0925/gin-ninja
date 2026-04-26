@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,6 +70,11 @@ type Session struct {
 	cfg   *SessionConfig
 	data  map[string]string
 	dirty bool
+}
+
+type sessionPayload struct {
+	Data      map[string]string `json:"data"`
+	ExpiresAt int64             `json:"expires_at"`
 }
 
 // sessionResponseWriter wraps Gin's response writer so dirty session state can
@@ -163,7 +169,7 @@ const maxCookieValueLen = 4000
 // you need the cookie written before the end of the handler chain; the
 // middleware calls it automatically after c.Next().
 func (s *Session) Save(c *gin.Context) error {
-	raw, err := encodeSession(s.data, s.cfg.Secret)
+	raw, err := encodeSession(s.data, s.cfg.Secret, s.cfg.MaxAge)
 	if err != nil {
 		return err
 	}
@@ -210,7 +216,7 @@ func SessionMiddleware(cfg *SessionConfig) gin.HandlerFunc {
 		sess := &Session{cfg: cfg, data: make(map[string]string)}
 
 		if raw, err := c.Cookie(cfg.CookieName); err == nil && raw != "" {
-			if data, err := decodeSession(raw, cfg.Secret); err == nil {
+			if data, err := decodeSession(raw, cfg.Secret, time.Now()); err == nil {
 				sess.data = data
 			}
 		}
@@ -245,10 +251,14 @@ func GetSession(c *gin.Context) *Session {
 // Internal helpers – signing and encoding
 // ---------------------------------------------------------------------------
 
-// encodeSession serialises data as JSON, then signs and base64-encodes it.
+// encodeSession serialises data and its server-side expiry as JSON, then signs
+// and base64-encodes it.
 // The resulting cookie value is:  base64(json) + "." + base64(hmac)
-func encodeSession(data map[string]string, secret string) (string, error) {
-	payload, err := json.Marshal(data)
+func encodeSession(data map[string]string, secret string, maxAge int) (string, error) {
+	payload, err := json.Marshal(sessionPayload{
+		Data:      data,
+		ExpiresAt: time.Now().Add(time.Duration(maxAge) * time.Second).Unix(),
+	})
 	if err != nil {
 		return "", err
 	}
@@ -258,8 +268,8 @@ func encodeSession(data map[string]string, secret string) (string, error) {
 }
 
 // decodeSession verifies and decodes a cookie value produced by encodeSession.
-// Returns an error if the signature is invalid or the JSON is malformed.
-func decodeSession(value, secret string) (map[string]string, error) {
+// Returns an error if the signature is invalid, expired, or the JSON is malformed.
+func decodeSession(value, secret string, now time.Time) (map[string]string, error) {
 	idx := strings.LastIndex(value, ".")
 	if idx < 0 {
 		return nil, errors.New("session: malformed cookie: missing signature separator")
@@ -275,6 +285,14 @@ func decodeSession(value, secret string) (map[string]string, error) {
 	raw, err := base64.RawURLEncoding.DecodeString(b64Payload)
 	if err != nil {
 		return nil, err
+	}
+
+	var payload sessionPayload
+	if err := json.Unmarshal(raw, &payload); err == nil && payload.Data != nil {
+		if payload.ExpiresAt > 0 && now.Unix() > payload.ExpiresAt {
+			return nil, errors.New("session: expired")
+		}
+		return payload.Data, nil
 	}
 
 	var data map[string]string

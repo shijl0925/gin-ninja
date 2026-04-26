@@ -111,6 +111,11 @@ type formURLEncodedInput struct {
 	Mode customTextValue `form:"mode"`
 }
 
+type embeddedPointerBindInput struct {
+	*BindEmbeddedInput
+	Page int `form:"page" default:"1"`
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }
@@ -182,6 +187,22 @@ func TestBindInput_FormURLEncodedAndCommonTypes(t *testing.T) {
 	}
 	if in.Mode != "custom:fast" {
 		t.Fatalf("expected custom text value to bind, got %q", in.Mode)
+	}
+}
+
+func TestBindInput_EmbeddedPointerStruct(t *testing.T) {
+	c, _ := newTestContext(http.MethodGet, "/items?page=3", "")
+	c.Request.Header.Set("X-Trace", "trace-1")
+
+	var in embeddedPointerBindInput
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.BindEmbeddedInput == nil {
+		t.Fatal("expected embedded pointer to be allocated")
+	}
+	if in.Trace != "trace-1" || in.Page != 3 {
+		t.Fatalf("unexpected embedded pointer bind: %+v", in)
 	}
 }
 
@@ -261,6 +282,20 @@ func TestBindInput_Errors(t *testing.T) {
 		var apiErr *Error
 		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_QUERY" || apiErr.Status != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_QUERY bad request, got %v", err)
+		}
+	})
+
+	t.Run("bad form body conversion", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodPost, "/users", "age=nope")
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		type formInput struct {
+			Age int `form:"age"`
+		}
+		var in formInput
+		err := bindInput(c, http.MethodPost, &in)
+		var apiErr *Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_FORM" || apiErr.Status != http.StatusBadRequest {
+			t.Fatalf("expected INVALID_FORM bad request, got %v", err)
 		}
 	})
 

@@ -323,6 +323,7 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 	bodyRequired := []string{}
 	hasBody := isBodyMethod(method)
 	isMultipart := hasMultipartBody(t)
+	isFormBody := hasBody && !isMultipart && hasFormFields(t)
 
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -389,7 +390,7 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 
 		// Query / form parameter.
 		if formTag := f.Tag.Get("form"); formTag != "" {
-			if hasBody && isMultipart {
+			if hasBody && (isMultipart || isFormBody) {
 				bodyFields[formTag] = fieldSchema
 				if isRequired(f) {
 					bodyRequired = append(bodyRequired, formTag)
@@ -430,6 +431,8 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		}
 		if isMultipart {
 			contentType = "multipart/form-data"
+		} else if isFormBody {
+			contentType = "application/x-www-form-urlencoded"
 		} else {
 			contentType = "application/json"
 		}

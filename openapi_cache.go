@@ -27,9 +27,8 @@ func (api *NinjaAPI) openAPIBytes() ([]byte, error) {
 	}
 
 	api.routesMu.RLock()
-	builtSpec := api.openAPI.build()
+	built, err := json.Marshal(api.openAPI.build())
 	api.routesMu.RUnlock()
-	built, err := json.Marshal(builtSpec)
 	if err != nil {
 		return nil, err
 	}

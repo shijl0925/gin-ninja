@@ -112,6 +112,9 @@ func New(config Config) *NinjaAPI {
 	if config.OpenAPIURL == "" && !config.DisableOpenAPI {
 		config.OpenAPIURL = "/openapi.json"
 	}
+	if config.DisableOpenAPI {
+		config.DisableDocs = true
+	}
 	if config.ReadTimeout == 0 {
 		config.ReadTimeout = 15 * time.Second
 	}
@@ -158,15 +161,21 @@ func (api *NinjaAPI) Handler() http.Handler {
 }
 
 // UseGin registers one or more raw gin.HandlerFunc middleware on the
-// underlying engine.  This is the preferred way to attach infrastructure
-// middleware such as CORS, request-ID injection, structured logging, and
-// JWT authentication.
+// underlying engine before application routers are mounted.  Middleware added
+// here affects routers registered after this call; use router.UseGin for
+// router-scoped middleware.
 //
 //	api.UseGin(middleware.RequestID())
 //	api.UseGin(middleware.CORS(nil))
 //	api.UseGin(middleware.Logger(log))
 //	api.UseGin(middleware.JWTAuth())
 func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
+	api.routesMu.RLock()
+	hasRouters := len(api.routers) > 0
+	api.routesMu.RUnlock()
+	if api.isAccepting() || hasRouters {
+		panic("gin-ninja: cannot add global gin middleware after routers are mounted")
+	}
 	api.engine.Use(mw...)
 }
 
@@ -188,13 +197,18 @@ func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOp
 // All operations defined on the router (and any nested sub-routers) are
 // registered with the gin engine and included in the OpenAPI spec.
 func (api *NinjaAPI) AddRouter(router *Router) {
+	if router == nil {
+		panic("gin-ninja: router must not be nil")
+	}
 	api.routesMu.Lock()
 	defer api.routesMu.Unlock()
 	if api.isAccepting() {
 		panic("gin-ninja: cannot add router while server is running")
 	}
+	router.assertNotMounted("mount router")
 	api.routers = append(api.routers, router)
 	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, "", nil, router)
+	router.markMounted()
 	api.invalidateOpenAPICache()
 }
 
@@ -329,7 +343,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if !api.config.DisableDocs && api.config.DocsURL != "" {
+	if !api.config.DisableDocs && !api.config.DisableOpenAPI && api.config.DocsURL != "" && api.config.OpenAPIURL != "" {
 		docsURL := api.config.DocsURL
 		openAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
@@ -355,7 +369,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedDocsPattern(api.config.DocsURL); !api.config.DisableDocs && pattern != "" {
+	if pattern := versionedDocsPattern(api.config.DocsURL); !api.config.DisableDocs && !api.config.DisableOpenAPI && pattern != "" {
 		baseOpenAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
 		api.engine.GET(pattern, func(c *gin.Context) {

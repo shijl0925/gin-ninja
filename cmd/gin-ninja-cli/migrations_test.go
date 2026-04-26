@@ -175,6 +175,37 @@ func TestApplyEmptyMigrationRecordsMigration(t *testing.T) {
 	}
 }
 
+func TestSplitSQLStatementsKeepsPostgresDollarQuotedFunction(t *testing.T) {
+	sql := `
+CREATE FUNCTION demo_fn() RETURNS void AS $$
+BEGIN
+	RAISE NOTICE 'hello; world';
+END;
+$$ LANGUAGE plpgsql;
+CREATE TABLE demo_items (id INTEGER);
+`
+	statements := splitSQLStatements(sql)
+	if len(statements) != 2 {
+		t.Fatalf("expected 2 statements, got %d: %#v", len(statements), statements)
+	}
+	if !strings.Contains(statements[0], "hello; world") {
+		t.Fatalf("expected semicolon inside dollar quote to be preserved, got %q", statements[0])
+	}
+}
+
+func TestWarnIfDDLMayAutocommit(t *testing.T) {
+	var stderr bytes.Buffer
+	warnIfDDLMayAutocommit(&stderr, "mysql")
+	if !strings.Contains(stderr.String(), "auto-commit") {
+		t.Fatalf("expected MySQL warning, got %q", stderr.String())
+	}
+	stderr.Reset()
+	warnIfDDLMayAutocommit(&stderr, "sqlite")
+	if stderr.Len() != 0 {
+		t.Fatalf("expected no sqlite warning, got %q", stderr.String())
+	}
+}
+
 func TestRunMakeMigrations(t *testing.T) {
 	t.Parallel()
 

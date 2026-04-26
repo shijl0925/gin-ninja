@@ -435,6 +435,11 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 			}
 		}
 
+		if isDownloadType(op.outputType) {
+			next(c)
+			return
+		}
+
 		originalWriter := c.Writer
 		recorder := newCaptureResponseWriter(originalWriter)
 		c.Writer = recorder

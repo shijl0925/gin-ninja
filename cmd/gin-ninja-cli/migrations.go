@@ -214,6 +214,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		return 0
 	}
 	if targetIndex > currentIndex {
+		warnIfDDLMayAutocommit(stderr, project.dialect)
 		for i := currentIndex + 1; i <= targetIndex; i++ {
 			if err := applyMigration(sqlDB, project.dialect, files[i]); err != nil {
 				fmt.Fprintf(stderr, "apply migration %s: %v\n", files[i].FileName, err)
@@ -223,6 +224,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		}
 		return 0
 	}
+	warnIfDDLMayAutocommit(stderr, project.dialect)
 	for i := currentIndex; i > targetIndex; i-- {
 		if err := rollbackMigration(sqlDB, project.dialect, files[i]); err != nil {
 			fmt.Fprintf(stderr, "rollback migration %s: %v\n", files[i].FileName, err)
@@ -928,6 +930,7 @@ func splitSQLStatements(section string) []string {
 		inSingle   bool
 		inDouble   bool
 		inBacktick bool
+		dollarTag  string
 	)
 	flush := func() {
 		stmt := normalizeSQLStatement(current.String())
@@ -937,6 +940,13 @@ func splitSQLStatements(section string) []string {
 		current.Reset()
 	}
 	for i, r := range trimmed {
+		if dollarTag != "" {
+			current.WriteRune(r)
+			if strings.HasSuffix(current.String(), dollarTag) {
+				dollarTag = ""
+			}
+			continue
+		}
 		switch r {
 		case '\'':
 			if !inDouble && !inBacktick && (i == 0 || trimmed[i-1] != '\\') {
@@ -950,6 +960,12 @@ func splitSQLStatements(section string) []string {
 			if !inSingle && !inDouble {
 				inBacktick = !inBacktick
 			}
+		case '$':
+			if !inSingle && !inDouble && !inBacktick {
+				if tag := readDollarQuoteTag(trimmed[i:]); tag != "" {
+					dollarTag = tag
+				}
+			}
 		case ';':
 			if !inSingle && !inDouble && !inBacktick {
 				flush()
@@ -960,6 +976,29 @@ func splitSQLStatements(section string) []string {
 	}
 	flush()
 	return statements
+}
+
+func readDollarQuoteTag(input string) string {
+	if input == "" || input[0] != '$' {
+		return ""
+	}
+	for i := 1; i < len(input); i++ {
+		ch := input[i]
+		if ch == '$' {
+			return input[:i+1]
+		}
+		if !(ch == '_' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9') {
+			return ""
+		}
+	}
+	return ""
+}
+
+func warnIfDDLMayAutocommit(stderr io.Writer, dialect string) {
+	if normalizeDialect(dialect) != "mysql" {
+		return
+	}
+	fmt.Fprintln(stderr, "warning: MySQL DDL may auto-commit; failed migrations can still leave schema changes behind")
 }
 
 func currentMigrationIndex(files []migrationFile, applied map[string]migrationRecord) (int, error) {

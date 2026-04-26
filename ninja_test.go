@@ -217,6 +217,21 @@ func TestNew_InternalRoutesCanBeDisabled(t *testing.T) {
 	}
 }
 
+func TestNew_DisableOpenAPIDisablesDocsRoute(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:          "No OpenAPI",
+		Version:        "0.0.1",
+		DisableOpenAPI: true,
+	})
+
+	if w := doRequest(api, http.MethodGet, "/openapi.json", nil); w.Code != http.StatusNotFound {
+		t.Fatalf("expected OpenAPI route to be disabled, got %d", w.Code)
+	}
+	if w := doRequest(api, http.MethodGet, "/docs", nil); w.Code != http.StatusNotFound {
+		t.Fatalf("expected docs route to be disabled with OpenAPI, got %d", w.Code)
+	}
+}
+
 func TestNew_InternalRouteHTMLEscapesConfigValues(t *testing.T) {
 	api := ninja.New(ninja.Config{
 		Title:    `<script>alert("x")</script>`,
@@ -1100,6 +1115,35 @@ func TestOpenAPISpec_ExcludeFromDocs(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpec_FormURLEncodedBody(t *testing.T) {
+	type input struct {
+		Name string `form:"name" binding:"required"`
+		Age  int    `form:"age"`
+	}
+	api := newTestAPI()
+	r := ninja.NewRouter("/forms")
+	ninja.Post(r, "/", func(ctx *ninja.Context, in *input) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("parse openapi: %v", err)
+	}
+	paths := spec["paths"].(map[string]interface{})
+	post := paths["/forms/"].(map[string]interface{})["post"].(map[string]interface{})
+	if _, ok := post["parameters"]; ok {
+		t.Fatalf("expected form fields in requestBody, got parameters: %v", post["parameters"])
+	}
+	requestBody := post["requestBody"].(map[string]interface{})
+	content := requestBody["content"].(map[string]interface{})
+	if _, ok := content["application/x-www-form-urlencoded"]; !ok {
+		t.Fatalf("expected form-urlencoded request body content, got %v", content)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // UseGin middleware
 // ---------------------------------------------------------------------------
@@ -1122,6 +1166,40 @@ func TestUseGin_MiddlewareRuns(t *testing.T) {
 	if !called {
 		t.Error("expected UseGin middleware to be called")
 	}
+}
+
+func TestUseGin_PanicsAfterRouterMounted(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/test")
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected UseGin to panic after router mount")
+		}
+	}()
+	api.UseGin(func(c *gin.Context) { c.Next() })
+}
+
+func TestRouter_PanicsWhenMutatedAfterMount(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/test")
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected mounted router mutation to panic")
+		}
+	}()
+	ninja.Get(r, "/late", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
 }
 
 func TestRouter_UseGin_MiddlewareRuns(t *testing.T) {
@@ -1241,6 +1319,31 @@ func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	}
 	if _, ok := headers["Cache-Control"]; !ok {
 		t.Fatalf("expected Cache-Control header to be documented, got %v", headers)
+	}
+}
+
+func TestGet_DownloadBypassesCacheWrapper(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/download")
+	store := &externalCacheStore{}
+	calls := 0
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+		calls++
+		return ninja.NewDownload("demo.txt", "text/plain", []byte("demo")), nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	first := doRequest(api, http.MethodGet, "/download/", nil)
+	second := doRequest(api, http.MethodGet, "/download/", nil)
+	if first.Code != http.StatusOK || second.Code != http.StatusOK {
+		t.Fatalf("expected download responses to succeed, got %d and %d", first.Code, second.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected download handler to bypass cache, calls=%d", calls)
+	}
+	if len(store.items) != 0 {
+		t.Fatalf("expected download response not to be stored in cache, got %v", store.items)
 	}
 }
 

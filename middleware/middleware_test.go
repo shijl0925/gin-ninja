@@ -394,6 +394,46 @@ func TestSession_TamperedCookieIsIgnored(t *testing.T) {
 	}
 }
 
+func TestSession_ExpiredCookieIsIgnored(t *testing.T) {
+	issuer := gin.New()
+	issuer.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret", MaxAge: -1}))
+	issuer.GET("/issue", func(c *gin.Context) {
+		middleware.GetSession(c).Set("user_id", "42")
+		c.Status(http.StatusNoContent)
+	})
+	issueReq := httptest.NewRequest(http.MethodGet, "/issue", nil)
+	issueResp := httptest.NewRecorder()
+	issuer.ServeHTTP(issueResp, issueReq)
+	var expired *http.Cookie
+	for _, cookie := range issueResp.Result().Cookies() {
+		if cookie.Name == "session" {
+			expired = cookie
+		}
+	}
+	if expired == nil {
+		t.Fatal("expected expired session cookie")
+	}
+
+	r := gin.New()
+	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}))
+	r.GET("/", func(c *gin.Context) {
+		if _, ok := middleware.GetSession(c).Get("user_id"); ok {
+			c.String(http.StatusOK, "loaded")
+			return
+		}
+		c.String(http.StatusOK, "empty")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(expired)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Body.String() != "empty" {
+		t.Fatalf("expected expired session to be ignored, got %q", w.Body.String())
+	}
+}
+
 func TestSession_HTTPOnlyCanBeExplicitlyDisabled(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
@@ -489,11 +529,25 @@ func TestCSRF_SafeMethodsSetsToken(t *testing.T) {
 func TestCSRF_PostWithValidToken(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.CSRF(nil))
+	r.GET("/token", func(c *gin.Context) { c.String(http.StatusOK, middleware.CSRFToken(c)) })
 	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	token := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	tokenReq := httptest.NewRequest(http.MethodGet, "/token", nil)
+	tokenResp := httptest.NewRecorder()
+	r.ServeHTTP(tokenResp, tokenReq)
+	token := tokenResp.Body.String()
+	var csrfCookie *http.Cookie
+	for _, cookie := range tokenResp.Result().Cookies() {
+		if cookie.Name == "csrf_token" {
+			csrfCookie = cookie
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatal("expected csrf cookie")
+	}
+
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: token})
+	req.AddCookie(csrfCookie)
 	req.Header.Set("X-CSRF-Token", token)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -530,6 +584,22 @@ func TestCSRF_PostWithWrongToken(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403 for wrong CSRF token, got %d", w.Code)
+	}
+}
+
+func TestCSRF_UnsignedCookieIsRejected(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.CSRF(&middleware.CSRFConfig{Secret: "csrf-secret"}))
+	r.POST("/", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "unsigned"})
+	req.Header.Set("X-CSRF-Token", "unsigned")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected unsigned CSRF token to be rejected, got %d", w.Code)
 	}
 }
 
