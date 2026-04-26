@@ -34,7 +34,8 @@ type Config struct {
 	HideDocsShortcut bool
 	// OpenAPIURL is the path at which the raw OpenAPI JSON is served (default: "/openapi.json").
 	OpenAPIURL string
-	// DisableOpenAPI disables the raw OpenAPI JSON routes.
+	// DisableOpenAPI disables the raw OpenAPI JSON routes. Because Swagger UI
+	// depends on OpenAPI JSON, enabling this also disables the docs route.
 	DisableOpenAPI bool
 	// Prefix is a global path prefix prepended to every route (default: "").
 	Prefix string

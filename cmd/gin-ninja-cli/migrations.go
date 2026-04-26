@@ -123,13 +123,13 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 		downSQL += migrationIrreversible + "\n"
 	}
 	migrationsPath := filepath.Join(project.rootDir, project.migrationsDir)
-	fileName = uniqueMigrationFileName(migrationsPath, fileName)
-	content := buildMigrationFile(fileName, upSQL, downSQL)
-	fullPath := filepath.Join(migrationsPath, fileName)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	if err := os.MkdirAll(migrationsPath, 0o755); err != nil {
 		fmt.Fprintf(stderr, "create migrations dir: %v\n", err)
 		return 1
 	}
+	fileName = uniqueMigrationFileName(migrationsPath, fileName)
+	content := buildMigrationFile(fileName, upSQL, downSQL)
+	fullPath := filepath.Join(migrationsPath, fileName)
 	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 		fmt.Fprintf(stderr, "write migration file: %v\n", err)
 		return 1
