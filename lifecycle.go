@@ -58,7 +58,7 @@ func (api *NinjaAPI) serve(listener net.Listener, startupCtx context.Context) er
 		return errors.Join(err, cleanupErr)
 	}
 
-	api.setServer(server)
+	api.startServer(server)
 	defer api.clearServer()
 	api.printStartupBanner(listener)
 
@@ -153,7 +153,9 @@ func (api *NinjaAPI) shutdownContext(parent context.Context) (context.Context, c
 	return context.WithTimeout(parent, api.config.GracefulShutdownTimeout)
 }
 
-func (api *NinjaAPI) setServer(server *http.Server) {
+func (api *NinjaAPI) startServer(server *http.Server) {
+	api.routesMu.Lock()
+	defer api.routesMu.Unlock()
 	api.serverState.mu.Lock()
 	api.serverState.server = server
 	api.serverState.mu.Unlock()
