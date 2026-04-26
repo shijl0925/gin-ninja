@@ -288,13 +288,19 @@ func decodeSession(value, secret string, now time.Time) (map[string]string, erro
 	}
 
 	var payload sessionPayload
-	if err := json.Unmarshal(raw, &payload); err == nil && payload.Data != nil {
+	if err := json.Unmarshal(raw, &payload); err == nil {
+		if payload.ExpiresAt <= 0 {
+			return nil, errors.New("session: missing expiry")
+		}
 		if payload.ExpiresAt > 0 && now.Unix() >= payload.ExpiresAt {
 			return nil, errors.New("session: expired")
 		}
+		if payload.Data == nil {
+			payload.Data = map[string]string{}
+		}
 		return payload.Data, nil
 	}
-	return nil, errors.New("session: missing expiry")
+	return nil, errors.New("session: malformed payload")
 }
 
 func sessionHMAC(payload, secret string) string {

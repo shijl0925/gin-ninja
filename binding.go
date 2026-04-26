@@ -28,6 +28,8 @@ var validate = func() *validator.Validate {
 	return v
 }()
 
+var timeType = reflect.TypeOf(time.Time{})
+
 // bindInput populates the input struct from the incoming gin request.
 //
 // Tag conventions:
@@ -379,7 +381,7 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 
 	// Handle framework-supported common types before generic TextUnmarshaler
 	// parsing so date-only values remain accepted for time.Time fields.
-	if fv.Type() == reflect.TypeOf(time.Time{}) {
+	if fv.Type() == timeType {
 		parsed, err := parseTimeValue(raw)
 		if err != nil {
 			return err
