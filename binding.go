@@ -370,6 +370,8 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 		return nil
 	}
 
+	// Handle framework-supported common types before generic TextUnmarshaler
+	// parsing so date-only values remain accepted for time.Time fields.
 	if fv.Type() == reflect.TypeOf(time.Time{}) {
 		parsed, err := parseTimeValue(raw)
 		if err != nil {
