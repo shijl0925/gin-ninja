@@ -53,7 +53,8 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		return err
 	}
 
-	// Always bind query-string / form params (uses `form` tags).
+	// Use the framework binder instead of gin's generic form binder so request
+	// sources keep gin-ninja's documented precedence and conversion rules.
 	if hasFormFields(t) {
 		values, err := formValues(c, method)
 		if err != nil {
