@@ -289,7 +289,7 @@ func decodeSession(value, secret string, now time.Time) (map[string]string, erro
 
 	var payload sessionPayload
 	if err := json.Unmarshal(raw, &payload); err == nil && payload.Data != nil {
-		if payload.ExpiresAt > 0 && !now.Before(time.Unix(payload.ExpiresAt, 0)) {
+		if payload.ExpiresAt > 0 && now.Unix() >= payload.ExpiresAt {
 			return nil, errors.New("session: expired")
 		}
 		return payload.Data, nil

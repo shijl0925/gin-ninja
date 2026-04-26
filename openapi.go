@@ -323,6 +323,9 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 	bodyRequired := []string{}
 	hasBody := isBodyMethod(method)
 	isMultipart := hasMultipartBody(t)
+	// OpenAPI generation is static and cannot observe a runtime Content-Type.
+	// For body methods, form-tagged fields document the supported
+	// application/x-www-form-urlencoded request body shape.
 	isFormBody := hasBody && !isMultipart && hasFormFields(t)
 
 	for i := 0; i < t.NumField(); i++ {
