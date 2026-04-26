@@ -200,6 +200,41 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 }
 
+func TestNew_InternalRoutesCanBeDisabled(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:           "Disabled",
+		Version:         "0.0.1",
+		DisableDocs:     true,
+		DisableHomepage: true,
+		DisableOpenAPI:  true,
+	})
+
+	for _, path := range []string{"/", "/docs", "/openapi.json"} {
+		w := doRequest(api, http.MethodGet, path, nil)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected %s to be disabled, got %d", path, w.Code)
+		}
+	}
+}
+
+func TestNew_InternalRouteHTMLEscapesConfigValues(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:    `<script>alert("x")</script>`,
+		Version:  "0.0.1",
+		AdminURL: `/admin"><script>alert("admin")</script>`,
+	})
+
+	home := doRequest(api, http.MethodGet, "/", nil)
+	if strings.Contains(home.Body.String(), "<script>") || strings.Contains(home.Body.String(), `href="/admin"><script>`) {
+		t.Fatalf("expected homepage values to be escaped: %q", home.Body.String())
+	}
+
+	docs := doRequest(api, http.MethodGet, "/docs", nil)
+	if strings.Contains(docs.Body.String(), "<script>alert") {
+		t.Fatalf("expected docs title to be escaped: %q", docs.Body.String())
+	}
+}
+
 func TestRun_InvalidAddress(t *testing.T) {
 	api := newTestAPI()
 	if err := api.Run(":-1"); err == nil {
@@ -723,7 +758,9 @@ func TestAddController_RoutesRegistered(t *testing.T) {
 
 func TestAddController_AppearsInOpenAPI(t *testing.T) {
 	type listIn struct{}
-	type itemOut struct{ ID int `json:"id"` }
+	type itemOut struct {
+		ID int `json:"id"`
+	}
 
 	api := ninja.New(ninja.Config{DisableGinDefault: true})
 	api.AddController("/widgets", ninja.ControllerFunc(func(r *ninja.Router) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -87,6 +88,29 @@ type bindEdgeQueryInput struct {
 	Tags   []string `form:"tag"`
 }
 
+type bindOverrideInput struct {
+	ID      int    `path:"id" json:"id"`
+	Page    int    `form:"page" json:"page"`
+	Trace   string `header:"X-Trace" json:"trace"`
+	Session string `cookie:"session" json:"session"`
+	Name    string `json:"name"`
+}
+
+type customTextValue string
+
+func (v *customTextValue) UnmarshalText(text []byte) error {
+	*v = customTextValue("custom:" + string(text))
+	return nil
+}
+
+type formURLEncodedInput struct {
+	Name string          `form:"name" binding:"required"`
+	Tags []string        `form:"tag"`
+	When time.Time       `form:"when"`
+	IP   net.IP          `form:"ip"`
+	Mode customTextValue `form:"mode"`
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }
@@ -120,6 +144,44 @@ func TestBindInput_Success(t *testing.T) {
 	}
 	if in.Session != "sess-1" {
 		t.Fatalf("expected cookie field to bind, got %+v", in)
+	}
+}
+
+func TestBindInput_JSONDoesNotOverrideNonBodyFields(t *testing.T) {
+	c, _ := newTestContext(http.MethodPut, "/users/42?page=3", `{"id":99,"page":99,"trace":"body","session":"body","name":"alice"}`)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+	c.Request.Header.Set("X-Trace", "trace-1")
+	c.Request.AddCookie(&http.Cookie{Name: "session", Value: "sess-1"})
+
+	var in bindOverrideInput
+	if err := bindInput(c, http.MethodPut, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.ID != 42 || in.Page != 3 || in.Trace != "trace-1" || in.Session != "sess-1" || in.Name != "alice" {
+		t.Fatalf("unexpected bound input: %+v", in)
+	}
+}
+
+func TestBindInput_FormURLEncodedAndCommonTypes(t *testing.T) {
+	body := "name=alice&tag=go&tag=api&when=2026-04-26&ip=127.0.0.1&mode=fast"
+	c, _ := newTestContext(http.MethodPost, "/submit", body)
+	c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	var in formURLEncodedInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Name != "alice" || !reflect.DeepEqual(in.Tags, []string{"go", "api"}) {
+		t.Fatalf("unexpected form values: %+v", in)
+	}
+	if in.When.Format("2006-01-02") != "2026-04-26" {
+		t.Fatalf("expected date to bind, got %s", in.When.Format(time.RFC3339))
+	}
+	if !in.IP.Equal(net.ParseIP("127.0.0.1")) {
+		t.Fatalf("expected IP to bind, got %v", in.IP)
+	}
+	if in.Mode != "custom:fast" {
+		t.Fatalf("expected custom text value to bind, got %q", in.Mode)
 	}
 }
 

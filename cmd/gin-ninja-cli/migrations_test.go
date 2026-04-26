@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -110,6 +111,39 @@ func TestRunMigrationCommands(t *testing.T) {
 	assertDatabaseState(t, configPath, func(db *gorm.DB) {
 		assertTableExists(t, db, "users", false)
 	})
+}
+
+func TestApplyMigrationRollsBackSQLAndRecordTogether(t *testing.T) {
+	t.Parallel()
+
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "atomic.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	defer db.Close()
+	if err := ensureMigrationTable(db); err != nil {
+		t.Fatalf("ensure migration table: %v", err)
+	}
+
+	file := migrationFile{
+		Version: "20260426131759",
+		Name:    "atomic",
+		RawUp:   "CREATE TABLE atomic_users (id INTEGER PRIMARY KEY); INSERT INTO missing_table (id) VALUES (1);",
+	}
+	if err := applyMigration(db, "sqlite", file); err == nil {
+		t.Fatal("expected migration to fail")
+	}
+
+	if _, err := db.Exec("SELECT 1 FROM atomic_users LIMIT 1"); err == nil {
+		t.Fatal("expected table creation to roll back with failed migration")
+	}
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM `+migrationTableName+` WHERE version = ?`, file.Version).Scan(&count); err != nil {
+		t.Fatalf("query migration record: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected migration record to roll back, got %d", count)
+	}
 }
 
 func TestRunMakeMigrations(t *testing.T) {

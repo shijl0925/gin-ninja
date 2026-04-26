@@ -1,7 +1,9 @@
 package ninja
 
 import (
+	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"reflect"
 	"sort"
@@ -479,6 +481,10 @@ func (s *openAPISpec) registerTags(tags []string, descriptions map[string]string
 // ---------------------------------------------------------------------------
 
 func swaggerUIHTML(openapiURL, title string) string {
+	openAPIURLJSON, err := json.Marshal(openapiURL)
+	if err != nil {
+		openAPIURLJSON = []byte(`""`)
+	}
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <head>
@@ -494,7 +500,7 @@ func swaggerUIHTML(openapiURL, title string) string {
 <script>
 window.onload = function() {
   const ui = SwaggerUIBundle({
-    url: "%s",
+    url: %s,
     dom_id: '#swagger-ui',
     presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
     layout: "StandaloneLayout"
@@ -503,7 +509,7 @@ window.onload = function() {
 }
 </script>
 </body>
-</html>`, title, openapiURL)
+</html>`, html.EscapeString(title), string(openAPIURLJSON))
 }
 
 // homepageHTML returns the HTML for the Gin Ninja welcome homepage.
@@ -521,7 +527,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
             <polyline points="10 9 9 9 8 9"/>
           </svg>
           API Docs
-        </a>`, docsURL)
+        </a>`, html.EscapeString(docsURL))
 	}
 	adminButton := ""
 	if adminURL != "" {
@@ -531,7 +537,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
           Admin
-        </a>`, adminURL)
+        </a>`, html.EscapeString(adminURL))
 	}
 	metaBandClass := "meta-band"
 	quicklinksPanel := fmt.Sprintf(`
@@ -899,7 +905,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
 </div>
 </main>
 </body>
-</html>`, title, title, metaBandClass, quicklinksPanel)
+</html>`, html.EscapeString(title), html.EscapeString(title), metaBandClass, quicklinksPanel)
 }
 
 // ginPathToOpenAPI converts a gin-style path ("/users/:id") to an OpenAPI

@@ -2,18 +2,20 @@ package ninja
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
 	"github.com/shijl0925/gin-ninja/pkg/i18n"
@@ -53,12 +55,12 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 
 	// Always bind query-string / form params (uses `form` tags).
 	if hasFormFields(t) {
-		if err := binding.MapFormWithTag(input, c.Request.URL.Query(), "form"); err != nil {
-			return &Error{
-				Status:  http.StatusBadRequest,
-				Code:    "INVALID_QUERY",
-				Message: "invalid query parameters",
-			}
+		values, err := formValues(c, method)
+		if err != nil {
+			return err
+		}
+		if err := bindFormFields(t, v, values); err != nil {
+			return err
 		}
 	}
 
@@ -68,8 +70,10 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		}
 	}
 
+	nonBodyValues := collectNonBodyFieldValues(t, v)
+
 	// Bind JSON body for mutating methods.
-	if isBodyMethod(method) && !isMultipartRequest(c) {
+	if isBodyMethod(method) && !isMultipartRequest(c) && !isFormURLEncodedRequest(c) {
 		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 32<<20)) // 32 MB limit
 		if err != nil {
 			return err
@@ -85,6 +89,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 					Message: "invalid request body",
 				}
 			}
+			restoreFieldValues(v, nonBodyValues)
 		}
 	}
 
@@ -123,6 +128,58 @@ func hasFormFields(t reflect.Type) bool {
 		}
 	}
 	return false
+}
+
+func formValues(c *gin.Context, method string) (url.Values, error) {
+	values := url.Values{}
+	for key, items := range c.Request.URL.Query() {
+		values[key] = append([]string(nil), items...)
+	}
+	if isBodyMethod(method) && isFormURLEncodedRequest(c) {
+		if err := c.Request.ParseForm(); err != nil {
+			return nil, &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "INVALID_FORM",
+				Message: "invalid form body",
+			}
+		}
+		for key, items := range c.Request.PostForm {
+			values[key] = append(values[key], items...)
+		}
+	}
+	return values, nil
+}
+
+func bindFormFields(t reflect.Type, v reflect.Value, values url.Values) error {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			if err := bindFormFields(deref(field.Type), derefValue(fv), values); err != nil {
+				return err
+			}
+			continue
+		}
+		if !fv.CanSet() {
+			continue
+		}
+		formTag := field.Tag.Get("form")
+		if formTag == "" || formTag == "-" {
+			continue
+		}
+		raw, ok := values[formTag]
+		if !ok || len(raw) == 0 {
+			continue
+		}
+		if err := setFieldFromStrings(fv, raw); err != nil {
+			return &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "INVALID_QUERY",
+				Message: fmt.Sprintf("form field '%s': %s", formTag, err.Error()),
+			}
+		}
+	}
+	return nil
 }
 
 func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
@@ -313,6 +370,21 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 		return nil
 	}
 
+	if fv.Type() == reflect.TypeOf(time.Time{}) {
+		parsed, err := parseTimeValue(raw)
+		if err != nil {
+			return err
+		}
+		fv.Set(reflect.ValueOf(parsed))
+		return nil
+	}
+
+	if fv.CanAddr() {
+		if unmarshaler, ok := fv.Addr().Interface().(encoding.TextUnmarshaler); ok {
+			return unmarshaler.UnmarshalText([]byte(raw))
+		}
+	}
+
 	switch fv.Kind() {
 	case reflect.String:
 		fv.SetString(raw)
@@ -346,8 +418,26 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 	return nil
 }
 
+func parseTimeValue(raw string) (time.Time, error) {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02",
+		"2006-01-02 15:04:05",
+	}
+	var lastErr error
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, raw)
+		if err == nil {
+			return parsed, nil
+		}
+		lastErr = err
+	}
+	return time.Time{}, lastErr
+}
+
 func setFieldFromStrings(fv reflect.Value, raw []string) error {
-	if fv.Kind() == reflect.Slice {
+	if fv.Kind() == reflect.Slice && !implementsTextUnmarshalerValue(fv) {
 		slice := reflect.MakeSlice(fv.Type(), 0, len(raw))
 		for _, item := range raw {
 			elem := reflect.New(fv.Type().Elem()).Elem()
@@ -360,6 +450,15 @@ func setFieldFromStrings(fv reflect.Value, raw []string) error {
 		return nil
 	}
 	return setFieldFromString(fv, raw[0])
+}
+
+func implementsTextUnmarshalerValue(fv reflect.Value) bool {
+	if fv.CanAddr() {
+		if _, ok := fv.Addr().Interface().(encoding.TextUnmarshaler); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func setFileField(fv reflect.Value, files []*multipart.FileHeader) error {
@@ -403,6 +502,10 @@ func isMultipartRequest(c *gin.Context) bool {
 	return strings.HasPrefix(strings.ToLower(c.ContentType()), "multipart/form-data")
 }
 
+func isFormURLEncodedRequest(c *gin.Context) bool {
+	return strings.HasPrefix(strings.ToLower(c.ContentType()), "application/x-www-form-urlencoded")
+}
+
 func hasFormValue(c *gin.Context, name string) bool {
 	if c.Request.URL.Query().Has(name) {
 		return true
@@ -411,6 +514,64 @@ func hasFormValue(c *gin.Context, name string) bool {
 		return true
 	}
 	return false
+}
+
+type fieldValueSnapshot struct {
+	index []int
+	value reflect.Value
+}
+
+func collectNonBodyFieldValues(t reflect.Type, v reflect.Value) []fieldValueSnapshot {
+	var snapshots []fieldValueSnapshot
+	collectNonBodyFieldValuesInto(t, v, nil, &snapshots)
+	return snapshots
+}
+
+func collectNonBodyFieldValuesInto(t reflect.Type, v reflect.Value, prefix []int, snapshots *[]fieldValueSnapshot) {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+		if !fv.CanSet() {
+			continue
+		}
+		index := append(append([]int(nil), prefix...), i)
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			collectNonBodyFieldValuesInto(deref(field.Type), derefValue(fv), index, snapshots)
+			continue
+		}
+		if isNonBodyField(field) {
+			copyValue := reflect.New(fv.Type()).Elem()
+			copyValue.Set(fv)
+			*snapshots = append(*snapshots, fieldValueSnapshot{index: index, value: copyValue})
+		}
+	}
+}
+
+func isNonBodyField(field reflect.StructField) bool {
+	return field.Tag.Get("path") != "" ||
+		field.Tag.Get("form") != "" ||
+		field.Tag.Get("header") != "" ||
+		field.Tag.Get("cookie") != "" ||
+		field.Tag.Get("file") != ""
+}
+
+func restoreFieldValues(root reflect.Value, snapshots []fieldValueSnapshot) {
+	for _, snapshot := range snapshots {
+		field := root.FieldByIndex(snapshot.index)
+		if field.CanSet() {
+			field.Set(snapshot.value)
+		}
+	}
+}
+
+func derefValue(v reflect.Value) reflect.Value {
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		v = v.Elem()
+	}
+	return v
 }
 
 // localeFromContext returns the negotiated locale stored by the I18n middleware.

@@ -25,20 +25,26 @@ type Config struct {
 	// Description is an optional long description of the API.
 	Description string
 	// DocsURL is the path at which the Swagger UI is served (default: "/docs").
-	// Set to an empty string to disable the UI.
+	// Set DisableDocs to true to disable the UI.
 	DocsURL string
+	// DisableDocs disables the Swagger UI route.
+	DisableDocs bool
 	// HideDocsShortcut hides the "API Docs" shortcut on the homepage while
 	// leaving the Swagger UI route configured by DocsURL unchanged.
 	HideDocsShortcut bool
 	// OpenAPIURL is the path at which the raw OpenAPI JSON is served (default: "/openapi.json").
 	OpenAPIURL string
+	// DisableOpenAPI disables the raw OpenAPI JSON routes.
+	DisableOpenAPI bool
 	// Prefix is a global path prefix prepended to every route (default: "").
 	Prefix string
 	// Versions configures named API version namespaces and version-scoped docs.
 	Versions map[string]VersionConfig
 	// HomepageURL is the path at which the welcome homepage is served (default: "/").
-	// Set to an empty string to disable the homepage.
+	// Set DisableHomepage to true to disable the homepage.
 	HomepageURL string
+	// DisableHomepage disables the welcome homepage route.
+	DisableHomepage bool
 	// AdminURL is the path used for the "Admin" shortcut button on the homepage.
 	// Leave empty to hide the Admin button (the framework does not mount admin itself).
 	AdminURL string
@@ -73,6 +79,7 @@ type Config struct {
 type NinjaAPI struct {
 	engine         *gin.Engine
 	config         Config
+	routesMu       sync.RWMutex
 	openAPI        *openAPISpec
 	openAPICache   openAPICacheState
 	versionSpecsMu sync.RWMutex
@@ -96,13 +103,13 @@ func New(config Config) *NinjaAPI {
 	if config.Version == "" {
 		config.Version = "1.0.0"
 	}
-	if config.DocsURL == "" {
+	if config.DocsURL == "" && !config.DisableDocs {
 		config.DocsURL = "/docs"
 	}
-	if config.HomepageURL == "" {
+	if config.HomepageURL == "" && !config.DisableHomepage {
 		config.HomepageURL = "/"
 	}
-	if config.OpenAPIURL == "" {
+	if config.OpenAPIURL == "" && !config.DisableOpenAPI {
 		config.OpenAPIURL = "/openapi.json"
 	}
 	if config.ReadTimeout == 0 {
@@ -181,6 +188,8 @@ func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOp
 // All operations defined on the router (and any nested sub-routers) are
 // registered with the gin engine and included in the OpenAPI spec.
 func (api *NinjaAPI) AddRouter(router *Router) {
+	api.routesMu.Lock()
+	defer api.routesMu.Unlock()
 	api.routers = append(api.routers, router)
 	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, "", nil, router)
 	api.invalidateOpenAPICache()
@@ -292,10 +301,10 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 
 // setupInternalRoutes adds the OpenAPI JSON and Swagger UI routes.
 func (api *NinjaAPI) setupInternalRoutes() {
-	if api.config.HomepageURL != "" {
+	if !api.config.DisableHomepage && api.config.HomepageURL != "" {
 		homepageURL := api.config.HomepageURL
 		docsURL := api.config.DocsURL
-		if api.config.HideDocsShortcut {
+		if api.config.DisableDocs || api.config.HideDocsShortcut {
 			docsURL = ""
 		}
 		adminURL := api.config.AdminURL
@@ -306,7 +315,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if api.config.OpenAPIURL != "" {
+	if !api.config.DisableOpenAPI && api.config.OpenAPIURL != "" {
 		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
 			data, err := api.openAPIBytes()
 			if err != nil {
@@ -317,7 +326,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if api.config.DocsURL != "" {
+	if !api.config.DisableDocs && api.config.DocsURL != "" {
 		docsURL := api.config.DocsURL
 		openAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
@@ -327,7 +336,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); pattern != "" {
+	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); !api.config.DisableOpenAPI && pattern != "" {
 		api.engine.GET(pattern, func(c *gin.Context) {
 			version := requestVersion(c)
 			data, ok, err := api.versionOpenAPIBytes(version)
@@ -343,7 +352,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedDocsPattern(api.config.DocsURL); pattern != "" {
+	if pattern := versionedDocsPattern(api.config.DocsURL); !api.config.DisableDocs && pattern != "" {
 		baseOpenAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
 		api.engine.GET(pattern, func(c *gin.Context) {

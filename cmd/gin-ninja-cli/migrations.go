@@ -122,8 +122,10 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 		}
 		downSQL += migrationIrreversible + "\n"
 	}
+	migrationsPath := filepath.Join(project.rootDir, project.migrationsDir)
+	fileName = uniqueMigrationFileName(migrationsPath, fileName)
 	content := buildMigrationFile(fileName, upSQL, downSQL)
-	fullPath := filepath.Join(project.rootDir, project.migrationsDir, fileName)
+	fullPath := filepath.Join(migrationsPath, fileName)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 		fmt.Fprintf(stderr, "create migrations dir: %v\n", err)
 		return 1
@@ -625,6 +627,20 @@ func newMigrationFileName(name string) string {
 	return fmt.Sprintf("%s_%s.sql", timestamp, slug)
 }
 
+func uniqueMigrationFileName(dir, fileName string) string {
+	if _, err := os.Stat(filepath.Join(dir, fileName)); os.IsNotExist(err) {
+		return fileName
+	}
+	ext := filepath.Ext(fileName)
+	base := strings.TrimSuffix(fileName, ext)
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s_%02d%s", base, i, ext)
+		if _, err := os.Stat(filepath.Join(dir, candidate)); os.IsNotExist(err) {
+			return candidate
+		}
+	}
+}
+
 func slugifyMigrationName(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
@@ -993,13 +1009,9 @@ func findMigration(files []migrationFile, target string) (migrationFile, error) 
 
 func applyMigration(db *sql.DB, dialect string, file migrationFile) error {
 	statements := splitSQLStatements(file.RawUp)
-	if len(statements) == 0 {
-		return recordAppliedMigration(db, dialect, file)
-	}
-	if err := execMigrationStatements(db, statements); err != nil {
-		return err
-	}
-	return recordAppliedMigration(db, dialect, file)
+	return execMigrationStatements(db, statements, func(tx *sql.Tx) error {
+		return recordAppliedMigrationTx(tx, dialect, file)
+	})
 }
 
 func rollbackMigration(db *sql.DB, dialect string, file migrationFile) error {
@@ -1010,14 +1022,12 @@ func rollbackMigration(db *sql.DB, dialect string, file migrationFile) error {
 	if len(statements) == 0 {
 		return fmt.Errorf("migration %s has no down statements", file.FileName)
 	}
-	if err := execMigrationStatements(db, statements); err != nil {
-		return err
-	}
-	_, err := db.Exec(`DELETE FROM `+migrationTableName+` WHERE version = `+bindVar(dialect, 1), file.Version)
-	return err
+	return execMigrationStatements(db, statements, func(tx *sql.Tx) error {
+		return deleteAppliedMigrationTx(tx, dialect, file.Version)
+	})
 }
 
-func execMigrationStatements(db *sql.DB, statements []string) error {
+func execMigrationStatements(db *sql.DB, statements []string, after func(*sql.Tx) error) error {
 	ctx := context.Background()
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1027,6 +1037,12 @@ func execMigrationStatements(db *sql.DB, statements []string) error {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("exec %q: %w", stmt, err)
+		}
+	}
+	if after != nil {
+		if err := after(tx); err != nil {
+			_ = tx.Rollback()
+			return err
 		}
 	}
 	return tx.Commit()
@@ -1039,6 +1055,21 @@ func recordAppliedMigration(db *sql.DB, dialect string, file migrationFile) erro
 		file.Name,
 		time.Now().UTC(),
 	)
+	return err
+}
+
+func recordAppliedMigrationTx(tx *sql.Tx, dialect string, file migrationFile) error {
+	_, err := tx.Exec(
+		`INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`,
+		file.Version,
+		file.Name,
+		time.Now().UTC(),
+	)
+	return err
+}
+
+func deleteAppliedMigrationTx(tx *sql.Tx, dialect string, version string) error {
+	_, err := tx.Exec(`DELETE FROM `+migrationTableName+` WHERE version = `+bindVar(dialect, 1), version)
 	return err
 }
 

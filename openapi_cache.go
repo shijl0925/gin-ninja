@@ -26,7 +26,10 @@ func (api *NinjaAPI) openAPIBytes() ([]byte, error) {
 		return cached, nil
 	}
 
-	built, err := json.Marshal(api.openAPI.build())
+	api.routesMu.RLock()
+	builtSpec := api.openAPI.build()
+	api.routesMu.RUnlock()
+	built, err := json.Marshal(builtSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +52,8 @@ func (api *NinjaAPI) versionOpenAPIBytes(version string) ([]byte, bool, error) {
 	}
 	api.openAPICache.mu.RUnlock()
 
+	api.routesMu.RLock()
+	defer api.routesMu.RUnlock()
 	spec, ok := api.lookupVersionSpec(version)
 	if !ok {
 		return nil, false, nil
