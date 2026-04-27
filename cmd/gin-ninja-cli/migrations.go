@@ -1011,7 +1011,7 @@ func readDollarQuoteTag(input string) string {
 }
 
 func isSQLIdentifierChar(ch byte) bool {
-	return ch == '_' || ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9'
+	return ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
 }
 
 func warnIfDDLMayAutocommit(stderr io.Writer, dialect string) {
