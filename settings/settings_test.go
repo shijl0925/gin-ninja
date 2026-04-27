@@ -601,3 +601,52 @@ redis:
 		t.Errorf("expected env value to win over default, got %q", cfg.Redis.Password)
 	}
 }
+
+func TestLoad_PlaceholderExpansionForTypedFields(t *testing.T) {
+	yaml := `
+database:
+  driver: "mysql"
+  mysql:
+    host: "${NINJA_IT_DB_HOST:localhost}"
+    port: ${NINJA_IT_DB_PORT:3306}
+    user: "${NINJA_IT_DB_USER:go_vben}"
+    password: "${NINJA_IT_DB_PASSWORD}"
+    name: "${NINJA_IT_DB_NAME:vben_go}"
+    charset: "utf8mb4"
+    parse_time: true
+    loc: "Local"
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime_minutes: 60
+
+redis:
+  enabled: ${NINJA_IT_REDIS_ENABLED:false}
+  addr: "${NINJA_IT_REDIS_ADDR:127.0.0.1:6379}"
+  password: "${NINJA_IT_REDIS_PASSWORD}"
+  db: ${NINJA_IT_REDIS_DB:0}
+`
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	if cfg.Database.MySQL.Host != "localhost" {
+		t.Fatalf("expected mysql host localhost, got %q", cfg.Database.MySQL.Host)
+	}
+	if cfg.Database.MySQL.Port != 3306 {
+		t.Fatalf("expected mysql port 3306, got %d", cfg.Database.MySQL.Port)
+	}
+	if cfg.Database.MySQL.User != "go_vben" {
+		t.Fatalf("expected mysql user go_vben, got %q", cfg.Database.MySQL.User)
+	}
+	if cfg.Database.MySQL.Name != "vben_go" {
+		t.Fatalf("expected mysql name vben_go, got %q", cfg.Database.MySQL.Name)
+	}
+	if cfg.Redis.Enabled {
+		t.Fatal("expected redis enabled false by default")
+	}
+	if cfg.Redis.DB != 0 {
+		t.Fatalf("expected redis db 0, got %d", cfg.Redis.DB)
+	}
+}
