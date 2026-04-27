@@ -73,6 +73,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 )
 
@@ -239,6 +240,17 @@ var globalMu sync.RWMutex
 // avoid data races.
 var Global Config
 
+func unmarshalConfig(v *viper.Viper, cfg *Config) error {
+	return v.Unmarshal(
+		cfg,
+		viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
+			placeholderDecodeHook(),
+			mapstructure.StringToTimeDurationHookFunc(),
+			mapstructure.StringToSliceHookFunc(","),
+		)),
+	)
+}
+
 // GetGlobal returns a safe copy of the global configuration.
 // Prefer this function when the config may be set concurrently (e.g. tests,
 // hot-reload scenarios).
@@ -291,7 +303,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.AutomaticEnv()
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := unmarshalConfig(v, &cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
 	expandConfigStrings(&cfg)
@@ -363,7 +375,7 @@ func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error
 	v.AutomaticEnv()
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := unmarshalConfig(v, &cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
 	expandConfigStrings(&cfg)

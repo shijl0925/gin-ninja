@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	"github.com/go-viper/mapstructure/v2"
 )
 
 // placeholderRe matches ${VAR} and ${VAR:default} tokens.
@@ -34,6 +36,15 @@ func expandPlaceholders(s string) string {
 // ${ENV_VAR} / ${ENV_VAR:default} placeholders in place.
 func expandConfigStrings(v interface{}) {
 	expandValue(reflect.ValueOf(v))
+}
+
+func placeholderDecodeHook() mapstructure.DecodeHookFuncType {
+	return func(from reflect.Type, to reflect.Type, data any) (any, error) {
+		if from.Kind() != reflect.String {
+			return data, nil
+		}
+		return expandPlaceholders(data.(string)), nil
+	}
 }
 
 func expandValue(v reflect.Value) {
