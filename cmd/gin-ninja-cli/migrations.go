@@ -635,8 +635,13 @@ func uniqueMigrationFileName(dir, fileName string) string {
 	}
 	ext := filepath.Ext(fileName)
 	base := strings.TrimSuffix(fileName, ext)
+	version, name, ok := strings.Cut(base, "_")
 	for i := 1; ; i++ {
-		candidate := fmt.Sprintf("%s_%02d%s", base, i, ext)
+		candidateBase := fmt.Sprintf("%s%02d", base, i)
+		if ok {
+			candidateBase = fmt.Sprintf("%s%02d_%s", version, i, name)
+		}
+		candidate := candidateBase + ext
 		if _, err := os.Stat(filepath.Join(dir, candidate)); os.IsNotExist(err) {
 			return candidate
 		}
@@ -978,6 +983,7 @@ func splitSQLStatements(section string) []string {
 		case ';':
 			if !inSingle && !inDouble && !inBacktick {
 				flush()
+				i++
 				continue
 			}
 		}
