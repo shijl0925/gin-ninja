@@ -178,4 +178,37 @@ func TestErrorMapperHelpers(t *testing.T) {
 			t.Fatalf("expected first mapper to win, got %v", got)
 		}
 	})
+
+	t.Run("api can disable global mappers", func(t *testing.T) {
+		errorMappersMu.Lock()
+		original := append([]ErrorMapper(nil), errorMappers...)
+		errorMappers = []ErrorMapper{
+			func(err error) error {
+				if errors.Is(err, sentinel) {
+					return NewError(http.StatusTeapot, "global")
+				}
+				return nil
+			},
+		}
+		errorMappersMu.Unlock()
+		defer func() {
+			errorMappersMu.Lock()
+			errorMappers = original
+			errorMappersMu.Unlock()
+		}()
+
+		api := New(Config{DisableGlobalErrorMappers: true})
+		if got := api.mapError(sentinel); !errors.Is(got, sentinel) {
+			t.Fatalf("expected global mapper to be skipped, got %v", got)
+		}
+		api.RegisterErrorMapper(func(err error) error {
+			if errors.Is(err, sentinel) {
+				return NewError(http.StatusBadRequest, "local")
+			}
+			return nil
+		})
+		if got := api.mapError(sentinel); !errors.Is(got, NewError(http.StatusBadRequest, "local")) {
+			t.Fatalf("expected instance mapper to apply, got %v", got)
+		}
+	})
 }

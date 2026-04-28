@@ -172,6 +172,33 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected post form value to be detected")
 		}
 	})
+
+	t.Run("path header and cookie slices", func(t *testing.T) {
+		type input struct {
+			IDs     []int    `path:"ids"`
+			Trace   []string `header:"X-Trace"`
+			Numbers []uint   `cookie:"numbers"`
+		}
+		c, _ := newTestContext(http.MethodGet, "/", "")
+		c.Params = gin.Params{{Key: "ids", Value: "1,2,3"}}
+		c.Request.Header.Add("X-Trace", "a")
+		c.Request.Header.Add("X-Trace", "b,c")
+		c.Request.AddCookie(&http.Cookie{Name: "numbers", Value: "4,5"})
+
+		var in input
+		if err := bindInput(c, http.MethodGet, &in); err != nil {
+			t.Fatalf("bindInput: %v", err)
+		}
+		if !reflect.DeepEqual(in.IDs, []int{1, 2, 3}) {
+			t.Fatalf("unexpected path IDs: %#v", in.IDs)
+		}
+		if !reflect.DeepEqual(in.Trace, []string{"a", "b", "c"}) {
+			t.Fatalf("unexpected header values: %#v", in.Trace)
+		}
+		if !reflect.DeepEqual(in.Numbers, []uint{4, 5}) {
+			t.Fatalf("unexpected cookie values: %#v", in.Numbers)
+		}
+	})
 }
 
 func TestModelSchemaAdditionalCoverage(t *testing.T) {

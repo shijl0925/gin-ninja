@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -112,6 +114,35 @@ func TestEnvOverridePath(t *testing.T) {
 	}
 	if got := envOverridePath("config/app.yaml", "staging"); got != "config/app.staging.yaml" {
 		t.Fatalf("envOverridePath(config/app.yaml) = %q", got)
+	}
+}
+
+func TestLoadConfigDoesNotUpdateGlobal(t *testing.T) {
+	prev := GetGlobal()
+	t.Cleanup(func() { SetGlobal(prev) })
+	SetGlobal(Config{App: AppConfig{Name: "global"}})
+
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("app:\n  name: local\njwt:\n  secret: local-secret\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.App.Name != "local" || cfg.JWT.Secret != "local-secret" {
+		t.Fatalf("unexpected local config: %+v", cfg)
+	}
+	if got := GetGlobal().App.Name; got != "global" {
+		t.Fatalf("LoadConfig updated Global, got %q", got)
+	}
+
+	if _, err := Load(path); err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := GetGlobal().App.Name; got != "local" {
+		t.Fatalf("Load did not update Global, got %q", got)
 	}
 }
 

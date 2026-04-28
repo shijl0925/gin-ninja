@@ -52,6 +52,9 @@ type Config struct {
 	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
 	// bearer authentication shown by Swagger UI's "Authorize" button.
 	SecuritySchemes map[string]SecurityScheme
+	// DisableGlobalErrorMappers prevents this API instance from applying
+	// process-wide error mappers registered with RegisterErrorMapper.
+	DisableGlobalErrorMappers bool
 	// DisableGinDefault disables the default gin Logger and Recovery middleware
 	// when set to true.  Set this to true when you provide your own middleware
 	// via UseGin (e.g. the structured logger from middleware.Logger).
@@ -398,7 +401,10 @@ func (api *NinjaAPI) mapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	mappers := errorMappersSnapshot()
+	var mappers []ErrorMapper
+	if !api.config.DisableGlobalErrorMappers {
+		mappers = errorMappersSnapshot()
+	}
 	api.errorMappersMu.RLock()
 	mappers = append(mappers, api.errorMappers...)
 	api.errorMappersMu.RUnlock()

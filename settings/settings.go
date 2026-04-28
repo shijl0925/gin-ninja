@@ -262,6 +262,18 @@ func SetGlobal(cfg Config) {
 // If cfgFile is empty, Load searches for a file named "config" in the
 // current working directory and common config directories.
 func Load(cfgFile string) (*Config, error) {
+	cfg, err := LoadConfig(cfgFile)
+	if err != nil {
+		return nil, err
+	}
+	SetGlobal(*cfg)
+	return cfg, nil
+}
+
+// LoadConfig reads configuration like Load but does not update Global.
+// Use this helper for tests, multi-tenant processes, or embedded applications
+// that should keep configuration instance-scoped instead of process-global.
+func LoadConfig(cfgFile string) (*Config, error) {
 	v := viper.New()
 
 	// Set defaults.
@@ -297,7 +309,6 @@ func Load(cfgFile string) (*Config, error) {
 	expandConfigStrings(&cfg)
 	normalizeDatabaseConfig(&cfg.Database)
 
-	SetGlobal(cfg)
 	return &cfg, nil
 }
 
@@ -319,6 +330,17 @@ func MustLoad(cfgFile string) *Config {
 //
 //	settings.LoadWithOverrides("config.yaml", "config.local.yaml")
 func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
+	cfg, err := LoadConfigWithOverrides(baseFile, overrideFiles...)
+	if err != nil {
+		return nil, err
+	}
+	SetGlobal(*cfg)
+	return cfg, nil
+}
+
+// LoadConfigWithOverrides reads configuration like LoadWithOverrides but does
+// not update Global.
+func LoadConfigWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
 	v := viper.New()
 	setDefaults(v)
 
@@ -369,7 +391,6 @@ func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error
 	expandConfigStrings(&cfg)
 	normalizeDatabaseConfig(&cfg.Database)
 
-	SetGlobal(cfg)
 	return &cfg, nil
 }
 
@@ -396,6 +417,16 @@ func MustLoadWithOverrides(baseFile string, overrideFiles ...string) *Config {
 //	// Loads config.yaml, then merges config.development.yaml (if present).
 //	settings.LoadForEnv("config.yaml")
 func LoadForEnv(baseFile string) (*Config, error) {
+	cfg, err := LoadConfigForEnv(baseFile)
+	if err != nil {
+		return nil, err
+	}
+	SetGlobal(*cfg)
+	return cfg, nil
+}
+
+// LoadConfigForEnv loads configuration like LoadForEnv but does not update Global.
+func LoadConfigForEnv(baseFile string) (*Config, error) {
 	// Peek at app.env without a full unmarshal to avoid double-setting Global.
 	v := viper.New()
 	setDefaults(v)
@@ -415,7 +446,7 @@ func LoadForEnv(baseFile string) (*Config, error) {
 	}
 
 	overridePath := envOverridePath(baseFile, env)
-	return LoadWithOverrides(baseFile, overridePath)
+	return LoadConfigWithOverrides(baseFile, overridePath)
 }
 
 // MustLoadForEnv calls LoadForEnv and panics on error.

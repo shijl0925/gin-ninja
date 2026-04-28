@@ -33,6 +33,29 @@ func TestMiddlewareAndGetDB(t *testing.T) {
 	if got := GetDB(c); got != db {
 		t.Fatalf("expected middleware db, got %v", got)
 	}
+	if got, ok := RequestDB(c); !ok || got != db {
+		t.Fatalf("expected request db, got %v ok=%v", got, ok)
+	}
+	if got, ok := RequestWithContext(c); !ok || got == nil {
+		t.Fatalf("expected request db with context, got %v ok=%v", got, ok)
+	}
+}
+
+func TestRequestDBDoesNotFallBackToGlobal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	global := testDB(t)
+	Init(global)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	if got, ok := RequestDB(c); ok || got != nil {
+		t.Fatalf("expected no request db, got %v ok=%v", got, ok)
+	}
+	if got := GetDB(c); got != global {
+		t.Fatalf("expected legacy global fallback, got %v", got)
+	}
 }
 
 func TestGetDBFallsBackToGlobalAndWithContext(t *testing.T) {
@@ -53,6 +76,10 @@ func TestGetDBFallsBackToGlobalAndWithContext(t *testing.T) {
 	withCtx := WithContext(c)
 	if withCtx == nil || withCtx.Statement.Context.Value("trace_id") != "trace-1" {
 		t.Fatalf("expected request context propagation, got %#v", withCtx)
+	}
+
+	if _, ok := RequestWithContext(c); ok {
+		t.Fatal("expected RequestWithContext to avoid global fallback")
 	}
 }
 

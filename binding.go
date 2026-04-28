@@ -324,7 +324,7 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 			if raw == "" {
 				continue
 			}
-			if err := setFieldFromString(fv, raw); err != nil {
+			if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "BAD_PATH_PARAM",
@@ -336,11 +336,11 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 
 		// Header parameters.
 		if headerTag := field.Tag.Get("header"); headerTag != "" {
-			raw := c.GetHeader(headerTag)
-			if raw == "" {
+			raw := c.Request.Header.Values(headerTag)
+			if len(raw) == 0 {
 				continue
 			}
-			if err := setFieldFromString(fv, raw); err != nil {
+			if err := setFieldFromStrings(fv, valuesForStringField(fv, raw...)); err != nil {
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "BAD_HEADER",
@@ -356,7 +356,7 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 			if err != nil || raw == "" {
 				continue
 			}
-			if err := setFieldFromString(fv, raw); err != nil {
+			if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "BAD_COOKIE",
@@ -366,6 +366,24 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 		}
 	}
 	return nil
+}
+
+func valuesForStringField(fv reflect.Value, raw ...string) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	if fv.Kind() != reflect.Slice || implementsTextUnmarshalerValue(fv) {
+		return raw[:1]
+	}
+	values := make([]string, 0, len(raw))
+	for _, value := range raw {
+		parts := splitCommaValues(value)
+		if len(parts) == 0 {
+			continue
+		}
+		values = append(values, parts...)
+	}
+	return values
 }
 
 // setFieldFromString converts a raw string value into the target reflect.Value.
@@ -448,6 +466,9 @@ func parseTimeValue(raw string) (time.Time, error) {
 }
 
 func setFieldFromStrings(fv reflect.Value, raw []string) error {
+	if len(raw) == 0 {
+		return nil
+	}
 	if fv.Kind() == reflect.Slice && !implementsTextUnmarshalerValue(fv) {
 		slice := reflect.MakeSlice(fv.Type(), 0, len(raw))
 		for _, item := range raw {

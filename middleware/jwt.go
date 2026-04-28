@@ -69,6 +69,12 @@ func JWTAuthWithSecret(secret string) gin.HandlerFunc {
 	}
 }
 
+// JWTAuthWithConfig is like JWTAuth but uses an explicit settings.JWTConfig
+// value rather than reading from global settings.
+func JWTAuthWithConfig(cfg settings.JWTConfig) gin.HandlerFunc {
+	return JWTAuthWithSecret(cfg.Secret)
+}
+
 // validateJWTToken extracts, parses, and validates the Bearer token in c.
 // On success it stores the parsed claims and calls c.Next(); on failure it
 // aborts with 401.
@@ -113,19 +119,23 @@ func ClaimsKey() string { return claimsKey }
 // The token is signed with the HMAC secret and TTL from global settings.
 func GenerateToken(userID uint, username string) (string, error) {
 	cfg := settings.GetGlobal()
-	secret := cfg.JWT.Secret
-	ttl := cfg.JWT.ExpireDuration()
-	issuer := cfg.JWT.Issuer
-	if issuer == "" {
-		issuer = "gin-ninja"
-	}
-	return generateToken(userID, username, secret, ttl, issuer)
+	return GenerateTokenWithConfig(userID, username, cfg.JWT)
 }
 
 // GenerateTokenWithSecret creates a signed JWT token with an explicit secret
 // and TTL.  Use this when you cannot rely on the global settings (e.g. tests).
 func GenerateTokenWithSecret(userID uint, username, secret string, ttl time.Duration) (string, error) {
 	return generateToken(userID, username, secret, ttl, "gin-ninja")
+}
+
+// GenerateTokenWithConfig creates a signed JWT token from an explicit JWT
+// configuration rather than reading from global settings.
+func GenerateTokenWithConfig(userID uint, username string, cfg settings.JWTConfig) (string, error) {
+	issuer := cfg.Issuer
+	if issuer == "" {
+		issuer = "gin-ninja"
+	}
+	return generateToken(userID, username, cfg.Secret, cfg.ExpireDuration(), issuer)
 }
 
 func generateToken(userID uint, username, secret string, ttl time.Duration, issuer string) (string, error) {
