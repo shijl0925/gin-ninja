@@ -372,7 +372,7 @@ func valuesForStringField(fv reflect.Value, raw ...string) []string {
 	if len(raw) == 0 {
 		return nil
 	}
-	if fv.Kind() != reflect.Slice || implementsTextUnmarshalerValue(fv) {
+	if !shouldBindStringsAsSlice(fv) {
 		return raw[:1]
 	}
 	values := make([]string, 0, len(raw))
@@ -469,7 +469,7 @@ func setFieldFromStrings(fv reflect.Value, raw []string) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	if fv.Kind() == reflect.Slice && !implementsTextUnmarshalerValue(fv) {
+	if shouldBindStringsAsSlice(fv) {
 		slice := reflect.MakeSlice(fv.Type(), 0, len(raw))
 		for _, item := range raw {
 			elem := reflect.New(fv.Type().Elem()).Elem()
@@ -482,6 +482,10 @@ func setFieldFromStrings(fv reflect.Value, raw []string) error {
 		return nil
 	}
 	return setFieldFromString(fv, raw[0])
+}
+
+func shouldBindStringsAsSlice(fv reflect.Value) bool {
+	return fv.Kind() == reflect.Slice && !implementsTextUnmarshalerValue(fv)
 }
 
 func implementsTextUnmarshalerValue(fv reflect.Value) bool {
