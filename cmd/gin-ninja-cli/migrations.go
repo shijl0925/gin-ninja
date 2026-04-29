@@ -122,12 +122,14 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 		}
 		downSQL += migrationIrreversible + "\n"
 	}
-	content := buildMigrationFile(fileName, upSQL, downSQL)
-	fullPath := filepath.Join(project.rootDir, project.migrationsDir, fileName)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	migrationsPath := filepath.Join(project.rootDir, project.migrationsDir)
+	if err := os.MkdirAll(migrationsPath, 0o755); err != nil {
 		fmt.Fprintf(stderr, "create migrations dir: %v\n", err)
 		return 1
 	}
+	fileName = uniqueMigrationFileName(migrationsPath, fileName)
+	content := buildMigrationFile(fileName, upSQL, downSQL)
+	fullPath := filepath.Join(migrationsPath, fileName)
 	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 		fmt.Fprintf(stderr, "write migration file: %v\n", err)
 		return 1
@@ -212,6 +214,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		return 0
 	}
 	if targetIndex > currentIndex {
+		warnIfDDLMayAutocommit(stderr, project.dialect)
 		for i := currentIndex + 1; i <= targetIndex; i++ {
 			if err := applyMigration(sqlDB, project.dialect, files[i]); err != nil {
 				fmt.Fprintf(stderr, "apply migration %s: %v\n", files[i].FileName, err)
@@ -221,6 +224,7 @@ func runMigrate(stdout, stderr io.Writer, args []string) int {
 		}
 		return 0
 	}
+	warnIfDDLMayAutocommit(stderr, project.dialect)
 	for i := currentIndex; i > targetIndex; i-- {
 		if err := rollbackMigration(sqlDB, project.dialect, files[i]); err != nil {
 			fmt.Fprintf(stderr, "rollback migration %s: %v\n", files[i].FileName, err)
@@ -625,6 +629,25 @@ func newMigrationFileName(name string) string {
 	return fmt.Sprintf("%s_%s.sql", timestamp, slug)
 }
 
+func uniqueMigrationFileName(dir, fileName string) string {
+	if _, err := os.Stat(filepath.Join(dir, fileName)); os.IsNotExist(err) {
+		return fileName
+	}
+	ext := filepath.Ext(fileName)
+	base := strings.TrimSuffix(fileName, ext)
+	version, name, ok := strings.Cut(base, "_")
+	for i := 1; ; i++ {
+		candidateBase := fmt.Sprintf("%s%02d", base, i)
+		if ok {
+			candidateBase = fmt.Sprintf("%s%02d_%s", version, i, name)
+		}
+		candidate := candidateBase + ext
+		if _, err := os.Stat(filepath.Join(dir, candidate)); os.IsNotExist(err) {
+			return candidate
+		}
+	}
+}
+
 func slugifyMigrationName(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
@@ -907,43 +930,195 @@ func splitSQLStatements(section string) []string {
 		return nil
 	}
 	var (
-		statements []string
-		current    strings.Builder
-		inSingle   bool
-		inDouble   bool
-		inBacktick bool
+		statements     []string
+		current        strings.Builder
+		inSingle       bool
+		inDouble       bool
+		inBacktick     bool
+		inLineComment  bool
+		inBlockComment bool
+		dollarTag      string
 	)
 	flush := func() {
 		stmt := normalizeSQLStatement(current.String())
-		if stmt != "" && !strings.HasPrefix(stmt, "--") {
+		if stmt != "" && hasExecutableSQL(stmt) {
 			statements = append(statements, stmt)
 		}
 		current.Reset()
 	}
-	for i, r := range trimmed {
-		switch r {
+	for i := 0; i < len(trimmed); {
+		if dollarTag != "" {
+			if strings.HasPrefix(trimmed[i:], dollarTag) {
+				current.WriteString(dollarTag)
+				i += len(dollarTag)
+				dollarTag = ""
+				continue
+			}
+			current.WriteByte(trimmed[i])
+			i++
+			continue
+		}
+
+		ch := trimmed[i]
+		if inLineComment {
+			current.WriteByte(ch)
+			i++
+			if ch == '\n' {
+				inLineComment = false
+			}
+			continue
+		}
+		if inBlockComment {
+			if ch == '*' && i+1 < len(trimmed) && trimmed[i+1] == '/' {
+				current.WriteString("*/")
+				i += 2
+				inBlockComment = false
+				continue
+			}
+			current.WriteByte(ch)
+			i++
+			continue
+		}
+		switch ch {
 		case '\'':
 			if !inDouble && !inBacktick && (i == 0 || trimmed[i-1] != '\\') {
+				if inSingle && i+1 < len(trimmed) && trimmed[i+1] == '\'' {
+					current.WriteString("''")
+					i += 2
+					continue
+				}
 				inSingle = !inSingle
 			}
 		case '"':
 			if !inSingle && !inBacktick && (i == 0 || trimmed[i-1] != '\\') {
+				if inDouble && i+1 < len(trimmed) && trimmed[i+1] == '"' {
+					current.WriteString(`""`)
+					i += 2
+					continue
+				}
 				inDouble = !inDouble
 			}
 		case '`':
 			if !inSingle && !inDouble {
+				if inBacktick && i+1 < len(trimmed) && trimmed[i+1] == '`' {
+					current.WriteString("``")
+					i += 2
+					continue
+				}
 				inBacktick = !inBacktick
+			}
+		case '-':
+			if !inSingle && !inDouble && !inBacktick && i+1 < len(trimmed) && trimmed[i+1] == '-' {
+				inLineComment = true
+				current.WriteString("--")
+				i += 2
+				continue
+			}
+		case '/':
+			if !inSingle && !inDouble && !inBacktick && i+1 < len(trimmed) && trimmed[i+1] == '*' {
+				inBlockComment = true
+				current.WriteString("/*")
+				i += 2
+				continue
+			}
+		case '$':
+			if !inSingle && !inDouble && !inBacktick {
+				if tag := readDollarQuoteTag(trimmed[i:]); tag != "" {
+					dollarTag = tag
+					current.WriteString(tag)
+					i += len(tag)
+					continue
+				}
 			}
 		case ';':
 			if !inSingle && !inDouble && !inBacktick {
 				flush()
+				i++
 				continue
 			}
 		}
-		current.WriteRune(r)
+		current.WriteByte(ch)
+		i++
 	}
 	flush()
 	return statements
+}
+
+func readDollarQuoteTag(input string) string {
+	if input == "" || input[0] != '$' {
+		return ""
+	}
+	if len(input) > 1 && input[1] != '$' && !isSQLIdentifierStart(input[1]) {
+		return ""
+	}
+	for i := 1; i < len(input); i++ {
+		ch := input[i]
+		if ch == '$' {
+			return input[:i+1]
+		}
+		if !isSQLIdentifierChar(ch) {
+			return ""
+		}
+	}
+	return ""
+}
+
+func hasExecutableSQL(stmt string) bool {
+	inLineComment := false
+	inBlockComment := false
+	for i := 0; i < len(stmt); {
+		ch := stmt[i]
+		if inLineComment {
+			i++
+			if ch == '\n' {
+				inLineComment = false
+			}
+			continue
+		}
+		if inBlockComment {
+			if ch == '*' && i+1 < len(stmt) && stmt[i+1] == '/' {
+				i += 2
+				inBlockComment = false
+				continue
+			}
+			i++
+			continue
+		}
+		if ch == '-' && i+1 < len(stmt) && stmt[i+1] == '-' {
+			inLineComment = true
+			i += 2
+			continue
+		}
+		if ch == '/' && i+1 < len(stmt) && stmt[i+1] == '*' {
+			inBlockComment = true
+			i += 2
+			continue
+		}
+		if !isSQLSpace(ch) {
+			return true
+		}
+		i++
+	}
+	return false
+}
+
+func isSQLIdentifierStart(ch byte) bool {
+	return ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
+func isSQLIdentifierChar(ch byte) bool {
+	return ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
+}
+
+func isSQLSpace(ch byte) bool {
+	return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f' || ch == '\v'
+}
+
+func warnIfDDLMayAutocommit(stderr io.Writer, dialect string) {
+	if normalizeDialect(dialect) != "mysql" {
+		return
+	}
+	fmt.Fprintln(stderr, "warning: MySQL DDL may auto-commit; failed migrations can still leave schema changes behind")
 }
 
 func currentMigrationIndex(files []migrationFile, applied map[string]migrationRecord) (int, error) {
@@ -993,13 +1168,9 @@ func findMigration(files []migrationFile, target string) (migrationFile, error) 
 
 func applyMigration(db *sql.DB, dialect string, file migrationFile) error {
 	statements := splitSQLStatements(file.RawUp)
-	if len(statements) == 0 {
-		return recordAppliedMigration(db, dialect, file)
-	}
-	if err := execMigrationStatements(db, statements); err != nil {
-		return err
-	}
-	return recordAppliedMigration(db, dialect, file)
+	return execMigrationStatements(db, statements, func(tx *sql.Tx) error {
+		return recordAppliedMigrationTx(tx, dialect, file)
+	})
 }
 
 func rollbackMigration(db *sql.DB, dialect string, file migrationFile) error {
@@ -1010,14 +1181,12 @@ func rollbackMigration(db *sql.DB, dialect string, file migrationFile) error {
 	if len(statements) == 0 {
 		return fmt.Errorf("migration %s has no down statements", file.FileName)
 	}
-	if err := execMigrationStatements(db, statements); err != nil {
-		return err
-	}
-	_, err := db.Exec(`DELETE FROM `+migrationTableName+` WHERE version = `+bindVar(dialect, 1), file.Version)
-	return err
+	return execMigrationStatements(db, statements, func(tx *sql.Tx) error {
+		return deleteAppliedMigrationTx(tx, dialect, file.Version)
+	})
 }
 
-func execMigrationStatements(db *sql.DB, statements []string) error {
+func execMigrationStatements(db *sql.DB, statements []string, after func(*sql.Tx) error) error {
 	ctx := context.Background()
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1027,6 +1196,12 @@ func execMigrationStatements(db *sql.DB, statements []string) error {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("exec %q: %w", stmt, err)
+		}
+	}
+	if after != nil {
+		if err := after(tx); err != nil {
+			_ = tx.Rollback()
+			return err
 		}
 	}
 	return tx.Commit()
@@ -1039,6 +1214,21 @@ func recordAppliedMigration(db *sql.DB, dialect string, file migrationFile) erro
 		file.Name,
 		time.Now().UTC(),
 	)
+	return err
+}
+
+func recordAppliedMigrationTx(tx *sql.Tx, dialect string, file migrationFile) error {
+	_, err := tx.Exec(
+		`INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`,
+		file.Version,
+		file.Name,
+		time.Now().UTC(),
+	)
+	return err
+}
+
+func deleteAppliedMigrationTx(tx *sql.Tx, dialect string, version string) error {
+	_, err := tx.Exec(`DELETE FROM `+migrationTableName+` WHERE version = `+bindVar(dialect, 1), version)
 	return err
 }
 

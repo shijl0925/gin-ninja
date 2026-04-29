@@ -600,6 +600,9 @@ func executeTextTemplate(source string, data any) (string, error) {
 	tpl, err := template.New("scaffold").Funcs(template.FuncMap{
 		"bt":    func() string { return "`" },
 		"lower": strings.ToLower,
+		"upperSnake": func(input string) string {
+			return strings.ToUpper(scaffoldToSeparated(scaffoldSplitWords(input), "_", false))
+		},
 	}).Parse(source)
 	if err != nil {
 		return "", fmt.Errorf("parse template: %w", err)
@@ -763,7 +766,6 @@ ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
 "{{ .AppImportPath }}"
 "github.com/shijl0925/gin-ninja/middleware"
 "github.com/shijl0925/gin-ninja/orm"
-"github.com/shijl0925/gin-ninja/pkg/logger"
 "github.com/shijl0925/gin-ninja/settings"
 "go.uber.org/zap"
 "gorm.io/gorm"
@@ -787,6 +789,8 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
+Settings:          &cfg,
+TransactionHandlers: orm.TransactionHandlers(),
 })
 
 api.UseGin(
@@ -797,7 +801,7 @@ middleware.CORS(nil),
 orm.Middleware(db),
 )
 
-app.RegisterRoutes(api)
+app.RegisterRoutes(api{{ if .Options.WithAuth }}, cfg.JWT{{ end }})
 api.Engine().GET("/health", func(c *ginpkg.Context) {
 c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
 })
@@ -818,7 +822,7 @@ return api.Run(cfg.Server.Addr())
 func main() {
 cfg := settings.MustLoad("config.yaml")
 log_ := ginbootstrap.InitLogger(&cfg.Log)
-defer logger.Sync()
+defer func() { _ = log_.Sync() }()
 
 if err := runMain(*cfg, log_); err != nil {
 fatalMain(err)
@@ -858,7 +862,6 @@ projectbootstrap "{{ .Module }}/bootstrap"
 ninja "github.com/shijl0925/gin-ninja"
 "github.com/shijl0925/gin-ninja/middleware"
 "github.com/shijl0925/gin-ninja/orm"
-"github.com/shijl0925/gin-ninja/pkg/logger"
 "github.com/shijl0925/gin-ninja/settings"
 "go.uber.org/zap"
 "gorm.io/gorm"
@@ -882,6 +885,8 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
+Settings:          &cfg,
+TransactionHandlers: orm.TransactionHandlers(),
 {{- if .Options.WithAuth }}
 SecuritySchemes: map[string]ninja.SecurityScheme{
 "bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
@@ -898,12 +903,12 @@ middleware.CORS(nil),
 orm.Middleware(db),
 )
 
-app.RegisterRoutes(api)
+app.RegisterRoutes(api{{ if .Options.WithAuth }}, cfg.JWT{{ end }})
 {{- if .Options.WithAuth }}
-app.RegisterAuthRoutes(api)
+app.RegisterAuthRoutes(api, cfg.JWT)
 {{- end }}
 {{- if .Options.WithAdmin }}
-app.RegisterAdminRoutes(api)
+app.RegisterAdminRoutes(api{{ if .Options.WithAuth }}, cfg.JWT{{ end }})
 {{- end }}
 api.Engine().GET("/health", func(c *ginpkg.Context) {
 c.JSON(http.StatusOK, ginpkg.H{"status": "ok"})
@@ -928,7 +933,7 @@ cfg := settings.MustLoadWithOverrides(
 filepath.Join("settings", "config.local.yaml"),
 )
 log_ := projectbootstrap.InitLogger(&cfg.Log)
-defer logger.Sync()
+defer func() { _ = log_.Sync() }()
 
 if err := runMain(*cfg, log_); err != nil {
 fatalMain(err)
@@ -1361,10 +1366,10 @@ const appErrorsTemplate = `package {{ .PackageName }}
 
 import ninja "github.com/shijl0925/gin-ninja"
 
-const {{ .ModelName }}NameRequiredCode = 10001
+const {{ .ModelName }}NameRequiredErrorCode = "{{ upperSnake .ModelName }}_NAME_REQUIRED"
 
 func New{{ .ModelName }}NameRequiredError() error {
-return ninja.NewBusinessError({{ .ModelName }}NameRequiredCode, "{{ lower .ModelName }} name is required")
+return ninja.NewErrorWithCode(400, {{ .ModelName }}NameRequiredErrorCode, "{{ lower .ModelName }} name is required")
 }
 `
 
@@ -1856,13 +1861,14 @@ import (
 ninja "github.com/shijl0925/gin-ninja"
 {{- if .Options.WithAuth }}
 "github.com/shijl0925/gin-ninja/middleware"
+"github.com/shijl0925/gin-ninja/settings"
 {{- end }}
 )
 
-func RegisterRoutes(api *ninja.NinjaAPI) {
+func RegisterRoutes(api *ninja.NinjaAPI{{ if .Options.WithAuth }}, jwtCfg settings.JWTConfig{{ end }}) {
 router := ninja.NewRouter("/{{ .RouteBase }}", ninja.WithTags("{{ .RouteTag }}"){{ if .Options.WithAuth }}, ninja.WithBearerAuth(){{ end }})
 {{- if .Options.WithAuth }}
-router.UseGin(middleware.JWTAuth())
+router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 {{- end }}
 ninja.Get(router, "/", List{{ .ModelPlural }}, ninja.Summary("List {{ .RouteTag }}"))
 ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .ModelName }}"))
@@ -1878,6 +1884,7 @@ const appAuthTemplate = `package {{ .PackageName }}
 import (
 ninja "github.com/shijl0925/gin-ninja"
 "github.com/shijl0925/gin-ninja/middleware"
+"github.com/shijl0925/gin-ninja/settings"
 )
 
 type LoginInput struct {
@@ -1889,17 +1896,19 @@ type LoginOutput struct {
 Token string {{ bt }}json:"token"{{ bt }}
 }
 
-func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
-token, err := middleware.GenerateToken(in.UserID, in.Username)
+func LoginHandler(jwtCfg settings.JWTConfig) func(*ninja.Context, *LoginInput) (*LoginOutput, error) {
+return func(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
+token, err := middleware.GenerateTokenWithConfig(in.UserID, in.Username, jwtCfg)
 if err != nil {
 return nil, err
 }
 return &LoginOutput{Token: token}, nil
 }
+}
 
-func RegisterAuthRoutes(api *ninja.NinjaAPI) {
+func RegisterAuthRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 router := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
-ninja.Post(router, "/login", Login, ninja.Summary("Issue a JWT token"))
+ninja.Post(router, "/login", LoginHandler(jwtCfg), ninja.Summary("Issue a JWT token"))
 api.AddRouter(router)
 }
 `
@@ -1911,6 +1920,7 @@ admin "github.com/shijl0925/gin-ninja/admin"
 ninja "github.com/shijl0925/gin-ninja"
 {{- if .Options.WithAuth }}
 "github.com/shijl0925/gin-ninja/middleware"
+"github.com/shijl0925/gin-ninja/settings"
 {{- end }}
 )
 
@@ -1933,10 +1943,10 @@ SearchFields: []string{"name"},
 return site
 }
 
-func RegisterAdminRoutes(api *ninja.NinjaAPI) {
+func RegisterAdminRoutes(api *ninja.NinjaAPI{{ if .Options.WithAuth }}, jwtCfg settings.JWTConfig{{ end }}) {
 router := ninja.NewRouter("/admin", ninja.WithTags("Admin"), ninja.WithVersion("v1"){{ if .Options.WithAuth }}, ninja.WithBearerAuth(){{ end }})
 {{- if .Options.WithAuth }}
-router.UseGin(middleware.JWTAuth())
+router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 {{- end }}
 NewAdminSite().Mount(router)
 api.AddRouter(router)
@@ -1983,11 +1993,7 @@ t.Fatal("expected service constructor to return a value")
 
 {{- if .Options.WithAuth }}
 func TestLoginIssuesToken(t *testing.T) {
-prev := settings.Global.JWT
-t.Cleanup(func() { settings.Global.JWT = prev })
-settings.Global.JWT.Secret = "test-secret"
-settings.Global.JWT.ExpireHours = 1
-out, err := Login(nil, &LoginInput{UserID: 1, Username: "demo"})
+out, err := LoginHandler(settings.JWTConfig{Secret: "test-secret", ExpireHours: 1})(nil, &LoginInput{UserID: 1, Username: "demo"})
 if err != nil {
 t.Fatalf("Login: %v", err)
 }

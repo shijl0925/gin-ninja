@@ -5,11 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/settings"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -61,18 +59,6 @@ func TestBuildEncoder(t *testing.T) {
 }
 
 func TestBuildSinkAndHelpers(t *testing.T) {
-	globalMu.RLock()
-	oldGlobal := global
-	globalMu.RUnlock()
-	t.Cleanup(func() {
-		globalMu.Lock()
-		global = oldGlobal
-		globalMu.Unlock()
-		if oldGlobal != nil {
-			zap.ReplaceGlobals(oldGlobal)
-		}
-	})
-
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "app.log")
 
@@ -100,19 +86,12 @@ func TestBuildSinkAndHelpers(t *testing.T) {
 	if l == nil {
 		t.Fatal("expected logger")
 	}
-	SetGlobal(l)
-	if Global() != l {
-		t.Fatal("expected SetGlobal to update global logger")
-	}
-	if Named("component") == nil || With(zap.String("key", "value")) == nil {
-		t.Fatal("expected logger helper constructors")
-	}
 
-	Debug("debug message")
-	Info("info message")
-	Warn("warn message")
-	Error("error message")
-	Sync()
+	l.Debug("debug message")
+	l.Info("info message")
+	l.Warn("warn message")
+	l.Error("error message")
+	_ = l.Sync()
 
 	data, err := os.ReadFile(logFile)
 	if err != nil {
@@ -217,39 +196,4 @@ func TestNewWithFileOutputMirrorsToStdoutAndUsesPlainFileLogs(t *testing.T) {
 	if strings.Contains(fileText, "\x1b[") {
 		t.Fatalf("expected file log output without ANSI color codes, got %q", fileText)
 	}
-}
-
-func TestSetGlobalNilFallsBackAndIsConcurrentSafe(t *testing.T) {
-	globalMu.RLock()
-	oldGlobal := global
-	globalMu.RUnlock()
-	t.Cleanup(func() {
-		globalMu.Lock()
-		global = oldGlobal
-		globalMu.Unlock()
-		if oldGlobal != nil {
-			zap.ReplaceGlobals(oldGlobal)
-		}
-	})
-
-	SetGlobal(nil)
-	if Global() == nil {
-		t.Fatal("expected fallback logger when setting nil global")
-	}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 16; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			if i%2 == 0 {
-				SetGlobal(zap.NewNop())
-				return
-			}
-			if Global() == nil {
-				t.Error("expected non-nil logger during concurrent access")
-			}
-		}(i)
-	}
-	wg.Wait()
 }

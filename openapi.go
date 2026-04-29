@@ -2,6 +2,8 @@ package ninja
 
 import (
 	"fmt"
+	"html"
+	htmltemplate "html/template"
 	"net/http"
 	"reflect"
 	"sort"
@@ -321,6 +323,10 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 	bodyRequired := []string{}
 	hasBody := isBodyMethod(method)
 	isMultipart := hasMultipartBody(t)
+	// OpenAPI generation is static and cannot observe a runtime Content-Type.
+	// For body methods, form-tagged fields document the supported
+	// application/x-www-form-urlencoded request body shape.
+	isFormBody := hasBody && !isMultipart && hasFormFields(t)
 
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -387,7 +393,7 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 
 		// Query / form parameter.
 		if formTag := f.Tag.Get("form"); formTag != "" {
-			if hasBody && isMultipart {
+			if hasBody && (isMultipart || isFormBody) {
 				bodyFields[formTag] = fieldSchema
 				if isRequired(f) {
 					bodyRequired = append(bodyRequired, formTag)
@@ -428,6 +434,8 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 		}
 		if isMultipart {
 			contentType = "multipart/form-data"
+		} else if isFormBody {
+			contentType = "application/x-www-form-urlencoded"
 		} else {
 			contentType = "application/json"
 		}
@@ -503,7 +511,7 @@ window.onload = function() {
 }
 </script>
 </body>
-</html>`, title, openapiURL)
+</html>`, html.EscapeString(title), htmltemplate.JSEscapeString(openapiURL))
 }
 
 // homepageHTML returns the HTML for the Gin Ninja welcome homepage.
@@ -521,7 +529,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
             <polyline points="10 9 9 9 8 9"/>
           </svg>
           API Docs
-        </a>`, docsURL)
+        </a>`, html.EscapeString(docsURL))
 	}
 	adminButton := ""
 	if adminURL != "" {
@@ -531,7 +539,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           </svg>
           Admin
-        </a>`, adminURL)
+        </a>`, html.EscapeString(adminURL))
 	}
 	metaBandClass := "meta-band"
 	quicklinksPanel := fmt.Sprintf(`
@@ -899,7 +907,7 @@ func homepageHTML(title, docsURL, adminURL string) string {
 </div>
 </main>
 </body>
-</html>`, title, title, metaBandClass, quicklinksPanel)
+</html>`, html.EscapeString(title), html.EscapeString(title), metaBandClass, quicklinksPanel)
 }
 
 // ginPathToOpenAPI converts a gin-style path ("/users/:id") to an OpenAPI

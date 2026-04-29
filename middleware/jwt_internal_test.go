@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/settings"
 )
 
 func TestExtractBearerToken(t *testing.T) {
@@ -33,5 +34,33 @@ func TestExtractBearerToken(t *testing.T) {
 				t.Fatalf("expected %q, got %q", tc.want, got)
 			}
 		})
+	}
+}
+
+func TestJWTAuthWithConfigDoesNotUseGlobalSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := settings.JWTConfig{Secret: "explicit-secret", ExpireHours: 1, Issuer: "explicit"}
+	token, err := GenerateTokenWithConfig(7, "explicit-user", cfg)
+	if err != nil {
+		t.Fatalf("GenerateTokenWithConfig: %v", err)
+	}
+
+	r := gin.New()
+	r.Use(JWTAuthWithConfig(cfg))
+	r.GET("/", func(c *gin.Context) {
+		claims := GetClaims(c)
+		if claims == nil {
+			t.Fatal("expected claims")
+		}
+		c.JSON(http.StatusOK, gin.H{"user_id": claims.UserID})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 	}
 }

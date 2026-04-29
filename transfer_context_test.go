@@ -108,6 +108,48 @@ func TestDownloadWriteToDataDefaultsAndHeaders(t *testing.T) {
 	}
 }
 
+func TestDownloadHeadResponseHeadersAndEmptyBody(t *testing.T) {
+	t.Parallel()
+
+	type emptyInput struct{}
+
+	api := New(Config{
+		DisableGinDefault: true,
+		DisableHomepage:   true,
+		DisableOpenAPI:    true,
+	})
+	r := NewRouter("/files")
+	Get[emptyInput, Download](r, "/report", func(*Context, *emptyInput) (*Download, error) {
+		download := NewDownload("report.txt", "text/plain", []byte("hello world"))
+		download.Headers = map[string]string{"X-Test": "value"}
+		return download, nil
+	})
+	api.AddRouter(r)
+
+	req := httptest.NewRequest(http.MethodHead, "/files/report", nil)
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if w.Body.Len() != 0 {
+		t.Fatalf("expected empty HEAD body, got %q", w.Body.String())
+	}
+	if got := w.Header().Get("Content-Length"); got != "11" {
+		t.Fatalf("Content-Length = %q, want 11", got)
+	}
+	if got := w.Header().Get("Content-Type"); got != "text/plain" {
+		t.Fatalf("Content-Type = %q, want text/plain", got)
+	}
+	if got := w.Header().Get("Content-Disposition"); !strings.Contains(got, "attachment") || !strings.Contains(got, "report.txt") {
+		t.Fatalf("Content-Disposition = %q, want attachment filename", got)
+	}
+	if got := w.Header().Get("X-Test"); got != "value" {
+		t.Fatalf("X-Test = %q, want value", got)
+	}
+}
+
 func TestDownloadWriteToReaderAndNilDownload(t *testing.T) {
 	t.Parallel()
 
@@ -211,30 +253,29 @@ func TestContextHelpersAndErrorUtilities(t *testing.T) {
 		t.Fatal("expected RollbackTx() to fail when transaction handlers are unavailable")
 	}
 
-	previousBegin := contextBeginTx
-	previousCommit := contextCommitTx
-	previousRollback := contextRollbackTx
-	t.Cleanup(func() {
-		contextBeginTx = previousBegin
-		contextCommitTx = previousCommit
-		contextRollbackTx = previousRollback
-	})
-
 	beginCalled := false
 	commitCalled := false
 	rollbackCalled := false
-	contextBeginTx = func(*gin.Context) error {
-		beginCalled = true
-		return nil
-	}
-	contextCommitTx = func(*gin.Context) error {
-		commitCalled = true
-		return nil
-	}
-	contextRollbackTx = func(*gin.Context) error {
-		rollbackCalled = true
-		return nil
-	}
+	api := New(Config{
+		DisableGinDefault: true,
+		DisableHomepage:   true,
+		DisableOpenAPI:    true,
+		TransactionHandlers: &TransactionHandlers{
+			Begin: func(*gin.Context) error {
+				beginCalled = true
+				return nil
+			},
+			Commit: func(*gin.Context) error {
+				commitCalled = true
+				return nil
+			},
+			Rollback: func(*gin.Context) error {
+				rollbackCalled = true
+				return nil
+			},
+		},
+	})
+	c.Set(ninjaAPIContextKey, api)
 
 	if err := ctx.BeginTx(); err != nil {
 		t.Fatalf("BeginTx() error = %v", err)
@@ -258,9 +299,4 @@ func TestContextHelpersAndErrorUtilities(t *testing.T) {
 		t.Fatalf("expected BadRequestError() to return a clone, got %q", fresh.Message)
 	}
 
-	detail := map[string]any{"field": "email"}
-	businessErr := NewBusinessErrorWithDetail(1001, "invalid", detail)
-	if businessErr.Detail == nil {
-		t.Fatal("expected business error detail to be preserved")
-	}
 }

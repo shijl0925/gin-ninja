@@ -88,9 +88,7 @@ func TestStartupDSNStructuredConfigOmitsPasswords(t *testing.T) {
 }
 
 func TestServe_PrintsStartupBanner(t *testing.T) {
-	prev := settings.GetGlobal()
-	t.Cleanup(func() { settings.SetGlobal(prev) })
-	settings.SetGlobal(settings.Config{
+	cfg := settings.Config{
 		App: settings.AppConfig{
 			Env: "demo",
 		},
@@ -98,9 +96,9 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 			Driver: "postgres",
 			DSN:    "postgres://app:secret@localhost:5432/demo?sslmode=disable",
 		},
-	})
+	}
 
-	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true})
+	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true, Settings: &cfg})
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -158,6 +156,51 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 	if strings.Contains(banner, "secret") {
 		t.Fatalf("banner leaked secret: %q", banner)
 	}
+}
+
+func TestAddRouterPanicsWhileServerIsRunning(t *testing.T) {
+	api := New(Config{DisableGinDefault: true})
+	router := NewRouter("/items")
+	Get(router, "/", func(ctx *Context, in *struct{}) (*struct {
+		OK bool `json:"ok"`
+	}, error) {
+		return &struct {
+			OK bool `json:"ok"`
+		}{OK: true}, nil
+	})
+	api.AddRouter(router)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- api.Serve(listener)
+	}()
+
+	if err := waitForServer(listener.Addr().String()); err != nil {
+		t.Fatalf("wait for server: %v", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := api.Shutdown(shutdownCtx); err != nil {
+			t.Fatalf("shutdown: %v", err)
+		}
+		if err := <-done; err != nil {
+			t.Fatalf("serve: %v", err)
+		}
+	}()
+
+	lateRouter := NewRouter("/late")
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected AddRouter to panic while server is running")
+		}
+	}()
+	api.AddRouter(lateRouter)
 }
 
 func waitForServer(addr string) error {

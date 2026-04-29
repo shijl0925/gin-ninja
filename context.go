@@ -145,10 +145,9 @@ func (c *Context) Unauthorized(message string) {
 }
 
 // BeginTx starts a request-scoped transaction if one is not already active.
-//
-// Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.BeginTx instead.
 func (c *Context) BeginTx() error {
-	begin, _, _, _ := transactionHandlers()
+	api, _ := currentAPI(c.Context)
+	begin, _, _, _ := apiTransactionHandlers(api)
 	if begin == nil {
 		return errTransactionUnavailable()
 	}
@@ -156,10 +155,9 @@ func (c *Context) BeginTx() error {
 }
 
 // CommitTx commits the active request-scoped transaction.
-//
-// Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.CommitTx instead.
 func (c *Context) CommitTx() error {
-	_, commit, _, _ := transactionHandlers()
+	api, _ := currentAPI(c.Context)
+	_, commit, _, _ := apiTransactionHandlers(api)
 	if commit == nil {
 		return errTransactionUnavailable()
 	}
@@ -167,10 +165,9 @@ func (c *Context) CommitTx() error {
 }
 
 // RollbackTx rolls back the active request-scoped transaction.
-//
-// Deprecated: import github.com/shijl0925/gin-ninja/orm and call orm.RollbackTx instead.
 func (c *Context) RollbackTx() error {
-	_, _, rollback, _ := transactionHandlers()
+	api, _ := currentAPI(c.Context)
+	_, _, rollback, _ := apiTransactionHandlers(api)
 	if rollback == nil {
 		return errTransactionUnavailable()
 	}

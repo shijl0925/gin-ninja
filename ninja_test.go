@@ -200,6 +200,56 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 }
 
+func TestNew_InternalRoutesCanBeDisabled(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:           "Disabled",
+		Version:         "0.0.1",
+		DisableDocs:     true,
+		DisableHomepage: true,
+		DisableOpenAPI:  true,
+	})
+
+	for _, path := range []string{"/", "/docs", "/openapi.json"} {
+		w := doRequest(api, http.MethodGet, path, nil)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected %s to be disabled, got %d", path, w.Code)
+		}
+	}
+}
+
+func TestNew_DisableOpenAPIDisablesDocsRoute(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:          "No OpenAPI",
+		Version:        "0.0.1",
+		DisableOpenAPI: true,
+	})
+
+	if w := doRequest(api, http.MethodGet, "/openapi.json", nil); w.Code != http.StatusNotFound {
+		t.Fatalf("expected OpenAPI route to be disabled, got %d", w.Code)
+	}
+	if w := doRequest(api, http.MethodGet, "/docs", nil); w.Code != http.StatusNotFound {
+		t.Fatalf("expected docs route to be disabled with OpenAPI, got %d", w.Code)
+	}
+}
+
+func TestNew_InternalRouteHTMLEscapesConfigValues(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:    `<script>alert("x")</script>`,
+		Version:  "0.0.1",
+		AdminURL: `/admin"><script>alert("admin")</script>`,
+	})
+
+	home := doRequest(api, http.MethodGet, "/", nil)
+	if strings.Contains(home.Body.String(), "<script>") || strings.Contains(home.Body.String(), `href="/admin"><script>`) {
+		t.Fatalf("expected homepage values to be escaped: %q", home.Body.String())
+	}
+
+	docs := doRequest(api, http.MethodGet, "/docs", nil)
+	if strings.Contains(docs.Body.String(), "<script>alert") {
+		t.Fatalf("expected docs title to be escaped: %q", docs.Body.String())
+	}
+}
+
 func TestRun_InvalidAddress(t *testing.T) {
 	api := newTestAPI()
 	if err := api.Run(":-1"); err == nil {
@@ -723,7 +773,9 @@ func TestAddController_RoutesRegistered(t *testing.T) {
 
 func TestAddController_AppearsInOpenAPI(t *testing.T) {
 	type listIn struct{}
-	type itemOut struct{ ID int `json:"id"` }
+	type itemOut struct {
+		ID int `json:"id"`
+	}
 
 	api := ninja.New(ninja.Config{DisableGinDefault: true})
 	api.AddController("/widgets", ninja.ControllerFunc(func(r *ninja.Router) {
@@ -1063,6 +1115,35 @@ func TestOpenAPISpec_ExcludeFromDocs(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpec_FormURLEncodedBody(t *testing.T) {
+	type input struct {
+		Name string `form:"name" binding:"required"`
+		Age  int    `form:"age"`
+	}
+	api := newTestAPI()
+	r := ninja.NewRouter("/forms")
+	ninja.Post(r, "/", func(ctx *ninja.Context, in *input) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("parse openapi: %v", err)
+	}
+	paths := spec["paths"].(map[string]interface{})
+	post := paths["/forms/"].(map[string]interface{})["post"].(map[string]interface{})
+	if _, ok := post["parameters"]; ok {
+		t.Fatalf("expected form fields in requestBody, got parameters: %v", post["parameters"])
+	}
+	requestBody := post["requestBody"].(map[string]interface{})
+	content := requestBody["content"].(map[string]interface{})
+	if _, ok := content["application/x-www-form-urlencoded"]; !ok {
+		t.Fatalf("expected form-urlencoded request body content, got %v", content)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // UseGin middleware
 // ---------------------------------------------------------------------------
@@ -1085,6 +1166,40 @@ func TestUseGin_MiddlewareRuns(t *testing.T) {
 	if !called {
 		t.Error("expected UseGin middleware to be called")
 	}
+}
+
+func TestUseGin_PanicsAfterRouterMounted(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/test")
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected UseGin to panic after router mount")
+		}
+	}()
+	api.UseGin(func(c *gin.Context) { c.Next() })
+}
+
+func TestRouter_PanicsWhenMutatedAfterMount(t *testing.T) {
+	api := ninja.New(ninja.Config{DisableGinDefault: true})
+	r := ninja.NewRouter("/test")
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
+	api.AddRouter(r)
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected mounted router mutation to panic")
+		}
+	}()
+	ninja.Get(r, "/late", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+		return &struct{}{}, nil
+	})
 }
 
 func TestRouter_UseGin_MiddlewareRuns(t *testing.T) {
@@ -1204,6 +1319,31 @@ func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	}
 	if _, ok := headers["Cache-Control"]; !ok {
 		t.Fatalf("expected Cache-Control header to be documented, got %v", headers)
+	}
+}
+
+func TestGet_DownloadBypassesCacheWrapper(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/download")
+	store := &externalCacheStore{}
+	calls := 0
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*ninja.Download, error) {
+		calls++
+		return ninja.NewDownload("demo.txt", "text/plain", []byte("demo")), nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	first := doRequest(api, http.MethodGet, "/download/", nil)
+	second := doRequest(api, http.MethodGet, "/download/", nil)
+	if first.Code != http.StatusOK || second.Code != http.StatusOK {
+		t.Fatalf("expected download responses to succeed, got %d and %d", first.Code, second.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected download handler to bypass cache, calls=%d", calls)
+	}
+	if len(store.items) != 0 {
+		t.Fatalf("expected download response not to be stored in cache, got %v", store.items)
 	}
 }
 
@@ -1791,51 +1931,6 @@ func TestWebSocketHandlerErrorDoesNotLeakToClient(t *testing.T) {
 	}
 	if !strings.Contains(loggedErr, expectedErr.Error()) {
 		t.Fatalf("expected websocket handler error to be recorded privately, got %q", loggedErr)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// BusinessError
-// ---------------------------------------------------------------------------
-
-func TestBusinessError_WrittenAsHTTP200(t *testing.T) {
-	api := newTestAPI()
-	r := ninja.NewRouter("/biz")
-
-	type emptyIn struct{}
-	ninja.Get(r, "/error", func(ctx *ninja.Context, in *emptyIn) (*emptyIn, error) {
-		return nil, ninja.NewBusinessError(10001, "account disabled")
-	})
-	api.AddRouter(r)
-
-	w := doRequest(api, http.MethodGet, "/biz/error", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("BusinessError should use HTTP 200, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var body map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
-		t.Fatalf("parse body: %v", err)
-	}
-	if code, _ := body["code"].(float64); int(code) != 10001 {
-		t.Errorf("expected code=10001, got %v", body["code"])
-	}
-	if msg, _ := body["message"].(string); msg != "account disabled" {
-		t.Errorf("expected message='account disabled', got %q", msg)
-	}
-}
-
-func TestBusinessError_IsComparison(t *testing.T) {
-	err := ninja.NewBusinessError(10001, "disabled")
-	target := ninja.NewBusinessError(10001, "something else")
-
-	if !errors.Is(err, target) {
-		t.Error("expected errors.Is to match on same code")
-	}
-
-	other := ninja.NewBusinessError(10002, "disabled")
-	if errors.Is(err, other) {
-		t.Error("expected errors.Is to NOT match on different code")
 	}
 }
 

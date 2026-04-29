@@ -178,11 +178,6 @@ func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context
 }
 
 func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) *ninja.NinjaAPI {
-	// Ensure the global settings reflect the provided config so that helpers
-	// such as middleware.JWTAuth() and middleware.GenerateToken() use the
-	// correct values when called from route setup functions.
-	settings.SetGlobal(cfg)
-
 	api := ninja.New(ninja.Config{
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
@@ -192,7 +187,9 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 		SecuritySchemes: map[string]ninja.SecurityScheme{
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
-		DisableGinDefault: true,
+		DisableGinDefault:   true,
+		Settings:            &cfg,
+		TransactionHandlers: orm.TransactionHandlers(),
 	})
 	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 		sqlDB, err := db.DB()
@@ -220,17 +217,17 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 	)
 
 	if opts.IncludeAuth {
-		addAuthRoutes(api)
+		addAuthRoutes(api, cfg.JWT)
 	}
 	if opts.IncludeUsersV1 {
-		addUsersV1Routes(api)
+		addUsersV1Routes(api, cfg.JWT)
 	}
 	if opts.IncludeUsersV2 {
 		app.ConfigureUsersV2Cache(cacheStore)
-		addUsersV2Routes(api, cacheStore)
+		addUsersV2Routes(api, cfg.JWT, cacheStore)
 	}
 	if opts.IncludeAdminAPI {
-		addAdminRoutes(api)
+		addAdminRoutes(api, cfg.JWT)
 	}
 	if opts.IncludeFeatureDemos {
 		addFeatureRoutes(api, cacheStore)
@@ -272,7 +269,7 @@ func cloneVersions(in map[string]ninja.VersionConfig) map[string]ninja.VersionCo
 	return out
 }
 
-func addAuthRoutes(api *ninja.NinjaAPI) {
+func addAuthRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	authRouter := ninja.NewRouter(
 		"/auth",
 		ninja.WithTags("Auth"),
@@ -280,11 +277,11 @@ func addAuthRoutes(api *ninja.NinjaAPI) {
 		ninja.WithVersion("v1"),
 	)
 	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"), ninja.WithTransaction())
-	ninja.Post(authRouter, "/login", app.Login, ninja.Summary("Login and get JWT token"))
+	ninja.Post(authRouter, "/login", app.LoginHandler(jwtCfg), ninja.Summary("Login and get JWT token"))
 	api.AddRouter(authRouter)
 }
 
-func addUsersV1Routes(api *ninja.NinjaAPI) {
+func addUsersV1Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	usersRouter := ninja.NewRouter(
 		"/users",
 		ninja.WithTags("Users"),
@@ -292,7 +289,7 @@ func addUsersV1Routes(api *ninja.NinjaAPI) {
 		ninja.WithBearerAuth(),
 		ninja.WithVersion("v1"),
 	)
-	usersRouter.UseGin(middleware.JWTAuth())
+	usersRouter.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 
 	ninja.Get(usersRouter, "/", app.ListUsers,
 		ninja.Summary("List users"),
@@ -316,7 +313,7 @@ func addUsersV1Routes(api *ninja.NinjaAPI) {
 	api.AddRouter(usersRouter)
 }
 
-func addUsersV2Routes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheStore) {
+func addUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cacheStore ninja.ResponseCacheStore) {
 	usersV2Router := ninja.NewRouter(
 		"/users",
 		ninja.WithTags("Users"),
@@ -324,7 +321,7 @@ func addUsersV2Routes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheStore) 
 		ninja.WithBearerAuth(),
 		ninja.WithVersion("v2"),
 	)
-	usersV2Router.UseGin(middleware.JWTAuth())
+	usersV2Router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 
 	ninja.Get(usersV2Router, "/", app.ListUsersV2,
 		ninja.Summary("List users (cached CRUD demo)"),
@@ -362,7 +359,7 @@ func addUsersV2Routes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheStore) 
 	api.AddRouter(usersV2Router)
 }
 
-func addAdminRoutes(api *ninja.NinjaAPI) {
+func addAdminRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	adminRouter := ninja.NewRouter(
 		"/admin",
 		ninja.WithTags("Admin"),
@@ -370,7 +367,7 @@ func addAdminRoutes(api *ninja.NinjaAPI) {
 		ninja.WithBearerAuth(),
 		ninja.WithVersion("v1"),
 	)
-	adminRouter.UseGin(middleware.JWTAuth())
+	adminRouter.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 	app.NewAdminSite().Mount(adminRouter)
 	api.AddRouter(adminRouter)
 }

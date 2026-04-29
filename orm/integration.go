@@ -9,10 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-func init() {
-	ninja.RegisterTransactionHandlers(beginTxFromGinContext, commitTxFromGinContext, rollbackTxFromGinContext, WithTransaction)
-}
-
 func beginTxFromGinContext(c *gin.Context) error {
 	_, err := Begin(c)
 	return err
@@ -24,6 +20,17 @@ func commitTxFromGinContext(c *gin.Context) error {
 
 func rollbackTxFromGinContext(c *gin.Context) error {
 	return Rollback(c)
+}
+
+// TransactionHandlers returns the orm transaction integration for a NinjaAPI
+// instance.
+func TransactionHandlers() *ninja.TransactionHandlers {
+	return &ninja.TransactionHandlers{
+		Begin:           beginTxFromGinContext,
+		Commit:          commitTxFromGinContext,
+		Rollback:        rollbackTxFromGinContext,
+		WithTransaction: WithTransaction,
+	}
 }
 
 // BeginTx starts a request-scoped transaction for a ninja context.

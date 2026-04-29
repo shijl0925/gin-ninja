@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -87,6 +88,34 @@ type bindEdgeQueryInput struct {
 	Tags   []string `form:"tag"`
 }
 
+type bindOverrideInput struct {
+	ID      int    `path:"id" json:"id"`
+	Page    int    `form:"page" json:"page"`
+	Trace   string `header:"X-Trace" json:"trace"`
+	Session string `cookie:"session" json:"session"`
+	Name    string `json:"name"`
+}
+
+type customTextValue string
+
+func (v *customTextValue) UnmarshalText(text []byte) error {
+	*v = customTextValue("custom:" + string(text))
+	return nil
+}
+
+type formURLEncodedInput struct {
+	Name string          `form:"name" binding:"required"`
+	Tags []string        `form:"tag"`
+	When time.Time       `form:"when"`
+	IP   net.IP          `form:"ip"`
+	Mode customTextValue `form:"mode"`
+}
+
+type embeddedPointerBindInput struct {
+	*BindEmbeddedInput
+	Page int `form:"page" default:"1"`
+}
+
 func init() {
 	gin.SetMode(gin.TestMode)
 }
@@ -120,6 +149,60 @@ func TestBindInput_Success(t *testing.T) {
 	}
 	if in.Session != "sess-1" {
 		t.Fatalf("expected cookie field to bind, got %+v", in)
+	}
+}
+
+func TestBindInput_JSONDoesNotOverrideNonBodyFields(t *testing.T) {
+	c, _ := newTestContext(http.MethodPut, "/users/42?page=3", `{"id":99,"page":99,"trace":"body","session":"body","name":"alice"}`)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+	c.Request.Header.Set("X-Trace", "trace-1")
+	c.Request.AddCookie(&http.Cookie{Name: "session", Value: "sess-1"})
+
+	var in bindOverrideInput
+	if err := bindInput(c, http.MethodPut, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.ID != 42 || in.Page != 3 || in.Trace != "trace-1" || in.Session != "sess-1" || in.Name != "alice" {
+		t.Fatalf("unexpected bound input: %+v", in)
+	}
+}
+
+func TestBindInput_FormURLEncodedAndCommonTypes(t *testing.T) {
+	body := "name=alice&tag=go&tag=api&when=2026-04-26&ip=127.0.0.1&mode=fast"
+	c, _ := newTestContext(http.MethodPost, "/submit", body)
+	c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	var in formURLEncodedInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Name != "alice" || !reflect.DeepEqual(in.Tags, []string{"go", "api"}) {
+		t.Fatalf("unexpected form values: %+v", in)
+	}
+	if in.When.Format("2006-01-02") != "2026-04-26" {
+		t.Fatalf("expected date to bind, got %s", in.When.Format(time.RFC3339))
+	}
+	if !in.IP.Equal(net.ParseIP("127.0.0.1")) {
+		t.Fatalf("expected IP to bind, got %v", in.IP)
+	}
+	if in.Mode != "custom:fast" {
+		t.Fatalf("expected custom text value to bind, got %q", in.Mode)
+	}
+}
+
+func TestBindInput_EmbeddedPointerStruct(t *testing.T) {
+	c, _ := newTestContext(http.MethodGet, "/items?page=3", "")
+	c.Request.Header.Set("X-Trace", "trace-1")
+
+	var in embeddedPointerBindInput
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.BindEmbeddedInput == nil {
+		t.Fatal("expected embedded pointer to be allocated")
+	}
+	if in.Trace != "trace-1" || in.Page != 3 {
+		t.Fatalf("unexpected embedded pointer bind: %+v", in)
 	}
 }
 
@@ -199,6 +282,20 @@ func TestBindInput_Errors(t *testing.T) {
 		var apiErr *Error
 		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_QUERY" || apiErr.Status != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_QUERY bad request, got %v", err)
+		}
+	})
+
+	t.Run("bad form body conversion", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodPost, "/users", "age=nope")
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		type formInput struct {
+			Age int `form:"age"`
+		}
+		var in formInput
+		err := bindInput(c, http.MethodPost, &in)
+		var apiErr *Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_FORM" || apiErr.Status != http.StatusBadRequest {
+			t.Fatalf("expected INVALID_FORM bad request, got %v", err)
 		}
 	})
 
@@ -454,27 +551,10 @@ func TestWriteError(t *testing.T) {
 		}
 	})
 
-	t.Run("global custom mapper fallback", func(t *testing.T) {
-		sentinel := errors.New("mapped")
-
-		errorMappersMu.Lock()
-		original := append([]ErrorMapper(nil), errorMappers...)
-		errorMappers = append(errorMappers, func(err error) error {
-			if errors.Is(err, sentinel) {
-				return &Error{Status: http.StatusTeapot, Code: "MAPPED", Message: "mapped"}
-			}
-			return nil
-		})
-		errorMappersMu.Unlock()
-		defer func() {
-			errorMappersMu.Lock()
-			errorMappers = original
-			errorMappersMu.Unlock()
-		}()
-
+	t.Run("default mapper fallback without api", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, sentinel)
-		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "MAPPED") {
+		writeError(c, context.DeadlineExceeded)
+		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), "REQUEST_TIMEOUT") {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
@@ -814,46 +894,35 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 }
 
 func TestOperationsWithTransactionHandlers(t *testing.T) {
-	previousBegin := contextBeginTx
-	previousCommit := contextCommitTx
-	previousRollback := contextRollbackTx
-	previousWithTx := contextWithTx
-	t.Cleanup(func() {
-		contextBeginTx = previousBegin
-		contextCommitTx = previousCommit
-		contextRollbackTx = previousRollback
-		contextWithTx = previousWithTx
-	})
-
 	beginCalled := false
 	commitCalled := false
 	rollbackCalled := false
 	withTxCalled := false
-	RegisterTransactionHandlers(
-		func(*gin.Context) error {
-			beginCalled = true
-			return nil
-		},
-		func(*gin.Context) error {
-			commitCalled = true
-			return nil
-		},
-		func(*gin.Context) error {
-			rollbackCalled = true
-			return nil
-		},
-		func(c *gin.Context, fn func() error) error {
-			withTxCalled = true
-			if err := contextBeginTx(c); err != nil {
-				return err
-			}
-			if err := fn(); err != nil {
-				_ = contextRollbackTx(c)
-				return err
-			}
-			return contextCommitTx(c)
-		},
-	)
+	handlers := &TransactionHandlers{}
+	handlers.Begin = func(*gin.Context) error {
+		beginCalled = true
+		return nil
+	}
+	handlers.Commit = func(*gin.Context) error {
+		commitCalled = true
+		return nil
+	}
+	handlers.Rollback = func(*gin.Context) error {
+		rollbackCalled = true
+		return nil
+	}
+	handlers.WithTransaction = func(c *gin.Context, fn func() error) error {
+		withTxCalled = true
+		if err := handlers.Begin(c); err != nil {
+			return err
+		}
+		if err := fn(); err != nil {
+			_ = handlers.Rollback(c)
+			return err
+		}
+		return handlers.Commit(c)
+	}
+	api := New(Config{DisableGinDefault: true, DisableHomepage: true, DisableOpenAPI: true, TransactionHandlers: handlers})
 
 	op := newOperation(http.MethodGet, "/", func(ctx *Context, input *struct{}) (*schemaSample, error) {
 		return &schemaSample{Name: "ok"}, nil
@@ -861,6 +930,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 	WithTransaction()(op)
 
 	c, w := newTestContext(http.MethodGet, "/", "")
+	c.Set(ninjaAPIContextKey, api)
 	op.ginHandler(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for transaction-wrapped operation, got %d", w.Code)
@@ -880,6 +950,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 	WithTransaction()(voidOp)
 
 	c, w = newTestContext(http.MethodDelete, "/1", "")
+	c.Set(ninjaAPIContextKey, api)
 	voidOp.ginHandler(c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for transaction-wrapped void operation error, got %d", w.Code)

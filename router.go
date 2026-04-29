@@ -71,6 +71,7 @@ type Router struct {
 	middleware      []func(*Context) error
 	ginMiddleware   []gin.HandlerFunc
 	version         string
+	mounted         bool
 }
 
 // NewRouter creates a new Router with the given URL prefix and options.
@@ -87,6 +88,11 @@ func NewRouter(prefix string, opts ...RouterOption) *Router {
 // AddRouter mounts a sub-router under this router.
 // The sub-router's prefix is appended to this router's prefix.
 func (r *Router) AddRouter(sub *Router) {
+	r.assertNotMounted("add sub-router")
+	if sub == nil {
+		panic("gin-ninja: sub-router must not be nil")
+	}
+	sub.assertNotMounted("add mounted sub-router")
 	r.subrouters = append(r.subrouters, sub)
 }
 
@@ -94,6 +100,7 @@ func (r *Router) AddRouter(sub *Router) {
 // router.  Returning a non-nil error aborts the request with an appropriate
 // error response.
 func (r *Router) Use(mw func(*Context) error) {
+	r.assertNotMounted("add router middleware")
 	r.middleware = append(r.middleware, mw)
 }
 
@@ -104,6 +111,7 @@ func (r *Router) Use(mw func(*Context) error) {
 //	r := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
 //	r.UseGin(middleware.JWTAuthWithSecret("secret"))
 func (r *Router) UseGin(mw ...gin.HandlerFunc) {
+	r.assertNotMounted("add router gin middleware")
 	r.ginMiddleware = append(r.ginMiddleware, mw...)
 }
 
@@ -142,6 +150,7 @@ func Patch[TIn any, TOut any](r *Router, path string, handler func(*Context, *TI
 }
 
 func registerTypedOperation(r *Router, op *operation, opts ...OperationOption) {
+	r.assertNotMounted("add operation")
 	op.security = cloneSecurityRequirements(r.security)
 	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	for _, opt := range opts {
@@ -194,6 +203,7 @@ func (f ControllerFunc) Register(r *Router) { f(r) }
 //	}
 //	ninja.Delete(router, "/:id", deleteUserHandler)
 func Delete[TIn any](r *Router, path string, handler func(*Context, *TIn) error, opts ...OperationOption) {
+	r.assertNotMounted("add operation")
 	op := newVoidOperation[TIn](http.MethodDelete, path, handler, r.tags)
 	op.security = cloneSecurityRequirements(r.security)
 	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
@@ -202,4 +212,20 @@ func Delete[TIn any](r *Router, path string, handler func(*Context, *TIn) error,
 	}
 	op.finalize()
 	r.operations = append(r.operations, op)
+}
+
+func (r *Router) assertNotMounted(action string) {
+	if r != nil && r.mounted {
+		panic("gin-ninja: cannot " + action + " after router has been mounted")
+	}
+}
+
+func (r *Router) markMounted() {
+	if r == nil {
+		return
+	}
+	r.mounted = true
+	for _, sub := range r.subrouters {
+		sub.markMounted()
+	}
 }

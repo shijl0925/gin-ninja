@@ -270,7 +270,6 @@ func TestFullExampleRunReturnsListenError(t *testing.T) {
 		},
 		Log: settings.LogConfig{Level: "debug", Format: "json", Output: "stdout"},
 	}
-	settings.Global.JWT = cfg.JWT
 	log := bootstrap.InitLogger(&cfg.Log)
 
 	if err := run(cfg, log); err == nil {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/settings"
 )
 
 const ninjaAPIContextKey = "gin_ninja_api"
@@ -25,26 +26,39 @@ type Config struct {
 	// Description is an optional long description of the API.
 	Description string
 	// DocsURL is the path at which the Swagger UI is served (default: "/docs").
-	// Set to an empty string to disable the UI.
+	// Set DisableDocs to true to disable the UI.
 	DocsURL string
+	// DisableDocs disables the Swagger UI route.
+	DisableDocs bool
 	// HideDocsShortcut hides the "API Docs" shortcut on the homepage while
 	// leaving the Swagger UI route configured by DocsURL unchanged.
 	HideDocsShortcut bool
 	// OpenAPIURL is the path at which the raw OpenAPI JSON is served (default: "/openapi.json").
 	OpenAPIURL string
+	// DisableOpenAPI disables the raw OpenAPI JSON routes. Because Swagger UI
+	// depends on OpenAPI JSON, enabling this also disables the docs route.
+	DisableOpenAPI bool
 	// Prefix is a global path prefix prepended to every route (default: "").
 	Prefix string
 	// Versions configures named API version namespaces and version-scoped docs.
 	Versions map[string]VersionConfig
 	// HomepageURL is the path at which the welcome homepage is served (default: "/").
-	// Set to an empty string to disable the homepage.
+	// Set DisableHomepage to true to disable the homepage.
 	HomepageURL string
+	// DisableHomepage disables the welcome homepage route.
+	DisableHomepage bool
 	// AdminURL is the path used for the "Admin" shortcut button on the homepage.
 	// Leave empty to hide the Admin button (the framework does not mount admin itself).
 	AdminURL string
 	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
 	// bearer authentication shown by Swagger UI's "Authorize" button.
 	SecuritySchemes map[string]SecurityScheme
+	// Settings is optional instance-scoped application configuration used by
+	// framework helpers such as the startup banner.
+	Settings *settings.Config
+	// TransactionHandlers configures request-scoped transaction helpers for
+	// operations that use WithTransaction.
+	TransactionHandlers *TransactionHandlers
 	// DisableGinDefault disables the default gin Logger and Recovery middleware
 	// when set to true.  Set this to true when you provide your own middleware
 	// via UseGin (e.g. the structured logger from middleware.Logger).
@@ -73,6 +87,7 @@ type Config struct {
 type NinjaAPI struct {
 	engine         *gin.Engine
 	config         Config
+	routesMu       sync.RWMutex
 	openAPI        *openAPISpec
 	openAPICache   openAPICacheState
 	versionSpecsMu sync.RWMutex
@@ -80,6 +95,7 @@ type NinjaAPI struct {
 	routers        []*Router
 	errorMappersMu sync.RWMutex
 	errorMappers   []ErrorMapper
+	transactions   *TransactionHandlers
 	hooksMu        sync.RWMutex
 	startupHooks   []LifecycleHook
 	shutdownHooks  []LifecycleHook
@@ -96,14 +112,17 @@ func New(config Config) *NinjaAPI {
 	if config.Version == "" {
 		config.Version = "1.0.0"
 	}
-	if config.DocsURL == "" {
+	if config.DocsURL == "" && !config.DisableDocs {
 		config.DocsURL = "/docs"
 	}
-	if config.HomepageURL == "" {
+	if config.HomepageURL == "" && !config.DisableHomepage {
 		config.HomepageURL = "/"
 	}
-	if config.OpenAPIURL == "" {
+	if config.OpenAPIURL == "" && !config.DisableOpenAPI {
 		config.OpenAPIURL = "/openapi.json"
+	}
+	if config.DisableOpenAPI {
+		config.DisableDocs = true
 	}
 	if config.ReadTimeout == 0 {
 		config.ReadTimeout = 15 * time.Second
@@ -131,6 +150,8 @@ func New(config Config) *NinjaAPI {
 		openAPI:      newOpenAPISpec(config),
 		openAPICache: openAPICacheState{versions: map[string][]byte{}},
 		versionSpecs: map[string]*openAPISpec{},
+		errorMappers: defaultErrorMappers(),
+		transactions: config.TransactionHandlers,
 	}
 
 	api.engine.Use(api.attachContext())
@@ -151,15 +172,21 @@ func (api *NinjaAPI) Handler() http.Handler {
 }
 
 // UseGin registers one or more raw gin.HandlerFunc middleware on the
-// underlying engine.  This is the preferred way to attach infrastructure
-// middleware such as CORS, request-ID injection, structured logging, and
-// JWT authentication.
+// underlying engine before application routers are mounted.  Middleware added
+// here affects routers registered after this call; use router.UseGin for
+// router-scoped middleware.
 //
 //	api.UseGin(middleware.RequestID())
 //	api.UseGin(middleware.CORS(nil))
 //	api.UseGin(middleware.Logger(log))
-//	api.UseGin(middleware.JWTAuth())
+//	api.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
+	api.routesMu.RLock()
+	hasRouters := len(api.routers) > 0
+	api.routesMu.RUnlock()
+	if api.isAccepting() || hasRouters {
+		panic("gin-ninja: cannot add global gin middleware after routers are mounted")
+	}
 	api.engine.Use(mw...)
 }
 
@@ -181,8 +208,18 @@ func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOp
 // All operations defined on the router (and any nested sub-routers) are
 // registered with the gin engine and included in the OpenAPI spec.
 func (api *NinjaAPI) AddRouter(router *Router) {
+	if router == nil {
+		panic("gin-ninja: router must not be nil")
+	}
+	api.routesMu.Lock()
+	defer api.routesMu.Unlock()
+	if api.isAccepting() {
+		panic("gin-ninja: cannot add router while server is running")
+	}
+	router.assertNotMounted("mount router")
 	api.routers = append(api.routers, router)
 	api.registerRouter(api.engine.Group(api.config.Prefix), api.config.Prefix, "", nil, router)
+	router.markMounted()
 	api.invalidateOpenAPICache()
 }
 
@@ -292,10 +329,10 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 
 // setupInternalRoutes adds the OpenAPI JSON and Swagger UI routes.
 func (api *NinjaAPI) setupInternalRoutes() {
-	if api.config.HomepageURL != "" {
+	if !api.config.DisableHomepage && api.config.HomepageURL != "" {
 		homepageURL := api.config.HomepageURL
 		docsURL := api.config.DocsURL
-		if api.config.HideDocsShortcut {
+		if api.config.DisableDocs || api.config.HideDocsShortcut {
 			docsURL = ""
 		}
 		adminURL := api.config.AdminURL
@@ -306,7 +343,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if api.config.OpenAPIURL != "" {
+	if !api.config.DisableOpenAPI && api.config.OpenAPIURL != "" {
 		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
 			data, err := api.openAPIBytes()
 			if err != nil {
@@ -317,7 +354,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if api.config.DocsURL != "" {
+	if !api.config.DisableDocs && !api.config.DisableOpenAPI && api.config.DocsURL != "" && api.config.OpenAPIURL != "" {
 		docsURL := api.config.DocsURL
 		openAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
@@ -327,7 +364,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); pattern != "" {
+	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); !api.config.DisableOpenAPI && pattern != "" {
 		api.engine.GET(pattern, func(c *gin.Context) {
 			version := requestVersion(c)
 			data, ok, err := api.versionOpenAPIBytes(version)
@@ -343,7 +380,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedDocsPattern(api.config.DocsURL); pattern != "" {
+	if pattern := versionedDocsPattern(api.config.DocsURL); !api.config.DisableDocs && !api.config.DisableOpenAPI && pattern != "" {
 		baseOpenAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
 		api.engine.GET(pattern, func(c *gin.Context) {
@@ -371,9 +408,8 @@ func (api *NinjaAPI) mapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	mappers := errorMappersSnapshot()
 	api.errorMappersMu.RLock()
-	mappers = append(mappers, api.errorMappers...)
+	mappers := append([]ErrorMapper(nil), api.errorMappers...)
 	api.errorMappersMu.RUnlock()
 	return mapErrorWithMappers(err, mappers)
 }

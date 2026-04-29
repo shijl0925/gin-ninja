@@ -266,7 +266,8 @@ func newOperation[TIn any, TOut any](
 			return err
 		}
 		if op.withTransaction {
-			_, _, _, withTransaction := transactionHandlers()
+			api, _ := currentAPI(c)
+			_, _, _, withTransaction := apiTransactionHandlers(api)
 			if withTransaction == nil {
 				err = errTransactionUnavailable()
 			} else {
@@ -333,7 +334,8 @@ func newVoidOperation[TIn any](
 		}
 		var err error
 		if op.withTransaction {
-			_, _, _, withTransaction := transactionHandlers()
+			api, _ := currentAPI(c)
+			_, _, _, withTransaction := apiTransactionHandlers(api)
 			if withTransaction == nil {
 				err = errTransactionUnavailable()
 			} else {

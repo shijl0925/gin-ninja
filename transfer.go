@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"reflect"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -106,6 +107,10 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	}
 
 	if d.Reader != nil {
+		if c.Request.Method == http.MethodHead {
+			writeDownloadHead(c, status, contentType, d.Size, headers)
+			return
+		}
 		c.DataFromReader(status, d.Size, contentType, d.Reader, headers)
 		return
 	}
@@ -113,6 +118,10 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	data := d.Data
 	if data == nil {
 		data = []byte{}
+	}
+	if c.Request.Method == http.MethodHead {
+		writeDownloadHead(c, status, contentType, int64(len(data)), headers)
+		return
 	}
 	c.DataFromReader(status, int64(len(data)), contentType, bytes.NewReader(data), headers)
 }
@@ -151,4 +160,16 @@ func formatDisposition(disposition, filename string) string {
 		return value
 	}
 	return disposition
+}
+
+func writeDownloadHead(c *gin.Context, status int, contentType string, size int64, headers map[string]string) {
+	for key, value := range headers {
+		c.Header(key, value)
+	}
+	c.Header("Content-Type", contentType)
+	if size >= 0 {
+		c.Header("Content-Length", strconv.FormatInt(size, 10))
+	}
+	c.Status(status)
+	c.Writer.WriteHeaderNow()
 }

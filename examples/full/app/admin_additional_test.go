@@ -34,7 +34,7 @@ func newExampleAdminAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	}
 	orm.Init(db)
 
-	api := ninja.New(ninja.Config{Title: "admin example", DisableGinDefault: true})
+	api := ninja.New(ninja.Config{Title: "admin example", DisableGinDefault: true, TransactionHandlers: orm.TransactionHandlers()})
 	api.UseGin(orm.Middleware(db))
 	router := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
 	router.UseGin(func(c *gin.Context) {

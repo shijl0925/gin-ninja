@@ -11,7 +11,7 @@ import (
 // Recovery returns a gin middleware that recovers from panics and logs the
 // stack trace using the supplied *zap.Logger.
 //
-//	api.Engine().Use(middleware.Recovery(logger.Global()))
+//	api.Engine().Use(middleware.Recovery(log))
 func Recovery(log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {

@@ -172,6 +172,33 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected post form value to be detected")
 		}
 	})
+
+	t.Run("path header and cookie slices", func(t *testing.T) {
+		type input struct {
+			IDs     []int    `path:"ids"`
+			Trace   []string `header:"X-Trace"`
+			Numbers []uint   `cookie:"numbers"`
+		}
+		c, _ := newTestContext(http.MethodGet, "/", "")
+		c.Params = gin.Params{{Key: "ids", Value: "1,2,3"}}
+		c.Request.Header.Add("X-Trace", "a")
+		c.Request.Header.Add("X-Trace", "b,c")
+		c.Request.AddCookie(&http.Cookie{Name: "numbers", Value: "4,5"})
+
+		var in input
+		if err := bindInput(c, http.MethodGet, &in); err != nil {
+			t.Fatalf("bindInput: %v", err)
+		}
+		if !reflect.DeepEqual(in.IDs, []int{1, 2, 3}) {
+			t.Fatalf("unexpected path IDs: %#v", in.IDs)
+		}
+		if !reflect.DeepEqual(in.Trace, []string{"a", "b", "c"}) {
+			t.Fatalf("unexpected header values: %#v", in.Trace)
+		}
+		if !reflect.DeepEqual(in.Numbers, []uint{4, 5}) {
+			t.Fatalf("unexpected cookie values: %#v", in.Numbers)
+		}
+	})
 }
 
 func TestModelSchemaAdditionalCoverage(t *testing.T) {
@@ -701,28 +728,22 @@ func TestNinjaAdditionalBranches(t *testing.T) {
 	}
 }
 
-func TestAPIMergesCurrentGlobalErrorMappers(t *testing.T) {
-	errorMappersMu.Lock()
-	original := append([]ErrorMapper(nil), errorMappers...)
-	errorMappers = defaultErrorMappers()
-	errorMappersMu.Unlock()
-	defer func() {
-		errorMappersMu.Lock()
-		errorMappers = original
-		errorMappersMu.Unlock()
-	}()
-
+func TestAPIErrorMappersAreInstanceScoped(t *testing.T) {
 	api := New(Config{Title: "branches", Version: "1"})
-	RegisterErrorMapper(func(err error) error {
+	api.RegisterErrorMapper(func(err error) error {
 		if errors.Is(err, errBadRequest) {
-			return NewError(http.StatusTeapot, "late global mapper")
+			return NewError(http.StatusTeapot, "local mapper")
 		}
 		return nil
 	})
 
 	mapped := api.mapError(errBadRequest)
-	if !errors.Is(mapped, NewError(http.StatusTeapot, "late global mapper")) {
-		t.Fatalf("expected late global mapper to apply, got %v", mapped)
+	if !errors.Is(mapped, NewError(http.StatusTeapot, "local mapper")) {
+		t.Fatalf("expected local mapper to apply, got %v", mapped)
+	}
+	other := New(Config{Title: "other", Version: "1"})
+	if mapped := other.mapError(errBadRequest); !errors.Is(mapped, errBadRequest) {
+		t.Fatalf("expected mapper not to leak to other API, got %v", mapped)
 	}
 }
 

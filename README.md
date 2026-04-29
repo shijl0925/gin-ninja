@@ -59,7 +59,6 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **Settings** – Viper-based YAML/env configuration management with **multi-environment override** support.
 - **Logger** – Zap-based structured logger with console/JSON output, file sinks, and size-based log rotation.
 - **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
-- **Business errors** – `BusinessError` type with integer codes integrated into the error pipeline.
 - **Bootstrap helpers** – one-call database and logger initialization.
 - **i18n / L10n** – locale negotiation via `Accept-Language`, translated validation errors and general messages in English and Chinese.
 - **API version deprecation** – RFC-compliant `Deprecation` and `Sunset` date headers, migration link.
@@ -861,14 +860,12 @@ import (
     "github.com/shijl0925/gin-ninja/bootstrap"
     _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
-    "github.com/shijl0925/gin-ninja/pkg/logger"
 )
 
 cfg := settings.MustLoad("config.yaml")
 
-// Initialise Zap logger and set as global.
 log := bootstrap.InitLogger(&cfg.Log)
-defer logger.Sync()
+defer func() { _ = log.Sync() }()
 
 // Initialise database.
 db := bootstrap.MustInitDB(&cfg.Database)
@@ -913,17 +910,17 @@ api.UseGin(
 
 ```go
 protected := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
-protected.UseGin(middleware.JWTAuth())  // JWT auth for /admin/* only
+protected.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))  // JWT auth for /admin/* only
 ```
 
 ### JWT Authentication
 
 ```go
 // Generate a token (e.g. after login):
-token, err := middleware.GenerateToken(user.ID, user.Name)
+token, err := middleware.GenerateTokenWithConfig(user.ID, user.Name, cfg.JWT)
 
 // Protect routes:
-r.UseGin(middleware.JWTAuth())
+r.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 
 // Read claims in a handler:
 claims := middleware.GetClaims(ctx.Context)
@@ -1090,32 +1087,6 @@ For production deployments, combine the built-in middleware with a few operation
 - **Minimize upload attack surface**: set `UploadLimit` with both a size cap and an explicit MIME allowlist instead of accepting arbitrary request bodies.
 - **Harden API docs exposure**: if `/docs` or `/openapi.json` should not be public in production, gate them behind auth, network policy, or disable those routes in your deployment wrapper.
 - **Rotate and expire credentials**: keep JWT lifetimes short, rotate signing secrets during incident response, and issue new session IDs after login or privilege changes.
-
----
-
-## Business Errors
-
-`BusinessError` is a domain-level error that always produces an HTTP 200 response body with a
-non-zero integer business code — following the `{"code": <int>, "message": "...", "data": null}`
-envelope used by the `pkg/response` package:
-
-```go
-// Return a business error from any handler:
-return nil, ninja.NewBusinessError(10001, "account is disabled")
-return nil, ninja.NewBusinessErrorWithDetail(10002, "quota exceeded", map[string]int{"limit": 100})
-
-// Compare:
-if errors.Is(err, ninja.NewBusinessError(10001, "")) { ... }
-```
-
-Response:
-```json
-{"code": 10001, "message": "account is disabled", "data": null}
-```
-
-This is distinct from `*ninja.Error` (which sets a non-200 HTTP status code).  Use
-`BusinessError` for domain / application-layer failures and `*ninja.Error` for protocol-level
-failures (authentication, not found, etc.).
 
 ---
 
@@ -1787,7 +1758,7 @@ adminRouter := ninja.NewRouter(
     ninja.WithBearerAuth(),
     ninja.WithVersion("v1"),
 )
-adminRouter.UseGin(middleware.JWTAuth()) // protect all admin API routes
+adminRouter.UseGin(middleware.JWTAuthWithConfig(cfg.JWT)) // protect all admin API routes
 
 site.Mount(adminRouter)
 api.AddRouter(adminRouter)

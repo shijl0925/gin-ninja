@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects"
-	applogger "github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
 	gormmysql "gorm.io/driver/mysql"
 	driverpg "gorm.io/driver/postgres"
@@ -268,13 +267,10 @@ func TestMustInitDBPanics(t *testing.T) {
 	MustInitDB(&settings.DatabaseConfig{Driver: "sqlite"})
 }
 
-func TestInitLoggerSetsGlobal(t *testing.T) {
+func TestInitLoggerReturnsLogger(t *testing.T) {
 	cfg := &settings.LogConfig{Level: "debug", Format: "json", Output: "stdout"}
 	logger := InitLogger(cfg)
 	if logger == nil {
 		t.Fatal("expected logger")
-	}
-	if applogger.Global() != logger {
-		t.Fatal("expected InitLogger to replace global logger")
 	}
 }

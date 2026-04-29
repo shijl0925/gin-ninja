@@ -26,7 +26,6 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	"github.com/shijl0925/gin-ninja/examples/internal/fullapp"
-	"github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -55,7 +54,7 @@ func main() {
 	cfg := fullapp.MustLoadConfig(filepath.Join(filepath.Dir(file), "config.yaml"))
 
 	log_ := bootstrap.InitLogger(&cfg.Log)
-	defer logger.Sync()
+	defer func() { _ = log_.Sync() }()
 
 	if err := runFullMain(*cfg, log_); err != nil {
 		fatalFull(err)

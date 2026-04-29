@@ -1,8 +1,11 @@
 package middleware
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"strings"
@@ -34,6 +37,9 @@ type CSRFConfig struct {
 	// CookieSameSite controls the SameSite attribute of the token cookie.
 	// Defaults to http.SameSiteStrictMode.
 	CookieSameSite http.SameSite
+	// Secret signs CSRF tokens.  If empty, a random per-middleware secret is
+	// generated at construction time.
+	Secret string
 	// IgnoreMethods lists HTTP methods that do not require a CSRF token.
 	// Defaults to GET, HEAD, OPTIONS, TRACE.
 	IgnoreMethods []string
@@ -110,6 +116,10 @@ func CSRF(cfg *CSRFConfig) gin.HandlerFunc {
 		cfg = &CSRFConfig{}
 	}
 	cfg = cfg.withDefaults()
+	secret := cfg.Secret
+	if secret == "" {
+		secret = generateCSRFSecret()
+	}
 
 	ignoredSet := make(map[string]bool, len(cfg.IgnoreMethods))
 	for _, m := range cfg.IgnoreMethods {
@@ -121,8 +131,8 @@ func CSRF(cfg *CSRFConfig) gin.HandlerFunc {
 
 		// Read (or generate) the token from the cookie.
 		token, err := c.Cookie(cfg.CookieName)
-		if err != nil || token == "" {
-			token = generateCSRFToken()
+		if err != nil || token == "" || !validSignedCSRFToken(token, secret) {
+			token = generateCSRFToken(secret)
 			setCSRFCookie(c, cfg, token)
 		}
 
@@ -141,7 +151,7 @@ func CSRF(cfg *CSRFConfig) gin.HandlerFunc {
 			submitted = c.PostForm(cfg.FieldName)
 		}
 
-		if !csrfTokensEqual(token, submitted) {
+		if !csrfTokensEqual(token, submitted) || !validSignedCSRFToken(token, secret) {
 			cfg.ErrorHandler(c)
 			return
 		}
@@ -162,12 +172,38 @@ func CSRFToken(c *gin.Context) string {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-func generateCSRFToken() string {
+func generateCSRFToken(secret string) string {
+	b := make([]byte, 32)
+	if _, err := csrfRandRead(b); err != nil {
+		panic("csrf: crypto/rand unavailable: " + err.Error())
+	}
+	raw := hex.EncodeToString(b)
+	return raw + "." + signCSRFToken(raw, secret)
+}
+
+func generateCSRFSecret() string {
 	b := make([]byte, 32)
 	if _, err := csrfRandRead(b); err != nil {
 		panic("csrf: crypto/rand unavailable: " + err.Error())
 	}
 	return hex.EncodeToString(b)
+}
+
+func signCSRFToken(raw, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(raw)) //nolint:errcheck
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func validSignedCSRFToken(token, secret string) bool {
+	idx := strings.LastIndex(token, ".")
+	if idx <= 0 || idx == len(token)-1 {
+		return false
+	}
+	raw := token[:idx]
+	sig := token[idx+1:]
+	expected := signCSRFToken(raw, secret)
+	return subtle.ConstantTimeCompare([]byte(sig), []byte(expected)) == 1
 }
 
 func setCSRFCookie(c *gin.Context, cfg *CSRFConfig, token string) {

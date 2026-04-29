@@ -21,5 +21,5 @@ func TestGenerateCSRFToken_PanicsWhenRandomFails(t *testing.T) {
 		}
 	}()
 
-	_ = generateCSRFToken()
+	_ = generateCSRFToken("secret")
 }

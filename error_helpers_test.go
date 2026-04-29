@@ -90,21 +90,6 @@ func TestBuiltinErrorHelpers(t *testing.T) {
 	}
 }
 
-func TestBusinessErrorHelpers(t *testing.T) {
-	t.Parallel()
-
-	err := NewBusinessErrorWithDetail(1001, "invalid", map[string]string{"field": "name"})
-	if got := err.Error(); got != "[business:1001] invalid" {
-		t.Fatalf("BusinessError.Error() = %q", got)
-	}
-	if !err.Is(NewBusinessError(1001, "other")) {
-		t.Fatal("expected business errors with same code to match")
-	}
-	if err.Is(NewBusinessError(1002, "invalid")) {
-		t.Fatal("expected business errors with different code not to match")
-	}
-}
-
 func TestErrorFactoryAndCloneHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -129,54 +114,22 @@ func TestErrorMapperHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("snapshot clones slice", func(t *testing.T) {
-		errorMappersMu.Lock()
-		original := append([]ErrorMapper(nil), errorMappers...)
-		errorMappers = []ErrorMapper{nil}
-		errorMappersMu.Unlock()
-		defer func() {
-			errorMappersMu.Lock()
-			errorMappers = original
-			errorMappersMu.Unlock()
-		}()
-
-		snapshot := errorMappersSnapshot()
-		snapshot = append(snapshot, func(err error) error { return err })
-
-		errorMappersMu.RLock()
-		defer errorMappersMu.RUnlock()
-		if len(errorMappers) != 1 {
-			t.Fatalf("expected original mapper slice to stay unchanged, got %d", len(errorMappers))
-		}
-	})
-
-	t.Run("register appends mapper and ignores nil", func(t *testing.T) {
-		errorMappersMu.Lock()
-		original := append([]ErrorMapper(nil), errorMappers...)
-		errorMappers = nil
-		errorMappersMu.Unlock()
-		defer func() {
-			errorMappersMu.Lock()
-			errorMappers = original
-			errorMappersMu.Unlock()
-		}()
-
-		RegisterErrorMapper(nil)
-		RegisterErrorMapper(func(err error) error {
+	t.Run("api register appends mapper and ignores nil", func(t *testing.T) {
+		api := New(Config{DisableGinDefault: true})
+		initial := len(api.errorMappers)
+		api.RegisterErrorMapper(nil)
+		api.RegisterErrorMapper(func(err error) error {
 			if errors.Is(err, sentinel) {
 				return NewError(http.StatusTeapot, "mapped")
 			}
 			return nil
 		})
 
-		errorMappersMu.RLock()
-		count := len(errorMappers)
-		errorMappersMu.RUnlock()
-		if count != 1 {
-			t.Fatalf("expected one registered mapper, got %d", count)
+		if count := len(api.errorMappers); count != initial+1 {
+			t.Fatalf("expected one registered mapper, got %d", count-initial)
 		}
 
-		got := mapErrorWithMappers(sentinel, errorMappersSnapshot())
+		got := api.mapError(sentinel)
 		if !errors.Is(got, NewError(http.StatusTeapot, "mapped")) {
 			t.Fatalf("expected registered mapper to be applied, got %v", got)
 		}
@@ -191,6 +144,26 @@ func TestErrorMapperHelpers(t *testing.T) {
 		})
 		if !errors.Is(got, NewError(http.StatusBadRequest, "first")) {
 			t.Fatalf("expected first mapper to win, got %v", got)
+		}
+	})
+
+	t.Run("api mappers are instance scoped", func(t *testing.T) {
+		api := New(Config{DisableGinDefault: true})
+		if got := api.mapError(sentinel); !errors.Is(got, sentinel) {
+			t.Fatalf("expected unmapped error, got %v", got)
+		}
+		api.RegisterErrorMapper(func(err error) error {
+			if errors.Is(err, sentinel) {
+				return NewError(http.StatusBadRequest, "local")
+			}
+			return nil
+		})
+		if got := api.mapError(sentinel); !errors.Is(got, NewError(http.StatusBadRequest, "local")) {
+			t.Fatalf("expected instance mapper to apply, got %v", got)
+		}
+		other := New(Config{DisableGinDefault: true})
+		if got := other.mapError(sentinel); !errors.Is(got, sentinel) {
+			t.Fatalf("expected mapper not to leak to other API, got %v", got)
 		}
 	})
 }
