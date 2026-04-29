@@ -602,7 +602,7 @@ redis:
 	}
 }
 
-func TestLoadPlaceholderExpansionForTypedFields(t *testing.T) {
+func TestPlaceholderExpansionForTypedFields(t *testing.T) {
 	configYAML := `
 database:
   driver: "mysql"
