@@ -107,7 +107,7 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	}
 
 	if d.Reader != nil {
-		if c.Request != nil && c.Request.Method == http.MethodHead {
+		if c.Request.Method == http.MethodHead {
 			writeDownloadHead(c, status, contentType, d.Size, headers)
 			return
 		}
@@ -119,7 +119,7 @@ func (d *Download) writeTo(c *gin.Context, status int) {
 	if data == nil {
 		data = []byte{}
 	}
-	if c.Request != nil && c.Request.Method == http.MethodHead {
+	if c.Request.Method == http.MethodHead {
 		writeDownloadHead(c, status, contentType, int64(len(data)), headers)
 		return
 	}
