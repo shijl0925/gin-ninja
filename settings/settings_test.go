@@ -602,8 +602,8 @@ redis:
 	}
 }
 
-func TestLoad_PlaceholderExpansionForTypedFields(t *testing.T) {
-	yaml := `
+func TestLoadPlaceholderExpansionForTypedFields(t *testing.T) {
+	configYAML := `
 database:
   driver: "mysql"
   mysql:
@@ -625,7 +625,7 @@ redis:
   password: "${NINJA_IT_REDIS_PASSWORD}"
   db: ${NINJA_IT_REDIS_DB:0}
 `
-	path := writeTempConfig(t, yaml)
+	path := writeTempConfig(t, configYAML)
 	cfg, err := settings.Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
