@@ -33,8 +33,6 @@ func newFullTestServer(t *testing.T) *httptest.Server {
 		},
 		Log: settings.LogConfig{Level: "debug", Format: "json", Output: "stdout"},
 	}
-	settings.Global.JWT = cfg.JWT
-
 	log := bootstrap.InitLogger(&cfg.Log)
 	db, err := initDB(&cfg.Database)
 	if err != nil {

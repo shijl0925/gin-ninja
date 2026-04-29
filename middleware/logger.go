@@ -10,7 +10,7 @@ import (
 // Logger returns a gin middleware that logs every request using the supplied
 // *zap.Logger.
 //
-//	api.Engine().Use(middleware.Logger(logger.Global()))
+//	api.Engine().Use(middleware.Logger(log))
 func Logger(log *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()

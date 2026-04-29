@@ -29,7 +29,10 @@ func (api *NinjaAPI) printStartupBanner(listener net.Listener) {
 }
 
 func (api *NinjaAPI) startupBanner(listener net.Listener) string {
-	cfg := settings.GetGlobal()
+	var cfg settings.Config
+	if api != nil && api.config.Settings != nil {
+		cfg = *api.config.Settings
+	}
 
 	var b strings.Builder
 	b.WriteString("dsn: ")

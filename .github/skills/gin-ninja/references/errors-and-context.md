@@ -38,7 +38,7 @@
   - map timeout or dependency failures into stable HTTP responses
   - keep handler bodies thin by centralizing cross-cutting error translation
 - Returning `nil` means the mapper did not handle the error.
-- The package-level `ninja.RegisterErrorMapper(...)` exists for process-wide legacy behavior, but the per-instance API method is the preferred default.
+- Error mappers are scoped to a `NinjaAPI` instance; use `api.RegisterErrorMapper(...)`.
 
 ## Context helpers
 

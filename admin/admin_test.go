@@ -124,7 +124,7 @@ func newAdminAPIWithDB(t *testing.T, site *Site, seed ...adminUser) (*ninja.Ninj
 	}
 	orm.Init(db)
 
-	api := ninja.New(ninja.Config{Title: "admin test", DisableGinDefault: true})
+	api := ninja.New(ninja.Config{Title: "admin test", DisableGinDefault: true, TransactionHandlers: orm.TransactionHandlers()})
 	api.UseGin(orm.Middleware(db))
 	router := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
 	router.UseGin(func(c *gin.Context) {

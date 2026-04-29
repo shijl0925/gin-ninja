@@ -10,6 +10,7 @@ import (
 	"github.com/shijl0925/gin-ninja/order"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"github.com/shijl0925/gin-ninja/settings"
 	"github.com/shijl0925/go-toolkits/gormx"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -26,8 +27,14 @@ func userDB(ctx *ninja.Context) *gorm.DB {
 	return gormx.GetDb()
 }
 
-// Login validates credentials and returns a signed JWT token.
-func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
+// LoginHandler returns a login handler bound to explicit JWT settings.
+func LoginHandler(cfg settings.JWTConfig) func(*ninja.Context, *LoginInput) (*LoginOutput, error) {
+	return func(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
+		return login(ctx, in, cfg)
+	}
+}
+
+func login(ctx *ninja.Context, in *LoginInput, cfg settings.JWTConfig) (*LoginOutput, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 
@@ -45,14 +52,14 @@ func Login(ctx *ninja.Context, in *LoginInput) (*LoginOutput, error) {
 		return nil, ninja.NewErrorWithCode(401, "INVALID_CREDENTIALS", "invalid email or password")
 	}
 
-	token, err := middleware.GenerateToken(user.ID, user.Name)
+	token, err := middleware.GenerateTokenWithConfig(user.ID, user.Name, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &LoginOutput{
 		Token:   token,
-		Expires: int(24 * time.Hour / time.Second),
+		Expires: int(cfg.ExpireDuration() / time.Second),
 		UserID:  user.ID,
 		Name:    user.Name,
 	}, nil

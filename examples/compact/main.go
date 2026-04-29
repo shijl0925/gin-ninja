@@ -27,7 +27,6 @@ import (
 	"github.com/shijl0925/gin-ninja/examples/internal/fullapp"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
-	"github.com/shijl0925/gin-ninja/pkg/logger"
 	"github.com/shijl0925/gin-ninja/settings"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -68,7 +67,6 @@ func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context
 }
 
 func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAPI {
-	settings.SetGlobal(cfg)
 	opts := fullapp.FullOptions()
 
 	api := ninja.New(ninja.Config{
@@ -80,7 +78,9 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 		SecuritySchemes: map[string]ninja.SecurityScheme{
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
-		DisableGinDefault: true,
+		DisableGinDefault:   true,
+		Settings:            &cfg,
+		TransactionHandlers: orm.TransactionHandlers(),
 	})
 	api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 		sqlDB, err := db.DB()
@@ -103,10 +103,10 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 		orm.Middleware(db),
 	)
 
-	registerAuthRoutes(api)
-	registerUsersV1Routes(api)
-	registerUsersV2Routes(api, cacheStore)
-	registerAdminRoutes(api)
+	registerAuthRoutes(api, cfg.JWT)
+	registerUsersV1Routes(api, cfg.JWT)
+	registerUsersV2Routes(api, cfg.JWT, cacheStore)
+	registerAdminRoutes(api, cfg.JWT)
 	registerFeatureRoutes(api, cacheStore)
 	registerVersionedRoutes(api)
 	admin.MountUI(api.Engine(), admin.DefaultUIConfig())
@@ -117,7 +117,7 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 	return api
 }
 
-func registerAuthRoutes(api *ninja.NinjaAPI) {
+func registerAuthRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	router := ninja.NewRouter(
 		"/auth",
 		ninja.WithTags("Auth"),
@@ -125,11 +125,11 @@ func registerAuthRoutes(api *ninja.NinjaAPI) {
 		ninja.WithVersion("v1"),
 	)
 	ninja.Post(router, "/register", app.Register, ninja.Summary("Register a new user"), ninja.WithTransaction())
-	ninja.Post(router, "/login", app.Login, ninja.Summary("Login and get JWT token"))
+	ninja.Post(router, "/login", app.LoginHandler(jwtCfg), ninja.Summary("Login and get JWT token"))
 	api.AddRouter(router)
 }
 
-func registerUsersV1Routes(api *ninja.NinjaAPI) {
+func registerUsersV1Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	router := ninja.NewRouter(
 		"/users",
 		ninja.WithTags("Users"),
@@ -137,7 +137,7 @@ func registerUsersV1Routes(api *ninja.NinjaAPI) {
 		ninja.WithBearerAuth(),
 		ninja.WithVersion("v1"),
 	)
-	router.UseGin(middleware.JWTAuth())
+	router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 
 	ninja.Get(router, "/", app.ListUsers,
 		ninja.Summary("List users"),
@@ -153,7 +153,7 @@ func registerUsersV1Routes(api *ninja.NinjaAPI) {
 	api.AddRouter(router)
 }
 
-func registerUsersV2Routes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheStore) {
+func registerUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cacheStore ninja.ResponseCacheStore) {
 	app.ConfigureUsersV2Cache(cacheStore)
 
 	router := ninja.NewRouter(
@@ -163,7 +163,7 @@ func registerUsersV2Routes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheSt
 		ninja.WithBearerAuth(),
 		ninja.WithVersion("v2"),
 	)
-	router.UseGin(middleware.JWTAuth())
+	router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 
 	ninja.Get(router, "/", app.ListUsersV2,
 		ninja.Summary("List users (cached CRUD demo)"),
@@ -201,7 +201,7 @@ func registerUsersV2Routes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheSt
 	api.AddRouter(router)
 }
 
-func registerAdminRoutes(api *ninja.NinjaAPI) {
+func registerAdminRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	router := ninja.NewRouter(
 		"/admin",
 		ninja.WithTags("Admin"),
@@ -209,7 +209,7 @@ func registerAdminRoutes(api *ninja.NinjaAPI) {
 		ninja.WithBearerAuth(),
 		ninja.WithVersion("v1"),
 	)
-	router.UseGin(middleware.JWTAuth())
+	router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 	app.NewAdminSite().Mount(router)
 	api.AddRouter(router)
 }
@@ -318,7 +318,7 @@ func main() {
 
 	cfg := fullapp.MustLoadConfig(filepath.Join(filepath.Dir(file), "config.yaml"))
 	log_ := bootstrap.InitLogger(&cfg.Log)
-	defer logger.Sync()
+	defer func() { _ = log_.Sync() }()
 
 	if err := runCompactMain(*cfg, log_); err != nil {
 		fatalCompact(err)

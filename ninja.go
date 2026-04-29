@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/settings"
 )
 
 const ninjaAPIContextKey = "gin_ninja_api"
@@ -52,9 +53,12 @@ type Config struct {
 	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
 	// bearer authentication shown by Swagger UI's "Authorize" button.
 	SecuritySchemes map[string]SecurityScheme
-	// DisableGlobalErrorMappers prevents this API instance from applying
-	// process-wide error mappers registered with RegisterErrorMapper.
-	DisableGlobalErrorMappers bool
+	// Settings is optional instance-scoped application configuration used by
+	// framework helpers such as the startup banner.
+	Settings *settings.Config
+	// TransactionHandlers configures request-scoped transaction helpers for
+	// operations that use WithTransaction.
+	TransactionHandlers *TransactionHandlers
 	// DisableGinDefault disables the default gin Logger and Recovery middleware
 	// when set to true.  Set this to true when you provide your own middleware
 	// via UseGin (e.g. the structured logger from middleware.Logger).
@@ -91,6 +95,7 @@ type NinjaAPI struct {
 	routers        []*Router
 	errorMappersMu sync.RWMutex
 	errorMappers   []ErrorMapper
+	transactions   *TransactionHandlers
 	hooksMu        sync.RWMutex
 	startupHooks   []LifecycleHook
 	shutdownHooks  []LifecycleHook
@@ -145,6 +150,8 @@ func New(config Config) *NinjaAPI {
 		openAPI:      newOpenAPISpec(config),
 		openAPICache: openAPICacheState{versions: map[string][]byte{}},
 		versionSpecs: map[string]*openAPISpec{},
+		errorMappers: defaultErrorMappers(),
+		transactions: config.TransactionHandlers,
 	}
 
 	api.engine.Use(api.attachContext())
@@ -172,7 +179,7 @@ func (api *NinjaAPI) Handler() http.Handler {
 //	api.UseGin(middleware.RequestID())
 //	api.UseGin(middleware.CORS(nil))
 //	api.UseGin(middleware.Logger(log))
-//	api.UseGin(middleware.JWTAuth())
+//	api.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 	api.routesMu.RLock()
 	hasRouters := len(api.routers) > 0
@@ -401,12 +408,8 @@ func (api *NinjaAPI) mapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var mappers []ErrorMapper
-	if !api.config.DisableGlobalErrorMappers {
-		mappers = errorMappersSnapshot()
-	}
 	api.errorMappersMu.RLock()
-	mappers = append(mappers, api.errorMappers...)
+	mappers := append([]ErrorMapper(nil), api.errorMappers...)
 	api.errorMappersMu.RUnlock()
 	return mapErrorWithMappers(err, mappers)
 }

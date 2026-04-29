@@ -728,28 +728,22 @@ func TestNinjaAdditionalBranches(t *testing.T) {
 	}
 }
 
-func TestAPIMergesCurrentGlobalErrorMappers(t *testing.T) {
-	errorMappersMu.Lock()
-	original := append([]ErrorMapper(nil), errorMappers...)
-	errorMappers = defaultErrorMappers()
-	errorMappersMu.Unlock()
-	defer func() {
-		errorMappersMu.Lock()
-		errorMappers = original
-		errorMappersMu.Unlock()
-	}()
-
+func TestAPIErrorMappersAreInstanceScoped(t *testing.T) {
 	api := New(Config{Title: "branches", Version: "1"})
-	RegisterErrorMapper(func(err error) error {
+	api.RegisterErrorMapper(func(err error) error {
 		if errors.Is(err, errBadRequest) {
-			return NewError(http.StatusTeapot, "late global mapper")
+			return NewError(http.StatusTeapot, "local mapper")
 		}
 		return nil
 	})
 
 	mapped := api.mapError(errBadRequest)
-	if !errors.Is(mapped, NewError(http.StatusTeapot, "late global mapper")) {
-		t.Fatalf("expected late global mapper to apply, got %v", mapped)
+	if !errors.Is(mapped, NewError(http.StatusTeapot, "local mapper")) {
+		t.Fatalf("expected local mapper to apply, got %v", mapped)
+	}
+	other := New(Config{Title: "other", Version: "1"})
+	if mapped := other.mapError(errBadRequest); !errors.Is(mapped, errBadRequest) {
+		t.Fatalf("expected mapper not to leak to other API, got %v", mapped)
 	}
 }
 

@@ -88,9 +88,7 @@ func TestStartupDSNStructuredConfigOmitsPasswords(t *testing.T) {
 }
 
 func TestServe_PrintsStartupBanner(t *testing.T) {
-	prev := settings.GetGlobal()
-	t.Cleanup(func() { settings.SetGlobal(prev) })
-	settings.SetGlobal(settings.Config{
+	cfg := settings.Config{
 		App: settings.AppConfig{
 			Env: "demo",
 		},
@@ -98,9 +96,9 @@ func TestServe_PrintsStartupBanner(t *testing.T) {
 			Driver: "postgres",
 			DSN:    "postgres://app:secret@localhost:5432/demo?sslmode=disable",
 		},
-	})
+	}
 
-	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true})
+	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true, Settings: &cfg})
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

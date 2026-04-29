@@ -6,31 +6,21 @@
 //	import "github.com/shijl0925/gin-ninja/pkg/logger"
 //
 //	// In main / bootstrap:
-//	log := logger.New(settings.Global.Log)
-//	logger.SetGlobal(log)
+//	log := logger.New(cfg.Log)
 //
-//	// In handlers:
-//	logger.Info("user created", zap.Uint("id", user.ID))
+// Pass the returned logger explicitly to middleware and application components.
 package logger
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/shijl0925/gin-ninja/settings"
-)
-
-var (
-	globalMu          sync.RWMutex
-	global            *zap.Logger
-	defaultLoggerOnce sync.Once
-	defaultLogger     *zap.Logger
 )
 
 const (
@@ -45,59 +35,6 @@ func New(cfg settings.LogConfig) *zap.Logger {
 	core := buildCore(cfg, level)
 	return zap.New(core, zap.AddCaller(), zap.AddCallerSkip(0))
 }
-
-// SetGlobal replaces the package-level logger that is used by the top-level
-// helper functions (Info, Warn, Error, etc.).
-func SetGlobal(l *zap.Logger) {
-	if l == nil {
-		l = fallbackLogger()
-	}
-	globalMu.Lock()
-	global = l
-	globalMu.Unlock()
-	zap.ReplaceGlobals(l)
-}
-
-// Global returns the package-level *zap.Logger.  If SetGlobal has not been
-// called, a default production logger is returned.
-func Global() *zap.Logger {
-	globalMu.RLock()
-	l := global
-	if l != nil {
-		globalMu.RUnlock()
-		return l
-	}
-	globalMu.RUnlock()
-	return fallbackLogger()
-}
-
-// Named returns a child logger with the given name.
-func Named(name string) *zap.Logger {
-	return Global().Named(name)
-}
-
-// With returns a child logger pre-populated with the supplied fields.
-func With(fields ...zap.Field) *zap.Logger {
-	return Global().With(fields...)
-}
-
-// Debug logs a message at DEBUG level.
-func Debug(msg string, fields ...zap.Field) { Global().Debug(msg, fields...) }
-
-// Info logs a message at INFO level.
-func Info(msg string, fields ...zap.Field) { Global().Info(msg, fields...) }
-
-// Warn logs a message at WARN level.
-func Warn(msg string, fields ...zap.Field) { Global().Warn(msg, fields...) }
-
-// Error logs a message at ERROR level.
-func Error(msg string, fields ...zap.Field) { Global().Error(msg, fields...) }
-
-// Fatal logs a message at FATAL level and then calls os.Exit(1).
-func Fatal(msg string, fields ...zap.Field) { Global().Fatal(msg, fields...) }
-
-// Sync flushes any buffered log entries.  Call on application shutdown.
-func Sync() { _ = Global().Sync() }
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -193,14 +130,4 @@ func normalizeRotationValue(value, fallback int) int {
 		return fallback
 	}
 	return value
-}
-
-func fallbackLogger() *zap.Logger {
-	defaultLoggerOnce.Do(func() {
-		defaultLogger, _ = zap.NewProduction()
-		if defaultLogger == nil {
-			defaultLogger = zap.NewNop()
-		}
-	})
-	return defaultLogger
 }

@@ -202,21 +202,16 @@ func TestCORS_CustomConfigDefaults(t *testing.T) {
 	}
 }
 
-func TestJWTAuth_UsesGlobalSettings(t *testing.T) {
-	prev := settings.Global.JWT
-	t.Cleanup(func() { settings.Global.JWT = prev })
+func TestJWTAuthWithConfig(t *testing.T) {
+	cfg := settings.JWTConfig{Secret: "config-secret", ExpireHours: 1, Issuer: "test-issuer"}
 
-	settings.Global.JWT.Secret = "global-secret"
-	settings.Global.JWT.ExpireHours = 1
-	settings.Global.JWT.Issuer = "test-issuer"
-
-	token, err := middleware.GenerateToken(99, "global-user")
+	token, err := middleware.GenerateTokenWithConfig(99, "config-user", cfg)
 	if err != nil {
-		t.Fatalf("GenerateToken: %v", err)
+		t.Fatalf("GenerateTokenWithConfig: %v", err)
 	}
 
 	r := gin.New()
-	r.Use(middleware.JWTAuth())
+	r.Use(middleware.JWTAuthWithConfig(cfg))
 	r.GET("/protected", func(c *gin.Context) {
 		claims := middleware.GetClaims(c)
 		c.JSON(http.StatusOK, gin.H{
@@ -241,11 +236,7 @@ func TestGenerateTokenWithSecret_EmptySecret(t *testing.T) {
 	}
 }
 
-func TestGenerateTokenWithSecret_DoesNotUseGlobalIssuer(t *testing.T) {
-	prev := settings.Global.JWT
-	t.Cleanup(func() { settings.Global.JWT = prev })
-
-	settings.Global.JWT.Issuer = "global-issuer"
+func TestGenerateTokenWithSecret_UsesDefaultIssuer(t *testing.T) {
 	token, err := middleware.GenerateTokenWithSecret(1, "alice", "secret", time.Hour)
 	if err != nil {
 		t.Fatalf("GenerateTokenWithSecret: %v", err)

@@ -803,12 +803,11 @@ import (
     "github.com/shijl0925/gin-ninja/bootstrap"
     _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
-    "github.com/shijl0925/gin-ninja/pkg/logger"
 )
 
 cfg := settings.MustLoad("config.yaml")
 log := bootstrap.InitLogger(&cfg.Log)
-defer logger.Sync()
+defer func() { _ = log.Sync() }()
 
 db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
@@ -839,12 +838,12 @@ api.UseGin(
 
 ```go
 protected := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
-protected.UseGin(middleware.JWTAuth())
+protected.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 ```
 
 ### 常用内置中间件
 
-- **JWT**：`middleware.JWTAuth()`、`middleware.GenerateToken(...)`
+- **JWT**：`middleware.JWTAuthWithConfig(...)`、`middleware.GenerateTokenWithConfig(...)`
 - **i18n**：`middleware.I18n()`，支持 `en` / `zh`
 - **Session**：HMAC-SHA256 签名 Cookie Session
 - **CSRF**：双重提交 Cookie 模式
@@ -1223,7 +1222,7 @@ adminRouter := ninja.NewRouter(
     ninja.WithBearerAuth(),
     ninja.WithVersion("v1"),
 )
-adminRouter.UseGin(middleware.JWTAuth()) // 保护所有 Admin API 路由
+adminRouter.UseGin(middleware.JWTAuthWithConfig(cfg.JWT)) // 保护所有 Admin API 路由
 
 site.Mount(adminRouter)
 api.AddRouter(adminRouter)

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 )
@@ -103,11 +102,6 @@ type errorResponse struct {
 // Returning nil means the mapper did not handle the error.
 type ErrorMapper func(error) error
 
-var (
-	errorMappersMu sync.RWMutex
-	errorMappers   = defaultErrorMappers()
-)
-
 func defaultErrorMappers() []ErrorMapper {
 	return []ErrorMapper{
 		func(err error) error {
@@ -133,30 +127,12 @@ func cloneBuiltinError(err *Error) *Error {
 	return &cloned
 }
 
-func errorMappersSnapshot() []ErrorMapper {
-	errorMappersMu.RLock()
-	defer errorMappersMu.RUnlock()
-	return append([]ErrorMapper(nil), errorMappers...)
-}
-
-// RegisterErrorMapper appends a custom process-wide error mapper.
-//
-// Deprecated: prefer api.RegisterErrorMapper for per-instance behavior.
-func RegisterErrorMapper(mapper ErrorMapper) {
-	if mapper == nil {
-		return
-	}
-	errorMappersMu.Lock()
-	defer errorMappersMu.Unlock()
-	errorMappers = append(errorMappers, mapper)
-}
-
 func mapError(err error) error {
 	if err == nil {
 		return nil
 	}
 
-	return mapErrorWithMappers(err, errorMappersSnapshot())
+	return mapErrorWithMappers(err, defaultErrorMappers())
 }
 
 func mapErrorWithMappers(err error, mappers []ErrorMapper) error {

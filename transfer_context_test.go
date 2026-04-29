@@ -253,30 +253,29 @@ func TestContextHelpersAndErrorUtilities(t *testing.T) {
 		t.Fatal("expected RollbackTx() to fail when transaction handlers are unavailable")
 	}
 
-	previousBegin := contextBeginTx
-	previousCommit := contextCommitTx
-	previousRollback := contextRollbackTx
-	t.Cleanup(func() {
-		contextBeginTx = previousBegin
-		contextCommitTx = previousCommit
-		contextRollbackTx = previousRollback
-	})
-
 	beginCalled := false
 	commitCalled := false
 	rollbackCalled := false
-	contextBeginTx = func(*gin.Context) error {
-		beginCalled = true
-		return nil
-	}
-	contextCommitTx = func(*gin.Context) error {
-		commitCalled = true
-		return nil
-	}
-	contextRollbackTx = func(*gin.Context) error {
-		rollbackCalled = true
-		return nil
-	}
+	api := New(Config{
+		DisableGinDefault: true,
+		DisableHomepage:   true,
+		DisableOpenAPI:    true,
+		TransactionHandlers: &TransactionHandlers{
+			Begin: func(*gin.Context) error {
+				beginCalled = true
+				return nil
+			},
+			Commit: func(*gin.Context) error {
+				commitCalled = true
+				return nil
+			},
+			Rollback: func(*gin.Context) error {
+				rollbackCalled = true
+				return nil
+			},
+		},
+	})
+	c.Set(ninjaAPIContextKey, api)
 
 	if err := ctx.BeginTx(); err != nil {
 		t.Fatalf("BeginTx() error = %v", err)

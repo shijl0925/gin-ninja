@@ -39,9 +39,6 @@ func TestExtractBearerToken(t *testing.T) {
 
 func TestJWTAuthWithConfigDoesNotUseGlobalSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	prev := settings.GetGlobal()
-	t.Cleanup(func() { settings.SetGlobal(prev) })
-	settings.SetGlobal(settings.Config{JWT: settings.JWTConfig{Secret: "wrong-secret"}})
 
 	cfg := settings.JWTConfig{Secret: "explicit-secret", ExpireHours: 1, Issuer: "explicit"}
 	token, err := GenerateTokenWithConfig(7, "explicit-user", cfg)

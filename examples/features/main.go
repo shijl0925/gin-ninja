@@ -8,7 +8,6 @@ import (
 
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	"github.com/shijl0925/gin-ninja/examples/internal/fullapp"
-	"github.com/shijl0925/gin-ninja/pkg/logger"
 )
 
 var fatalFeatures = func(v ...any) { log.Fatal(v...) }
@@ -21,7 +20,7 @@ func main() {
 
 	cfg := fullapp.MustLoadConfig(filepath.Join(filepath.Dir(file), "config.yaml"))
 	log_ := bootstrap.InitLogger(&cfg.Log)
-	defer logger.Sync()
+	defer func() { _ = log_.Sync() }()
 
 	if err := fullapp.Run(*cfg, log_, fullapp.FeaturesOptions()); err != nil {
 		fatalFeatures(err)

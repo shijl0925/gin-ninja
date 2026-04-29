@@ -551,27 +551,10 @@ func TestWriteError(t *testing.T) {
 		}
 	})
 
-	t.Run("global custom mapper fallback", func(t *testing.T) {
-		sentinel := errors.New("mapped")
-
-		errorMappersMu.Lock()
-		original := append([]ErrorMapper(nil), errorMappers...)
-		errorMappers = append(errorMappers, func(err error) error {
-			if errors.Is(err, sentinel) {
-				return &Error{Status: http.StatusTeapot, Code: "MAPPED", Message: "mapped"}
-			}
-			return nil
-		})
-		errorMappersMu.Unlock()
-		defer func() {
-			errorMappersMu.Lock()
-			errorMappers = original
-			errorMappersMu.Unlock()
-		}()
-
+	t.Run("default mapper fallback without api", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, sentinel)
-		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "MAPPED") {
+		writeError(c, context.DeadlineExceeded)
+		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), "REQUEST_TIMEOUT") {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
@@ -911,46 +894,35 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 }
 
 func TestOperationsWithTransactionHandlers(t *testing.T) {
-	previousBegin := contextBeginTx
-	previousCommit := contextCommitTx
-	previousRollback := contextRollbackTx
-	previousWithTx := contextWithTx
-	t.Cleanup(func() {
-		contextBeginTx = previousBegin
-		contextCommitTx = previousCommit
-		contextRollbackTx = previousRollback
-		contextWithTx = previousWithTx
-	})
-
 	beginCalled := false
 	commitCalled := false
 	rollbackCalled := false
 	withTxCalled := false
-	RegisterTransactionHandlers(
-		func(*gin.Context) error {
-			beginCalled = true
-			return nil
-		},
-		func(*gin.Context) error {
-			commitCalled = true
-			return nil
-		},
-		func(*gin.Context) error {
-			rollbackCalled = true
-			return nil
-		},
-		func(c *gin.Context, fn func() error) error {
-			withTxCalled = true
-			if err := contextBeginTx(c); err != nil {
-				return err
-			}
-			if err := fn(); err != nil {
-				_ = contextRollbackTx(c)
-				return err
-			}
-			return contextCommitTx(c)
-		},
-	)
+	handlers := &TransactionHandlers{}
+	handlers.Begin = func(*gin.Context) error {
+		beginCalled = true
+		return nil
+	}
+	handlers.Commit = func(*gin.Context) error {
+		commitCalled = true
+		return nil
+	}
+	handlers.Rollback = func(*gin.Context) error {
+		rollbackCalled = true
+		return nil
+	}
+	handlers.WithTransaction = func(c *gin.Context, fn func() error) error {
+		withTxCalled = true
+		if err := handlers.Begin(c); err != nil {
+			return err
+		}
+		if err := fn(); err != nil {
+			_ = handlers.Rollback(c)
+			return err
+		}
+		return handlers.Commit(c)
+	}
+	api := New(Config{DisableGinDefault: true, DisableHomepage: true, DisableOpenAPI: true, TransactionHandlers: handlers})
 
 	op := newOperation(http.MethodGet, "/", func(ctx *Context, input *struct{}) (*schemaSample, error) {
 		return &schemaSample{Name: "ok"}, nil
@@ -958,6 +930,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 	WithTransaction()(op)
 
 	c, w := newTestContext(http.MethodGet, "/", "")
+	c.Set(ninjaAPIContextKey, api)
 	op.ginHandler(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for transaction-wrapped operation, got %d", w.Code)
@@ -977,6 +950,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 	WithTransaction()(voidOp)
 
 	c, w = newTestContext(http.MethodDelete, "/1", "")
+	c.Set(ninjaAPIContextKey, api)
 	voidOp.ginHandler(c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for transaction-wrapped void operation error, got %d", w.Code)

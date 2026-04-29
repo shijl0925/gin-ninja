@@ -860,14 +860,12 @@ import (
     "github.com/shijl0925/gin-ninja/bootstrap"
     _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
-    "github.com/shijl0925/gin-ninja/pkg/logger"
 )
 
 cfg := settings.MustLoad("config.yaml")
 
-// Initialise Zap logger and set as global.
 log := bootstrap.InitLogger(&cfg.Log)
-defer logger.Sync()
+defer func() { _ = log.Sync() }()
 
 // Initialise database.
 db := bootstrap.MustInitDB(&cfg.Database)
@@ -912,17 +910,17 @@ api.UseGin(
 
 ```go
 protected := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
-protected.UseGin(middleware.JWTAuth())  // JWT auth for /admin/* only
+protected.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))  // JWT auth for /admin/* only
 ```
 
 ### JWT Authentication
 
 ```go
 // Generate a token (e.g. after login):
-token, err := middleware.GenerateToken(user.ID, user.Name)
+token, err := middleware.GenerateTokenWithConfig(user.ID, user.Name, cfg.JWT)
 
 // Protect routes:
-r.UseGin(middleware.JWTAuth())
+r.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 
 // Read claims in a handler:
 claims := middleware.GetClaims(ctx.Context)
@@ -1760,7 +1758,7 @@ adminRouter := ninja.NewRouter(
     ninja.WithBearerAuth(),
     ninja.WithVersion("v1"),
 )
-adminRouter.UseGin(middleware.JWTAuth()) // protect all admin API routes
+adminRouter.UseGin(middleware.JWTAuthWithConfig(cfg.JWT)) // protect all admin API routes
 
 site.Mount(adminRouter)
 api.AddRouter(adminRouter)

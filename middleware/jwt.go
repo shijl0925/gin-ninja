@@ -33,33 +33,8 @@ type Claims struct {
 // GetUserID satisfies the claimsWithUserID interface used by ninja.Context.GetUserID().
 func (c *Claims) GetUserID() uint { return c.UserID }
 
-// JWTAuth returns a gin middleware that validates Bearer tokens using the
-// HMAC secret from the global settings.
-//
-// The secret is read from settings.Global on every request rather than at
-// middleware construction time, so the middleware works correctly even when
-// settings are loaded after the middleware is registered (e.g. in main()).
-// If the global secret is empty at request time the middleware responds with
-// 401; it does NOT panic on construction.
-//
-// On success the parsed *Claims are stored in the Gin context under the key
-// returned by ClaimsKey().  On failure the request is aborted with 401.
-//
-//	api.Engine().Use(middleware.JWTAuth())
-func JWTAuth() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		secret := settings.GetGlobal().JWT.Secret
-		if secret == "" {
-			response.Unauthorized(c, "authentication unavailable")
-			return
-		}
-		validateJWTToken(c, secret)
-	}
-}
-
-// JWTAuthWithSecret is like JWTAuth but uses an explicit secret rather than
-// reading from global settings.  Useful in tests or when running multiple APIs
-// with different secrets.
+// JWTAuthWithSecret returns a gin middleware that validates Bearer tokens using
+// an explicit HMAC secret.
 func JWTAuthWithSecret(secret string) gin.HandlerFunc {
 	if secret == "" {
 		panic("jwt: Secret must not be empty")
@@ -69,8 +44,8 @@ func JWTAuthWithSecret(secret string) gin.HandlerFunc {
 	}
 }
 
-// JWTAuthWithConfig is like JWTAuth but uses an explicit settings.JWTConfig
-// value rather than reading from global settings.
+// JWTAuthWithConfig returns a gin middleware configured from an explicit
+// settings.JWTConfig value.
 func JWTAuthWithConfig(cfg settings.JWTConfig) gin.HandlerFunc {
 	return JWTAuthWithSecret(cfg.Secret)
 }
@@ -115,15 +90,8 @@ func GetClaims(c *gin.Context) *Claims {
 // ClaimsKey returns the context key used to store JWT claims.
 func ClaimsKey() string { return claimsKey }
 
-// GenerateToken creates a signed JWT token for the given user.
-// The token is signed with the HMAC secret and TTL from global settings.
-func GenerateToken(userID uint, username string) (string, error) {
-	cfg := settings.GetGlobal()
-	return GenerateTokenWithConfig(userID, username, cfg.JWT)
-}
-
 // GenerateTokenWithSecret creates a signed JWT token with an explicit secret
-// and TTL.  Use this when you cannot rely on the global settings (e.g. tests).
+// and TTL.
 func GenerateTokenWithSecret(userID uint, username, secret string, ttl time.Duration) (string, error) {
 	return generateToken(userID, username, secret, ttl, "gin-ninja")
 }

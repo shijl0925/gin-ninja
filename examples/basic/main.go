@@ -206,10 +206,11 @@ func initDB(dsn string) (*gorm.DB, error) {
 
 func buildAPI(db *gorm.DB) *ninja.NinjaAPI {
 	api := ninja.New(ninja.Config{
-		Title:             "Gin Ninja Basic Example",
-		Version:           "1.0.0",
-		Prefix:            "/api/v1",
-		DisableGinDefault: true,
+		Title:               "Gin Ninja Basic Example",
+		Version:             "1.0.0",
+		Prefix:              "/api/v1",
+		DisableGinDefault:   true,
+		TransactionHandlers: orm.TransactionHandlers(),
 	})
 
 	// Attach infrastructure middleware.

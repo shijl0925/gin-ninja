@@ -52,9 +52,6 @@ func setupAppTestDB(t *testing.T) {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	orm.Init(db)
-	settings.Global.JWT.Secret = "test-secret"
-	settings.Global.JWT.ExpireHours = 24
-	settings.Global.JWT.Issuer = "gin-ninja"
 }
 
 func registerRequest(t *testing.T, api *ninja.NinjaAPI, body interface{}) *httptest.ResponseRecorder {
@@ -208,7 +205,9 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 		t.Fatalf("unexpected register output: %+v", registered)
 	}
 
-	loginOut, err := Login(nil, &LoginInput{Email: "alice@example.com", Password: "password123"})
+	jwtCfg := settings.JWTConfig{Secret: "test-secret", ExpireHours: 24, Issuer: "gin-ninja"}
+	login := LoginHandler(jwtCfg)
+	loginOut, err := login(nil, &LoginInput{Email: "alice@example.com", Password: "password123"})
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -216,10 +215,10 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 		t.Fatalf("unexpected login output: %+v", loginOut)
 	}
 
-	if _, err := Login(nil, &LoginInput{Email: "alice@example.com", Password: "wrong"}); err == nil {
+	if _, err := login(nil, &LoginInput{Email: "alice@example.com", Password: "wrong"}); err == nil {
 		t.Fatal("expected invalid password error")
 	}
-	if _, err := Login(nil, &LoginInput{Email: "missing@example.com", Password: "password123"}); err == nil {
+	if _, err := login(nil, &LoginInput{Email: "missing@example.com", Password: "password123"}); err == nil {
 		t.Fatal("expected missing user error")
 	}
 
@@ -470,10 +469,8 @@ func TestUserDirectHelpers(t *testing.T) {
 		t.Fatalf("expected missing user error, got %v", err)
 	}
 
-	prevJWT := settings.Global.JWT
-	t.Cleanup(func() { settings.Global.JWT = prevJWT })
-	settings.Global.JWT.Secret = ""
-	if _, err := Login(nil, &LoginInput{Email: "alice@example.com", Password: "password123"}); err == nil {
+	misconfiguredLogin := LoginHandler(settings.JWTConfig{})
+	if _, err := misconfiguredLogin(nil, &LoginInput{Email: "alice@example.com", Password: "password123"}); err == nil {
 		t.Fatal("expected Login to fail when token generation is misconfigured")
 	}
 }

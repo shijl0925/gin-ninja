@@ -7,9 +7,6 @@
 //	log := bootstrap.InitLogger(&cfg.Log)
 //	db  := bootstrap.MustInitDB(&cfg.Database)
 //
-//	orm.Init(db)
-//	logger.SetGlobal(log)
-//
 // Import the matching bootstrap/drivers package for the configured database
 // driver before calling InitDB or MustInitDB.
 package bootstrap
@@ -25,12 +22,9 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// InitLogger creates a *zap.Logger from the supplied LogConfig and sets it as
-// the global logger.
+// InitLogger creates a *zap.Logger from the supplied LogConfig.
 func InitLogger(cfg *settings.LogConfig) *zap.Logger {
-	l := applogger.New(*cfg)
-	applogger.SetGlobal(l)
-	return l
+	return applogger.New(*cfg)
 }
 
 // InitDB opens a GORM database connection from the supplied DatabaseConfig.

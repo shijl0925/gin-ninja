@@ -70,7 +70,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/spf13/viper"
@@ -229,32 +228,6 @@ type LogConfig struct {
 	Compress bool `mapstructure:"compress"`
 }
 
-// globalMu protects concurrent reads and writes to Global.
-var globalMu sync.RWMutex
-
-// Global holds the application-wide configuration loaded by Load.
-// Direct field access (e.g. settings.Global.JWT.Secret) is only safe when
-// no other goroutine writes to Global (i.e. config is set once at startup
-// and never reloaded).  For all other cases, use GetGlobal/SetGlobal to
-// avoid data races.
-var Global Config
-
-// GetGlobal returns a safe copy of the global configuration.
-// Prefer this function when the config may be set concurrently (e.g. tests,
-// hot-reload scenarios).
-func GetGlobal() Config {
-	globalMu.RLock()
-	defer globalMu.RUnlock()
-	return Global
-}
-
-// SetGlobal replaces the global configuration under the mutex.
-func SetGlobal(cfg Config) {
-	globalMu.Lock()
-	Global = cfg
-	globalMu.Unlock()
-}
-
 // Load reads configuration from the given file path and merges in
 // environment variables.  Environment variables are mapped using the
 // pattern APP__SERVER__PORT → app.server.port (double underscore separator).
@@ -262,17 +235,10 @@ func SetGlobal(cfg Config) {
 // If cfgFile is empty, Load searches for a file named "config" in the
 // current working directory and common config directories.
 func Load(cfgFile string) (*Config, error) {
-	cfg, err := LoadConfig(cfgFile)
-	if err != nil {
-		return nil, err
-	}
-	SetGlobal(*cfg)
-	return cfg, nil
+	return LoadConfig(cfgFile)
 }
 
-// LoadConfig reads configuration like Load but does not update Global.
-// Use this helper for tests, multi-tenant processes, or embedded applications
-// that should keep configuration instance-scoped instead of process-global.
+// LoadConfig reads configuration like Load.
 func LoadConfig(cfgFile string) (*Config, error) {
 	v := viper.New()
 
@@ -330,16 +296,10 @@ func MustLoad(cfgFile string) *Config {
 //
 //	settings.LoadWithOverrides("config.yaml", "config.local.yaml")
 func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
-	cfg, err := LoadConfigWithOverrides(baseFile, overrideFiles...)
-	if err != nil {
-		return nil, err
-	}
-	SetGlobal(*cfg)
-	return cfg, nil
+	return LoadConfigWithOverrides(baseFile, overrideFiles...)
 }
 
-// LoadConfigWithOverrides reads configuration like LoadWithOverrides but does
-// not update Global.
+// LoadConfigWithOverrides reads configuration like LoadWithOverrides.
 func LoadConfigWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
 	v := viper.New()
 	setDefaults(v)
@@ -417,17 +377,12 @@ func MustLoadWithOverrides(baseFile string, overrideFiles ...string) *Config {
 //	// Loads config.yaml, then merges config.development.yaml (if present).
 //	settings.LoadForEnv("config.yaml")
 func LoadForEnv(baseFile string) (*Config, error) {
-	cfg, err := LoadConfigForEnv(baseFile)
-	if err != nil {
-		return nil, err
-	}
-	SetGlobal(*cfg)
-	return cfg, nil
+	return LoadConfigForEnv(baseFile)
 }
 
-// LoadConfigForEnv loads configuration like LoadForEnv but does not update Global.
+// LoadConfigForEnv loads configuration like LoadForEnv.
 func LoadConfigForEnv(baseFile string) (*Config, error) {
-	// Peek at app.env without a full unmarshal to avoid double-setting Global.
+	// Peek at app.env without a full unmarshal.
 	v := viper.New()
 	setDefaults(v)
 	if baseFile != "" {
