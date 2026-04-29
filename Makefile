@@ -8,7 +8,7 @@ CLI_BUILD_DIR := $(CURDIR)/bin
 CLI_BUILD_PATH := $(CLI_BUILD_DIR)/$(CLI_NAME)
 CLI_INSTALL_PATH := $(GOBIN)/$(CLI_NAME)
 
-.PHONY: build-cli install-cli
+.PHONY: build-cli install-cli test
 
 build-cli:
 	mkdir -p $(CLI_BUILD_DIR)
@@ -17,3 +17,7 @@ build-cli:
 install-cli:
 	mkdir -p $(GOBIN)
 	cd ./cmd/gin-ninja-cli && go build -o $(CLI_INSTALL_PATH) .
+
+test:
+	go test ./...
+	cd ./cmd/gin-ninja-cli && go test ./...
