@@ -930,16 +930,18 @@ func splitSQLStatements(section string) []string {
 		return nil
 	}
 	var (
-		statements []string
-		current    strings.Builder
-		inSingle   bool
-		inDouble   bool
-		inBacktick bool
-		dollarTag  string
+		statements     []string
+		current        strings.Builder
+		inSingle       bool
+		inDouble       bool
+		inBacktick     bool
+		inLineComment  bool
+		inBlockComment bool
+		dollarTag      string
 	)
 	flush := func() {
 		stmt := normalizeSQLStatement(current.String())
-		if stmt != "" && !strings.HasPrefix(stmt, "--") {
+		if stmt != "" && hasExecutableSQL(stmt) {
 			statements = append(statements, stmt)
 		}
 		current.Reset()
@@ -958,18 +960,66 @@ func splitSQLStatements(section string) []string {
 		}
 
 		ch := trimmed[i]
+		if inLineComment {
+			current.WriteByte(ch)
+			i++
+			if ch == '\n' {
+				inLineComment = false
+			}
+			continue
+		}
+		if inBlockComment {
+			if ch == '*' && i+1 < len(trimmed) && trimmed[i+1] == '/' {
+				current.WriteString("*/")
+				i += 2
+				inBlockComment = false
+				continue
+			}
+			current.WriteByte(ch)
+			i++
+			continue
+		}
 		switch ch {
 		case '\'':
 			if !inDouble && !inBacktick && (i == 0 || trimmed[i-1] != '\\') {
+				if inSingle && i+1 < len(trimmed) && trimmed[i+1] == '\'' {
+					current.WriteString("''")
+					i += 2
+					continue
+				}
 				inSingle = !inSingle
 			}
 		case '"':
 			if !inSingle && !inBacktick && (i == 0 || trimmed[i-1] != '\\') {
+				if inDouble && i+1 < len(trimmed) && trimmed[i+1] == '"' {
+					current.WriteString(`""`)
+					i += 2
+					continue
+				}
 				inDouble = !inDouble
 			}
 		case '`':
 			if !inSingle && !inDouble {
+				if inBacktick && i+1 < len(trimmed) && trimmed[i+1] == '`' {
+					current.WriteString("``")
+					i += 2
+					continue
+				}
 				inBacktick = !inBacktick
+			}
+		case '-':
+			if !inSingle && !inDouble && !inBacktick && i+1 < len(trimmed) && trimmed[i+1] == '-' {
+				inLineComment = true
+				current.WriteString("--")
+				i += 2
+				continue
+			}
+		case '/':
+			if !inSingle && !inDouble && !inBacktick && i+1 < len(trimmed) && trimmed[i+1] == '*' {
+				inBlockComment = true
+				current.WriteString("/*")
+				i += 2
+				continue
 			}
 		case '$':
 			if !inSingle && !inDouble && !inBacktick {
@@ -998,6 +1048,9 @@ func readDollarQuoteTag(input string) string {
 	if input == "" || input[0] != '$' {
 		return ""
 	}
+	if len(input) > 1 && input[1] != '$' && !isSQLIdentifierStart(input[1]) {
+		return ""
+	}
 	for i := 1; i < len(input); i++ {
 		ch := input[i]
 		if ch == '$' {
@@ -1010,8 +1063,55 @@ func readDollarQuoteTag(input string) string {
 	return ""
 }
 
+func hasExecutableSQL(stmt string) bool {
+	inLineComment := false
+	inBlockComment := false
+	for i := 0; i < len(stmt); {
+		ch := stmt[i]
+		if inLineComment {
+			i++
+			if ch == '\n' {
+				inLineComment = false
+			}
+			continue
+		}
+		if inBlockComment {
+			if ch == '*' && i+1 < len(stmt) && stmt[i+1] == '/' {
+				i += 2
+				inBlockComment = false
+				continue
+			}
+			i++
+			continue
+		}
+		if ch == '-' && i+1 < len(stmt) && stmt[i+1] == '-' {
+			inLineComment = true
+			i += 2
+			continue
+		}
+		if ch == '/' && i+1 < len(stmt) && stmt[i+1] == '*' {
+			inBlockComment = true
+			i += 2
+			continue
+		}
+		if !isSQLSpace(ch) {
+			return true
+		}
+		i++
+	}
+	return false
+}
+
+func isSQLIdentifierStart(ch byte) bool {
+	return ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+}
+
 func isSQLIdentifierChar(ch byte) bool {
 	return ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
+}
+
+func isSQLSpace(ch byte) bool {
+	return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t' || ch == '\f' || ch == '\v'
 }
 
 func warnIfDDLMayAutocommit(stderr io.Writer, dialect string) {

@@ -193,6 +193,55 @@ CREATE TABLE demo_items (id INTEGER);
 	}
 }
 
+func TestSplitSQLStatementsHandlesPostgresDoBlockAndTaggedDollarQuote(t *testing.T) {
+	sql := `
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1) THEN
+		RAISE NOTICE 'inside; do block';
+	END IF;
+END
+$$;
+CREATE FUNCTION tagged_fn() RETURNS text AS $body$
+BEGIN
+	RETURN 'tagged; body';
+END;
+$body$ LANGUAGE plpgsql;
+CREATE TABLE after_blocks (id INTEGER);
+`
+	statements := splitSQLStatements(sql)
+	if len(statements) != 3 {
+		t.Fatalf("expected 3 statements, got %d: %#v", len(statements), statements)
+	}
+	if !strings.Contains(statements[0], "inside; do block") {
+		t.Fatalf("expected DO block semicolons to be preserved, got %q", statements[0])
+	}
+	if !strings.Contains(statements[1], "$body$") || !strings.Contains(statements[1], "tagged; body") {
+		t.Fatalf("expected tagged dollar quote to be preserved, got %q", statements[1])
+	}
+}
+
+func TestSplitSQLStatementsIgnoresSemicolonsInsideComments(t *testing.T) {
+	sql := `
+/* comment with ; semicolon
+   and another ; semicolon */
+CREATE TABLE comment_test (id INTEGER);
+-- line comment with ; semicolon
+INSERT INTO comment_test (id) VALUES (1);
+/* comment-only ; statement */;
+`
+	statements := splitSQLStatements(sql)
+	if len(statements) != 2 {
+		t.Fatalf("expected 2 statements, got %d: %#v", len(statements), statements)
+	}
+	if !strings.Contains(statements[0], "CREATE TABLE comment_test") {
+		t.Fatalf("expected create table statement, got %q", statements[0])
+	}
+	if !strings.Contains(statements[1], "INSERT INTO comment_test") {
+		t.Fatalf("expected insert statement, got %q", statements[1])
+	}
+}
+
 func TestWarnIfDDLMayAutocommit(t *testing.T) {
 	var stderr bytes.Buffer
 	warnIfDDLMayAutocommit(&stderr, "mysql")
