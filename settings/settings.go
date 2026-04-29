@@ -234,6 +234,10 @@ type LogConfig struct {
 //
 // If cfgFile is empty, Load searches for a file named "config" in the
 // current working directory and common config directories.
+//
+// Load is retained for backwards compatibility with earlier releases where it
+// also updated package-level configuration state. It now only returns the
+// loaded config.
 func Load(cfgFile string) (*Config, error) {
 	return LoadConfig(cfgFile)
 }
