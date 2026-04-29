@@ -72,6 +72,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 )
 
@@ -228,6 +229,17 @@ type LogConfig struct {
 	Compress bool `mapstructure:"compress"`
 }
 
+func unmarshalConfig(v *viper.Viper, cfg *Config) error {
+	return v.Unmarshal(
+		cfg,
+		viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
+			placeholderDecodeHook(),
+			mapstructure.StringToTimeDurationHookFunc(),
+			mapstructure.StringToSliceHookFunc(","),
+		)),
+	)
+}
+
 // Load reads configuration from the given file path and merges in
 // environment variables.  Environment variables are mapped using the
 // pattern APP__SERVER__PORT → app.server.port (double underscore separator).
@@ -275,7 +287,7 @@ func LoadConfig(cfgFile string) (*Config, error) {
 	v.AutomaticEnv()
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := unmarshalConfig(v, &cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
 	expandConfigStrings(&cfg)
@@ -351,7 +363,7 @@ func LoadConfigWithOverrides(baseFile string, overrideFiles ...string) (*Config,
 	v.AutomaticEnv()
 
 	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
+	if err := unmarshalConfig(v, &cfg); err != nil {
 		return nil, fmt.Errorf("settings: unmarshal: %w", err)
 	}
 	expandConfigStrings(&cfg)
