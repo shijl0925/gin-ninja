@@ -43,11 +43,7 @@ func placeholderDecodeHook() mapstructure.DecodeHookFuncType {
 		if from.Kind() != reflect.String {
 			return data, nil
 		}
-		s, ok := data.(string)
-		if !ok {
-			return data, nil
-		}
-		return expandPlaceholders(s), nil
+		return expandPlaceholders(data.(string)), nil
 	}
 }
 

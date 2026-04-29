@@ -602,7 +602,10 @@ redis:
 	}
 }
 
-func TestPlaceholderExpansionForTypedFields(t *testing.T) {
+func TestPlaceholderTypedFields(t *testing.T) {
+	t.Setenv("NINJA_IT_DB_HOST", "db.example.test")
+	t.Setenv("NINJA_IT_REDIS_DB", "3")
+
 	configYAML := `
 database:
   driver: "mysql"
@@ -631,8 +634,8 @@ redis:
 		t.Fatalf("Load: %v", err)
 	}
 
-	if cfg.Database.MySQL.Host != "localhost" {
-		t.Fatalf("expected mysql host localhost, got %q", cfg.Database.MySQL.Host)
+	if cfg.Database.MySQL.Host != "db.example.test" {
+		t.Fatalf("expected mysql host db.example.test, got %q", cfg.Database.MySQL.Host)
 	}
 	if cfg.Database.MySQL.Port != 3306 {
 		t.Fatalf("expected mysql port 3306, got %d", cfg.Database.MySQL.Port)
@@ -646,7 +649,7 @@ redis:
 	if cfg.Redis.Enabled {
 		t.Fatal("expected redis enabled false by default")
 	}
-	if cfg.Redis.DB != 0 {
-		t.Fatalf("expected redis db 0, got %d", cfg.Redis.DB)
+	if cfg.Redis.DB != 3 {
+		t.Fatalf("expected redis db 3, got %d", cfg.Redis.DB)
 	}
 }
