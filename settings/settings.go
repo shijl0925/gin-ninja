@@ -238,7 +238,9 @@ func Load(cfgFile string) (*Config, error) {
 	return LoadConfig(cfgFile)
 }
 
-// LoadConfig reads configuration like Load.
+// LoadConfig is a backwards-compatible alias for Load's implementation. It is
+// kept for callers that prefer the explicit Config suffix now that loading no
+// longer mutates package-level state.
 func LoadConfig(cfgFile string) (*Config, error) {
 	v := viper.New()
 
