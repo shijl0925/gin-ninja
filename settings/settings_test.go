@@ -3,6 +3,7 @@ package settings_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.JWT.ExpireHours != 24 {
 		t.Errorf("expected default expire_hours 24, got %d", cfg.JWT.ExpireHours)
 	}
-	if got := cfg.CORS.AllowOrigins; len(got) != 2 || got[0] != "http://localhost:3000" || got[1] != "http://localhost:5173" {
+	if got, want := cfg.CORS.AllowOrigins, []string{"http://localhost:3000", "http://localhost:5173"}; !slices.Equal(got, want) {
 		t.Errorf("expected safe default CORS origins, got %#v", cfg.CORS.AllowOrigins)
 	}
 	if cfg.CORS.AllowCredentials {
@@ -106,13 +107,13 @@ cors:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := cfg.CORS.AllowOrigins; len(got) != 2 || got[0] != "https://app.example.com" || got[1] != "https://admin.example.com" {
+	if got, want := cfg.CORS.AllowOrigins, []string{"https://app.example.com", "https://admin.example.com"}; !slices.Equal(got, want) {
 		t.Fatalf("unexpected CORS origins: %#v", got)
 	}
-	if got := cfg.CORS.AllowMethods; len(got) != 2 || got[0] != "GET" || got[1] != "POST" {
+	if got, want := cfg.CORS.AllowMethods, []string{"GET", "POST"}; !slices.Equal(got, want) {
 		t.Fatalf("unexpected CORS methods: %#v", got)
 	}
-	if got := cfg.CORS.AllowHeaders; len(got) != 2 || got[0] != "Authorization" || got[1] != "Content-Type" {
+	if got, want := cfg.CORS.AllowHeaders, []string{"Authorization", "Content-Type"}; !slices.Equal(got, want) {
 		t.Fatalf("unexpected CORS headers: %#v", got)
 	}
 	if !cfg.CORS.AllowCredentials {
@@ -270,7 +271,7 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	if cfg.Redis.Addr != "cache.internal:6379" {
 		t.Fatalf("expected env override redis addr, got %q", cfg.Redis.Addr)
 	}
-	if got := cfg.CORS.AllowOrigins; len(got) != 2 || got[0] != "https://app.example.com" || got[1] != "https://admin.example.com" {
+	if got, want := cfg.CORS.AllowOrigins, []string{"https://app.example.com", "https://admin.example.com"}; !slices.Equal(got, want) {
 		t.Fatalf("expected CORS origins env override, got %#v", got)
 	}
 }
