@@ -31,6 +31,7 @@ const (
 	migrationIrreversible  = "-- gin-ninja:irreversible"
 	migrationSectionUp     = "-- Up"
 	migrationSectionDown   = "-- Down"
+	secondsPerDay          = 86400
 )
 
 var (
@@ -638,7 +639,7 @@ func uniqueMigrationFileName(dir, fileName string) string {
 	version, name, ok := strings.Cut(base, "_")
 	if ok {
 		if timestamp, err := time.Parse("20060102150405", version); err == nil {
-			for i := 1; i <= 86400; i++ {
+			for i := 1; i <= secondsPerDay; i++ {
 				candidateBase := fmt.Sprintf("%s_%s", timestamp.Add(time.Duration(i)*time.Second).Format("20060102150405"), name)
 				candidate := candidateBase + ext
 				if _, err := os.Stat(filepath.Join(dir, candidate)); os.IsNotExist(err) {
