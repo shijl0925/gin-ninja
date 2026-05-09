@@ -23,6 +23,7 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"github.com/shijl0925/gin-ninja/settings"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -210,7 +211,7 @@ func buildAPI() *ninja.NinjaAPI {
 		ginpkg.Logger(),
 		ginpkg.Recovery(),
 		middleware.RequestID(),
-		middleware.CORS(nil),
+		middleware.CORSFromConfig(settings.CORSConfig{}),
 	)
 
 	// Mount the BookController.  Dependencies are injected here; the

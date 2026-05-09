@@ -156,6 +156,7 @@ import (
     "github.com/gin-gonic/gin"
     ninja "github.com/shijl0925/gin-ninja"
     "github.com/shijl0925/gin-ninja/middleware"
+    "github.com/shijl0925/gin-ninja/settings"
 )
 
 type HelloInput struct {
@@ -181,7 +182,7 @@ func main() {
         gin.Logger(),                // keep native [GIN] access logs
         gin.Recovery(),              // keep native panic recovery
         middleware.RequestID(),
-        middleware.CORS(nil),
+        middleware.CORSFromConfig(settings.CORSConfig{}),
     )
 
     r := ninja.NewRouter("/hello", ninja.WithTags("Hello"))
@@ -718,6 +719,15 @@ database:
   driver: "sqlite"
   dsn: "app.db"
 
+cors:
+  # Keep origins explicit in production.
+  allow_origins:
+    - "https://app.example.com"
+  allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  allow_headers: ["Origin", "Content-Type", "Authorization", "X-Request-ID"]
+  allow_credentials: false
+  max_age_secs: 43200
+
 jwt:
   secret: "change-me-in-production"
   expire_hours: 24
@@ -901,7 +911,7 @@ api.UseGin(
     middleware.RequestID(),          // injects X-Request-ID
     middleware.Recovery(log),        // panic recovery with Zap logging
     middleware.Logger(log),          // structured request logging
-    middleware.CORS(nil),            // permissive CORS (dev)
+    middleware.CORSFromConfig(cfg.CORS),
     orm.Middleware(db),              // per-request DB in context
 )
 ```

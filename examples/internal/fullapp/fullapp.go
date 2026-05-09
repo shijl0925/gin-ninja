@@ -212,7 +212,7 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 		middleware.RequestID(),
 		middleware.Recovery(log_),
 		middleware.Logger(log_),
-		middleware.CORS(nil),
+		middleware.CORSFromConfig(cfg.CORS),
 		orm.Middleware(db),
 	)
 

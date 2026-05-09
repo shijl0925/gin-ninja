@@ -26,6 +26,15 @@
 //	  expire_hours: 24
 //	  issuer: "gin-ninja"
 //
+//	cors:
+//	  allow_origins:
+//	    - "http://localhost:3000"
+//	    - "http://localhost:5173"
+//	  allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+//	  allow_headers: ["Origin", "Content-Type", "Authorization", "X-Request-ID"]
+//	  allow_credentials: false
+//	  max_age_secs: 43200
+//
 //	log:
 //	  level: "info"
 //	  format: "json"
@@ -83,6 +92,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
+	CORS     CORSConfig     `mapstructure:"cors"`
 	Log      LogConfig      `mapstructure:"log"`
 }
 
@@ -209,6 +219,38 @@ func (j JWTConfig) ExpireDuration() time.Duration {
 		h = 24
 	}
 	return time.Duration(h) * time.Hour
+}
+
+// CORSConfig holds Cross-Origin Resource Sharing policy settings.
+type CORSConfig struct {
+	// AllowOrigins is the list of allowed origin patterns.
+	// Keep this explicit in production; ["*"] allows all origins.
+	AllowOrigins []string `mapstructure:"allow_origins"`
+	// AllowMethods is the list of allowed HTTP methods.
+	AllowMethods []string `mapstructure:"allow_methods"`
+	// AllowHeaders is the list of headers the client may include.
+	AllowHeaders []string `mapstructure:"allow_headers"`
+	// AllowCredentials indicates whether the request can include credentials.
+	AllowCredentials bool `mapstructure:"allow_credentials"`
+	// MaxAgeSecs is the max age (seconds) for preflight response caching.
+	MaxAgeSecs int `mapstructure:"max_age_secs"`
+}
+
+// WithDefaults returns cfg with safe, explicit defaults filled in.
+func (c CORSConfig) WithDefaults() CORSConfig {
+	if len(c.AllowOrigins) == 0 {
+		c.AllowOrigins = []string{"http://localhost:3000", "http://localhost:5173"}
+	}
+	if len(c.AllowMethods) == 0 {
+		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	}
+	if len(c.AllowHeaders) == 0 {
+		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
+	}
+	if c.MaxAgeSecs <= 0 {
+		c.MaxAgeSecs = 43200
+	}
+	return c
 }
 
 // LogConfig holds logging settings.
@@ -488,6 +530,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("jwt.secret", "")
 	v.SetDefault("jwt.expire_hours", 24)
 	v.SetDefault("jwt.issuer", "gin-ninja")
+
+	v.SetDefault("cors.allow_origins", []string{"http://localhost:3000", "http://localhost:5173"})
+	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
+	v.SetDefault("cors.allow_headers", []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"})
+	v.SetDefault("cors.allow_credentials", false)
+	v.SetDefault("cors.max_age_secs", 43200)
 
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")

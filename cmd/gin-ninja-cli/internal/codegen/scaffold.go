@@ -797,7 +797,7 @@ api.UseGin(
 middleware.RequestID(),
 middleware.Recovery(log_),
 middleware.Logger(log_),
-middleware.CORS(nil),
+middleware.CORSFromConfig(cfg.CORS),
 orm.Middleware(db),
 )
 
@@ -899,7 +899,7 @@ api.UseGin(
 middleware.RequestID(),
 middleware.Recovery(log_),
 middleware.Logger(log_),
-middleware.CORS(nil),
+middleware.CORSFromConfig(cfg.CORS),
 orm.Middleware(db),
 )
 
@@ -1002,6 +1002,16 @@ server:
   write_timeout: 60
 
 {{ .DatabaseConfig }}
+
+cors:
+  # Keep origins explicit in production. Use CORS__ALLOW_ORIGINS to override.
+  allow_origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+  allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  allow_headers: ["Origin", "Content-Type", "Authorization", "X-Request-ID"]
+  allow_credentials: false
+  max_age_secs: 43200
 {{- if .Options.WithAuth }}
 
 jwt:
@@ -1028,6 +1038,11 @@ const projectConfigLocalTemplate = `app:
 server:
   port: 8080
 
+cors:
+  allow_origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+
 log:
   level: "debug"
   format: "console"
@@ -1045,6 +1060,12 @@ const projectConfigProdTemplate = `app:
 server:
   host: "0.0.0.0"
   port: 8080
+
+cors:
+  # Replace with your production frontend/admin origins before deployment.
+  allow_origins:
+    - "https://example.com"
+  allow_credentials: false
 
 log:
   level: "info"
@@ -1064,6 +1085,7 @@ jwt:
 const projectEnvTemplate = `APP__NAME={{ .AppName }}
 APP__ENV=development
 APP__SERVER__PORT=8080
+CORS__ALLOW_ORIGINS=http://localhost:3000,http://localhost:5173
 {{ .DatabaseEnv }}
 {{- if .Options.WithAuth }}
 APP__JWT__SECRET=replace-with-a-strong-random-secret

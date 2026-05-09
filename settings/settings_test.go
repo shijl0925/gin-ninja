@@ -3,6 +3,7 @@ package settings_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -38,6 +39,15 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.JWT.ExpireHours != 24 {
 		t.Errorf("expected default expire_hours 24, got %d", cfg.JWT.ExpireHours)
+	}
+	if got, want := cfg.CORS.AllowOrigins, []string{"http://localhost:3000", "http://localhost:5173"}; !slices.Equal(got, want) {
+		t.Errorf("expected safe default CORS origins, got %#v", cfg.CORS.AllowOrigins)
+	}
+	if cfg.CORS.AllowCredentials {
+		t.Error("expected default CORS credentials to be false")
+	}
+	if cfg.CORS.MaxAgeSecs != 43200 {
+		t.Errorf("expected default CORS max_age_secs 43200, got %d", cfg.CORS.MaxAgeSecs)
 	}
 	if cfg.Log.Level != "info" {
 		t.Errorf("expected default log level info, got %s", cfg.Log.Level)
@@ -78,6 +88,39 @@ jwt:
 	}
 	if cfg.JWT.ExpireHours != 48 {
 		t.Errorf("expected expire_hours 48, got %d", cfg.JWT.ExpireHours)
+	}
+}
+
+func TestLoad_CORSConfig(t *testing.T) {
+	yaml := `
+cors:
+  allow_origins:
+    - "https://app.example.com"
+    - "https://admin.example.com"
+  allow_methods: ["GET", "POST"]
+  allow_headers: ["Authorization", "Content-Type"]
+  allow_credentials: true
+  max_age_secs: 60
+`
+	path := writeTempConfig(t, yaml)
+	cfg, err := settings.Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got, want := cfg.CORS.AllowOrigins, []string{"https://app.example.com", "https://admin.example.com"}; !slices.Equal(got, want) {
+		t.Fatalf("unexpected CORS origins: %#v", got)
+	}
+	if got, want := cfg.CORS.AllowMethods, []string{"GET", "POST"}; !slices.Equal(got, want) {
+		t.Fatalf("unexpected CORS methods: %#v", got)
+	}
+	if got, want := cfg.CORS.AllowHeaders, []string{"Authorization", "Content-Type"}; !slices.Equal(got, want) {
+		t.Fatalf("unexpected CORS headers: %#v", got)
+	}
+	if !cfg.CORS.AllowCredentials {
+		t.Fatal("expected CORS credentials to be true")
+	}
+	if cfg.CORS.MaxAgeSecs != 60 {
+		t.Fatalf("expected CORS max_age_secs 60, got %d", cfg.CORS.MaxAgeSecs)
 	}
 }
 
@@ -209,6 +252,7 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	t.Setenv("DATABASE__MYSQL__PASSWORD", "env:p@ss+word")
 	t.Setenv("DATABASE__POSTGRES__TIME_ZONE", "Asia/Shanghai")
 	t.Setenv("REDIS__ADDR", "cache.internal:6379")
+	t.Setenv("CORS__ALLOW_ORIGINS", "https://app.example.com,https://admin.example.com")
 
 	path := writeTempConfig(t, "{}")
 	cfg, err := settings.Load(path)
@@ -226,6 +270,9 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	}
 	if cfg.Redis.Addr != "cache.internal:6379" {
 		t.Fatalf("expected env override redis addr, got %q", cfg.Redis.Addr)
+	}
+	if got, want := cfg.CORS.AllowOrigins, []string{"https://app.example.com", "https://admin.example.com"}; !slices.Equal(got, want) {
+		t.Fatalf("expected CORS origins env override, got %#v", got)
 	}
 }
 

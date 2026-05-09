@@ -99,7 +99,7 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 		middleware.RequestID(),
 		middleware.Recovery(log_),
 		middleware.Logger(log_),
-		middleware.CORS(nil),
+		middleware.CORSFromConfig(cfg.CORS),
 		orm.Middleware(db),
 	)
 

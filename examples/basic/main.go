@@ -21,6 +21,7 @@ import (
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"github.com/shijl0925/gin-ninja/settings"
 	gormdriver "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -218,7 +219,7 @@ func buildAPI(db *gorm.DB) *ninja.NinjaAPI {
 		ginpkg.Logger(),
 		ginpkg.Recovery(),
 		middleware.RequestID(),
-		middleware.CORS(nil),
+		middleware.CORSFromConfig(settings.CORSConfig{}),
 		orm.Middleware(db),
 	)
 

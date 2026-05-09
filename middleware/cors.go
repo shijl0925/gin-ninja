@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+
+	"github.com/shijl0925/gin-ninja/settings"
 )
 
 // CORSConfig holds CORS policy settings.
@@ -25,11 +27,13 @@ type CORSConfig struct {
 }
 
 // CORS returns a gin middleware that applies the supplied CORS policy.
-// If cfg is nil, a permissive default policy (allow all origins) suitable for
-// development is used.  Passing nil in production (gin.ReleaseMode) emits a
-// warning to the standard logger; supply an explicit CORSConfig instead.
+// Prefer CORSFromConfig with settings.CORSConfig for applications that load
+// settings from config files. If cfg is nil, a permissive default policy
+// (allow all origins) suitable for development is used. Passing nil in
+// production (gin.ReleaseMode) emits a warning to the standard logger; supply
+// an explicit CORSConfig instead.
 //
-//	api.Engine().Use(middleware.CORS(nil))
+//	api.Engine().Use(middleware.CORSFromConfig(cfg.CORS))
 //	api.Engine().Use(middleware.CORS(&middleware.CORSConfig{
 //	    AllowOrigins: []string{"https://example.com"},
 //	    AllowCredentials: true,
@@ -73,4 +77,18 @@ func CORS(cfg *CORSConfig) gin.HandlerFunc {
 	}
 
 	return cors.New(c)
+}
+
+// CORSFromConfig returns a CORS middleware from settings.CORSConfig.
+// Missing policy fields are filled with safe, explicit localhost defaults
+// instead of falling back to middleware.CORS(nil)'s allow-all development mode.
+func CORSFromConfig(cfg settings.CORSConfig) gin.HandlerFunc {
+	cfg = cfg.WithDefaults()
+	return CORS(&CORSConfig{
+		AllowOrigins:     cfg.AllowOrigins,
+		AllowMethods:     cfg.AllowMethods,
+		AllowHeaders:     cfg.AllowHeaders,
+		AllowCredentials: cfg.AllowCredentials,
+		MaxAgeSecs:       cfg.MaxAgeSecs,
+	})
 }

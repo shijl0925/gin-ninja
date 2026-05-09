@@ -202,6 +202,34 @@ func TestCORS_CustomConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestCORSFromConfigUsesSafeDefaults(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.CORSFromConfig(settings.CORSConfig{}))
+	r.OPTIONS("/", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	allowedReq := httptest.NewRequest(http.MethodOptions, "http://localhost/", nil)
+	allowedReq.Header.Set("Origin", "http://localhost:3000")
+	allowedReq.Header.Set("Access-Control-Request-Method", "GET")
+
+	allowed := httptest.NewRecorder()
+	r.ServeHTTP(allowed, allowedReq)
+
+	if got := allowed.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
+		t.Fatalf("expected default localhost origin to be allowed, got %q", got)
+	}
+
+	req := httptest.NewRequest(http.MethodOptions, "http://localhost/", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", "GET")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected unconfigured settings CORS to reject arbitrary origin, got %q", got)
+	}
+}
+
 func TestJWTAuthWithConfig(t *testing.T) {
 	cfg := settings.JWTConfig{Secret: "config-secret", ExpireHours: 1, Issuer: "test-issuer"}
 
