@@ -39,7 +39,7 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.JWT.ExpireHours != 24 {
 		t.Errorf("expected default expire_hours 24, got %d", cfg.JWT.ExpireHours)
 	}
-	if len(cfg.CORS.AllowOrigins) == 0 || cfg.CORS.AllowOrigins[0] != "http://localhost:3000" {
+	if got := cfg.CORS.AllowOrigins; len(got) != 2 || got[0] != "http://localhost:3000" || got[1] != "http://localhost:5173" {
 		t.Errorf("expected safe default CORS origins, got %#v", cfg.CORS.AllowOrigins)
 	}
 	if cfg.CORS.AllowCredentials {
@@ -115,8 +115,11 @@ cors:
 	if got := cfg.CORS.AllowHeaders; len(got) != 2 || got[0] != "Authorization" || got[1] != "Content-Type" {
 		t.Fatalf("unexpected CORS headers: %#v", got)
 	}
-	if !cfg.CORS.AllowCredentials || cfg.CORS.MaxAgeSecs != 60 {
-		t.Fatalf("unexpected CORS credentials/max age: %+v", cfg.CORS)
+	if !cfg.CORS.AllowCredentials {
+		t.Fatal("expected CORS credentials to be true")
+	}
+	if cfg.CORS.MaxAgeSecs != 60 {
+		t.Fatalf("expected CORS max_age_secs 60, got %d", cfg.CORS.MaxAgeSecs)
 	}
 }
 
