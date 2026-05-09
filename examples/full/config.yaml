@@ -51,6 +51,16 @@ redis:
   prefix: "gin-ninja:example:"
   # 启用后，/api/v1/examples/cache 会优先使用 Redis 作为响应缓存后端。
 
+cors:
+  # 生产环境请改成你的前端/Admin 域名，避免使用宽松的 allow-all CORS。
+  allow_origins:
+    - "http://localhost:3000"
+    - "http://localhost:5173"
+  allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  allow_headers: ["Origin", "Content-Type", "Authorization", "X-Request-ID"]
+  allow_credentials: false
+  max_age_secs: 43200
+
 jwt:
   secret: "${JWT_SECRET:change-me-in-production-please}"   # 生产环境请通过环境变量注入
   expire_hours: 24

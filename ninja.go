@@ -177,7 +177,7 @@ func (api *NinjaAPI) Handler() http.Handler {
 // router-scoped middleware.
 //
 //	api.UseGin(middleware.RequestID())
-//	api.UseGin(middleware.CORS(nil))
+//	api.UseGin(middleware.CORSFromConfig(cfg.CORS))
 //	api.UseGin(middleware.Logger(log))
 //	api.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
