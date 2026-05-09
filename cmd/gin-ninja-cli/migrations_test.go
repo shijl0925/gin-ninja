@@ -277,6 +277,24 @@ func TestRunMakeMigrations(t *testing.T) {
 	}
 }
 
+func TestUniqueMigrationFileNameKeepsTimestampCollisionsInOrder(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	existing := "20260509084213_init_users.sql"
+	if err := os.WriteFile(filepath.Join(dir, existing), []byte("-- existing\n"), 0o644); err != nil {
+		t.Fatalf("write existing migration: %v", err)
+	}
+
+	candidate := uniqueMigrationFileName(dir, existing)
+	if candidate != "20260509084214_init_users.sql" {
+		t.Fatalf("candidate = %q, want next timestamped migration", candidate)
+	}
+	if candidate <= existing {
+		t.Fatalf("candidate %q should sort after existing %q", candidate, existing)
+	}
+}
+
 func TestRunMigrationCommandsHandleMultiStepSchemaEvolution(t *testing.T) {
 	t.Parallel()
 	runMigrationSchemaEvolutionScenario(t, sqliteMigrationTestBackend())
