@@ -411,6 +411,8 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 					bodyRequired = append(bodyRequired, formTag)
 				}
 			}
+			// `form` is dedicated to form-body binding; in non-body contexts it is
+			// intentionally not documented as a query parameter.
 			continue
 		}
 

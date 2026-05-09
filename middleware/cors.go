@@ -46,7 +46,7 @@ func CORS(cfg *CORSConfig) gin.HandlerFunc {
 		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
 		if gin.Mode() == gin.ReleaseMode {
-			log.Println("[gin-ninja] WARNING: middleware.CORS(nil) allows all origins – " +
+			log.Println("[gin-ninja] WARNING: middleware.CORS(nil) enables allow-all origins – " +
 				"provide an explicit CORSConfig in production")
 		}
 		return cors.New(c)
