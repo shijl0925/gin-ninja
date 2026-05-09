@@ -25,8 +25,8 @@ type BindEmbeddedInput struct {
 type bindComplexInput struct {
 	BindEmbeddedInput
 	ID      int     `path:"id"`
-	Page    int     `form:"page"`
-	Active  bool    `form:"active"`
+	Page    int     `query:"page"`
+	Active  bool    `query:"active"`
 	Score   float64 `header:"X-Score"`
 	Session string  `cookie:"session"`
 	Name    string  `json:"name" binding:"required"`
@@ -84,13 +84,13 @@ type multipartBindInput struct {
 }
 
 type bindEdgeQueryInput struct {
-	Search string   `form:"search"`
-	Tags   []string `form:"tag"`
+	Search string   `query:"search"`
+	Tags   []string `query:"tag"`
 }
 
 type bindOverrideInput struct {
 	ID      int    `path:"id" json:"id"`
-	Page    int    `form:"page" json:"page"`
+	Page    int    `query:"page" json:"page"`
 	Trace   string `header:"X-Trace" json:"trace"`
 	Session string `cookie:"session" json:"session"`
 	Name    string `json:"name"`
@@ -113,7 +113,7 @@ type formURLEncodedInput struct {
 
 type embeddedPointerBindInput struct {
 	*BindEmbeddedInput
-	Page int `form:"page" default:"1"`
+	Page int `query:"page" default:"1"`
 }
 
 func init() {

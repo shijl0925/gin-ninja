@@ -54,7 +54,7 @@ type UserOut struct {
 
 type ListUsersInput struct {
 	pagination.PageInput
-	Search string `form:"search"`
+	Search string `query:"search"`
 }
 
 type GetUserInput struct {

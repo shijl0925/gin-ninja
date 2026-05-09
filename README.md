@@ -916,6 +916,8 @@ api.UseGin(
 )
 ```
 
+For production, prefer `middleware.CORSFromConfig(cfg.CORS)` and keep `cfg.CORS.allow_origins` explicit.
+
 ### Router-level (applies only to that group)
 
 ```go
@@ -1452,7 +1454,7 @@ ninja.Get(users, "/", listUsers,
 )
 ```
 
-Use `Response(...)` / `PaginatedResponse[...]` to document non-default OpenAPI responses, `ExcludeFromDocs()` for internal endpoints, `Timeout(...)` for context-based per-operation deadlines, and `RateLimit(...)` for per-operation throttling.
+Use `Response(...)` / `PaginatedResponse[...]` to document non-default OpenAPI responses, `ExcludeFromDocs()` for internal endpoints, `Timeout(...)` for context-based per-operation deadlines, and `RateLimit(...)` for per-operation throttling. `Timeout(...)` is cooperative: the framework returns 408 early, but handlers still need to honor context cancellation.
 
 ---
 

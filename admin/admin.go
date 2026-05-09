@@ -208,13 +208,13 @@ type RelationOptionsOutput struct {
 
 type listInput struct {
 	pagination.PageInput
-	Search string `form:"search"`
-	Sort   string `form:"sort"`
+	Search string `query:"search"`
+	Sort   string `query:"sort"`
 }
 
 type relationOptionsInput struct {
 	pagination.PageInput
-	Search string `form:"search"`
+	Search string `query:"search"`
 	Field  string `path:"field" binding:"required"`
 }
 

@@ -391,22 +391,26 @@ func (s *openAPISpec) extractParams(method string, t reflect.Type) ([]parameterS
 			continue
 		}
 
-		// Query / form parameter.
+		// Query parameter.
+		if queryTag := f.Tag.Get("query"); queryTag != "" {
+			params = append(params, parameterSpec{
+				Name:        queryTag,
+				In:          "query",
+				Required:    isRequired(f),
+				Description: f.Tag.Get("description"),
+				Schema:      fieldSchema,
+			})
+			continue
+		}
+
+		// Form body field.
 		if formTag := f.Tag.Get("form"); formTag != "" {
 			if hasBody && (isMultipart || isFormBody) {
 				bodyFields[formTag] = fieldSchema
 				if isRequired(f) {
 					bodyRequired = append(bodyRequired, formTag)
 				}
-				continue
 			}
-			params = append(params, parameterSpec{
-				Name:        formTag,
-				In:          "query",
-				Required:    isRequired(f),
-				Description: f.Tag.Get("description"),
-				Schema:      fieldSchema,
-			})
 			continue
 		}
 

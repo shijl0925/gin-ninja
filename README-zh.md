@@ -844,6 +844,8 @@ api.UseGin(
 )
 ```
 
+生产环境建议使用 `middleware.CORSFromConfig(cfg.CORS)`，并在配置中显式设置 `allow_origins`。
+
 ### 路由级中间件
 
 ```go
@@ -1021,6 +1023,8 @@ ninja.Get(router, "/internal/health", healthz,
 - `RateLimit(...)`
 - `Security(...)` / `BearerAuth()`
 - `Cache(...)` / `CacheControl(...)` / `ETag()`
+
+`Timeout(...)` 是协作式超时：框架会提前返回 408 并取消 context，但业务代码仍需主动监听 context 取消并尽快退出。
 
 ## 路由缓存 / ETag / Cache-Control
 

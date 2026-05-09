@@ -32,7 +32,7 @@ type benchmarkRouteOutput struct {
 }
 
 type benchmarkBindingInput struct {
-	Limit int    `form:"limit" binding:"required,gte=1,lte=100"`
+	Limit int    `query:"limit" binding:"required,gte=1,lte=100"`
 	Name  string `json:"name" binding:"required,min=3"`
 	Count int    `json:"count" binding:"required,gte=1"`
 }
@@ -45,7 +45,7 @@ type benchmarkBindingOutput struct {
 }
 
 type benchmarkBindingQuery struct {
-	Limit int `form:"limit" binding:"required,gte=1,lte=100"`
+	Limit int `query:"limit" binding:"required,gte=1,lte=100"`
 }
 
 type benchmarkBindingBody struct {
