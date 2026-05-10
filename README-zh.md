@@ -24,7 +24,7 @@ gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发�
 ## 主要特性
 
 - **类型安全处理器**：基于泛型，直接使用 Go 结构体作为输入输出
-- **自动参数绑定**：支持 `path`、`form`、`header`、`cookie`、`json`、`file`
+- **自动参数绑定**：支持 `path`、`query`、`form`、`header`、`cookie`、`json`、`file`
 - **默认值与校验**：支持 `default:"..."` 与 `binding:"..."`
 - **自动 OpenAPI / Swagger**：默认暴露 `/openapi.json` 与 `/docs`
 - **路由分组**：支持嵌套路由、标签、版本、路由级中间件
@@ -127,7 +127,7 @@ import (
 )
 
 type HelloInput struct {
-    Name string `form:"name" binding:"required"`
+    Name string `query:"name" binding:"required"`
 }
 
 type HelloOutput struct {
@@ -656,7 +656,8 @@ type Project struct {
 | 标签 | 来源 | 适用方法 |
 | --- | --- | --- |
 | `path:"x"` | URL 路径参数 | 全部 |
-| `form:"x"` | 查询参数 / 表单字段 | 全部 |
+| `query:"x"` | URL 查询参数 | 全部 |
+| `form:"x"` | 表单请求体字段 | POST / PUT / PATCH 的 `application/x-www-form-urlencoded` 或 multipart 请求 |
 | `header:"x"` | 请求头 | 全部 |
 | `cookie:"x"` | Cookie | 全部 |
 | `json:"x"` | JSON 请求体 | POST / PUT / PATCH |
@@ -665,7 +666,7 @@ type Project struct {
 补充规则：
 
 - `binding:"..."` 使用 `go-playground/validator`
-- `default:"..."` 适用于 `form`、`header`、`cookie`
+- `default:"..."` 适用于 `query`、`form`、`header`、`cookie`
 - multipart 请求中可以把普通 `form` 字段和 `file` 字段写在同一个结构体里
 
 ## 响应模型与错误处理
@@ -934,8 +935,8 @@ type ListUsersInput struct {
 ```go
 type ListUsersInput struct {
     pagination.PageInput
-    Search  string `form:"search" filter:"name|email,like"`
-    IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq"`
+    Search  string `query:"search" filter:"name|email,like"`
+    IsAdmin *bool  `query:"is_admin" filter:"is_admin,eq"`
 }
 ```
 
@@ -950,7 +951,7 @@ filterOpts, err := filter.BuildOptions(in)
 ```go
 type ListUsersInput struct {
     pagination.PageInput
-    Sort string `form:"sort" order:"id|name|email|age|created_at"`
+    Sort string `query:"sort" order:"id|name|email|age|created_at"`
 }
 ```
 
@@ -1103,7 +1104,7 @@ api := ninja.New(ninja.Config{
 
 ```go
 type EventsInput struct {
-    Topic string `form:"topic" default:"system"`
+    Topic string `query:"topic" default:"system"`
 }
 
 ninja.SSE(events, "/stream", func(ctx *ninja.Context, in *EventsInput, stream *ninja.SSEStream) error {
@@ -1124,7 +1125,7 @@ ninja.SSE(events, "/stream", func(ctx *ninja.Context, in *EventsInput, stream *n
 
 ```go
 type ChatInput struct {
-    Room string `form:"room" default:"lobby"`
+    Room string `query:"room" default:"lobby"`
 }
 
 ninja.WebSocket(ws, "/chat", func(ctx *ninja.Context, in *ChatInput, conn *ninja.WebSocketConn) error {
