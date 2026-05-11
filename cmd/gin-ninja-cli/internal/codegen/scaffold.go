@@ -1363,7 +1363,7 @@ Name string {{ bt }}json:"name"{{ bt }}
 
 type {{ .ListName }} struct {
 pagination.PageInput
-Search string {{ bt }}form:"search"{{ bt }}
+Search string {{ bt }}query:"search"{{ bt }}
 }
 
 type {{ .GetName }} struct {

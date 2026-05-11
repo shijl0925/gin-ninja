@@ -37,6 +37,14 @@ func TestWriteProjectScaffold(t *testing.T) {
 		}
 	}
 
+	schemaContent, err := os.ReadFile(filepath.Join(outputDir, "app", "schemas.go"))
+	if err != nil {
+		t.Fatalf("read app/schemas.go: %v", err)
+	}
+	if !strings.Contains(string(schemaContent), "`query:\"search\"`") {
+		t.Fatalf("expected generated list input to use query tag for search, got:\n%s", schemaContent)
+	}
+
 	runScaffoldGoTest(t, outputDir)
 }
 

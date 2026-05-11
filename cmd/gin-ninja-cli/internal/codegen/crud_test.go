@@ -562,11 +562,11 @@ type Project struct {
 	generated := string(content)
 
 	checks := []string{
-		`Name    *string ` + "`form:\"name\" filter:\"name,eq\"`" + ``,
-		`Status  *string ` + "`form:\"status\" filter:\"status,like\"`" + ``,
-		`OwnerID *uint   ` + "`form:\"owner_id\" filter:\"owner_id,eq\"`" + ``,
-		`Sort    string  ` + "`form:\"sort\" order:\"name|status|owner_id\" description:\"Validated sort fields\"`" + ``,
-		`Search  string  ` + "`form:\"search\" filter:\"name|status,like\" description:\"Keyword search\"`" + ``,
+		`Name    *string ` + "`query:\"name\" filter:\"name,eq\"`" + ``,
+		`Status  *string ` + "`query:\"status\" filter:\"status,like\"`" + ``,
+		`OwnerID *uint   ` + "`query:\"owner_id\" filter:\"owner_id,eq\"`" + ``,
+		`Sort    string  ` + "`query:\"sort\" order:\"name|status|owner_id\" description:\"Validated sort fields\"`" + ``,
+		`Search  string  ` + "`query:\"search\" filter:\"name|status,like\" description:\"Keyword search\"`" + ``,
 		`Owner                      *ProjectOwnerOut  ` + "`json:\"owner,omitempty\"`" + ``,
 		`Tasks                      []ProjectTasksOut ` + "`json:\"tasks,omitempty\"`" + ``,
 		`Tags                       []ProjectTagsOut  ` + "`json:\"tags,omitempty\"`" + ``,

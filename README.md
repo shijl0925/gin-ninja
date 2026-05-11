@@ -160,7 +160,7 @@ import (
 )
 
 type HelloInput struct {
-    Name string `form:"name" binding:"required"`
+    Name string `query:"name" binding:"required"`
 }
 
 type HelloOutput struct {
@@ -1184,7 +1184,8 @@ response.JSON(c, response.OKWithMessage("created", user))
 | Tag          | Source                         | Methods            |
 |--------------|--------------------------------|--------------------|
 | `path:"x"`   | URL path parameter             | all                |
-| `form:"x"`   | URL query string / form field  | all                |
+| `query:"x"`  | URL query string               | all                |
+| `form:"x"`   | Form body field                | POST / PUT / PATCH |
 | `header:"x"` | Request header                 | all                |
 | `cookie:"x"` | Request cookie                 | all                |
 | `json:"x"`   | JSON request body              | POST / PUT / PATCH |
@@ -1192,7 +1193,7 @@ response.JSON(c, response.OKWithMessage("created", user))
 
 `binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
 
-`default:"..."` applies to `form`, `header`, and `cookie` fields when the client omits the value.
+`default:"..."` applies to `query`, `form`, `header`, and `cookie` fields when the client omits the value.
 
 ---
 
@@ -1205,8 +1206,8 @@ Embed `pagination.PageInput` in a list input struct, then add `filter:"column,op
 ```go
 type ListUsersInput struct {
     pagination.PageInput
-    Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-    IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+    Search  string `query:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
+    IsAdmin *bool  `query:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 ```
 
@@ -1264,8 +1265,8 @@ import "github.com/shijl0925/gin-ninja/order"
 
 type ListUsersInput struct {
     pagination.PageInput
-    Sort   string `form:"sort" order:"id|name|email|age|is_admin|created_at"`
-    Search string `form:"search" filter:"name|email,like"`
+    Sort   string `query:"sort" order:"id|name|email|age|is_admin|created_at"`
+    Search string `query:"search" filter:"name|email,like"`
 }
 
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
@@ -1287,7 +1288,7 @@ If you need a public alias that maps to a different database column, use `alias:
 
 ```go
 type ListUsersInput struct {
-    Sort string `form:"sort" order:"name|created:created_at"`
+    Sort string `query:"sort" order:"name|created:created_at"`
 }
 ```
 
@@ -1605,7 +1606,7 @@ Use `ninja.SSE(...)` for one-way server push / streaming text output:
 
 ```go
 type EventsInput struct {
-    Topic string `form:"topic" default:"system"`
+    Topic string `query:"topic" default:"system"`
 }
 
 events := ninja.NewRouter("/events", ninja.WithTags("Events"))
@@ -1658,7 +1659,7 @@ Use `ninja.WebSocket(...)` for bidirectional realtime communication:
 
 ```go
 type ChatInput struct {
-    Room string `form:"room" default:"lobby"`
+    Room string `query:"room" default:"lobby"`
 }
 
 ws := ninja.NewRouter("/ws", ninja.WithTags("Realtime"))
