@@ -175,6 +175,8 @@ func queryValues(c *gin.Context) url.Values {
 
 func formValues(c *gin.Context) (url.Values, error) {
 	if c.Request.PostForm == nil {
+		// PostForm may already be populated by upstream middleware or tests.
+		// Parse only when needed so we don't redo form parsing work.
 		if err := c.Request.ParseForm(); err != nil {
 			return nil, &Error{
 				Status:  http.StatusBadRequest,

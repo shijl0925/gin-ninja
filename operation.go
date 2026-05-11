@@ -131,8 +131,8 @@ func PaginatedResponse[T any](status int, description string) OperationOption {
 
 // Timeout applies a context-based per-operation cooperative timeout.
 // It cancels the request context and allows an early timeout response, but
-// long-running handlers must observe ctx.Request.Context().Done() to stop
-// promptly.
+// long-running handlers must observe ctx.Done() or ctx.Request.Context().Done()
+// to stop promptly.
 func Timeout(d time.Duration) OperationOption {
 	return func(op *operation) { op.timeout = d }
 }
