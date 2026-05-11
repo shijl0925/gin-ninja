@@ -199,6 +199,23 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			t.Fatalf("unexpected cookie values: %#v", in.Numbers)
 		}
 	})
+
+	t.Run("json body does not populate form-only fields", func(t *testing.T) {
+		type input struct {
+			Title string `form:"title"`
+			Name  string `json:"name"`
+		}
+		c, _ := newTestContext(http.MethodPost, "/", `{"title":"from-json","name":"ok"}`)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		var in input
+		if err := bindInput(c, http.MethodPost, &in); err != nil {
+			t.Fatalf("bindInput: %v", err)
+		}
+		if in.Title != "" || in.Name != "ok" {
+			t.Fatalf("unexpected bound input: %+v", in)
+		}
+	})
 }
 
 func TestModelSchemaAdditionalCoverage(t *testing.T) {

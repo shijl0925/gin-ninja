@@ -656,6 +656,7 @@ func collectNonBodyFieldValuesInto(t reflect.Type, v reflect.Value, prefix []int
 func isNonBodyField(field reflect.StructField) bool {
 	return field.Tag.Get("path") != "" ||
 		field.Tag.Get("query") != "" ||
+		field.Tag.Get("form") != "" ||
 		field.Tag.Get("header") != "" ||
 		field.Tag.Get("cookie") != "" ||
 		field.Tag.Get("file") != ""
