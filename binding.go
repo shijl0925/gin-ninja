@@ -174,11 +174,13 @@ func queryValues(c *gin.Context) url.Values {
 }
 
 func formValues(c *gin.Context) (url.Values, error) {
-	if err := c.Request.ParseForm(); err != nil {
-		return nil, &Error{
-			Status:  http.StatusBadRequest,
-			Code:    "INVALID_FORM",
-			Message: "invalid form body",
+	if c.Request.PostForm == nil {
+		if err := c.Request.ParseForm(); err != nil {
+			return nil, &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "INVALID_FORM",
+				Message: "invalid form body",
+			}
 		}
 	}
 	values := url.Values{}

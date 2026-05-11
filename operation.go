@@ -388,10 +388,8 @@ func invokeWithContextGuard(c *gin.Context, invoke func() error) error {
 	if err := invoke(); err != nil {
 		return err
 	}
-	if c != nil && c.Request != nil {
-		if err := c.Request.Context().Err(); err != nil {
-			return err
-		}
+	if err := c.Request.Context().Err(); err != nil {
+		return err
 	}
 	return nil
 }
