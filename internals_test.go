@@ -959,3 +959,63 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 		t.Fatalf("unexpected void transaction calls: with=%v begin=%v commit=%v rollback=%v", withTxCalled, beginCalled, commitCalled, rollbackCalled)
 	}
 }
+
+func TestOperationWithTransactionRollsBackWhenTimeoutContextExpires(t *testing.T) {
+	committed := make(chan struct{}, 1)
+	rolledBack := make(chan struct{}, 1)
+	transactionDone := make(chan error, 1)
+
+	handlers := &TransactionHandlers{}
+	handlers.WithTransaction = func(_ *gin.Context, fn func() error) error {
+		err := fn()
+		transactionDone <- err
+		if err != nil {
+			rolledBack <- struct{}{}
+			return err
+		}
+		committed <- struct{}{}
+		return nil
+	}
+	api := New(Config{DisableGinDefault: true, DisableHomepage: true, DisableOpenAPI: true, TransactionHandlers: handlers})
+
+	op := newVoidOperation(http.MethodGet, "/", func(ctx *Context, input *struct{}) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	}, nil)
+	WithTransaction()(op)
+	Timeout(10 * time.Millisecond)(op)
+	op.finalize()
+
+	router := gin.New()
+	router.GET("/", func(c *gin.Context) {
+		c.Set(ninjaAPIContextKey, api)
+		op.ginHandler(c)
+	})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	if w.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected timeout response, got %d", w.Code)
+	}
+
+	select {
+	case err := <-transactionDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expected transaction callback to receive deadline error, got %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("transaction callback did not finish")
+	}
+
+	select {
+	case <-rolledBack:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected custom transaction wrapper to roll back")
+	}
+
+	select {
+	case <-committed:
+		t.Fatal("expected custom transaction wrapper not to commit after timeout")
+	default:
+	}
+}
