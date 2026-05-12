@@ -187,6 +187,18 @@ func TestCORS_CustomConfigDefaults(t *testing.T) {
 	}))
 	r.OPTIONS("/", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
+	allowedReq := httptest.NewRequest(http.MethodOptions, "http://localhost/", nil)
+	allowedReq.Header.Set("Origin", "http://localhost:3000")
+	allowedReq.Header.Set("Access-Control-Request-Method", "GET")
+	allowed := httptest.NewRecorder()
+	r.ServeHTTP(allowed, allowedReq)
+	if got := allowed.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:3000" {
+		t.Fatalf("expected safe default localhost origin to be allowed, got %q", got)
+	}
+	if got := allowed.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, "PATCH") {
+		t.Fatalf("expected default methods, got %q", got)
+	}
+
 	req := httptest.NewRequest(http.MethodOptions, "http://localhost/", nil)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", "GET")
@@ -194,11 +206,8 @@ func TestCORS_CustomConfigDefaults(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("expected default allow-origin header, got %q", got)
-	}
-	if got := w.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, "PATCH") {
-		t.Fatalf("expected default methods, got %q", got)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected arbitrary origin to be rejected by safe defaults, got %q", got)
 	}
 }
 

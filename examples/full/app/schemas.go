@@ -43,9 +43,9 @@ type UserOut struct {
 // ListUsersInput holds query parameters for listing users.
 type ListUsersInput struct {
 	pagination.PageInput
-	Sort    string `form:"sort"     order:"id|name|email|age|is_admin|created_at" description:"Sort by id, name, email, age, is_admin, or created_at"`
-	Search  string `form:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-	IsAdmin *bool  `form:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+	Sort    string `query:"sort"     order:"id|name|email|age|is_admin|created_at" description:"Sort by id, name, email, age, is_admin, or created_at"`
+	Search  string `query:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
+	IsAdmin *bool  `query:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
 }
 
 // GetUserInput holds the path parameter for retrieving a single user.
@@ -88,8 +88,8 @@ func toUserOut(u User) (*UserOut, error) {
 type RequestMetaInput struct {
 	Session string `cookie:"session"        default:"guest-session" description:"Session cookie value"`
 	TraceID string `header:"X-Trace-ID"     default:"trace-demo"    description:"Trace identifier header"`
-	Lang    string `form:"lang"             default:"zh-CN"         description:"Preferred language query parameter"`
-	Verbose bool   `form:"verbose"          default:"false"         description:"Verbose output flag"`
+	Lang    string `query:"lang"            default:"zh-CN"         description:"Preferred language query parameter"`
+	Verbose bool   `query:"verbose"         default:"false"         description:"Verbose output flag"`
 }
 
 // RequestMetaOutput echoes the effective request metadata after binding.
@@ -139,12 +139,12 @@ type FeatureItemOut struct {
 // FeatureListInput is the request schema for the paginated demo endpoint.
 type FeatureListInput struct {
 	pagination.PageInput
-	Search string `form:"search" default:"demo" description:"Optional feature search term"`
+	Search string `query:"search" default:"demo" description:"Optional feature search term"`
 }
 
 // StreamDemoInput is shared by SSE and WebSocket demo endpoints.
 type StreamDemoInput struct {
-	Name string `form:"name" default:"demo-user" description:"Name echoed by the streaming demo"`
+	Name string `query:"name" default:"demo-user" description:"Name echoed by the streaming demo"`
 }
 
 // UploadSingleInput demonstrates single-file multipart binding with form fields.

@@ -1306,13 +1306,13 @@ func {{ .ToOutFuncName }}(item {{ .ModelName }}) (*{{ .ModelName }}Out, error) {
 type List{{ .PluralModel }}Input struct {
 pagination.PageInput
 {{- range .ListFields }}
-	{{ .Name }} {{ .TypeExpr }} ` + "`form:\"{{ .FormName }}\" filter:\"{{ .FilterTag }}\"{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
+	{{ .Name }} {{ .TypeExpr }} ` + "`query:\"{{ .FormName }}\" filter:\"{{ .FilterTag }}\"{{ if .Description }} description:\"{{ .Description }}\"{{ end }}`" + `
 {{- end }}
 {{- if .SearchFields }}
-	Search string ` + "`form:\"search\" filter:\"{{ range $i, $field := .SearchFields }}{{ if $i }}|{{ end }}{{ $field }}{{ end }},like\" description:\"Keyword search\"`" + `
+	Search string ` + "`query:\"search\" filter:\"{{ range $i, $field := .SearchFields }}{{ if $i }}|{{ end }}{{ $field }}{{ end }},like\" description:\"Keyword search\"`" + `
 {{- end }}
 {{- if .SortFields }}
-	Sort string ` + "`form:\"sort\" order:\"{{ range $i, $field := .SortFields }}{{ if $i }}|{{ end }}{{ if eq $field.Alias $field.Column }}{{ $field.Alias }}{{ else }}{{ $field.Alias }}:{{ $field.Column }}{{ end }}{{ end }}\" description:\"Validated sort fields\"`" + `
+	Sort string ` + "`query:\"sort\" order:\"{{ range $i, $field := .SortFields }}{{ if $i }}|{{ end }}{{ if eq $field.Alias $field.Column }}{{ $field.Alias }}{{ else }}{{ $field.Alias }}:{{ $field.Column }}{{ end }}{{ end }}\" description:\"Validated sort fields\"`" + `
 {{- end }}
 }
 

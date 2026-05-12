@@ -347,8 +347,8 @@ func TestLifecycleStartupFailureRunsShutdownHooks(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type listInput struct {
-	Name string `form:"name"`
-	Page int    `form:"page"`
+	Name string `query:"name"`
+	Page int    `query:"page"`
 }
 
 type listOutput struct {
@@ -460,7 +460,7 @@ type cookieOutput struct {
 }
 
 type defaultsInput struct {
-	Name    string `form:"name" default:"guest" description:"effective user name"`
+	Name    string `query:"name" default:"guest" description:"effective user name"`
 	Trace   string `header:"X-Trace" default:"trace-default" description:"trace identifier"`
 	Session string `cookie:"session" default:"anon" description:"session key"`
 }
@@ -1202,6 +1202,44 @@ func TestRouter_PanicsWhenMutatedAfterMount(t *testing.T) {
 	})
 }
 
+func TestRouter_StreamOperationsPanicWhenAddedAfterMount(t *testing.T) {
+	t.Run("sse", func(t *testing.T) {
+		api := ninja.New(ninja.Config{DisableGinDefault: true})
+		r := ninja.NewRouter("/test")
+		ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+			return &struct{}{}, nil
+		})
+		api.AddRouter(r)
+
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected mounted router SSE mutation to panic")
+			}
+		}()
+		ninja.SSE(r, "/events", func(ctx *ninja.Context, in *streamInput, stream *ninja.SSEStream) error {
+			return nil
+		})
+	})
+
+	t.Run("websocket", func(t *testing.T) {
+		api := ninja.New(ninja.Config{DisableGinDefault: true})
+		r := ninja.NewRouter("/test")
+		ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*struct{}, error) {
+			return &struct{}{}, nil
+		})
+		api.AddRouter(r)
+
+		defer func() {
+			if recover() == nil {
+				t.Fatal("expected mounted router websocket mutation to panic")
+			}
+		}()
+		ninja.WebSocket(r, "/ws", func(ctx *ninja.Context, in *streamInput, conn *ninja.WebSocketConn) error {
+			return nil
+		})
+	})
+}
+
 func TestRouter_UseGin_MiddlewareRuns(t *testing.T) {
 	api := ninja.New(ninja.Config{DisableGinDefault: true})
 	called := false
@@ -1740,7 +1778,7 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 }
 
 type streamInput struct {
-	Name string `form:"name"`
+	Name string `query:"name"`
 }
 
 func TestSSEAndWebSocketHelpers(t *testing.T) {
@@ -1867,7 +1905,7 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		r := ninja.NewRouter("/stream-boundary")
 
 		type wsInput struct {
-			Count int `form:"count"`
+			Count int `query:"count"`
 		}
 
 		ninja.WebSocket(r, "/ws", func(ctx *ninja.Context, in *wsInput, conn *ninja.WebSocketConn) error {

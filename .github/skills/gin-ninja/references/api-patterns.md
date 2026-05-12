@@ -22,7 +22,7 @@ Keep request and response structs separate from persistence models unless the AP
 ## Request binding tags
 
 - path params: ``path:"id"``
-- query params: ``form:"page"``
+- query params: ``query:"page"``
 - headers: ``header:"X-Request-ID"``
 - cookies: ``cookie:"session"``
 - JSON body: ``json:"name"``

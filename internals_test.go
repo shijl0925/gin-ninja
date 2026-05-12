@@ -25,8 +25,8 @@ type BindEmbeddedInput struct {
 type bindComplexInput struct {
 	BindEmbeddedInput
 	ID      int     `path:"id"`
-	Page    int     `form:"page"`
-	Active  bool    `form:"active"`
+	Page    int     `query:"page"`
+	Active  bool    `query:"active"`
 	Score   float64 `header:"X-Score"`
 	Session string  `cookie:"session"`
 	Name    string  `json:"name" binding:"required"`
@@ -84,13 +84,13 @@ type multipartBindInput struct {
 }
 
 type bindEdgeQueryInput struct {
-	Search string   `form:"search"`
-	Tags   []string `form:"tag"`
+	Search string   `query:"search"`
+	Tags   []string `query:"tag"`
 }
 
 type bindOverrideInput struct {
 	ID      int    `path:"id" json:"id"`
-	Page    int    `form:"page" json:"page"`
+	Page    int    `query:"page" json:"page"`
 	Trace   string `header:"X-Trace" json:"trace"`
 	Session string `cookie:"session" json:"session"`
 	Name    string `json:"name"`
@@ -113,7 +113,7 @@ type formURLEncodedInput struct {
 
 type embeddedPointerBindInput struct {
 	*BindEmbeddedInput
-	Page int `form:"page" default:"1"`
+	Page int `query:"page" default:"1"`
 }
 
 func init() {
@@ -957,5 +957,65 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 	}
 	if !withTxCalled || !beginCalled || !rollbackCalled || commitCalled {
 		t.Fatalf("unexpected void transaction calls: with=%v begin=%v commit=%v rollback=%v", withTxCalled, beginCalled, commitCalled, rollbackCalled)
+	}
+}
+
+func TestOperationWithTransactionRollsBackWhenTimeoutContextExpires(t *testing.T) {
+	committed := make(chan struct{}, 1)
+	rolledBack := make(chan struct{}, 1)
+	transactionDone := make(chan error, 1)
+
+	handlers := &TransactionHandlers{}
+	handlers.WithTransaction = func(_ *gin.Context, fn func() error) error {
+		err := fn()
+		transactionDone <- err
+		if err != nil {
+			rolledBack <- struct{}{}
+			return err
+		}
+		committed <- struct{}{}
+		return nil
+	}
+	api := New(Config{DisableGinDefault: true, DisableHomepage: true, DisableOpenAPI: true, TransactionHandlers: handlers})
+
+	op := newVoidOperation(http.MethodGet, "/", func(ctx *Context, input *struct{}) error {
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	}, nil)
+	WithTransaction()(op)
+	Timeout(10 * time.Millisecond)(op)
+	op.finalize()
+
+	router := gin.New()
+	router.GET("/", func(c *gin.Context) {
+		c.Set(ninjaAPIContextKey, api)
+		op.ginHandler(c)
+	})
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/", nil))
+	if w.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected timeout response, got %d", w.Code)
+	}
+
+	select {
+	case err := <-transactionDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expected transaction callback to receive deadline error, got %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("transaction callback did not finish")
+	}
+
+	select {
+	case <-rolledBack:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("expected custom transaction wrapper to roll back")
+	}
+
+	select {
+	case <-committed:
+		t.Fatal("expected custom transaction wrapper not to commit after timeout")
+	default:
 	}
 }

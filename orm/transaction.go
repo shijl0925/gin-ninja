@@ -69,6 +69,12 @@ func WithTransaction(c *gin.Context, fn func() error) (err error) {
 		_ = Rollback(c)
 		return err
 	}
+	if c.Request != nil {
+		if ctxErr := c.Request.Context().Err(); ctxErr != nil {
+			_ = Rollback(c)
+			return ctxErr
+		}
+	}
 	return Commit(c)
 }
 

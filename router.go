@@ -122,8 +122,8 @@ func (r *Router) UseGin(mw ...gin.HandlerFunc) {
 // Get registers a GET endpoint.
 //
 //	type ListUsersQuery struct {
-//	    Page int `form:"page"`
-//	    Size int `form:"size"`
+//	    Page int `query:"page"`
+//	    Size int `query:"size"`
 //	}
 //	ninja.Get(router, "/", listUsersHandler)
 func Get[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {

@@ -4,7 +4,7 @@
 //
 //	type ListUsersInput struct {
 //	    pagination.PageInput
-//	    Search string `form:"search"`
+//	    Search string `query:"search"`
 //	}
 //
 //	func listUsers(ctx *ninja.Context, input *ListUsersInput) (*pagination.Page[UserOut], error) {
@@ -29,13 +29,13 @@ const MaxSize = 100
 //
 //	type ListUsersInput struct {
 //	    pagination.PageInput
-//	    Name string `form:"name"`
+//	    Name string `query:"name"`
 //	}
 type PageInput struct {
 	// Page is the 1-based page number (default: 1).
-	Page int `form:"page" binding:"omitempty,min=1" json:"-"`
+	Page int `query:"page" binding:"omitempty,min=1" json:"-"`
 	// Size is the number of items per page (default: 20, max: 100).
-	Size int `form:"size" binding:"omitempty,min=1,max=100" json:"-"`
+	Size int `query:"size" binding:"omitempty,min=1,max=100" json:"-"`
 }
 
 // GetPage returns the effective page number (at least 1).

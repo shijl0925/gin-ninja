@@ -42,9 +42,9 @@ func FuzzBindInputFormLikeValues(f *testing.F) {
 	}
 
 	type input struct {
-		Flag   bool   `form:"flag"`
-		Page   int    `form:"page"`
-		Name   string `form:"name"`
+		Flag   bool   `query:"flag"`
+		Page   int    `query:"page"`
+		Name   string `query:"name"`
 		Header string `header:"X-Name"`
 	}
 

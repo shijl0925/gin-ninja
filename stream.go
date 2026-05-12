@@ -122,6 +122,7 @@ func (c *WebSocketConn) ReceiveText() (string, error) {
 
 // SSE registers a GET endpoint that streams server-sent events.
 func SSE[TIn any](r *Router, path string, handler func(*Context, *TIn, *SSEStream) error, opts ...OperationOption) {
+	r.assertNotMounted("add operation")
 	op := newSSEOperation(path, handler, r.tags)
 	op.security = cloneSecurityRequirements(r.security)
 	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
@@ -134,6 +135,7 @@ func SSE[TIn any](r *Router, path string, handler func(*Context, *TIn, *SSEStrea
 
 // WebSocket registers a GET endpoint that upgrades the connection to WebSocket.
 func WebSocket[TIn any](r *Router, path string, handler func(*Context, *TIn, *WebSocketConn) error, opts ...OperationOption) {
+	r.assertNotMounted("add operation")
 	op := newWebSocketOperation(path, handler, r.tags)
 	op.security = cloneSecurityRequirements(r.security)
 	op.tagDescriptions = cloneStringMap(r.tagDescriptions)

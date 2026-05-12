@@ -34,7 +34,8 @@ var timeType = reflect.TypeOf(time.Time{})
 //
 // Tag conventions:
 //   - `path:"name"`   – URL path parameter (e.g. /users/:id)
-//   - `form:"name"`   – query-string parameter for all methods, or form-body for POST
+//   - `query:"name"`  – URL query parameter
+//   - `form:"name"`   – application/x-www-form-urlencoded form-body parameter
 //   - `header:"name"` – request header
 //   - `cookie:"name"` – request cookie
 //   - `json:"name"`   – request JSON body field (POST/PUT/PATCH only)
@@ -58,9 +59,16 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	// Use the framework binder instead of gin's generic form binder so request
 	// sources keep gin-ninja's documented precedence: path/header/cookie/query
 	// and form values are restored if a JSON body binds the same field.
+	if hasQueryFields(t) {
+		values := queryValues(c)
+		if err := bindQueryFields(t, v, values); err != nil {
+			return err
+		}
+	}
+
 	formBody := isBodyMethod(method) && isFormURLEncodedRequest(c)
-	if hasFormFields(t) {
-		values, err := formValues(c, method)
+	if formBody && hasFormFields(t) {
+		values, err := formValues(c)
 		if err != nil {
 			return err
 		}
@@ -135,12 +143,40 @@ func hasFormFields(t reflect.Type) bool {
 	return false
 }
 
-func formValues(c *gin.Context, method string) (url.Values, error) {
+func hasQueryFields(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() && !field.Anonymous {
+			continue
+		}
+		if field.Anonymous && hasQueryFields(field.Type) {
+			return true
+		}
+		if tag := field.Tag.Get("query"); tag != "" && tag != "-" {
+			return true
+		}
+	}
+	return false
+}
+
+func queryValues(c *gin.Context) url.Values {
 	values := url.Values{}
 	for key, items := range c.Request.URL.Query() {
 		values[key] = append([]string(nil), items...)
 	}
-	if isBodyMethod(method) && isFormURLEncodedRequest(c) {
+	return values
+}
+
+func formValues(c *gin.Context) (url.Values, error) {
+	if c.Request.PostForm == nil {
+		// PostForm may already be populated by upstream middleware or tests.
+		// Parse only when needed so we don't redo form parsing work.
 		if err := c.Request.ParseForm(); err != nil {
 			return nil, &Error{
 				Status:  http.StatusBadRequest,
@@ -148,11 +184,44 @@ func formValues(c *gin.Context, method string) (url.Values, error) {
 				Message: "invalid form body",
 			}
 		}
-		for key, items := range c.Request.PostForm {
-			values[key] = append(values[key], items...)
-		}
+	}
+	values := url.Values{}
+	for key, items := range c.Request.PostForm {
+		values[key] = append([]string(nil), items...)
 	}
 	return values, nil
+}
+
+func bindQueryFields(t reflect.Type, v reflect.Value, values url.Values) error {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fv := v.Field(i)
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			if err := bindQueryFields(deref(field.Type), derefValue(fv), values); err != nil {
+				return err
+			}
+			continue
+		}
+		if !fv.CanSet() {
+			continue
+		}
+		queryTag := field.Tag.Get("query")
+		if queryTag == "" || queryTag == "-" {
+			continue
+		}
+		raw, ok := values[queryTag]
+		if !ok || len(raw) == 0 {
+			continue
+		}
+		if err := setFieldFromStrings(fv, raw); err != nil {
+			return &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "INVALID_QUERY",
+				Message: fmt.Sprintf("query field '%s': %s", queryTag, err.Error()),
+			}
+		}
+	}
+	return nil
 }
 
 func bindFormFields(t reflect.Type, v reflect.Value, values url.Values, formBody bool) error {
@@ -221,8 +290,12 @@ func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
 			if _, err := c.Cookie(field.Tag.Get("cookie")); err == nil {
 				continue
 			}
+		case field.Tag.Get("query") != "":
+			if hasQueryValue(c, field.Tag.Get("query")) {
+				continue
+			}
 		case field.Tag.Get("form") != "":
-			if hasFormValue(c, field.Tag.Get("form")) {
+			if hasFormBodyValue(c, field.Tag.Get("form")) {
 				continue
 			}
 		default:
@@ -542,10 +615,11 @@ func isFormURLEncodedRequest(c *gin.Context) bool {
 	return strings.HasPrefix(strings.ToLower(c.ContentType()), "application/x-www-form-urlencoded")
 }
 
-func hasFormValue(c *gin.Context, name string) bool {
-	if c.Request.URL.Query().Has(name) {
-		return true
-	}
+func hasQueryValue(c *gin.Context, name string) bool {
+	return c.Request.URL.Query().Has(name)
+}
+
+func hasFormBodyValue(c *gin.Context, name string) bool {
 	if _, ok := c.GetPostForm(name); ok {
 		return true
 	}
@@ -585,6 +659,7 @@ func collectNonBodyFieldValuesInto(t reflect.Type, v reflect.Value, prefix []int
 
 func isNonBodyField(field reflect.StructField) bool {
 	return field.Tag.Get("path") != "" ||
+		field.Tag.Get("query") != "" ||
 		field.Tag.Get("form") != "" ||
 		field.Tag.Get("header") != "" ||
 		field.Tag.Get("cookie") != "" ||

@@ -71,20 +71,20 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("hasFormFields and defaults", func(t *testing.T) {
+	t.Run("hasQueryFields and defaults", func(t *testing.T) {
 		type embedded struct {
-			Flag bool `form:"flag"`
+			Flag bool `query:"flag"`
 		}
 		type input struct {
 			embedded
 			Token string `header:"X-Token" default:"guest"`
-			Page  int    `form:"page" default:"7"`
+			Page  int    `query:"page" default:"7"`
 		}
-		if !hasFormFields(reflect.TypeOf(input{})) {
-			t.Fatal("expected embedded form fields to be detected")
+		if !hasQueryFields(reflect.TypeOf(input{})) {
+			t.Fatal("expected embedded query fields to be detected")
 		}
-		if hasFormFields(reflect.TypeOf(1)) {
-			t.Fatal("expected non-struct to have no form fields")
+		if hasQueryFields(reflect.TypeOf(1)) {
+			t.Fatal("expected non-struct to have no query fields")
 		}
 
 		c, _ := newTestContext(http.MethodGet, "/?flag=true", "")
@@ -168,7 +168,7 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		c, _ := newTestContext(http.MethodPost, "/", "")
 		c.Request.PostForm = make(map[string][]string)
 		c.Request.PostForm.Set("enabled", "true")
-		if !hasFormValue(c, "enabled") {
+		if !hasFormBodyValue(c, "enabled") {
 			t.Fatal("expected post form value to be detected")
 		}
 	})
@@ -197,6 +197,23 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		}
 		if !reflect.DeepEqual(in.Numbers, []uint{4, 5}) {
 			t.Fatalf("unexpected cookie values: %#v", in.Numbers)
+		}
+	})
+
+	t.Run("json body does not populate form-only fields", func(t *testing.T) {
+		type input struct {
+			Title string `form:"title"`
+			Name  string `json:"name"`
+		}
+		c, _ := newTestContext(http.MethodPost, "/", `{"title":"from-json","name":"ok"}`)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		var in input
+		if err := bindInput(c, http.MethodPost, &in); err != nil {
+			t.Fatalf("bindInput: %v", err)
+		}
+		if in.Title != "" || in.Name != "ok" {
+			t.Fatalf("unexpected bound input: %+v", in)
 		}
 	})
 }

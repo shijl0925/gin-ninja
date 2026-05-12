@@ -8,7 +8,7 @@ import (
 )
 
 type taggedSortInput struct {
-	Sort string `form:"sort" order:"name|created:created_at|score"`
+	Sort string `query:"sort" order:"name|created:created_at|score"`
 }
 
 type legacySortInput struct {
@@ -150,7 +150,7 @@ func TestResolveOrder(t *testing.T) {
 
 func TestResolveOrderRejectsInvalidOrderTagTarget(t *testing.T) {
 	input := &struct {
-		Page int `form:"page" order:"id"`
+		Page int `query:"page" order:"id"`
 	}{Page: 1}
 
 	if _, err := ResolveOrder(input); err == nil {

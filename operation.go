@@ -129,7 +129,10 @@ func PaginatedResponse[T any](status int, description string) OperationOption {
 	}
 }
 
-// Timeout applies a context-based per-operation timeout.
+// Timeout applies a context-based per-operation cooperative timeout.
+// It cancels the request context and allows an early timeout response, but
+// long-running handlers must observe ctx.Done() or ctx.Request.Context().Done()
+// to stop promptly.
 func Timeout(d time.Duration) OperationOption {
 	return func(op *operation) { op.timeout = d }
 }
@@ -271,7 +274,9 @@ func newOperation[TIn any, TOut any](
 			if withTransaction == nil {
 				err = errTransactionUnavailable()
 			} else {
-				err = withTransaction(c, invoke)
+				err = withTransaction(c, func() error {
+					return invokeWithContextGuard(c, invoke)
+				})
 			}
 		} else {
 			err = invoke()
@@ -339,7 +344,9 @@ func newVoidOperation[TIn any](
 			if withTransaction == nil {
 				err = errTransactionUnavailable()
 			} else {
-				err = withTransaction(c, invoke)
+				err = withTransaction(c, func() error {
+					return invokeWithContextGuard(c, invoke)
+				})
 			}
 		} else {
 			err = invoke()
@@ -375,4 +382,14 @@ func (op *operation) finalize() {
 
 func writeError(c *gin.Context, err error) {
 	WriteError(c, err)
+}
+
+func invokeWithContextGuard(c *gin.Context, invoke func() error) error {
+	if err := invoke(); err != nil {
+		return err
+	}
+	if err := c.Request.Context().Err(); err != nil {
+		return err
+	}
+	return nil
 }

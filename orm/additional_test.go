@@ -1,6 +1,7 @@
 package orm
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -114,5 +115,28 @@ func TestTransactionEdgeCases(t *testing.T) {
 		panic(errors.New("boom"))
 	}); err != nil {
 		t.Fatalf("expected panic, got error %v", err)
+	}
+}
+
+func TestWithTransactionRollsBackWhenRequestContextCancelled(t *testing.T) {
+	c, db := newTxContext(t)
+	name := "timeout-user"
+	cancelledCtx, cancel := context.WithCancel(c.Request.Context())
+	cancel()
+	c.Request = c.Request.WithContext(cancelledCtx)
+
+	err := WithTransaction(c, func() error {
+		return WithContext(c).Create(&txUser{Name: name}).Error
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled error, got %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&txUser{}).Where("name = ?", name).Count(&count).Error; err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected rollback on cancelled context, got %d rows", count)
 	}
 }
