@@ -37,7 +37,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 ## Features
 
 - **Type-safe handlers** – use plain Go structs for request input and response output.
-- **Automatic parameter binding** – path params (`path:`), query params (`form:`), headers (`header:`), cookies (`cookie:`), and JSON bodies (`json:`) are all bound via struct tags.
+- **Automatic parameter binding** – path params (`path:`), query params (`query:`), headers (`header:`), cookies (`cookie:`), and JSON/form bodies (`json:` / `form:`) are all bound via struct tags.
 - **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
 - **File transfer abstractions** – first-class multipart upload binding and binary download responses.

@@ -15,7 +15,7 @@ Use this skill when the task belongs to a service built on `github.com/shijl0925
 - Create a new gin-ninja service or app package
 - Add or refactor typed API routes
 - Convert raw Gin handlers into `NinjaAPI` + `Router` + typed operation helpers
-- Choose the right request binding tags (`path`, `form`, `header`, `cookie`, `json`, `file`)
+- Choose the right request binding tags (`path`, `query`, `form`, `header`, `cookie`, `json`, `file`)
 - Add middleware, auth, transactions, pagination, filtering, ordering, caching, versioning, SSE, or WebSocket endpoints
 - Keep implementation and generated OpenAPI docs aligned
 - Use gin-ninja framework patterns around generated code, CRUD generation, or migration commands
