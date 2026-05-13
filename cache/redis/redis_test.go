@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"reflect"
 	"testing"
@@ -59,7 +60,7 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("get set delete and invalid data", func(t *testing.T) {
+	t.Run("get set delete and invalid cache entries", func(t *testing.T) {
 		redisServer := miniredis.RunT(t)
 		store, err := NewRedisCacheStore(RedisCacheConfig{Addr: redisServer.Addr(), Prefix: "demo:"})
 		if err != nil {
@@ -83,6 +84,27 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 		store.DeleteMany("users:1", "", "users:1")
 		if _, ok := store.Get("users:1"); ok {
 			t.Fatal("expected DeleteMany() to remove cached item")
+		}
+
+		redisServer.Set(store.cacheKey("broken"), "{not-json")
+		if value, ok := store.Get("broken"); ok || value != nil {
+			t.Fatalf("Get() = (%v, %v), want invalid payload miss", value, ok)
+		}
+		if redisServer.Exists(store.cacheKey("broken")) {
+			t.Fatal("expected invalid payload to be deleted")
+		}
+
+		expired := ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(-time.Minute)}
+		payload, err := json.Marshal(expired)
+		if err != nil {
+			t.Fatalf("Marshal: %v", err)
+		}
+		redisServer.Set(store.cacheKey("expired"), string(payload))
+		if value, ok := store.Get("expired"); ok || value != nil {
+			t.Fatalf("Get(expired) = (%v, %v), want miss", value, ok)
+		}
+		if redisServer.Exists(store.cacheKey("expired")) {
+			t.Fatal("expected expired payload to be deleted")
 		}
 
 		store.Set("users:2", &ninja.CachedResponse{Status: http.StatusOK, Body: []byte("a"), Expires: time.Now().Add(time.Minute)})
