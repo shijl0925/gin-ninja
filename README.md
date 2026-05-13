@@ -1010,6 +1010,7 @@ api.UseGin(middleware.SessionMiddleware(&middleware.SessionConfig{
     MaxAge: 86400,          // 24 h
     // Secure defaults to true in gin.ReleaseMode and false in local development.
     // Set Secure: true to force HTTPS-only cookies outside release mode.
+    // Set Secure: false, SecureSet: true to opt out explicitly.
     HTTPOnly: true,
 }))
 
@@ -1036,6 +1037,7 @@ api.UseGin(middleware.CSRF(nil))   // defaults
 api.UseGin(middleware.CSRF(&middleware.CSRFConfig{
     // CookieSecure defaults to true in gin.ReleaseMode and false in local development.
     CookieSecure: true, // force HTTPS-only cookies outside release mode
+    // Set CookieSecure: false, CookieSecureSet: true to opt out explicitly.
     CookieSameSite: http.SameSiteStrictMode,
 }))
 

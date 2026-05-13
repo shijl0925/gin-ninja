@@ -31,6 +31,9 @@ type CSRFConfig struct {
 	// CookieSecure controls whether CSRF cookies are sent over HTTPS only.
 	// Defaults to true in Gin release mode and false otherwise.
 	CookieSecure bool
+	// CookieSecureSet marks CookieSecure as explicitly configured, allowing
+	// CookieSecure: false to be honored in release mode.
+	CookieSecureSet bool
 	// CookieHTTPOnly controls whether the cookie is accessible to JavaScript.
 	// Note: set to false if the client reads the token via JavaScript (common
 	// for SPA + same-origin API setups).  Defaults to false.
@@ -66,7 +69,7 @@ func (cfg *CSRFConfig) withDefaults() *CSRFConfig {
 	if out.CookieSameSite == 0 {
 		out.CookieSameSite = http.SameSiteStrictMode
 	}
-	if !out.CookieSecure {
+	if !out.CookieSecure && !out.CookieSecureSet {
 		out.CookieSecure = cookieSecureByDefault()
 	}
 	if len(out.IgnoreMethods) == 0 {

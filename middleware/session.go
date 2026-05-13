@@ -28,6 +28,9 @@ type SessionConfig struct {
 	// Secure controls whether session cookies are sent over HTTPS only.
 	// Defaults to true in Gin release mode and false otherwise.
 	Secure bool
+	// SecureSet marks Secure as explicitly configured, allowing Secure: false
+	// to be honored in release mode.
+	SecureSet bool
 	// HTTPOnly controls whether JavaScript can access the session cookie.
 	// Defaults to true unless HTTPOnlySet is true.
 	HTTPOnly bool
@@ -54,7 +57,7 @@ func (cfg *SessionConfig) withDefaults() *SessionConfig {
 	if out.SameSite == 0 {
 		out.SameSite = http.SameSiteLaxMode
 	}
-	if !out.Secure {
+	if !out.Secure && !out.SecureSet {
 		out.Secure = cookieSecureByDefault()
 	}
 	if !out.HTTPOnlySet {
@@ -167,10 +170,6 @@ func (s *Session) Keys() []string {
 // cookie.  We use a slightly lower threshold to leave headroom for cookie
 // attributes (name, Path, Domain, etc.).
 const maxCookieValueLen = 4000
-
-func cookieSecureByDefault() bool {
-	return gin.Mode() == gin.ReleaseMode
-}
 
 // Save writes the session to the response cookie.  Call this explicitly if
 // you need the cookie written before the end of the handler chain; the
