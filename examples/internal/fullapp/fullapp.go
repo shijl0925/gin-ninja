@@ -14,6 +14,7 @@ import (
 	admin "github.com/shijl0925/gin-ninja/admin"
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+	rediscache "github.com/shijl0925/gin-ninja/cache/redis"
 	"github.com/shijl0925/gin-ninja/examples/full/app"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
@@ -156,7 +157,7 @@ func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context
 	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
 	var cacheStoreShutdown func(context.Context) error
 	if cfg.Redis.Enabled {
-		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+		redisStore, err := rediscache.NewRedisCacheStore(rediscache.RedisCacheConfig{
 			Addr:     cfg.Redis.Addr,
 			Username: cfg.Redis.Username,
 			Password: cfg.Redis.Password,

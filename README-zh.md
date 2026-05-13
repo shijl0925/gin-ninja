@@ -1048,7 +1048,9 @@ ninja.Get(articles, "/:slug", getArticle,
 Redis 示例：
 
 ```go
-store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+import rediscache "github.com/shijl0925/gin-ninja/cache/redis"
+
+store, err := rediscache.NewRedisCacheStore(rediscache.RedisCacheConfig{
     Addr:   "127.0.0.1:6379",
     Prefix: "myapp:",
 })

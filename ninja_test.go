@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
+	rediscache "github.com/shijl0925/gin-ninja/cache/redis"
 	"github.com/shijl0925/gin-ninja/pagination"
 )
 
@@ -1551,7 +1552,7 @@ func TestGet_CacheWithTagsSupportsInvalidation(t *testing.T) {
 
 func TestRedisCacheStore_GetTagInvalidateAndLock(t *testing.T) {
 	mr := miniredis.RunT(t)
-	store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
+	store, err := rediscache.NewRedisCacheStore(rediscache.RedisCacheConfig{
 		Addr:   mr.Addr(),
 		Prefix: "test:",
 	})

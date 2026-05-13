@@ -1,4 +1,4 @@
-package ninja
+package redis
 
 import (
 	"context"
@@ -6,15 +6,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	goredis "github.com/redis/go-redis/v9"
+	ninja "github.com/shijl0925/gin-ninja"
 )
 
 const defaultRedisCachePrefix = "gin-ninja:"
 
-// RedisCacheConfig configures the built-in Redis-backed response cache store.
+// RedisCacheConfig configures a Redis-backed response cache store.
 type RedisCacheConfig struct {
 	Addr     string
 	Username string
@@ -25,7 +27,7 @@ type RedisCacheConfig struct {
 
 // RedisCacheStore stores serialized route responses in Redis.
 type RedisCacheStore struct {
-	client *redis.Client
+	client *goredis.Client
 	prefix string
 }
 
@@ -39,7 +41,7 @@ func NewRedisCacheStore(cfg RedisCacheConfig) (*RedisCacheStore, error) {
 	if prefix == "" {
 		prefix = defaultRedisCachePrefix
 	}
-	return NewRedisCacheStoreWithClient(redis.NewClient(&redis.Options{
+	return NewRedisCacheStoreWithClient(goredis.NewClient(&goredis.Options{
 		Addr:     addr,
 		Username: cfg.Username,
 		Password: cfg.Password,
@@ -48,7 +50,7 @@ func NewRedisCacheStore(cfg RedisCacheConfig) (*RedisCacheStore, error) {
 }
 
 // NewRedisCacheStoreWithClient wraps an existing Redis client.
-func NewRedisCacheStoreWithClient(client *redis.Client, prefix string) *RedisCacheStore {
+func NewRedisCacheStoreWithClient(client *goredis.Client, prefix string) *RedisCacheStore {
 	if strings.TrimSpace(prefix) == "" {
 		prefix = defaultRedisCachePrefix
 	}
@@ -59,7 +61,7 @@ func NewRedisCacheStoreWithClient(client *redis.Client, prefix string) *RedisCac
 }
 
 // Client exposes the underlying Redis client for health checks and shutdown hooks.
-func (s *RedisCacheStore) Client() *redis.Client {
+func (s *RedisCacheStore) Client() *goredis.Client {
 	if s == nil {
 		return nil
 	}
@@ -82,11 +84,11 @@ func (s *RedisCacheStore) Ping(ctx context.Context) error {
 	return s.client.Ping(ctx).Err()
 }
 
-func (s *RedisCacheStore) Get(key string) (*CachedResponse, bool) {
+func (s *RedisCacheStore) Get(key string) (*ninja.CachedResponse, bool) {
 	return s.GetContext(context.Background(), key)
 }
 
-func (s *RedisCacheStore) GetContext(ctx context.Context, key string) (*CachedResponse, bool) {
+func (s *RedisCacheStore) GetContext(ctx context.Context, key string) (*ninja.CachedResponse, bool) {
 	if s == nil || s.client == nil || strings.TrimSpace(key) == "" {
 		return nil, false
 	}
@@ -97,7 +99,7 @@ func (s *RedisCacheStore) GetContext(ctx context.Context, key string) (*CachedRe
 	if err != nil {
 		return nil, false
 	}
-	var cached CachedResponse
+	var cached ninja.CachedResponse
 	if err := json.Unmarshal(payload, &cached); err != nil {
 		_ = s.client.Del(ctx, s.cacheKey(key)).Err()
 		return nil, false
@@ -109,11 +111,11 @@ func (s *RedisCacheStore) GetContext(ctx context.Context, key string) (*CachedRe
 	return cloneCachedResponse(&cached), true
 }
 
-func (s *RedisCacheStore) Set(key string, value *CachedResponse) {
+func (s *RedisCacheStore) Set(key string, value *ninja.CachedResponse) {
 	s.SetContext(context.Background(), key, value)
 }
 
-func (s *RedisCacheStore) SetContext(ctx context.Context, key string, value *CachedResponse) {
+func (s *RedisCacheStore) SetContext(ctx context.Context, key string, value *ninja.CachedResponse) {
 	if s == nil || s.client == nil || value == nil || strings.TrimSpace(key) == "" {
 		return
 	}
@@ -258,4 +260,48 @@ func randomLockToken() string {
 		panic("redis cache: system error")
 	}
 	return hex.EncodeToString(b)
+}
+
+func cloneCachedResponse(in *ninja.CachedResponse) *ninja.CachedResponse {
+	if in == nil {
+		return nil
+	}
+	return &ninja.CachedResponse{
+		Status:  in.Status,
+		Header:  cloneHeader(in.Header),
+		Body:    append([]byte(nil), in.Body...),
+		Expires: in.Expires,
+		ETag:    in.ETag,
+	}
+}
+
+func cloneHeader(in http.Header) http.Header {
+	if len(in) == 0 {
+		return http.Header{}
+	}
+	out := make(http.Header, len(in))
+	for key, values := range in {
+		out[key] = append([]string(nil), values...)
+	}
+	return out
+}
+
+func normalizeCacheTags(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
