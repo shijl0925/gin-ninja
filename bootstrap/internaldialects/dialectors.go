@@ -216,13 +216,9 @@ func timeLocation(raw string) *time.Location {
 }
 
 func useRawMySQLDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.MySQL.IsConfigured())
+	return strings.TrimSpace(cfg.DSN) != "" && !common.ShouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.MySQL.IsConfigured())
 }
 
 func useRawPostgresDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.Postgres.IsConfigured())
-}
-
-func shouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
-	return common.ShouldIgnoreImplicitDefaultDSN(dsn, driver, hasStructuredConfig)
+	return strings.TrimSpace(cfg.DSN) != "" && !common.ShouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.Postgres.IsConfigured())
 }

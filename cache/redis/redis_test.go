@@ -86,11 +86,12 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected DeleteMany() to remove cached item")
 		}
 
-		redisServer.Set(store.cacheKey("broken"), "{not-json")
+		brokenKey := testCacheKey("demo:", "broken")
+		redisServer.Set(brokenKey, "{not-json")
 		if value, ok := store.Get("broken"); ok || value != nil {
 			t.Fatalf("Get() = (%v, %v), want invalid payload miss", value, ok)
 		}
-		if redisServer.Exists(store.cacheKey("broken")) {
+		if redisServer.Exists(brokenKey) {
 			t.Fatal("expected invalid payload to be deleted")
 		}
 
@@ -99,16 +100,17 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Marshal: %v", err)
 		}
-		redisServer.Set(store.cacheKey("expired"), string(payload))
+		expiredKey := testCacheKey("demo:", "expired")
+		redisServer.Set(expiredKey, string(payload))
 		if value, ok := store.Get("expired"); ok || value != nil {
 			t.Fatalf("Get(expired) = (%v, %v), want miss", value, ok)
 		}
-		if redisServer.Exists(store.cacheKey("expired")) {
+		if redisServer.Exists(expiredKey) {
 			t.Fatal("expected expired payload to be deleted")
 		}
 
 		store.SetContext(nil, "expired-on-set", &ninja.CachedResponse{Expires: time.Now().Add(-time.Second)})
-		if redisServer.Exists(store.cacheKey("expired-on-set")) {
+		if redisServer.Exists(testCacheKey("demo:", "expired-on-set")) {
 			t.Fatal("expected already-expired value to be removed on SetContext")
 		}
 
@@ -129,4 +131,8 @@ func TestNormalizeCacheTags(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("normalizeCacheTags() = %#v, want %#v", got, want)
 	}
+}
+
+func testCacheKey(prefix, key string) string {
+	return prefix + "cache:" + key
 }
