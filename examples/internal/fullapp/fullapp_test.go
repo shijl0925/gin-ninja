@@ -2,15 +2,14 @@ package fullapp
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
 	ninja "github.com/shijl0925/gin-ninja"
-	rediscache "github.com/shijl0925/gin-ninja/cache/redis"
 	"github.com/shijl0925/gin-ninja/settings"
 	"go.uber.org/zap"
 )
@@ -87,39 +86,52 @@ func TestFullappInitCacheStoreCoverage(t *testing.T) {
 		t.Fatalf("expected nil shutdown for default memory store, got nil=%t", shutdown == nil)
 	}
 
-	redisServer := miniredis.RunT(t)
 	cfg.Redis = settings.RedisConfig{
 		Enabled: true,
-		Addr:    redisServer.Addr(),
+		Addr:    "127.0.0.1:6379",
 		Prefix:  "fullapp:",
 	}
 	store, shutdown = initCacheStore(cfg)
-	if _, ok := store.(*rediscache.RedisCacheStore); !ok {
-		t.Fatalf("expected redis cache store, got %T", store)
+	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
+		t.Fatalf("expected memory cache store without Redis integration import, got %T", store)
+	}
+	if shutdown != nil {
+		t.Fatalf("expected nil shutdown without Redis integration import, got nil=%t", shutdown == nil)
+	}
+}
+
+func TestFullappRegisteredCacheStoreFactory(t *testing.T) {
+	original := cacheStoreFactory
+	t.Cleanup(func() { cacheStoreFactory = original })
+
+	shutdownErr := errors.New("shutdown")
+	RegisterCacheStoreFactory(func(cfg settings.Config) (ninja.ResponseCacheStore, func(context.Context) error) {
+		if !cfg.Redis.Enabled {
+			t.Fatal("expected redis-enabled config")
+		}
+		return ninja.NewMemoryCacheStore(), func(context.Context) error { return shutdownErr }
+	})
+
+	cfg := testConfig("file:cache?mode=memory&cache=shared")
+	cfg.Redis.Enabled = true
+	store, shutdown := initCacheStore(cfg)
+	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
+		t.Fatalf("expected registered cache store, got %T", store)
 	}
 	if shutdown == nil {
-		t.Fatal("expected redis shutdown hook")
+		t.Fatal("expected registered shutdown hook")
 	}
-	if err := shutdown(context.Background()); err != nil {
-		t.Fatalf("shutdown(): %v", err)
-	}
-
-	cfg.Redis.Addr = ""
-	store, shutdown = initCacheStore(cfg)
-	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
-		t.Fatalf("expected memory fallback store, got %T", store)
-	}
-	if shutdown != nil {
-		t.Fatalf("expected nil shutdown after fallback, got nil=%t", shutdown == nil)
+	if err := shutdown(context.Background()); !errors.Is(err, shutdownErr) {
+		t.Fatalf("shutdown() = %v, want %v", err, shutdownErr)
 	}
 
-	cfg.Redis.Addr = "127.0.0.1:1"
+	cfg.Redis.Enabled = false
 	store, shutdown = initCacheStore(cfg)
 	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
-		t.Fatalf("expected ping failure fallback store, got %T", store)
+		t.Fatalf("expected memory cache store when Redis disabled, got %T", store)
 	}
 	if shutdown != nil {
-		t.Fatalf("expected nil shutdown after ping failure fallback, got nil=%t", shutdown == nil)
+		t.Fatalf("expected nil shutdown when Redis disabled, got nil=%t", shutdown == nil)
 	}
 }
 

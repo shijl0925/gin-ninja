@@ -14,7 +14,6 @@ import (
 	admin "github.com/shijl0925/gin-ninja/admin"
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
-	rediscache "github.com/shijl0925/gin-ninja/cache/redis"
 	"github.com/shijl0925/gin-ninja/examples/full/app"
 	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
@@ -22,6 +21,16 @@ import (
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
+
+// CacheStoreFactory creates the response cache store used by optional fullapp integrations.
+type CacheStoreFactory func(settings.Config) (ninja.ResponseCacheStore, func(context.Context) error)
+
+var cacheStoreFactory CacheStoreFactory
+
+// RegisterCacheStoreFactory registers an optional cache store factory for the full example.
+func RegisterCacheStoreFactory(factory CacheStoreFactory) {
+	cacheStoreFactory = factory
+}
 
 type Options struct {
 	Description           string
@@ -154,28 +163,13 @@ func InitDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 }
 
 func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context.Context) error) {
-	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
-	var cacheStoreShutdown func(context.Context) error
-	if cfg.Redis.Enabled {
-		redisStore, err := rediscache.NewRedisCacheStore(rediscache.RedisCacheConfig{
-			Addr:     cfg.Redis.Addr,
-			Username: cfg.Redis.Username,
-			Password: cfg.Redis.Password,
-			DB:       cfg.Redis.DB,
-			Prefix:   cfg.Redis.Prefix,
-		})
-		if err != nil {
-			log.Printf("cache: falling back to in-memory store: %v", err)
-		} else if err := redisStore.Ping(context.Background()); err != nil {
-			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
-			_ = redisStore.Close()
-		} else {
-			cacheStore = redisStore
-			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
-			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
-		}
+	if cfg.Redis.Enabled && cacheStoreFactory != nil {
+		return cacheStoreFactory(cfg)
 	}
-	return cacheStore, cacheStoreShutdown
+	if cfg.Redis.Enabled {
+		log.Print("cache: redis is enabled, but Redis cache support is not imported; using in-memory store")
+	}
+	return ninja.NewMemoryCacheStore(), nil
 }
 
 func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) *ninja.NinjaAPI {

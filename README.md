@@ -1535,6 +1535,10 @@ invalidator := ninja.NewCacheInvalidator(store)
 invalidator.InvalidateTags("article:welcome")
 ```
 
+The `examples/full` binary does not import Redis by default. To opt in for that example,
+add a blank import for `github.com/shijl0925/gin-ninja/examples/internal/fullapp/rediscache`
+from the example entry point before enabling `redis.enabled`.
+
 Notes:
 
 - cache support is intended for safe read endpoints

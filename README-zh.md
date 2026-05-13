@@ -1062,6 +1062,10 @@ invalidator := ninja.NewCacheInvalidator(store)
 invalidator.InvalidateTags("article:welcome")
 ```
 
+`examples/full` 默认不导入 Redis。若该示例需要启用 Redis 缓存，请先在入口文件按需添加
+`github.com/shijl0925/gin-ninja/examples/internal/fullapp/rediscache` 的空白导入，
+再开启 `redis.enabled`。
+
 ## API 版本管理
 
 ```go
