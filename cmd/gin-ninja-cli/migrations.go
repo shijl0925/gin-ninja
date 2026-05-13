@@ -1220,8 +1220,15 @@ func execMigrationStatements(db *sql.DB, statements []string, after func(*sql.Tx
 }
 
 func recordAppliedMigration(db *sql.DB, dialect string, file migrationFile) error {
-	_, err := db.Exec(
-		`INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`,
+	ctx := context.Background()
+	stmt, err := db.PrepareContext(ctx, `INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(
+		ctx,
 		file.Version,
 		file.Name,
 		time.Now().UTC(),
@@ -1230,8 +1237,15 @@ func recordAppliedMigration(db *sql.DB, dialect string, file migrationFile) erro
 }
 
 func recordAppliedMigrationTx(tx *sql.Tx, dialect string, file migrationFile) error {
-	_, err := tx.Exec(
-		`INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`,
+	ctx := context.Background()
+	stmt, err := tx.PrepareContext(ctx, `INSERT INTO `+migrationTableName+` (version, name, applied_at) VALUES (`+bindVar(dialect, 1)+`, `+bindVar(dialect, 2)+`, `+bindVar(dialect, 3)+`)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.ExecContext(
+		ctx,
 		file.Version,
 		file.Name,
 		time.Now().UTC(),
