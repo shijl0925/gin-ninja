@@ -60,7 +60,7 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 		}
 	})
 
-	t.Run("get set delete and invalid cache entries", func(t *testing.T) {
+	t.Run("cache operations including tags expiration and invalid entries", func(t *testing.T) {
 		redisServer := miniredis.RunT(t)
 		store, err := NewRedisCacheStore(RedisCacheConfig{Addr: redisServer.Addr(), Prefix: "demo:"})
 		if err != nil {
