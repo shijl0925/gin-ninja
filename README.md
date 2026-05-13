@@ -1006,9 +1006,10 @@ in a single cookie.  Tampered cookies are automatically discarded.
 
 ```go
 api.UseGin(middleware.SessionMiddleware(&middleware.SessionConfig{
-    Secret:   "change-me-in-production",
-    MaxAge:   86400,          // 24 h
-    Secure:   true,           // HTTPS only
+    Secret: "change-me-in-production",
+    MaxAge: 86400,          // 24 h
+    // Secure defaults to true in gin.ReleaseMode and false in local development.
+    // Set Secure: true to force HTTPS-only cookies outside release mode.
     HTTPOnly: true,
 }))
 
@@ -1033,7 +1034,8 @@ api.UseGin(middleware.CSRF(nil))   // defaults
 
 // Custom config:
 api.UseGin(middleware.CSRF(&middleware.CSRFConfig{
-    CookieSecure: true,
+    // CookieSecure defaults to true in gin.ReleaseMode and false in local development.
+    CookieSecure: true, // force HTTPS-only cookies outside release mode
     CookieSameSite: http.SameSiteStrictMode,
 }))
 
@@ -1092,6 +1094,7 @@ Pass `nil` to use defaults (10 MiB limit, no content-type checking).
 For production deployments, combine the built-in middleware with a few operational safeguards:
 
 - **Use strong secrets**: keep `jwt.secret` and `SessionConfig.Secret` long, random, and environment-specific; never commit placeholder secrets such as `change-me-in-production`.
+- **Use environment-aware cookies**: `Secure`/`CookieSecure` default to HTTPS-only in Gin release mode and stay off for local HTTP development; set them explicitly when your development environment also uses HTTPS.
 - **Force HTTPS end-to-end**: enable `Secure` cookies for sessions/CSRF, terminate TLS at the edge, and forward the original scheme so HSTS can be emitted correctly behind proxies.
 - **Prefer strict browser protections**: start with `middleware.SecureHeadersStrict()` or explicitly set CSP, Referrer-Policy, `X-Frame-Options`, and HSTS for public deployments.
 - **Keep cookies scoped tightly**: use `HTTPOnly`, an appropriate `SameSite` mode, and the narrowest practical `Domain`/`Path` to reduce cross-site exposure.
