@@ -563,7 +563,7 @@ func TestSession_SecureCanBeDisabledInReleaseMode(t *testing.T) {
 	}
 }
 
-func TestSession_HTTPOnlyCanBeDisabled(t *testing.T) {
+func TestSession_HTTPOnlyCanBeExplicitlyDisabledWithHTTPOnlySet(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
 		Secret:      "test-secret",
