@@ -387,6 +387,9 @@ func TestSession_SetAndGet(t *testing.T) {
 	if !sessionCookie.HttpOnly {
 		t.Fatal("expected session cookie to default to HttpOnly")
 	}
+	if !sessionCookie.Secure {
+		t.Fatal("expected session cookie to be Secure")
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/get", nil)
 	req.AddCookie(sessionCookie)

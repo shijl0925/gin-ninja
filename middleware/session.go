@@ -182,7 +182,7 @@ func (s *Session) Save(c *gin.Context) error {
 		Path:     s.cfg.Path,
 		Domain:   s.cfg.Domain,
 		MaxAge:   s.cfg.MaxAge,
-		Secure:   s.cfg.Secure,
+		Secure:   true,
 		HttpOnly: s.cfg.HTTPOnly,
 		SameSite: s.cfg.SameSite,
 	})
