@@ -25,7 +25,7 @@ type SessionConfig struct {
 	Path string
 	// Domain is the optional cookie domain.
 	Domain string
-	// Secure marks the cookie as Secure (HTTPS only).
+	// Secure is deprecated; session cookies are always marked Secure (HTTPS only).
 	Secure bool
 	// HTTPOnly marks the cookie as HttpOnly (no JavaScript access).  Defaults to true.
 	// To explicitly disable HttpOnly, set HTTPOnlySet to true as well.
