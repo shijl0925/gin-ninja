@@ -103,3 +103,26 @@ func TestNormalizeCacheTags(t *testing.T) {
 		t.Fatalf("normalizeCacheTags() = %#v, want %#v", got, want)
 	}
 }
+
+func TestCloneCachedResponse(t *testing.T) {
+	if cloneCachedResponse(nil) != nil {
+		t.Fatal("expected nil clone for nil response")
+	}
+
+	original := &ninja.CachedResponse{
+		Status: http.StatusOK,
+		Header: http.Header{
+			"X-Test": []string{"one"},
+		},
+		Body: []byte("payload"),
+	}
+	cloned := cloneCachedResponse(original)
+	if cloned == original {
+		t.Fatal("expected distinct response pointer")
+	}
+	cloned.Header.Set("X-Test", "two")
+	cloned.Body[0] = 'P'
+	if original.Header.Get("X-Test") != "one" || string(original.Body) != "payload" {
+		t.Fatal("expected cloned response to be independent")
+	}
+}
