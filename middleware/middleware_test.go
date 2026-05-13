@@ -17,6 +17,15 @@ import (
 
 func init() { gin.SetMode(gin.TestMode) }
 
+func withGinMode(t *testing.T, mode string) {
+	t.Helper()
+	previous := gin.Mode()
+	gin.SetMode(mode)
+	t.Cleanup(func() {
+		gin.SetMode(previous)
+	})
+}
+
 // ---------------------------------------------------------------------------
 // RequestID middleware
 // ---------------------------------------------------------------------------
@@ -387,8 +396,8 @@ func TestSession_SetAndGet(t *testing.T) {
 	if !sessionCookie.HttpOnly {
 		t.Fatal("expected session cookie to default to HttpOnly")
 	}
-	if !sessionCookie.Secure {
-		t.Fatal("expected session cookie to be Secure")
+	if sessionCookie.Secure {
+		t.Fatal("expected session cookie to default to non-Secure outside release mode")
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/get", nil)
@@ -465,7 +474,64 @@ func TestSession_ExpiredCookieIsIgnored(t *testing.T) {
 	}
 }
 
-func TestSession_HTTPOnlyCannotBeDisabled(t *testing.T) {
+func TestSession_SecureDefaultsToReleaseMode(t *testing.T) {
+	withGinMode(t, gin.ReleaseMode)
+
+	r := gin.New()
+	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{Secret: "test-secret"}))
+	r.POST("/", func(c *gin.Context) {
+		middleware.GetSession(c).Set("user_id", "42")
+		c.Status(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	var sessionCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "session" {
+			sessionCookie = c
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected session cookie to be set")
+	}
+	if !sessionCookie.Secure {
+		t.Fatal("expected session cookie to default to Secure in release mode")
+	}
+}
+
+func TestSession_SecureCanBeEnabledOutsideReleaseMode(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
+		Secret: "test-secret",
+		Secure: true,
+	}))
+	r.POST("/", func(c *gin.Context) {
+		middleware.GetSession(c).Set("user_id", "42")
+		c.Status(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	var sessionCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "session" {
+			sessionCookie = c
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected session cookie to be set")
+	}
+	if !sessionCookie.Secure {
+		t.Fatal("expected explicit Secure=true to be honored")
+	}
+}
+
+func TestSession_HTTPOnlyCanBeDisabled(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
 		Secret:      "test-secret",
@@ -491,8 +557,8 @@ func TestSession_HTTPOnlyCannotBeDisabled(t *testing.T) {
 	if sessionCookie == nil {
 		t.Fatal("expected session cookie to be set")
 	}
-	if !sessionCookie.HttpOnly {
-		t.Fatal("expected session cookie HttpOnly to remain enabled")
+	if sessionCookie.HttpOnly {
+		t.Fatal("expected explicit HTTPOnly=false to be honored")
 	}
 }
 
@@ -555,8 +621,60 @@ func TestCSRF_SafeMethodsSetsToken(t *testing.T) {
 	if csrfCookie == nil {
 		t.Fatal("expected csrf_token cookie to be set")
 	}
+	if csrfCookie.Secure {
+		t.Fatal("expected csrf_token cookie to default to non-Secure outside release mode")
+	}
+}
+
+func TestCSRF_SecureDefaultsToReleaseMode(t *testing.T) {
+	withGinMode(t, gin.ReleaseMode)
+
+	r := gin.New()
+	r.Use(middleware.CSRF(nil))
+	r.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, middleware.CSRFToken(c))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	var csrfCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "csrf_token" {
+			csrfCookie = c
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatal("expected csrf_token cookie to be set")
+	}
 	if !csrfCookie.Secure {
-		t.Fatal("expected csrf_token cookie to be Secure")
+		t.Fatal("expected csrf_token cookie to default to Secure in release mode")
+	}
+}
+
+func TestCSRF_SecureCanBeEnabledOutsideReleaseMode(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.CSRF(&middleware.CSRFConfig{CookieSecure: true}))
+	r.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, middleware.CSRFToken(c))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	var csrfCookie *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "csrf_token" {
+			csrfCookie = c
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatal("expected csrf_token cookie to be set")
+	}
+	if !csrfCookie.Secure {
+		t.Fatal("expected explicit CookieSecure=true to be honored")
 	}
 }
 

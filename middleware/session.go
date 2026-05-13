@@ -25,11 +25,13 @@ type SessionConfig struct {
 	Path string
 	// Domain is the optional cookie domain.
 	Domain string
-	// Secure is deprecated; session cookies are always marked Secure (HTTPS only).
+	// Secure controls whether session cookies are sent over HTTPS only.
+	// Defaults to true in Gin release mode and false otherwise.
 	Secure bool
-	// HTTPOnly is deprecated; session cookies are always marked HttpOnly.
+	// HTTPOnly controls whether JavaScript can access the session cookie.
+	// Defaults to true unless HTTPOnlySet is true.
 	HTTPOnly bool
-	// HTTPOnlySet is deprecated; session cookies are always marked HttpOnly.
+	// HTTPOnlySet marks HTTPOnly as explicitly configured.
 	HTTPOnlySet bool
 	// SameSite controls the SameSite attribute.  Defaults to http.SameSiteLaxMode.
 	SameSite http.SameSite
@@ -52,7 +54,12 @@ func (cfg *SessionConfig) withDefaults() *SessionConfig {
 	if out.SameSite == 0 {
 		out.SameSite = http.SameSiteLaxMode
 	}
-	out.HTTPOnly = true
+	if !out.Secure {
+		out.Secure = cookieSecureByDefault()
+	}
+	if !out.HTTPOnlySet {
+		out.HTTPOnly = true
+	}
 	return &out
 }
 
@@ -161,6 +168,10 @@ func (s *Session) Keys() []string {
 // attributes (name, Path, Domain, etc.).
 const maxCookieValueLen = 4000
 
+func cookieSecureByDefault() bool {
+	return gin.Mode() == gin.ReleaseMode
+}
+
 // Save writes the session to the response cookie.  Call this explicitly if
 // you need the cookie written before the end of the handler chain; the
 // middleware calls it automatically after c.Next().
@@ -178,8 +189,8 @@ func (s *Session) Save(c *gin.Context) error {
 		Path:     s.cfg.Path,
 		Domain:   s.cfg.Domain,
 		MaxAge:   s.cfg.MaxAge,
-		Secure:   true,
-		HttpOnly: true,
+		Secure:   s.cfg.Secure,
+		HttpOnly: s.cfg.HTTPOnly,
 		SameSite: s.cfg.SameSite,
 	})
 	s.dirty = false
@@ -192,7 +203,6 @@ func (s *Session) Save(c *gin.Context) error {
 //
 //	api.UseGin(middleware.SessionMiddleware(&middleware.SessionConfig{
 //	    Secret:   "change-me-in-production",
-//	    Secure:   true,
 //	}))
 //
 // Retrieve the session inside a handler:
