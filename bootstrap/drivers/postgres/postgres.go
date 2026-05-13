@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
+	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects/common"
 	"github.com/shijl0925/gin-ninja/settings"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -64,7 +65,7 @@ func PostgresDSN(cfg settings.DatabaseConfig) (string, error) {
 		parts = append(parts, postgresDSNPair("TimeZone", timeZone))
 	}
 
-	params := sanitizeParams(cfg.Postgres.Params)
+	params := common.SanitizeParams(cfg.Postgres.Params)
 	if len(params) > 0 {
 		keys := make([]string, 0, len(params))
 		for key := range params {
@@ -96,22 +97,5 @@ func PostgresDSNValue(value string) string {
 }
 
 func useRawPostgresDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.Postgres.IsConfigured())
-}
-
-func shouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
-	trimmedDriver := strings.TrimSpace(driver)
-	return hasStructuredConfig && trimmedDriver != "sqlite" && trimmedDriver != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
-}
-
-func sanitizeParams(params map[string]string) map[string]string {
-	values := make(map[string]string, len(params))
-	for key, value := range params {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey == "" {
-			continue
-		}
-		values[trimmedKey] = value
-	}
-	return values
+	return strings.TrimSpace(cfg.DSN) != "" && !common.ShouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.Postgres.IsConfigured())
 }

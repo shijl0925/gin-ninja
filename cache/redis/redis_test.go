@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"testing"
 	"time"
 
@@ -120,4 +121,12 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected invalidated tag entry to be removed")
 		}
 	})
+}
+
+func TestNormalizeCacheTags(t *testing.T) {
+	got := normalizeCacheTags([]string{" users ", "", "users", "posts", "  "})
+	want := []string{"users", "posts"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizeCacheTags() = %#v, want %#v", got, want)
+	}
 }

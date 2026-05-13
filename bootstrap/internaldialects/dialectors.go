@@ -10,6 +10,7 @@ import (
 	"time"
 
 	drivermysql "github.com/go-sql-driver/mysql"
+	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects/common"
 	"github.com/shijl0925/gin-ninja/settings"
 	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -160,15 +161,7 @@ func PostgresDSN(cfg settings.DatabaseConfig) (string, error) {
 }
 
 func SanitizeParams(params map[string]string) map[string]string {
-	values := make(map[string]string, len(params))
-	for key, value := range params {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey == "" {
-			continue
-		}
-		values[trimmedKey] = value
-	}
-	return values
+	return common.SanitizeParams(params)
 }
 
 func PostgresDSNValue(value string) string {
@@ -192,7 +185,7 @@ func TimeLocation(raw string) *time.Location {
 }
 
 func ShouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
-	return shouldIgnoreImplicitDefaultDSN(dsn, driver, hasStructuredConfig)
+	return common.ShouldIgnoreImplicitDefaultDSN(dsn, driver, hasStructuredConfig)
 }
 
 func decodeRawMySQLDSN(dsn string) (string, error) {
@@ -231,6 +224,5 @@ func useRawPostgresDSN(cfg settings.DatabaseConfig) bool {
 }
 
 func shouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
-	trimmedDriver := strings.TrimSpace(driver)
-	return hasStructuredConfig && trimmedDriver != "sqlite" && trimmedDriver != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
+	return common.ShouldIgnoreImplicitDefaultDSN(dsn, driver, hasStructuredConfig)
 }

@@ -10,6 +10,7 @@ import (
 
 	drivermysql "github.com/go-sql-driver/mysql"
 	ginbootstrap "github.com/shijl0925/gin-ninja/bootstrap"
+	"github.com/shijl0925/gin-ninja/bootstrap/internaldialects/common"
 	"github.com/shijl0925/gin-ninja/settings"
 	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -83,7 +84,7 @@ func mySQLDriverConfig(cfg settings.DatabaseConfig) (*drivermysql.Config, error)
 		AllowNativePasswords: true,
 		ParseTime:            cfg.MySQL.ParseTime,
 		Loc:                  timeLocation(cfg.MySQL.Loc),
-		Params:               sanitizeParams(cfg.MySQL.Params),
+		Params:               common.SanitizeParams(cfg.MySQL.Params),
 	}
 	if charset := strings.TrimSpace(cfg.MySQL.Charset); charset != "" {
 		dsnCfg.Params["charset"] = charset
@@ -115,22 +116,5 @@ func timeLocation(raw string) *time.Location {
 }
 
 func useRawMySQLDSN(cfg settings.DatabaseConfig) bool {
-	return strings.TrimSpace(cfg.DSN) != "" && !shouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.MySQL.IsConfigured())
-}
-
-func shouldIgnoreImplicitDefaultDSN(dsn, driver string, hasStructuredConfig bool) bool {
-	trimmedDriver := strings.TrimSpace(driver)
-	return hasStructuredConfig && trimmedDriver != "sqlite" && trimmedDriver != "sqlite3" && strings.TrimSpace(dsn) == "app.db"
-}
-
-func sanitizeParams(params map[string]string) map[string]string {
-	values := make(map[string]string, len(params))
-	for key, value := range params {
-		trimmedKey := strings.TrimSpace(key)
-		if trimmedKey == "" {
-			continue
-		}
-		values[trimmedKey] = value
-	}
-	return values
+	return strings.TrimSpace(cfg.DSN) != "" && !common.ShouldIgnoreImplicitDefaultDSN(cfg.DSN, cfg.Driver, cfg.MySQL.IsConfigured())
 }
