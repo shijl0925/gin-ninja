@@ -884,9 +884,11 @@ func myHandler(ctx *ninja.Context, in *MyInput) (*MyOutput, error) {
 
 ```go
 api.UseGin(middleware.SessionMiddleware(&middleware.SessionConfig{
-    Secret:   "change-me-in-production",
-    MaxAge:   86400,
-    Secure:   true,
+    Secret: "change-me-in-production",
+    MaxAge: 86400,
+    // Secure 在 gin.ReleaseMode 下默认开启，本地开发模式默认关闭。
+    // 如果本地也使用 HTTPS，可显式设置 Secure: true。
+    // 如需显式关闭，可设置 Secure: false, SecureSet: true。
     HTTPOnly: true,
 }))
 
@@ -898,7 +900,7 @@ api.UseGin(middleware.SecureHeadersStrict())
 
 - 使用强随机密钥，不要保留示例密钥
 - 全链路启用 HTTPS，并正确传递 `X-Forwarded-Proto`
-- Cookie 配置 `Secure`、`HTTPOnly`、合适的 `SameSite`
+- Cookie 配置 `Secure`、`HTTPOnly`、合适的 `SameSite`；`Secure` 在 release 模式默认开启，本地 HTTP 开发默认关闭，也可通过 `SecureSet` / `CookieSecureSet` 显式覆盖
 - 对所有修改类接口启用 CSRF 防护
 - 上传接口同时配置大小上限和 MIME 白名单
 

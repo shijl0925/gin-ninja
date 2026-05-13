@@ -25,13 +25,16 @@ type SessionConfig struct {
 	Path string
 	// Domain is the optional cookie domain.
 	Domain string
-	// Secure marks the cookie as Secure (HTTPS only).
+	// Secure controls whether session cookies are sent over HTTPS only.
+	// Defaults to true in Gin release mode and false otherwise.
 	Secure bool
-	// HTTPOnly marks the cookie as HttpOnly (no JavaScript access).  Defaults to true.
-	// To explicitly disable HttpOnly, set HTTPOnlySet to true as well.
+	// SecureSet marks Secure as explicitly configured, allowing Secure: false
+	// to be honored in release mode.
+	SecureSet bool
+	// HTTPOnly controls whether JavaScript can access the session cookie.
+	// Defaults to true unless HTTPOnlySet is true.
 	HTTPOnly bool
-	// HTTPOnlySet applies the HTTPOnly value even when it is false.
-	// When false, HTTPOnly defaults to true.
+	// HTTPOnlySet marks HTTPOnly as explicitly configured.
 	HTTPOnlySet bool
 	// SameSite controls the SameSite attribute.  Defaults to http.SameSiteLaxMode.
 	SameSite http.SameSite
@@ -53,6 +56,9 @@ func (cfg *SessionConfig) withDefaults() *SessionConfig {
 	}
 	if out.SameSite == 0 {
 		out.SameSite = http.SameSiteLaxMode
+	}
+	if !out.Secure && !out.SecureSet {
+		out.Secure = cookieSecureByDefault()
 	}
 	if !out.HTTPOnlySet {
 		out.HTTPOnly = true
@@ -196,7 +202,6 @@ func (s *Session) Save(c *gin.Context) error {
 //
 //	api.UseGin(middleware.SessionMiddleware(&middleware.SessionConfig{
 //	    Secret:   "change-me-in-production",
-//	    Secure:   true,
 //	}))
 //
 // Retrieve the session inside a handler:
