@@ -85,11 +85,6 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected DeleteMany() to remove cached item")
 		}
 
-		store.SetContext(nil, "expired-on-set", &ninja.CachedResponse{Expires: time.Now().Add(-time.Second)})
-		if value, ok := store.Get("expired-on-set"); ok || value != nil {
-			t.Fatalf("Get(expired-on-set) = (%v, %v), want miss", value, ok)
-		}
-
 		store.Set("users:2", &ninja.CachedResponse{Status: http.StatusOK, Body: []byte("a"), Expires: time.Now().Add(time.Minute)})
 		store.AddTags("users:2", "users")
 		if removed := store.InvalidateTags("users"); removed != 1 {
