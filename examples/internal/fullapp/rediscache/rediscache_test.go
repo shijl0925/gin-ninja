@@ -37,7 +37,7 @@ func TestNewCacheStore(t *testing.T) {
 		t.Fatalf("expected fallback cache store, got %T", store)
 	}
 	if shutdown != nil {
-		t.Fatalf("expected nil shutdown after fallback, got nil=%t", shutdown == nil)
+		t.Fatal("expected nil shutdown after fallback, got non-nil")
 	}
 
 	cfg.Redis.Addr = "127.0.0.1:1"
@@ -46,6 +46,6 @@ func TestNewCacheStore(t *testing.T) {
 		t.Fatalf("expected ping failure fallback store, got %T", store)
 	}
 	if shutdown != nil {
-		t.Fatalf("expected nil shutdown after ping failure fallback, got nil=%t", shutdown == nil)
+		t.Fatal("expected nil shutdown after ping failure fallback, got non-nil")
 	}
 }
