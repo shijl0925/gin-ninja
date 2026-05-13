@@ -88,7 +88,6 @@ func TestFullappInitCacheStoreCoverage(t *testing.T) {
 
 	cfg.Redis = settings.RedisConfig{
 		Enabled: true,
-		Addr:    "127.0.0.1:6379",
 		Prefix:  "fullapp:",
 	}
 	store, shutdown = initCacheStore(cfg)
