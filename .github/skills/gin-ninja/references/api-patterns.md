@@ -6,7 +6,6 @@
 - `api.UseGin(...)` attaches raw Gin middleware such as logging, CORS, request IDs, auth, and DB context wiring.
 - `ninja.NewRouter("/prefix", ...)` groups routes by prefix, tags, security, and version.
 - `ninja.Get/Post/Put/Patch/Delete(...)` register typed handlers.
-- `ninja.SSE(...)` and `ninja.WebSocket(...)` cover streaming routes.
 
 ## Handler shape
 
@@ -14,8 +13,6 @@ Prefer handlers of the form:
 
 - `func(ctx *ninja.Context, in *Input) (*Output, error)`
 - `func(ctx *ninja.Context, in *Input) error` for `Delete`
-- `func(ctx *ninja.Context, in *Input, stream *ninja.SSEStream) error` for SSE
-- `func(ctx *ninja.Context, in *Input, conn *ninja.WebSocketConn) error` for WebSocket
 
 Keep request and response structs separate from persistence models unless the API contract is intentionally identical.
 

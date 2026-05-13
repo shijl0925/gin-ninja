@@ -125,18 +125,6 @@ func BenchmarkNormalizeVersionParam(b *testing.B) {
 	}
 }
 
-func BenchmarkSSEDataJSONMap(b *testing.B) {
-	value := map[string]any{
-		"name":  "alice",
-		"count": 3,
-		"ok":    true,
-	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = sseData(value)
-	}
-}
-
 func benchmarkServeHTTP(b *testing.B, handler http.Handler, request func() *http.Request) {
 	b.Helper()
 	b.ReportAllocs()

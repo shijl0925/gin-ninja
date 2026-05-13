@@ -15,7 +15,7 @@ argument-hint: 你想用 gin-ninja 构建或修改什么？
 - 新增或重构类型化 API 路由
 - 将原始 Gin handler 改造成 `NinjaAPI` + `Router` + 类型化 operation helper
 - 选择合适的请求绑定标签（`path`、`query`、`form`、`header`、`cookie`、`json`、`file`）
-- 增加中间件、认证、事务、分页、过滤、排序、缓存、版本化、SSE 或 WebSocket 端点
+- 增加中间件、认证、事务、分页、过滤、排序、缓存、版本化或端点选项
 - 保持实现与自动生成的 OpenAPI 文档一致
 - 处理错误映射、Context 便捷方法、文件传输、ModelSchema、生命周期、SecuritySchemes、Admin 等框架特性
 
@@ -38,7 +38,7 @@ argument-hint: 你想用 gin-ninja 构建或修改什么？
 2. 再确定核心形态：
    - API 根对象 -> `ninja.New(ninja.Config{...})`
    - 路由分组 -> `ninja.NewRouter(...)`
-   - 端点 -> `ninja.Get/Post/Put/Patch/Delete/SSE/WebSocket(...)`
+   - 端点 -> `ninja.Get/Post/Put/Patch/Delete(...)`
 3. 定义类型化输入输出结构体，并选择正确的 binding tag 与校验规则。
 4. 通过 route/router option 挂摘要、标签、鉴权、事务、分页、缓存、版本化与额外文档响应。
 5. 尽量复用现有 middleware、settings、bootstrap、ORM 和 response helper。

@@ -21,7 +21,7 @@ Typical use cases:
 - REST APIs with strict request/response contracts
 - internal platforms that need fast iteration plus always-up-to-date docs
 - services that want built-in auth, security headers, request logging, and config loading
-- applications that need versioned APIs, cacheable read endpoints, or realtime SSE / WebSocket routes
+- applications that need versioned APIs or cacheable read endpoints
 
 ## Architecture at a Glance
 
@@ -31,7 +31,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 2. Engine-level and router-level middleware run first.
 3. gin-ninja binds path/query/header/cookie/body/file inputs into typed structs.
 4. The typed handler executes with `*ninja.Context`.
-5. The framework writes JSON, download, SSE, or WebSocket responses.
+5. The framework writes JSON or download responses.
 6. Route metadata is reused to generate OpenAPI documents and Swagger UI.
 
 ## Features
@@ -51,7 +51,6 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **ModelSchema-style responses** – wrap models with `fields` / `exclude` controls for filtered JSON output and OpenAPI schemas.
 - **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, cache tags, and pluggable memory/Redis stores for read-heavy endpoints.
 - **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
-- **Streaming endpoints** – first-class SSE and WebSocket route registration helpers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, panic recovery, i18n locale negotiation, **HMAC-signed cookie sessions**, **CSRF protection**, **security response headers**, and **upload size/content-type limits**.
@@ -78,7 +77,6 @@ gin-ninja/
 ├── cache.go          ← route cache, ETag, cache invalidation helpers
 ├── openapi.go        ← OpenAPI 3.0 spec generation + Swagger UI
 ├── schema.go         ← JSON Schema generation
-├── stream.go         ← SSE and WebSocket support
 ├── transfer.go       ← upload/download abstractions
 ├── versioning.go     ← version-aware docs and deprecation headers
 │
@@ -126,7 +124,7 @@ Core module responsibilities:
 | `operation.go` | Wraps typed handlers, binds input, enforces options, and writes typed responses |
 | `binding.go` | Maps request data from path/query/header/cookie/json/multipart inputs into structs |
 | `middleware/` | Provides production-ready auth, logging, i18n, security, session, and upload middleware |
-| `cache.go` / `versioning.go` / `stream.go` | Adds caching, API versioning/deprecation, SSE, and WebSocket capabilities |
+| `cache.go` / `versioning.go` | Adds caching and API versioning/deprecation capabilities |
 
 ---
 
@@ -1536,7 +1534,6 @@ invalidator.InvalidateTags("article:welcome")
 Notes:
 
 - cache support is intended for safe read endpoints
-- SSE / WebSocket routes are not cached
 - `NewCacheInvalidator(store)` provides a unified delete / tag-invalidation / lock entry point
 - OpenAPI automatically documents `ETag` and `Cache-Control` response headers
 
@@ -1597,98 +1594,6 @@ Recommended pattern:
 - keep `Config.Prefix` for a shared top-level namespace such as `/api`
 - use `WithVersion("v1")`, `WithVersion("v2")` on routers that belong to a specific API generation
 - use separate handlers/schema types when versions diverge semantically
-
----
-
-## SSE (Server-Sent Events)
-
-Use `ninja.SSE(...)` for one-way server push / streaming text output:
-
-```go
-type EventsInput struct {
-    Topic string `query:"topic" default:"system"`
-}
-
-events := ninja.NewRouter("/events", ninja.WithTags("Events"))
-
-ninja.SSE(events, "/stream", func(ctx *ninja.Context, in *EventsInput, stream *ninja.SSEStream) error {
-    if err := stream.Send(ninja.SSEEvent{
-        Event: "ready",
-        Data: map[string]string{
-            "topic": in.Topic,
-            "status": "connected",
-        },
-    }); err != nil {
-        return err
-    }
-
-    return stream.Send(ninja.SSEEvent{
-        Event: "message",
-        Data:  "hello from gin-ninja",
-    })
-})
-```
-
-Default response headers:
-
-- `Content-Type: text/event-stream`
-- `Cache-Control: no-cache`
-- `Connection: keep-alive`
-
-You can send:
-
-- plain strings
-- byte slices
-- structs / maps (encoded as JSON)
-- `ID`, `Event`, and `Retry` metadata via `ninja.SSEEvent`
-
-Example client:
-
-```js
-const source = new EventSource("/events/stream?topic=system");
-source.addEventListener("message", (event) => {
-  console.log(event.data);
-});
-```
-
----
-
-## WebSocket
-
-Use `ninja.WebSocket(...)` for bidirectional realtime communication:
-
-```go
-type ChatInput struct {
-    Room string `query:"room" default:"lobby"`
-}
-
-ws := ninja.NewRouter("/ws", ninja.WithTags("Realtime"))
-
-ninja.WebSocket(ws, "/chat", func(ctx *ninja.Context, in *ChatInput, conn *ninja.WebSocketConn) error {
-    text, err := conn.ReceiveText()
-    if err != nil {
-        return err
-    }
-    return conn.SendText(in.Room + ":" + text)
-})
-```
-
-Convenience helpers:
-
-- `conn.SendText(...)`
-- `conn.ReceiveText()`
-- `conn.SendJSON(...)`
-- `conn.ReceiveJSON(...)`
-
-Example client:
-
-```js
-const ws = new WebSocket("ws://localhost:8080/ws/chat?room=lobby");
-ws.onopen = () => ws.send("ping");
-ws.onmessage = (event) => console.log(event.data);
-```
-
-OpenAPI documents the route as a `101 Switching Protocols` response so the upgrade is visible in generated docs.
 
 ---
 
@@ -1856,7 +1761,7 @@ admin.MountUI(router, admin.UIConfig{
 Split examples are available by feature:
 
 - [examples/users](./examples/users/) — auth register/login plus JWT-protected users CRUD and the cached v2 users API
-- [examples/features](./examples/features/) — request metadata, cache / ETag, rate limit, timeout, versioned routing, SSE, WebSocket, upload, and download demos
+- [examples/features](./examples/features/) — request metadata, cache / ETag, rate limit, timeout, versioned routing, upload, and download demos
 - [examples/admin](./examples/admin/) — JWT-protected admin resource APIs plus the standalone admin pages
 - [examples/full](./examples/full/) — the combined application with every feature above in one app
 - [examples/compact](./examples/compact/) — a compact counterpart to `examples/full` that shows the same feature set with fewer local files
@@ -1869,7 +1774,6 @@ The combined [examples/full](./examples/full/) application includes:
 - Structured Zap logging
 - Route-level cache / ETag / Cache-Control demos
 - Versioned API routing and per-version docs demos
-- SSE / WebSocket demos
 - Multipart single-file and multi-file upload demos
 - Binary download and reader-backed download demos
 

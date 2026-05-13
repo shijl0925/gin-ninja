@@ -16,7 +16,7 @@ Use this skill when the task belongs to a service built on `github.com/shijl0925
 - Add or refactor typed API routes
 - Convert raw Gin handlers into `NinjaAPI` + `Router` + typed operation helpers
 - Choose the right request binding tags (`path`, `query`, `form`, `header`, `cookie`, `json`, `file`)
-- Add middleware, auth, transactions, pagination, filtering, ordering, caching, versioning, SSE, or WebSocket endpoints
+- Add middleware, auth, transactions, pagination, filtering, ordering, caching, versioning, or endpoint options
 - Keep implementation and generated OpenAPI docs aligned
 - Use gin-ninja framework patterns around generated code, CRUD generation, or migration commands
 
@@ -39,7 +39,7 @@ Use this skill when the task belongs to a service built on `github.com/shijl0925
 2. Pick the core shape:
    - API root -> `ninja.New(ninja.Config{...})`
    - route group -> `ninja.NewRouter(...)`
-   - endpoint -> `ninja.Get/Post/Put/Patch/Delete/SSE/WebSocket(...)`
+   - endpoint -> `ninja.Get/Post/Put/Patch/Delete(...)`
 3. Define typed input and output structs, then choose the correct binding tags and validation rules.
 4. Apply route/router options for summaries, tags, auth, transactions, pagination, caching, versioning, and extra documented responses.
 5. Reuse existing middleware, settings, bootstrap, ORM, and response helpers where they fit.
