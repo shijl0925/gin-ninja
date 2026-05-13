@@ -28,7 +28,7 @@ type CSRFConfig struct {
 	FieldName string
 	// CookieMaxAge is the cookie lifetime in seconds. Defaults to 43200 (12 h).
 	CookieMaxAge int
-	// CookieSecure marks the cookie as Secure (HTTPS only).
+	// CookieSecure is deprecated; CSRF cookies are always marked Secure (HTTPS only).
 	CookieSecure bool
 	// CookieHTTPOnly controls whether the cookie is accessible to JavaScript.
 	// Note: set to false if the client reads the token via JavaScript (common
@@ -212,7 +212,7 @@ func setCSRFCookie(c *gin.Context, cfg *CSRFConfig, token string) {
 		Value:    token,
 		Path:     "/",
 		MaxAge:   cfg.CookieMaxAge,
-		Secure:   cfg.CookieSecure,
+		Secure:   true,
 		HttpOnly: cfg.CookieHTTPOnly,
 		SameSite: cfg.CookieSameSite,
 	})

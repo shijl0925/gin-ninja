@@ -27,11 +27,9 @@ type SessionConfig struct {
 	Domain string
 	// Secure is deprecated; session cookies are always marked Secure (HTTPS only).
 	Secure bool
-	// HTTPOnly marks the cookie as HttpOnly (no JavaScript access).  Defaults to true.
-	// To explicitly disable HttpOnly, set HTTPOnlySet to true as well.
+	// HTTPOnly is deprecated; session cookies are always marked HttpOnly.
 	HTTPOnly bool
-	// HTTPOnlySet applies the HTTPOnly value even when it is false.
-	// When false, HTTPOnly defaults to true.
+	// HTTPOnlySet is deprecated; session cookies are always marked HttpOnly.
 	HTTPOnlySet bool
 	// SameSite controls the SameSite attribute.  Defaults to http.SameSiteLaxMode.
 	SameSite http.SameSite
@@ -54,9 +52,7 @@ func (cfg *SessionConfig) withDefaults() *SessionConfig {
 	if out.SameSite == 0 {
 		out.SameSite = http.SameSiteLaxMode
 	}
-	if !out.HTTPOnlySet {
-		out.HTTPOnly = true
-	}
+	out.HTTPOnly = true
 	return &out
 }
 
@@ -183,7 +179,7 @@ func (s *Session) Save(c *gin.Context) error {
 		Domain:   s.cfg.Domain,
 		MaxAge:   s.cfg.MaxAge,
 		Secure:   true,
-		HttpOnly: s.cfg.HTTPOnly,
+		HttpOnly: true,
 		SameSite: s.cfg.SameSite,
 	})
 	s.dirty = false

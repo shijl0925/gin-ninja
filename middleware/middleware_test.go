@@ -465,7 +465,7 @@ func TestSession_ExpiredCookieIsIgnored(t *testing.T) {
 	}
 }
 
-func TestSession_HTTPOnlyCanBeExplicitlyDisabled(t *testing.T) {
+func TestSession_HTTPOnlyCannotBeDisabled(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.SessionMiddleware(&middleware.SessionConfig{
 		Secret:      "test-secret",
@@ -491,8 +491,8 @@ func TestSession_HTTPOnlyCanBeExplicitlyDisabled(t *testing.T) {
 	if sessionCookie == nil {
 		t.Fatal("expected session cookie to be set")
 	}
-	if sessionCookie.HttpOnly {
-		t.Fatal("expected session cookie HttpOnly to remain disabled")
+	if !sessionCookie.HttpOnly {
+		t.Fatal("expected session cookie HttpOnly to remain enabled")
 	}
 }
 
@@ -554,6 +554,9 @@ func TestCSRF_SafeMethodsSetsToken(t *testing.T) {
 	}
 	if csrfCookie == nil {
 		t.Fatal("expected csrf_token cookie to be set")
+	}
+	if !csrfCookie.Secure {
+		t.Fatal("expected csrf_token cookie to be Secure")
 	}
 }
 
