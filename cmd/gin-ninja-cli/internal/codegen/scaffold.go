@@ -562,7 +562,7 @@ func ensureScaffoldDir(dir string, force bool) error {
 			}
 		}
 	case os.IsNotExist(err):
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("create output directory: %w", err)
 		}
 	default:
@@ -574,10 +574,10 @@ func ensureScaffoldDir(dir string, force bool) error {
 func writeScaffoldFiles(root string, files map[string][]byte) error {
 	for rel, content := range files {
 		fullPath := filepath.Join(root, rel)
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o700); err != nil {
 			return fmt.Errorf("create parent directory for %s: %w", rel, err)
 		}
-		if err := os.WriteFile(fullPath, content, 0o644); err != nil {
+		if err := os.WriteFile(fullPath, content, 0o600); err != nil {
 			return fmt.Errorf("write %s: %w", rel, err)
 		}
 	}

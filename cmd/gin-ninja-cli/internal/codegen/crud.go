@@ -37,10 +37,10 @@ func WriteCRUDFile(cfg CRUDConfig, outputPath string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o700); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
 	}
-	if err := os.WriteFile(outputPath, content, 0o644); err != nil {
+	if err := os.WriteFile(outputPath, content, 0o600); err != nil {
 		return fmt.Errorf("write generated file: %w", err)
 	}
 	return nil

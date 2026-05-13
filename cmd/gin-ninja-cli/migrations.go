@@ -124,14 +124,14 @@ func runMakeMigrations(stdout, stderr io.Writer, args []string) int {
 		downSQL += migrationIrreversible + "\n"
 	}
 	migrationsPath := filepath.Join(project.rootDir, project.migrationsDir)
-	if err := os.MkdirAll(migrationsPath, 0o755); err != nil {
+	if err := os.MkdirAll(migrationsPath, 0o700); err != nil {
 		fmt.Fprintf(stderr, "create migrations dir: %v\n", err)
 		return 1
 	}
 	fileName = uniqueMigrationFileName(migrationsPath, fileName)
 	content := buildMigrationFile(fileName, upSQL, downSQL)
 	fullPath := filepath.Join(migrationsPath, fileName)
-	if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
 		fmt.Fprintf(stderr, "write migration file: %v\n", err)
 		return 1
 	}
@@ -420,7 +420,7 @@ func collectMigrationStatements(project migrationProject) ([]string, error) {
 	}
 	defer os.RemoveAll(helperDir)
 	helperPath := filepath.Join(helperDir, "main.go")
-	if err := os.WriteFile(helperPath, []byte(buildMigrationHelper(project.appImportPath)), 0o644); err != nil {
+	if err := os.WriteFile(helperPath, []byte(buildMigrationHelper(project.appImportPath)), 0o600); err != nil {
 		return nil, err
 	}
 	cmd := exec.Command("go", "run", helperPath, project.configPath)
