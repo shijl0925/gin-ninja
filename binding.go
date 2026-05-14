@@ -30,6 +30,10 @@ var validate = func() *validator.Validate {
 
 var timeType = reflect.TypeOf(time.Time{})
 
+// bindingMetadataCache stores precomputed binding field/tag metadata keyed by
+// reflect.Type. sync.Map makes it safe for concurrent requests, and entries
+// intentionally live for the process lifetime because Go struct types are
+// stable once compiled.
 var bindingMetadataCache sync.Map
 
 type bindingMetadata struct {
@@ -99,14 +103,15 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	if meta.hasQuery {
 		queryValues = c.Request.URL.Query()
 	}
+	willBindJSON := isBodyMethod(method) && !multipartRequest && !formBody
 
-	nonBodyValues, err := bindRequestFields(c, meta, v, queryValues, formValues, formBody, multipartForm)
+	nonBodyValues, err := bindRequestFields(c, meta, v, queryValues, formValues, formBody, multipartForm, willBindJSON)
 	if err != nil {
 		return err
 	}
 
 	// Bind JSON body for mutating methods.
-	if isBodyMethod(method) && !multipartRequest && !formBody {
+	if willBindJSON {
 		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 32<<20)) // 32 MB limit
 		if err != nil {
 			return err
@@ -241,7 +246,7 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 		if !fv.CanSet() {
 			continue
 		}
-		if field.formTag != "" {
+		if field.formTag != "" && field.formTag != "-" {
 			values := form.Value[field.formTag]
 			if len(values) == 0 {
 				continue
@@ -255,18 +260,8 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 			}
 			continue
 		}
-		if field.fileTag != "" && field.fileTag != "-" {
-			files := form.File[field.fileTag]
-			if len(files) == 0 {
-				continue
-			}
-			if err := setFileField(fv, files); err != nil {
-				return &Error{
-					Status:  http.StatusBadRequest,
-					Code:    "BAD_FILE_FIELD",
-					Message: fmt.Sprintf("file field '%s': %s", field.fileTag, err.Error()),
-				}
-			}
+		if err := bindMultipartFileValue(field, fv, form.File); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -328,6 +323,7 @@ func bindRequestFields(
 	formValues map[string][]string,
 	formBody bool,
 	multipartForm *multipart.Form,
+	collectSnapshots bool,
 ) ([]fieldValueSnapshot, error) {
 	var snapshots []fieldValueSnapshot
 	for _, field := range meta.fields {
@@ -400,7 +396,7 @@ func bindRequestFields(
 		}
 
 		if multipartForm != nil {
-			if field.formTag != "" {
+			if field.formTag != "" && field.formTag != "-" {
 				values := multipartForm.Value[field.formTag]
 				if len(values) > 0 {
 					if err := setFieldFromStrings(fv, values); err != nil {
@@ -411,27 +407,36 @@ func bindRequestFields(
 						}
 					}
 				}
-			} else if field.fileTag != "" && field.fileTag != "-" {
-				files := multipartForm.File[field.fileTag]
-				if len(files) > 0 {
-					if err := setFileField(fv, files); err != nil {
-						return nil, &Error{
-							Status:  http.StatusBadRequest,
-							Code:    "BAD_FILE_FIELD",
-							Message: fmt.Sprintf("file field '%s': %s", field.fileTag, err.Error()),
-						}
-					}
-				}
+			} else if err := bindMultipartFileValue(field, fv, multipartForm.File); err != nil {
+				return nil, err
 			}
 		}
 
-		if field.isNonBody {
+		if collectSnapshots && field.isNonBody {
 			copyValue := reflect.New(fv.Type()).Elem()
 			copyValue.Set(fv)
 			snapshots = append(snapshots, fieldValueSnapshot{index: field.index, value: copyValue})
 		}
 	}
 	return snapshots, nil
+}
+
+func bindMultipartFileValue(field bindingField, fv reflect.Value, filesByName map[string][]*multipart.FileHeader) error {
+	if field.fileTag == "" || field.fileTag == "-" {
+		return nil
+	}
+	files := filesByName[field.fileTag]
+	if len(files) == 0 {
+		return nil
+	}
+	if err := setFileField(fv, files); err != nil {
+		return &Error{
+			Status:  http.StatusBadRequest,
+			Code:    "BAD_FILE_FIELD",
+			Message: fmt.Sprintf("file field '%s': %s", field.fileTag, err.Error()),
+		}
+	}
+	return nil
 }
 
 func applyDefaults(c *gin.Context, meta *bindingMetadata, v reflect.Value) error {
@@ -711,8 +716,8 @@ func restoreFieldValues(root reflect.Value, snapshots []fieldValueSnapshot) {
 	}
 }
 
-// fieldByIndexAlloc mirrors the previous recursive binders' derefValue behavior
-// for embedded pointer structs while resolving a cached field index.
+// fieldByIndexAlloc resolves a cached field index path and allocates nil
+// pointer structs encountered along the path so embedded fields can be bound.
 func fieldByIndexAlloc(root reflect.Value, index []int) reflect.Value {
 	v := root
 	for _, i := range index {
