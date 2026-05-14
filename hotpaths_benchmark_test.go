@@ -45,12 +45,23 @@ type benchmarkBindingOutput struct {
 }
 
 type benchmarkBindingQuery struct {
-	Limit int `query:"limit" binding:"required,gte=1,lte=100"`
+	Limit int `query:"limit" form:"limit" binding:"required,gte=1,lte=100"`
 }
 
 type benchmarkBindingBody struct {
 	Name  string `json:"name" binding:"required,min=3"`
 	Count int    `json:"count" binding:"required,gte=1"`
+}
+
+type benchmarkBindingMultiSourceInput struct {
+	ID     string `path:"id"`
+	Limit  int    `query:"limit" binding:"required,gte=1,lte=100"`
+	Page   int    `query:"page" default:"1"`
+	Search string `query:"search"`
+	Token  string `header:"X-Token"`
+	Locale string `cookie:"locale"`
+	Name   string `json:"name" binding:"required,min=3"`
+	Count  int    `json:"count" binding:"required,gte=1"`
 }
 
 func BenchmarkHotpathsRouting(b *testing.B) {
@@ -88,6 +99,18 @@ func BenchmarkHotpathsBinding(b *testing.B) {
 			req.Header.Set("Content-Type", "application/json")
 			return req
 		})
+	})
+}
+
+func BenchmarkHotpathsBindingMultiSource(b *testing.B) {
+	body := []byte(`{"name":"alice","count":3}`)
+	handler := benchmarkNinjaBindingMultiSourceHandler()
+	benchmarkServeHTTP(b, handler, func() *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/bindings/42?limit=20&search=abc", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Token", "token")
+		req.AddCookie(&http.Cookie{Name: "locale", Value: "en"})
+		return req
 	})
 }
 
@@ -177,6 +200,21 @@ func benchmarkNinjaBindingHandler() http.Handler {
 			Name:  input.Name,
 			Count: input.Count,
 			OK:    true,
+		}, nil
+	}, SuccessStatus(http.StatusOK))
+	api.AddRouter(router)
+	return api.Handler()
+}
+
+func benchmarkNinjaBindingMultiSourceHandler() http.Handler {
+	api := New(Config{DisableGinDefault: true})
+	router := NewRouter("")
+	Post(router, "/bindings/:id", func(_ *Context, input *benchmarkBindingMultiSourceInput) (*benchmarkBindingOutput, error) {
+		return &benchmarkBindingOutput{
+			Limit: input.Limit,
+			Name:  input.Name,
+			Count: input.Count,
+			OK:    input.ID != "" && input.Page == 1 && input.Token != "" && input.Locale != "",
 		}, nil
 	}, SuccessStatus(http.StatusOK))
 	api.AddRouter(router)
