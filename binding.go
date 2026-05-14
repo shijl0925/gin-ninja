@@ -9,10 +9,10 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +29,28 @@ var validate = func() *validator.Validate {
 }()
 
 var timeType = reflect.TypeOf(time.Time{})
+
+var bindingMetadataCache sync.Map
+
+type bindingMetadata struct {
+	fields       []bindingField
+	hasQuery     bool
+	hasForm      bool
+	hasMultipart bool
+}
+
+type bindingField struct {
+	index        []int
+	name         string
+	pathTag      string
+	queryTag     string
+	formTag      string
+	headerTag    string
+	cookieTag    string
+	fileTag      string
+	defaultValue string
+	isNonBody    bool
+}
 
 // bindInput populates the input struct from the incoming gin request.
 //
@@ -51,42 +73,41 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		return fmt.Errorf("input must be a struct, got %s", t.Kind())
 	}
 
-	// Bind path + header fields via custom reflection walk.
-	if err := bindSpecialFields(c, t, v); err != nil {
-		return err
-	}
-
-	// Use the framework binder instead of gin's generic form binder so request
-	// sources keep gin-ninja's documented precedence: path/header/cookie/query
-	// and form values are restored if a JSON body binds the same field.
-	if hasQueryFields(t) {
-		values := queryValues(c)
-		if err := bindQueryFields(t, v, values); err != nil {
-			return err
-		}
-	}
-
+	meta := getBindingMetadata(t)
 	formBody := isBodyMethod(method) && isFormURLEncodedRequest(c)
-	if formBody && hasFormFields(t) {
-		values, err := formValues(c)
+	multipartRequest := isMultipartRequest(c)
+	var formValues map[string][]string
+	if formBody && meta.hasForm {
+		var err error
+		formValues, err = formBodyValues(c)
 		if err != nil {
 			return err
 		}
-		if err := bindFormFields(t, v, values, formBody); err != nil {
-			return err
+	}
+	var multipartForm *multipart.Form
+	if multipartRequest && meta.hasMultipart {
+		form, err := c.MultipartForm()
+		if err != nil {
+			return &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "INVALID_MULTIPART",
+				Message: "invalid multipart form",
+			}
 		}
+		multipartForm = form
+	}
+	var queryValues map[string][]string
+	if meta.hasQuery {
+		queryValues = c.Request.URL.Query()
 	}
 
-	if isMultipartRequest(c) {
-		if err := bindMultipartFields(c, t, v); err != nil {
-			return err
-		}
+	nonBodyValues, err := bindRequestFields(c, meta, v, queryValues, formValues, formBody, multipartForm)
+	if err != nil {
+		return err
 	}
-
-	nonBodyValues := collectNonBodyFieldValues(t, v)
 
 	// Bind JSON body for mutating methods.
-	if isBodyMethod(method) && !isMultipartRequest(c) && !isFormURLEncodedRequest(c) {
+	if isBodyMethod(method) && !multipartRequest && !formBody {
 		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 32<<20)) // 32 MB limit
 		if err != nil {
 			return err
@@ -106,7 +127,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		}
 	}
 
-	if err := applyDefaults(c, t, v); err != nil {
+	if err := applyDefaults(c, meta, v); err != nil {
 		return err
 	}
 
@@ -121,59 +142,77 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 	return nil
 }
 
-func hasFormFields(t reflect.Type) bool {
+func getBindingMetadata(t reflect.Type) *bindingMetadata {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		return false
+		return &bindingMetadata{}
 	}
+	if cached, ok := bindingMetadataCache.Load(t); ok {
+		return cached.(*bindingMetadata)
+	}
+	meta := buildBindingMetadata(t)
+	actual, _ := bindingMetadataCache.LoadOrStore(t, meta)
+	return actual.(*bindingMetadata)
+}
+
+func buildBindingMetadata(t reflect.Type) *bindingMetadata {
+	meta := &bindingMetadata{}
+	buildBindingMetadataInto(t, nil, meta)
+	return meta
+}
+
+func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadata) {
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if !field.IsExported() && !field.Anonymous {
 			continue
 		}
-		if field.Anonymous && hasFormFields(field.Type) {
-			return true
+		index := append(append([]int(nil), prefix...), i)
+		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
+			buildBindingMetadataInto(deref(field.Type), index, meta)
+			continue
 		}
-		if tag := field.Tag.Get("form"); tag != "" && tag != "-" {
-			return true
+		bf := bindingField{
+			index:        index,
+			name:         field.Name,
+			pathTag:      field.Tag.Get("path"),
+			queryTag:     field.Tag.Get("query"),
+			formTag:      field.Tag.Get("form"),
+			headerTag:    field.Tag.Get("header"),
+			cookieTag:    field.Tag.Get("cookie"),
+			fileTag:      field.Tag.Get("file"),
+			defaultValue: field.Tag.Get("default"),
 		}
+		bf.isNonBody = bf.pathTag != "" ||
+			bf.queryTag != "" ||
+			bf.formTag != "" ||
+			bf.headerTag != "" ||
+			bf.cookieTag != "" ||
+			bf.fileTag != ""
+		if bf.queryTag != "" && bf.queryTag != "-" {
+			meta.hasQuery = true
+		}
+		if bf.formTag != "" && bf.formTag != "-" {
+			meta.hasForm = true
+		}
+		if bf.formTag != "" || bf.fileTag != "" {
+			meta.hasMultipart = true
+		}
+		meta.fields = append(meta.fields, bf)
 	}
-	return false
+}
+
+func hasFormFields(t reflect.Type) bool {
+	return getBindingMetadata(t).hasForm
 }
 
 func hasQueryFields(t reflect.Type) bool {
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	if t.Kind() != reflect.Struct {
-		return false
-	}
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		if !field.IsExported() && !field.Anonymous {
-			continue
-		}
-		if field.Anonymous && hasQueryFields(field.Type) {
-			return true
-		}
-		if tag := field.Tag.Get("query"); tag != "" && tag != "-" {
-			return true
-		}
-	}
-	return false
+	return getBindingMetadata(t).hasQuery
 }
 
-func queryValues(c *gin.Context) url.Values {
-	values := url.Values{}
-	for key, items := range c.Request.URL.Query() {
-		values[key] = append([]string(nil), items...)
-	}
-	return values
-}
-
-func formValues(c *gin.Context) (url.Values, error) {
+func formBodyValues(c *gin.Context) (map[string][]string, error) {
 	if c.Request.PostForm == nil {
 		// PostForm may already be populated by upstream middleware or tests.
 		// Parse only when needed so we don't redo form parsing work.
@@ -185,132 +224,7 @@ func formValues(c *gin.Context) (url.Values, error) {
 			}
 		}
 	}
-	values := url.Values{}
-	for key, items := range c.Request.PostForm {
-		values[key] = append([]string(nil), items...)
-	}
-	return values, nil
-}
-
-func bindQueryFields(t reflect.Type, v reflect.Value, values url.Values) error {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fv := v.Field(i)
-		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			if err := bindQueryFields(deref(field.Type), derefValue(fv), values); err != nil {
-				return err
-			}
-			continue
-		}
-		if !fv.CanSet() {
-			continue
-		}
-		queryTag := field.Tag.Get("query")
-		if queryTag == "" || queryTag == "-" {
-			continue
-		}
-		raw, ok := values[queryTag]
-		if !ok || len(raw) == 0 {
-			continue
-		}
-		if err := setFieldFromStrings(fv, raw); err != nil {
-			return &Error{
-				Status:  http.StatusBadRequest,
-				Code:    "INVALID_QUERY",
-				Message: fmt.Sprintf("query field '%s': %s", queryTag, err.Error()),
-			}
-		}
-	}
-	return nil
-}
-
-func bindFormFields(t reflect.Type, v reflect.Value, values url.Values, formBody bool) error {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fv := v.Field(i)
-		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			if err := bindFormFields(deref(field.Type), derefValue(fv), values, formBody); err != nil {
-				return err
-			}
-			continue
-		}
-		if !fv.CanSet() {
-			continue
-		}
-		formTag := field.Tag.Get("form")
-		if formTag == "" || formTag == "-" {
-			continue
-		}
-		raw, ok := values[formTag]
-		if !ok || len(raw) == 0 {
-			continue
-		}
-		if err := setFieldFromStrings(fv, raw); err != nil {
-			code := "INVALID_QUERY"
-			if formBody {
-				code = "INVALID_FORM"
-			}
-			return &Error{
-				Status:  http.StatusBadRequest,
-				Code:    code,
-				Message: fmt.Sprintf("form field '%s': %s", formTag, err.Error()),
-			}
-		}
-	}
-	return nil
-}
-
-func applyDefaults(c *gin.Context, t reflect.Type, v reflect.Value) error {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fv := v.Field(i)
-
-		if !fv.CanSet() {
-			continue
-		}
-
-		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			if err := applyDefaults(c, deref(field.Type), derefValue(fv)); err != nil {
-				return err
-			}
-			continue
-		}
-
-		rawDefault := field.Tag.Get("default")
-		if rawDefault == "" || !isZeroValue(fv) {
-			continue
-		}
-
-		switch {
-		case field.Tag.Get("header") != "":
-			if c.GetHeader(field.Tag.Get("header")) != "" {
-				continue
-			}
-		case field.Tag.Get("cookie") != "":
-			if _, err := c.Cookie(field.Tag.Get("cookie")); err == nil {
-				continue
-			}
-		case field.Tag.Get("query") != "":
-			if hasQueryValue(c, field.Tag.Get("query")) {
-				continue
-			}
-		case field.Tag.Get("form") != "":
-			if hasFormBodyValue(c, field.Tag.Get("form")) {
-				continue
-			}
-		default:
-			continue
-		}
-
-		if err := setFieldFromString(fv, rawDefault); err != nil {
-			return &Error{
-				Status:  http.StatusBadRequest,
-				Code:    "BAD_DEFAULT_VALUE",
-				Message: fmt.Sprintf("default for field '%s': %s", field.Name, err.Error()),
-			}
-		}
-	}
-	return nil
+	return c.Request.PostForm, nil
 }
 
 func bindMultipartFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
@@ -326,23 +240,13 @@ func bindMultipartFields(c *gin.Context, t reflect.Type, v reflect.Value) error 
 }
 
 func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) error {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fv := v.Field(i)
-
+	for _, field := range getBindingMetadata(t).fields {
+		fv := fieldByIndexAlloc(v, field.index)
 		if !fv.CanSet() {
 			continue
 		}
-
-		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			if err := bindMultipartValue(deref(field.Type), derefValue(fv), form); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if formTag := field.Tag.Get("form"); formTag != "" {
-			values := form.Value[formTag]
+		if field.formTag != "" {
+			values := form.Value[field.formTag]
 			if len(values) == 0 {
 				continue
 			}
@@ -350,14 +254,13 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "BAD_FORM_VALUE",
-					Message: fmt.Sprintf("form field '%s': %s", formTag, err.Error()),
+					Message: fmt.Sprintf("form field '%s': %s", field.formTag, err.Error()),
 				}
 			}
 			continue
 		}
-
-		if fileTag := field.Tag.Get("file"); fileTag != "" {
-			files := form.File[fileTag]
+		if field.fileTag != "" {
+			files := form.File[field.fileTag]
 			if len(files) == 0 {
 				continue
 			}
@@ -365,7 +268,7 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 				return &Error{
 					Status:  http.StatusBadRequest,
 					Code:    "BAD_FILE_FIELD",
-					Message: fmt.Sprintf("file field '%s': %s", fileTag, err.Error()),
+					Message: fmt.Sprintf("file field '%s': %s", field.fileTag, err.Error()),
 				}
 			}
 		}
@@ -373,68 +276,205 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 	return nil
 }
 
-// bindSpecialFields walks the struct fields and binds path, header, and cookie params.
 func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fv := v.Field(i)
+	for _, field := range getBindingMetadata(t).fields {
+		fv := fieldByIndexAlloc(v, field.index)
+		if !fv.CanSet() {
+			continue
+		}
+		if field.pathTag != "" {
+			raw := c.Param(field.pathTag)
+			if raw != "" {
+				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
+					return &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "BAD_PATH_PARAM",
+						Message: fmt.Sprintf("path param '%s': %s", field.pathTag, err.Error()),
+					}
+				}
+			}
+			continue
+		}
+		if field.headerTag != "" {
+			raw := c.Request.Header.Values(field.headerTag)
+			if len(raw) > 0 {
+				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw...)); err != nil {
+					return &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "BAD_HEADER",
+						Message: fmt.Sprintf("header '%s': %s", field.headerTag, err.Error()),
+					}
+				}
+			}
+			continue
+		}
+		if field.cookieTag != "" {
+			raw, err := c.Cookie(field.cookieTag)
+			if err == nil && raw != "" {
+				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
+					return &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "BAD_COOKIE",
+						Message: fmt.Sprintf("cookie '%s': %s", field.cookieTag, err.Error()),
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
 
+func bindRequestFields(
+	c *gin.Context,
+	meta *bindingMetadata,
+	v reflect.Value,
+	queryValues map[string][]string,
+	formValues map[string][]string,
+	formBody bool,
+	multipartForm *multipart.Form,
+) ([]fieldValueSnapshot, error) {
+	var snapshots []fieldValueSnapshot
+	for _, field := range meta.fields {
+		fv := fieldByIndexAlloc(v, field.index)
 		if !fv.CanSet() {
 			continue
 		}
 
-		// Handle embedded / anonymous structs recursively.
-		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			if err := bindSpecialFields(c, deref(field.Type), derefValue(fv)); err != nil {
-				return err
+		if field.pathTag != "" {
+			raw := c.Param(field.pathTag)
+			if raw != "" {
+				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
+					return nil, &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "BAD_PATH_PARAM",
+						Message: fmt.Sprintf("path param '%s': %s", field.pathTag, err.Error()),
+					}
+				}
 			}
+		}
+
+		if field.headerTag != "" {
+			raw := c.Request.Header.Values(field.headerTag)
+			if len(raw) > 0 {
+				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw...)); err != nil {
+					return nil, &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "BAD_HEADER",
+						Message: fmt.Sprintf("header '%s': %s", field.headerTag, err.Error()),
+					}
+				}
+			}
+		}
+
+		if field.cookieTag != "" {
+			raw, err := c.Cookie(field.cookieTag)
+			if err == nil && raw != "" {
+				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
+					return nil, &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "BAD_COOKIE",
+						Message: fmt.Sprintf("cookie '%s': %s", field.cookieTag, err.Error()),
+					}
+				}
+			}
+		}
+
+		if field.queryTag != "" && field.queryTag != "-" {
+			if raw := queryValues[field.queryTag]; len(raw) > 0 {
+				if err := setFieldFromStrings(fv, raw); err != nil {
+					return nil, &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "INVALID_QUERY",
+						Message: fmt.Sprintf("query field '%s': %s", field.queryTag, err.Error()),
+					}
+				}
+			}
+		}
+
+		if formBody && field.formTag != "" && field.formTag != "-" {
+			if raw := formValues[field.formTag]; len(raw) > 0 {
+				if err := setFieldFromStrings(fv, raw); err != nil {
+					return nil, &Error{
+						Status:  http.StatusBadRequest,
+						Code:    "INVALID_FORM",
+						Message: fmt.Sprintf("form field '%s': %s", field.formTag, err.Error()),
+					}
+				}
+			}
+		}
+
+		if multipartForm != nil {
+			if field.formTag != "" {
+				values := multipartForm.Value[field.formTag]
+				if len(values) > 0 {
+					if err := setFieldFromStrings(fv, values); err != nil {
+						return nil, &Error{
+							Status:  http.StatusBadRequest,
+							Code:    "BAD_FORM_VALUE",
+							Message: fmt.Sprintf("form field '%s': %s", field.formTag, err.Error()),
+						}
+					}
+				}
+			} else if field.fileTag != "" {
+				files := multipartForm.File[field.fileTag]
+				if len(files) > 0 {
+					if err := setFileField(fv, files); err != nil {
+						return nil, &Error{
+							Status:  http.StatusBadRequest,
+							Code:    "BAD_FILE_FIELD",
+							Message: fmt.Sprintf("file field '%s': %s", field.fileTag, err.Error()),
+						}
+					}
+				}
+			}
+		}
+
+		if field.isNonBody {
+			copyValue := reflect.New(fv.Type()).Elem()
+			copyValue.Set(fv)
+			snapshots = append(snapshots, fieldValueSnapshot{index: field.index, value: copyValue})
+		}
+	}
+	return snapshots, nil
+}
+
+func applyDefaults(c *gin.Context, meta *bindingMetadata, v reflect.Value) error {
+	for _, field := range meta.fields {
+		fv := fieldByIndexAlloc(v, field.index)
+		if !fv.CanSet() {
 			continue
 		}
 
-		// Path parameters.
-		if pathTag := field.Tag.Get("path"); pathTag != "" {
-			raw := c.Param(pathTag)
-			if raw == "" {
-				continue
-			}
-			if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
-				return &Error{
-					Status:  http.StatusBadRequest,
-					Code:    "BAD_PATH_PARAM",
-					Message: fmt.Sprintf("path param '%s': %s", pathTag, err.Error()),
-				}
-			}
+		if field.defaultValue == "" || !isZeroValue(fv) {
 			continue
 		}
 
-		// Header parameters.
-		if headerTag := field.Tag.Get("header"); headerTag != "" {
-			raw := c.Request.Header.Values(headerTag)
-			if len(raw) == 0 {
+		switch {
+		case field.headerTag != "":
+			if c.GetHeader(field.headerTag) != "" {
 				continue
 			}
-			if err := setFieldFromStrings(fv, valuesForStringField(fv, raw...)); err != nil {
-				return &Error{
-					Status:  http.StatusBadRequest,
-					Code:    "BAD_HEADER",
-					Message: fmt.Sprintf("header '%s': %s", headerTag, err.Error()),
-				}
+		case field.cookieTag != "":
+			if _, err := c.Cookie(field.cookieTag); err == nil {
+				continue
 			}
+		case field.queryTag != "":
+			if hasQueryValue(c, field.queryTag) {
+				continue
+			}
+		case field.formTag != "":
+			if hasFormBodyValue(c, field.formTag) {
+				continue
+			}
+		default:
 			continue
 		}
 
-		// Cookie parameters.
-		if cookieTag := field.Tag.Get("cookie"); cookieTag != "" {
-			raw, err := c.Cookie(cookieTag)
-			if err != nil || raw == "" {
-				continue
-			}
-			if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
-				return &Error{
-					Status:  http.StatusBadRequest,
-					Code:    "BAD_COOKIE",
-					Message: fmt.Sprintf("cookie '%s': %s", cookieTag, err.Error()),
-				}
+		if err := setFieldFromString(fv, field.defaultValue); err != nil {
+			return &Error{
+				Status:  http.StatusBadRequest,
+				Code:    "BAD_DEFAULT_VALUE",
+				Message: fmt.Sprintf("default for field '%s': %s", field.name, err.Error()),
 			}
 		}
 	}
@@ -668,11 +708,25 @@ func isNonBodyField(field reflect.StructField) bool {
 
 func restoreFieldValues(root reflect.Value, snapshots []fieldValueSnapshot) {
 	for _, snapshot := range snapshots {
-		field := root.FieldByIndex(snapshot.index)
+		field := fieldByIndexAlloc(root, snapshot.index)
 		if field.CanSet() {
 			field.Set(snapshot.value)
 		}
 	}
+}
+
+func fieldByIndexAlloc(root reflect.Value, index []int) reflect.Value {
+	v := root
+	for _, i := range index {
+		for v.Kind() == reflect.Ptr {
+			if v.IsNil() {
+				v.Set(reflect.New(v.Type().Elem()))
+			}
+			v = v.Elem()
+		}
+		v = v.Field(i)
+	}
+	return v
 }
 
 func derefValue(v reflect.Value) reflect.Value {
