@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/bootstrap"
@@ -66,10 +65,6 @@ func doFullJSON(t *testing.T, server *httptest.Server, method, path string, body
 		t.Fatalf("Do: %v", err)
 	}
 	return resp
-}
-
-func compactWhitespace(value string) string {
-	return strings.Join(strings.Fields(value), " ")
 }
 
 func readBody(t *testing.T, body io.ReadCloser) string {

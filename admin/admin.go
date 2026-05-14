@@ -110,7 +110,6 @@ type Resource struct {
 	fields       []*fieldMeta
 	fieldByName  map[string]*fieldMeta
 	primaryKey   *fieldMeta
-	allowedQuery map[string]struct{}
 }
 
 type Site struct {
