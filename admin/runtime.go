@@ -22,52 +22,86 @@ type resolvedResource struct {
 	fieldByName map[string]*fieldMeta
 	metadata    ResourceMetadata
 	primaryKey  *fieldMeta
+	fieldMeta   map[*fieldMeta]FieldMeta
 }
 
 func (r *Resource) resolved(ctx *ninja.Context) *resolvedResource {
+	if r.FieldPermissions == nil {
+		return r.resolvedView
+	}
 	view := &resolvedResource{
-		fields:      make([]*fieldMeta, 0, len(r.fields)),
-		fieldByName: make(map[string]*fieldMeta, len(r.fieldByName)),
+		fields:      r.fields,
+		fieldByName: r.fieldByName,
 		metadata: ResourceMetadata{
 			Name:  r.metadata.Name,
 			Label: r.metadata.Label,
 			Path:  r.metadata.Path,
 		},
+		primaryKey: r.primaryKey,
+		fieldMeta:  make(map[*fieldMeta]FieldMeta, len(r.fields)),
 	}
 	for _, field := range r.fields {
-		cloned := cloneField(field)
-		if r.FieldPermissions != nil {
-			r.FieldPermissions(ctx, r, &cloned.Meta)
-		}
-		normalizeResolvedField(&cloned.Meta)
-		view.fields = append(view.fields, cloned)
-		view.fieldByName[cloned.Meta.Name] = cloned
-		if r.primaryKey != nil && cloned.Meta.Name == r.primaryKey.Meta.Name {
-			view.primaryKey = cloned
-		}
-		if includeFieldInMetadata(cloned) {
-			view.metadata.Fields = append(view.metadata.Fields, cloneFieldMetaValue(cloned.Meta))
+		meta := cloneFieldMetaValue(field.Meta)
+		r.FieldPermissions(ctx, r, &meta)
+		normalizeResolvedField(&meta)
+		view.fieldMeta[field] = meta
+		if includeFieldMetaInMetadata(meta) {
+			view.metadata.Fields = append(view.metadata.Fields, cloneFieldMetaValue(meta))
 		}
 	}
-	view.metadata.ListFields = visibleFields(view.fields, fieldModeList)
-	view.metadata.DetailFields = visibleFields(view.fields, fieldModeDetail)
-	view.metadata.CreateFields = visibleFields(view.fields, fieldModeCreate)
-	view.metadata.UpdateFields = visibleFields(view.fields, fieldModeUpdate)
-	view.metadata.FilterFields = visibleFields(view.fields, fieldModeFilter)
-	view.metadata.SortFields = visibleFields(view.fields, fieldModeSort)
-	view.metadata.SearchFields = visibleFields(view.fields, fieldModeSearch)
+	view.metadata.ListFields = view.visibleFields(fieldModeList)
+	view.metadata.DetailFields = view.visibleFields(fieldModeDetail)
+	view.metadata.CreateFields = view.visibleFields(fieldModeCreate)
+	view.metadata.UpdateFields = view.visibleFields(fieldModeUpdate)
+	view.metadata.FilterFields = view.visibleFields(fieldModeFilter)
+	view.metadata.SortFields = view.visibleFields(fieldModeSort)
+	view.metadata.SearchFields = view.visibleFields(fieldModeSearch)
 	view.metadata.Actions = append([]Action(nil), r.metadata.Actions...)
 	return view
 }
 
-func cloneField(field *fieldMeta) *fieldMeta {
+func (view *resolvedResource) meta(field *fieldMeta) FieldMeta {
 	if field == nil {
-		return nil
+		return FieldMeta{}
 	}
-	cloned := *field
-	cloned.Meta = cloneFieldMetaValue(field.Meta)
-	cloned.index = append([]int(nil), field.index...)
-	return &cloned
+	if view != nil && view.fieldMeta != nil {
+		if meta, ok := view.fieldMeta[field]; ok {
+			return meta
+		}
+	}
+	return field.Meta
+}
+
+func (view *resolvedResource) allowed(field *fieldMeta, mode fieldMode) bool {
+	meta := view.meta(field)
+	switch mode {
+	case fieldModeList:
+		return meta.List
+	case fieldModeDetail:
+		return meta.Detail
+	case fieldModeCreate:
+		return meta.Create
+	case fieldModeUpdate:
+		return meta.Update
+	case fieldModeFilter:
+		return meta.Filterable
+	case fieldModeSort:
+		return meta.Sortable
+	case fieldModeSearch:
+		return meta.Searchable
+	default:
+		return false
+	}
+}
+
+func (view *resolvedResource) visibleFields(mode fieldMode) []string {
+	out := make([]string, 0, len(view.fields))
+	for _, field := range view.fields {
+		if view.allowed(field, mode) {
+			out = append(out, view.meta(field).Name)
+		}
+	}
+	return out
 }
 
 func cloneFieldMetaValue(meta FieldMeta) FieldMeta {
@@ -89,12 +123,15 @@ func normalizeResolvedField(meta *FieldMeta) {
 	}
 }
 
+func includeFieldMetaInMetadata(meta FieldMeta) bool {
+	return meta.List || meta.Detail || meta.Create || meta.Update || meta.Filterable || meta.Sortable || meta.Searchable
+}
+
 func includeFieldInMetadata(field *fieldMeta) bool {
 	if field == nil {
 		return false
 	}
-	meta := field.Meta
-	return meta.List || meta.Detail || meta.Create || meta.Update || meta.Filterable || meta.Sortable || meta.Searchable
+	return includeFieldMetaInMetadata(field.Meta)
 }
 
 func (r *Resource) scopedDB(ctx *ninja.Context, action Action, db *gorm.DB) *gorm.DB {
@@ -131,7 +168,7 @@ func (r *Resource) decodeWritePayloadFor(view *resolvedResource, ctx *ninja.Cont
 		if !ok {
 			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("unknown field %q", name))
 		}
-		if !field.allowed(mode) {
+		if !view.allowed(field, mode) {
 			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is not writable", name))
 		}
 		decoded, err := field.decodeJSON(raw)
@@ -159,10 +196,17 @@ func queryColumn(field *fieldMeta) string {
 	if field == nil {
 		return ""
 	}
-	if field.Meta.Name == "id" {
-		return field.Meta.Name
+	return queryColumnFor(field, field.Meta)
+}
+
+func queryColumnFor(field *fieldMeta, meta FieldMeta) string {
+	if field == nil {
+		return ""
 	}
-	return field.Meta.Column
+	if meta.Name == "id" {
+		return meta.Name
+	}
+	return meta.Column
 }
 
 func (r *Resource) validateRequiredFor(view *resolvedResource, values map[string]any, mode fieldMode) error {
@@ -170,13 +214,14 @@ func (r *Resource) validateRequiredFor(view *resolvedResource, values map[string
 		return nil
 	}
 	for _, field := range view.fields {
-		if !field.Meta.Required || !field.allowed(mode) {
+		meta := view.meta(field)
+		if !meta.Required || !view.allowed(field, mode) {
 			continue
 		}
-		if _, ok := values[field.Meta.Name]; ok {
+		if _, ok := values[meta.Name]; ok {
 			continue
 		}
-		return ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is required", field.Meta.Name))
+		return ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is required", meta.Name))
 	}
 	return nil
 }
@@ -201,7 +246,7 @@ func (r *Resource) updateColumnsFor(view *resolvedResource, before, after reflec
 		if field == nil || !field.persisted || field.primaryKey {
 			continue
 		}
-		column := strings.TrimSpace(field.Meta.Column)
+		column := strings.TrimSpace(view.meta(field).Column)
 		if column == "" {
 			continue
 		}
@@ -224,7 +269,7 @@ func (r *Resource) persistedColumnsFor(view *resolvedResource) []string {
 		if field == nil || !field.persisted || field.primaryKey {
 			continue
 		}
-		column := strings.TrimSpace(field.Meta.Column)
+		column := strings.TrimSpace(view.meta(field).Column)
 		if column == "" {
 			continue
 		}
@@ -259,7 +304,7 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 			if field == nil {
 				continue
 			}
-			parts = append(parts, field.Meta.Column+" LIKE ?")
+			parts = append(parts, view.meta(field).Column+" LIKE ?")
 			args = append(args, "%"+term+"%")
 		}
 		if len(parts) > 0 {
@@ -272,7 +317,7 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 		if field == nil {
 			continue
 		}
-		next, err := applyFilter(db, query, field)
+		next, err := applyFilter(db, query, field, view.meta(field))
 		if err != nil {
 			return nil, err
 		}
@@ -295,7 +340,7 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 			if sortField.Desc {
 				direction = "DESC"
 			}
-			db = db.Order(queryColumn(field) + " " + direction)
+			db = db.Order(queryColumnFor(field, view.meta(field)) + " " + direction)
 		}
 	}
 
@@ -308,10 +353,10 @@ func (r *Resource) serializeFor(view *resolvedResource, v reflect.Value, mode fi
 	}
 	out := map[string]any{}
 	for _, field := range view.fields {
-		if !field.allowed(mode) {
+		if !view.allowed(field, mode) {
 			continue
 		}
-		out[field.Meta.Name] = field.value(v)
+		out[view.meta(field).Name] = field.value(v)
 	}
 	return out
 }
@@ -324,35 +369,36 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 
 		view := r.resolved(ctx)
 		field := view.fieldByName[in.Field]
-		if field == nil || field.Meta.Relation == nil {
+		fieldMeta := view.meta(field)
+		if field == nil || fieldMeta.Relation == nil {
 			return nil, ninja.NotFoundError()
 		}
 
-		target := site.byName[field.Meta.Relation.Resource]
+		target := site.byName[fieldMeta.Relation.Resource]
 		if target == nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("relation resource %q is not registered", field.Meta.Relation.Resource))
+			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("relation resource %q is not registered", fieldMeta.Relation.Resource))
 		}
 		if err := site.authorize(ctx, ActionList, target); err != nil {
 			return nil, err
 		}
 
 		targetView := target.resolved(ctx)
-		valueField := targetView.fieldByName[field.Meta.Relation.ValueField]
-		labelField := targetView.fieldByName[field.Meta.Relation.LabelField]
+		valueField := targetView.fieldByName[fieldMeta.Relation.ValueField]
+		labelField := targetView.fieldByName[fieldMeta.Relation.LabelField]
 		if valueField == nil || labelField == nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("relation fields %q/%q are not available", field.Meta.Relation.ValueField, field.Meta.Relation.LabelField))
+			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("relation fields %q/%q are not available", fieldMeta.Relation.ValueField, fieldMeta.Relation.LabelField))
 		}
 
 		db := target.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context)).Model(target.newModel())
 		if term := strings.TrimSpace(in.Search); term != "" {
-			names := cloneSlice(field.Meta.Relation.SearchFields)
+			names := cloneSlice(fieldMeta.Relation.SearchFields)
 			if len(names) == 0 {
-				names = []string{field.Meta.Relation.LabelField}
+				names = []string{fieldMeta.Relation.LabelField}
 			}
 			parts := make([]string, 0, len(names)+1)
 			args := make([]any, 0, len(names)+1)
 			if value, err := valueField.parseString(term); err == nil {
-				parts = append(parts, queryColumn(valueField)+" = ?")
+				parts = append(parts, queryColumnFor(valueField, targetView.meta(valueField))+" = ?")
 				args = append(args, value)
 			}
 			for _, name := range names {
@@ -360,7 +406,7 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 				if searchField == nil {
 					continue
 				}
-				parts = append(parts, searchField.Meta.Column+" LIKE ?")
+				parts = append(parts, targetView.meta(searchField).Column+" LIKE ?")
 				args = append(args, "%"+term+"%")
 			}
 			if len(parts) > 0 {

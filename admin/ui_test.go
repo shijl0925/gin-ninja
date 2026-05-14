@@ -39,9 +39,9 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 			`await request("/custom/api/auth/login", {`,
 			`Paste a token from /custom/api/auth/login`,
 			// default extract expressions
-			`function extractLoginToken(payload) { return payload.token; }`,
-			`function extractLoginName(payload) { return payload.name; }`,
-			`function extractLoginUserID(payload) { return payload.user_id || payload.userID; }`,
+			`const loginTokenExtractExpr = "payload.token";`,
+			`const loginNameExtractExpr = "payload.name";`,
+			`const loginUserIDExtractExpr = "payload.user_id || payload.userID";`,
 		} {
 			if !strings.Contains(body, snippet) {
 				t.Fatalf("GET %s missing %q", path, snippet)
@@ -71,9 +71,9 @@ func TestMountUICustomTokenExtract(t *testing.T) {
 	}
 	body := w.Body.String()
 	for _, snippet := range []string{
-		`function extractLoginToken(payload) { return payload.data && payload.data.accessToken; }`,
-		`function extractLoginName(payload) { return payload.data && payload.data.userName; }`,
-		`function extractLoginUserID(payload) { return payload.data && payload.data.id; }`,
+		`const loginTokenExtractExpr = "payload.data \u0026\u0026 payload.data.accessToken";`,
+		`const loginNameExtractExpr = "payload.data \u0026\u0026 payload.data.userName";`,
+		`const loginUserIDExtractExpr = "payload.data \u0026\u0026 payload.data.id";`,
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("GET /admin missing %q", snippet)
@@ -96,5 +96,31 @@ func TestMountUIDeduplicatesPaths(t *testing.T) {
 	router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("GET /admin status = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestMountUIEscapesExtractorExpressionsAsData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	MountUI(router, UIConfig{
+		AdminPath:        "/admin",
+		LoginPath:        "/admin/login",
+		PrototypePath:    "/admin-prototype",
+		TokenExtractExpr: `payload.token"; window.evil = true; "`,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /admin status = %d", w.Code)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, `const loginTokenExtractExpr = "payload.token"; window.evil = true; "";`) {
+		t.Fatalf("extractor expression was injected as executable JavaScript: %s", body)
+	}
+	if !strings.Contains(body, `const loginTokenExtractExpr = "payload.token\"; window.evil = true; \"";`) {
+		t.Fatal("expected extractor expression to be JSON string data")
 	}
 }
