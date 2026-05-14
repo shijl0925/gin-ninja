@@ -50,7 +50,7 @@ func TestCacheInvalidatorAndCaptureWriterAdditionalCoverage(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
-		writer := newCaptureResponseWriter(ctx.Writer)
+		writer := newCaptureResponseWriter(ctx.Writer, -1)
 		writer.Flush()
 		if _, _, err := writer.Hijack(); !errors.Is(err, http.ErrNotSupported) {
 			t.Fatalf("Hijack() error = %v, want %v", err, http.ErrNotSupported)

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -277,7 +278,7 @@ func TestCaptureResponseWriterWriteHeaderNowAndHelpers(t *testing.T) {
 	t.Parallel()
 
 	c, _ := newTestContext(http.MethodGet, "/cache", "")
-	recorder := newCaptureResponseWriter(c.Writer)
+	recorder := newCaptureResponseWriter(c.Writer, -1)
 
 	recorder.WriteHeaderNow()
 	if recorder.Status() != http.StatusOK {
@@ -470,14 +471,14 @@ func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
 	}
 
 	store.Set("ignored", nil)
-	if len(store.items) != 0 || len(store.order) != 0 {
-		t.Fatalf("expected nil cache writes to be ignored, got items=%d order=%d", len(store.items), len(store.order))
+	if len(store.items) != 0 || store.order.Len() != 0 || len(store.entries) != 0 {
+		t.Fatalf("expected nil cache writes to be ignored, got items=%d order=%d entries=%d", len(store.items), store.order.Len(), len(store.entries))
 	}
 
 	store.Set("shared", &CachedResponse{Status: http.StatusAccepted, Body: []byte("first")})
 	store.Set("shared", &CachedResponse{Status: http.StatusCreated, Body: []byte("second")})
-	if len(store.order) != 1 {
-		t.Fatalf("expected existing key updates not to duplicate order, got %v", store.order)
+	if store.order.Len() != 1 || len(store.entries) != 1 {
+		t.Fatalf("expected existing key updates not to duplicate order, got order=%d entries=%d", store.order.Len(), len(store.entries))
 	}
 
 	value, ok := store.Get("shared")
@@ -486,6 +487,72 @@ func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
 	}
 	if value.Status != http.StatusCreated || string(value.Body) != "second" {
 		t.Fatalf("unexpected updated cache value: %+v", value)
+	}
+}
+
+func TestMemoryCacheStoreLRUUsesConstantTimeBookkeeping(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStoreWithLimit(2)
+	store.Set("old", &CachedResponse{Status: http.StatusOK, Body: []byte("old")})
+	store.Set("hot", &CachedResponse{Status: http.StatusOK, Body: []byte("hot")})
+	if _, ok := store.Get("old"); !ok {
+		t.Fatal("expected old entry before eviction")
+	}
+	store.Set("new", &CachedResponse{Status: http.StatusOK, Body: []byte("new")})
+
+	if _, ok := store.Get("hot"); ok {
+		t.Fatal("expected least recently used key to be evicted")
+	}
+	for _, key := range []string{"old", "new"} {
+		if _, ok := store.Get(key); !ok {
+			t.Fatalf("expected %q to remain in cache", key)
+		}
+		if store.entries[key] == nil {
+			t.Fatalf("expected %q to have an LRU list entry", key)
+		}
+	}
+	if store.order.Len() != len(store.items) || len(store.entries) != len(store.items) {
+		t.Fatalf("LRU indexes out of sync: order=%d entries=%d items=%d", store.order.Len(), len(store.entries), len(store.items))
+	}
+}
+
+func TestWrapCacheStreamsAndSkipsOversizedResponses(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemoryCacheStore()
+	op := &operation{
+		method:       http.MethodGet,
+		outputType:   reflect.TypeOf(struct{}{}),
+		cache:        newRouteCacheConfig(time.Minute),
+		cacheControl: defaultCacheControl(time.Minute),
+		etagEnabled:  true,
+	}
+	op.cache.store = store
+	op.cache.maxBodyBytes = 4
+
+	c, w := newTestContext(http.MethodGet, "/large", "")
+	handler := wrapCache(op, func(c *gin.Context) {
+		c.Header("X-Test", "large")
+		_, _ = c.Writer.Write([]byte("too-large"))
+	})
+
+	handler(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if got := w.Body.String(); got != "too-large" {
+		t.Fatalf("body = %q, want too-large", got)
+	}
+	if got := w.Header().Get("X-Test"); got != "large" {
+		t.Fatalf("X-Test header = %q, want large", got)
+	}
+	if etag := w.Header().Get("ETag"); etag != "" {
+		t.Fatalf("expected oversized response to skip ETag generation, got %q", etag)
+	}
+	if _, ok := store.Get("GET:/large"); ok {
+		t.Fatal("expected oversized response not to be cached")
 	}
 }
 
@@ -592,7 +659,7 @@ func TestCaptureResponseWriterHijackFallbackAndDelegate(t *testing.T) {
 	t.Parallel()
 
 	c, _ := newTestContext(http.MethodGet, "/cache", "")
-	recorder := newCaptureResponseWriter(c.Writer)
+	recorder := newCaptureResponseWriter(c.Writer, -1)
 	if _, _, err := recorder.Hijack(); err != http.ErrNotSupported {
 		t.Fatalf("Hijack() error = %v, want %v", err, http.ErrNotSupported)
 	}
@@ -600,7 +667,7 @@ func TestCaptureResponseWriterHijackFallbackAndDelegate(t *testing.T) {
 	base := &hijackableResponseRecorder{ResponseRecorder: httptest.NewRecorder()}
 	c2, _ := gin.CreateTestContext(base)
 	c2.Request = httptest.NewRequest(http.MethodGet, "/cache", nil)
-	recorder = newCaptureResponseWriter(c2.Writer)
+	recorder = newCaptureResponseWriter(c2.Writer, -1)
 	conn, rw, err := recorder.Hijack()
 	if err != nil || conn == nil || rw == nil {
 		t.Fatalf("Hijack() = (%v, %v, %v)", conn, rw, err)

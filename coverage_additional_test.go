@@ -556,7 +556,7 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 
 	t.Run("capture writer and upload helper", func(t *testing.T) {
 		c, _ := newTestContext(http.MethodGet, "/", "")
-		recorder := newCaptureResponseWriter(c.Writer)
+		recorder := newCaptureResponseWriter(c.Writer, -1)
 		recorder.WriteHeader(http.StatusAccepted)
 		recorder.Flush()
 		if recorder.Status() != http.StatusAccepted {
@@ -796,7 +796,7 @@ func TestCaptureResponseWriterAndMultipartHelpers(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	writer := newCaptureResponseWriter(c.Writer)
+	writer := newCaptureResponseWriter(c.Writer, -1)
 	writer.WriteHeaderNow()
 	if writer.Status() != http.StatusOK {
 		t.Fatalf("expected WriteHeaderNow to default to 200, got %d", writer.Status())

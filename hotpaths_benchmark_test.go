@@ -283,7 +283,7 @@ func benchmarkNativeCacheMiddleware(ttl time.Duration, store ResponseCacheStore,
 		}
 
 		originalWriter := c.Writer
-		recorder := newCaptureResponseWriter(originalWriter)
+		recorder := newCaptureResponseWriter(originalWriter, defaultCacheMaxBodyBytes)
 		c.Writer = recorder
 		c.Next()
 		c.Writer = originalWriter
