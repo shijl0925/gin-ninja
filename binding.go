@@ -33,10 +33,9 @@ var timeType = reflect.TypeOf(time.Time{})
 var bindingMetadataCache sync.Map
 
 type bindingMetadata struct {
-	fields       []bindingField
-	hasQuery     bool
-	hasForm      bool
-	hasMultipart bool
+	fields   []bindingField
+	hasQuery bool
+	hasForm  bool
 }
 
 type bindingField struct {
@@ -85,7 +84,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		}
 	}
 	var multipartForm *multipart.Form
-	if multipartRequest && meta.hasMultipart {
+	if multipartRequest {
 		form, err := c.MultipartForm()
 		if err != nil {
 			return &Error{
@@ -197,9 +196,6 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 		if bf.formTag != "" && bf.formTag != "-" {
 			meta.hasForm = true
 		}
-		if bf.formTag != "" || bf.fileTag != "" {
-			meta.hasMultipart = true
-		}
 		meta.fields = append(meta.fields, bf)
 	}
 }
@@ -259,7 +255,7 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 			}
 			continue
 		}
-		if field.fileTag != "" {
+		if field.fileTag != "" && field.fileTag != "-" {
 			files := form.File[field.fileTag]
 			if len(files) == 0 {
 				continue
@@ -415,7 +411,7 @@ func bindRequestFields(
 						}
 					}
 				}
-			} else if field.fileTag != "" {
+			} else if field.fileTag != "" && field.fileTag != "-" {
 				files := multipartForm.File[field.fileTag]
 				if len(files) > 0 {
 					if err := setFileField(fv, files); err != nil {
@@ -715,6 +711,8 @@ func restoreFieldValues(root reflect.Value, snapshots []fieldValueSnapshot) {
 	}
 }
 
+// fieldByIndexAlloc mirrors the previous recursive binders' derefValue behavior
+// for embedded pointer structs while resolving a cached field index.
 func fieldByIndexAlloc(root reflect.Value, index []int) reflect.Value {
 	v := root
 	for _, i := range index {

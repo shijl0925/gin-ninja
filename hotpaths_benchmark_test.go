@@ -45,7 +45,11 @@ type benchmarkBindingOutput struct {
 }
 
 type benchmarkBindingQuery struct {
-	Limit int `query:"limit" form:"limit" binding:"required,gte=1,lte=100"`
+	Limit int `query:"limit" binding:"required,gte=1,lte=100"`
+}
+
+type benchmarkGinBindingQuery struct {
+	Limit int `form:"limit" binding:"required,gte=1,lte=100"`
 }
 
 type benchmarkBindingBody struct {
@@ -224,7 +228,7 @@ func benchmarkNinjaBindingMultiSourceHandler() http.Handler {
 func benchmarkGinBindingHandler() http.Handler {
 	router := gin.New()
 	router.POST("/bindings", func(c *gin.Context) {
-		var query benchmarkBindingQuery
+		var query benchmarkGinBindingQuery
 		if err := c.ShouldBindQuery(&query); err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
