@@ -44,10 +44,6 @@ type benchmarkBindingOutput struct {
 	OK    bool   `json:"ok"`
 }
 
-type benchmarkBindingQuery struct {
-	Limit int `query:"limit" binding:"required,gte=1,lte=100"`
-}
-
 type benchmarkGinBindingForm struct {
 	Limit int `form:"limit" binding:"required,gte=1,lte=100"`
 }

@@ -672,41 +672,6 @@ type fieldValueSnapshot struct {
 	value reflect.Value
 }
 
-func collectNonBodyFieldValues(t reflect.Type, v reflect.Value) []fieldValueSnapshot {
-	var snapshots []fieldValueSnapshot
-	collectNonBodyFieldValuesInto(t, v, nil, &snapshots)
-	return snapshots
-}
-
-func collectNonBodyFieldValuesInto(t reflect.Type, v reflect.Value, prefix []int, snapshots *[]fieldValueSnapshot) {
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		fv := v.Field(i)
-		if !fv.CanSet() {
-			continue
-		}
-		index := append(append([]int(nil), prefix...), i)
-		if field.Anonymous && deref(field.Type).Kind() == reflect.Struct {
-			collectNonBodyFieldValuesInto(deref(field.Type), derefValue(fv), index, snapshots)
-			continue
-		}
-		if isNonBodyField(field) {
-			copyValue := reflect.New(fv.Type()).Elem()
-			copyValue.Set(fv)
-			*snapshots = append(*snapshots, fieldValueSnapshot{index: index, value: copyValue})
-		}
-	}
-}
-
-func isNonBodyField(field reflect.StructField) bool {
-	return field.Tag.Get("path") != "" ||
-		field.Tag.Get("query") != "" ||
-		field.Tag.Get("form") != "" ||
-		field.Tag.Get("header") != "" ||
-		field.Tag.Get("cookie") != "" ||
-		field.Tag.Get("file") != ""
-}
-
 func restoreFieldValues(root reflect.Value, snapshots []fieldValueSnapshot) {
 	for _, snapshot := range snapshots {
 		field := root.FieldByIndex(snapshot.index)
@@ -729,16 +694,6 @@ func fieldByIndexAlloc(root reflect.Value, index []int) reflect.Value {
 			v = v.Elem()
 		}
 		v = v.Field(i)
-	}
-	return v
-}
-
-func derefValue(v reflect.Value) reflect.Value {
-	for v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			v.Set(reflect.New(v.Type().Elem()))
-		}
-		v = v.Elem()
 	}
 	return v
 }

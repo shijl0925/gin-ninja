@@ -153,7 +153,7 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected expired payload to be deleted")
 		}
 
-		store.SetContext(nil, "expired-on-set", &CachedResponse{Expires: time.Now().Add(-time.Second)})
+		store.SetContext(context.TODO(), "expired-on-set", &CachedResponse{Expires: time.Now().Add(-time.Second)})
 		if redisServer.Exists(store.cacheKey("expired-on-set")) {
 			t.Fatal("expected already-expired value to be removed on SetContext")
 		}
