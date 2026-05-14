@@ -709,15 +709,16 @@ func isNonBodyField(field reflect.StructField) bool {
 
 func restoreFieldValues(root reflect.Value, snapshots []fieldValueSnapshot) {
 	for _, snapshot := range snapshots {
-		field := fieldByIndexAlloc(root, snapshot.index)
+		field := root.FieldByIndex(snapshot.index)
 		if field.CanSet() {
 			field.Set(snapshot.value)
 		}
 	}
 }
 
-// fieldByIndexAlloc resolves a cached field index path and allocates nil
-// pointer structs encountered along the path so embedded fields can be bound.
+// fieldByIndexAlloc resolves a cached field index path for binding/defaults and
+// allocates nil pointer structs encountered along the path so embedded fields
+// can be populated.
 func fieldByIndexAlloc(root reflect.Value, index []int) reflect.Value {
 	v := root
 	for _, i := range index {
