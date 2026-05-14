@@ -205,9 +205,6 @@ func (s *RedisCacheStore) AcquireLock(key string, ttl time.Duration) (func(), bo
 		TTL:  ttl,
 	}).Result()
 	if err != nil {
-		if err == redis.Nil {
-			return nil, false
-		}
 		return nil, false
 	}
 	return func() {
