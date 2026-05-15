@@ -37,8 +37,9 @@ const (
 var (
 	errIrreversibleMigration  = errors.New("migration is irreversible")
 	moduleLinePattern         = regexp.MustCompile(`(?m)^module\s+(\S+)\s*$`)
+	simpleSQLIdentifier       = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_$]*$`)
 	indexPattern              = regexp.MustCompile(`(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)\s+ON\s+([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)`)
-	tablePattern              = regexp.MustCompile(`(?i)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)`)
+	tablePattern              = regexp.MustCompile(`(?i)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|\(|$)`)
 	alterAddColumnPattern     = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD(?:\s+COLUMN)?\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|$)`)
 	alterAddConstraintPattern = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD\s+CONSTRAINT\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|$)`)
 )
@@ -429,11 +430,14 @@ func collectMigrationStatements(project migrationProject) ([]string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return nil, fmt.Errorf("go toolchain not found: makemigrations requires the go command to inspect MigrationModels(); install Go or generate migrations in a development/CI environment")
+		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
 			message = err.Error()
 		}
-		return nil, fmt.Errorf("go run helper: %s", message)
+		return nil, fmt.Errorf("go run helper: %s; makemigrations requires a working Go module and Go toolchain, so prefer running it in development/CI and deploying generated SQL migrations", message)
 	}
 	var result helperResult
 	payload := bytes.TrimSpace(stdout.Bytes())
@@ -580,22 +584,72 @@ func reverseMigrationStatement(dialect, statement string) (string, bool) {
 	stmt := normalizeSQLStatement(statement)
 	upper := strings.ToUpper(stmt)
 	if matches := tablePattern.FindStringSubmatch(stmt); len(matches) == 2 {
-		return fmt.Sprintf("DROP TABLE IF EXISTS %s", matches[1]), true
+		table, ok := safeMigrationIdentifier(matches[1])
+		if !ok {
+			return "", false
+		}
+		return fmt.Sprintf("DROP TABLE IF EXISTS %s", table), true
 	}
 	if matches := indexPattern.FindStringSubmatch(stmt); len(matches) == 3 {
-		if dialect == "mysql" {
-			return fmt.Sprintf("DROP INDEX %s ON %s", matches[1], matches[2]), true
+		index, ok := safeMigrationIdentifier(matches[1])
+		if !ok {
+			return "", false
 		}
-		return fmt.Sprintf("DROP INDEX IF EXISTS %s", matches[1]), true
+		table, ok := safeMigrationIdentifier(matches[2])
+		if !ok {
+			return "", false
+		}
+		if dialect == "mysql" {
+			return fmt.Sprintf("DROP INDEX %s ON %s", index, table), true
+		}
+		return fmt.Sprintf("DROP INDEX IF EXISTS %s", index), true
 	}
 	if matches := alterAddConstraintPattern.FindStringSubmatch(stmt); len(matches) == 3 {
-		if dialect == "mysql" && strings.Contains(upper, "FOREIGN KEY") {
-			return fmt.Sprintf("ALTER TABLE %s DROP FOREIGN KEY %s", matches[1], matches[2]), true
+		table, ok := safeMigrationIdentifier(matches[1])
+		if !ok {
+			return "", false
 		}
-		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", matches[1], matches[2]), true
+		constraint, ok := safeMigrationIdentifier(matches[2])
+		if !ok {
+			return "", false
+		}
+		if dialect == "mysql" && strings.Contains(upper, "FOREIGN KEY") {
+			return fmt.Sprintf("ALTER TABLE %s DROP FOREIGN KEY %s", table, constraint), true
+		}
+		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", table, constraint), true
 	}
 	if matches := alterAddColumnPattern.FindStringSubmatch(stmt); len(matches) == 3 {
-		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", matches[1], matches[2]), true
+		table, ok := safeMigrationIdentifier(matches[1])
+		if !ok {
+			return "", false
+		}
+		column, ok := safeMigrationIdentifier(matches[2])
+		if !ok {
+			return "", false
+		}
+		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column), true
+	}
+	return "", false
+}
+
+func safeMigrationIdentifier(identifier string) (string, bool) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" || strings.Contains(identifier, ".") {
+		return "", false
+	}
+	if strings.HasPrefix(identifier, "`") || strings.HasPrefix(identifier, `"`) {
+		quote := identifier[0]
+		if len(identifier) < 3 || identifier[len(identifier)-1] != quote {
+			return "", false
+		}
+		name := identifier[1 : len(identifier)-1]
+		if simpleSQLIdentifier.MatchString(name) {
+			return identifier, true
+		}
+		return "", false
+	}
+	if simpleSQLIdentifier.MatchString(identifier) {
+		return identifier, true
 	}
 	return "", false
 }

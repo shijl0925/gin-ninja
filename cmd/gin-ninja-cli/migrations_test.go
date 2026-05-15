@@ -347,6 +347,110 @@ func TestMigrationDialectSpecificHelpers(t *testing.T) {
 	if stmt != "DROP INDEX IF EXISTS \"idx_users_email\"" {
 		t.Fatalf("postgres reverse index = %q", stmt)
 	}
+
+	stmt, ok = reverseMigrationStatement("postgres", "ALTER TABLE \"users\" ADD COLUMN \"email\" text")
+	if !ok {
+		t.Fatal("expected simple quoted column statement to be reversible")
+	}
+	if stmt != "ALTER TABLE \"users\" DROP COLUMN \"email\"" {
+		t.Fatalf("postgres reverse quoted column = %q", stmt)
+	}
+}
+
+func TestReverseMigrationStatementRejectsLowConfidenceSQL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		dialect   string
+		statement string
+	}{
+		{
+			name:      "schema qualified table",
+			dialect:   "postgres",
+			statement: "CREATE TABLE public.users (id integer)",
+		},
+		{
+			name:      "quoted schema qualified table",
+			dialect:   "postgres",
+			statement: "CREATE TABLE \"public\".\"users\" (id integer)",
+		},
+		{
+			name:      "complex quoted table",
+			dialect:   "postgres",
+			statement: "CREATE TABLE \"user accounts\" (id integer)",
+		},
+		{
+			name:      "schema qualified index",
+			dialect:   "postgres",
+			statement: "CREATE INDEX public.idx_users_email ON users (email)",
+		},
+		{
+			name:      "complex quoted index",
+			dialect:   "postgres",
+			statement: "CREATE INDEX \"idx users email\" ON \"users\" (\"email\")",
+		},
+		{
+			name:      "schema qualified alter table",
+			dialect:   "postgres",
+			statement: "ALTER TABLE public.users ADD COLUMN email text",
+		},
+		{
+			name:      "complex quoted constraint",
+			dialect:   "postgres",
+			statement: "ALTER TABLE users ADD CONSTRAINT \"fk user account\" UNIQUE (email)",
+		},
+		{
+			name:      "complex quoted mysql foreign key",
+			dialect:   "mysql",
+			statement: "ALTER TABLE `audit_logs` ADD CONSTRAINT `fk-audit-user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if stmt, ok := reverseMigrationStatement(tt.dialect, tt.statement); ok {
+				t.Fatalf("expected irreversible statement, got %q", stmt)
+			}
+		})
+	}
+}
+
+func TestReverseMigrationStatementsKeepsSafeDownSQLWhenSomeStatementsAreIrreversible(t *testing.T) {
+	t.Parallel()
+
+	statements, reversible := reverseMigrationStatements("postgres", []string{
+		"CREATE TABLE users (id integer)",
+		"CREATE TABLE public.audit_logs (id integer)",
+	})
+	if reversible {
+		t.Fatal("expected mixed statements to be marked irreversible")
+	}
+	if len(statements) != 1 || statements[0] != "DROP TABLE IF EXISTS users" {
+		t.Fatalf("unexpected safe reverse statements: %#v", statements)
+	}
+}
+
+func TestCollectMigrationStatementsReportsMissingGoToolchain(t *testing.T) {
+	projectDir := t.TempDir()
+	configPath := filepath.Join(projectDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("database:\n  driver: sqlite\n  dsn: app.db\n"), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("PATH", "")
+
+	_, err := collectMigrationStatements(migrationProject{
+		rootDir:       projectDir,
+		configPath:    configPath,
+		appImportPath: "example.com/missing/app",
+	})
+	if err == nil {
+		t.Fatal("expected missing Go toolchain error")
+	}
+	if !strings.Contains(err.Error(), "go toolchain not found") || !strings.Contains(err.Error(), "development/CI") {
+		t.Fatalf("expected clear missing Go toolchain guidance, got %v", err)
+	}
 }
 
 func TestRunMigrationCommandFailurePaths(t *testing.T) {
