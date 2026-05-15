@@ -39,7 +39,7 @@ var (
 	errIrreversibleMigration  = errors.New("migration is irreversible")
 	moduleLinePattern         = regexp.MustCompile(`(?m)^module\s+(\S+)\s*$`)
 	simpleSQLIdentifier       = regexp.MustCompile(`^` + safeSQLIdentifierExpr + `$`)
-	migrationIdentifierExpr   = `(?:` + safeSQLIdentifierExpr + "|`" + safeSQLIdentifierExpr + "`|\"" + safeSQLIdentifierExpr + "\")"
+	migrationIdentifierExpr   = buildMigrationIdentifierExpr()
 	indexPattern              = regexp.MustCompile(`(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(` + migrationIdentifierExpr + `)\s+ON\s+(` + migrationIdentifierExpr + `)`)
 	tablePattern              = regexp.MustCompile(`(?i)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(` + migrationIdentifierExpr + `)(?:\s|\(|$)`)
 	alterAddColumnPattern     = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(` + migrationIdentifierExpr + `)\s+ADD(?:\s+COLUMN)?\s+(` + migrationIdentifierExpr + `)(?:\s|$)`)
@@ -433,7 +433,7 @@ func collectMigrationStatements(project migrationProject) ([]string, error) {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			return nil, fmt.Errorf("go toolchain not found: makemigrations requires the go command to inspect MigrationModels(), install Go or generate migrations in a development/CI environment")
+			return nil, fmt.Errorf("go toolchain not found: makemigrations is a development/CI generation command that needs the go command to inspect MigrationModels(). Install Go in that environment, or run migrate with generated SQL migrations")
 		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
@@ -637,6 +637,11 @@ func reverseMigrationStatement(dialect, statement string) (string, bool) {
 	return "", false
 }
 
+func buildMigrationIdentifierExpr() string {
+	return fmt.Sprintf(`(?:%s|`+"`%s`"+`|"%s")`, safeSQLIdentifierExpr, safeSQLIdentifierExpr, safeSQLIdentifierExpr)
+}
+
+// isConstraintLikeKeyword prevents ALTER TABLE ADD constraint clauses from being misread as ADD COLUMN operations.
 func isConstraintLikeKeyword(identifier string) bool {
 	identifier = strings.Trim(identifier, "`\"")
 	switch strings.ToUpper(identifier) {
@@ -650,6 +655,7 @@ func isConstraintLikeKeyword(identifier string) bool {
 func safeMigrationIdentifier(identifier string) (string, bool) {
 	identifier = strings.TrimSpace(identifier)
 	if identifier == "" || strings.Contains(identifier, ".") {
+		// Schema-qualified names need dialect-aware quoting, so automatic down SQL stays conservative.
 		return "", false
 	}
 	if strings.HasPrefix(identifier, "`") || strings.HasPrefix(identifier, `"`) {

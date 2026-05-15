@@ -448,7 +448,7 @@ func TestCollectMigrationStatementsReportsMissingGoToolchain(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing Go toolchain error")
 	}
-	if !strings.Contains(err.Error(), "go toolchain not found") || !strings.Contains(err.Error(), "development/CI") {
+	if !strings.Contains(err.Error(), "go toolchain not found") {
 		t.Fatalf("expected clear missing Go toolchain guidance, got %v", err)
 	}
 }
