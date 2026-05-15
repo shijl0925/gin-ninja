@@ -1,14 +1,19 @@
 package ninja
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+const defaultTimeoutMaxBodyBytes int64 = 32 << 20
 
 // tokenBucket is a single token-bucket entry keyed by client IP.
 type tokenBucket struct {
@@ -104,7 +109,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 		reqCtx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
-		recorder := newCaptureResponseWriter(c.Writer, -1)
+		recorder := newTimeoutCaptureResponseWriter(c.Writer, defaultTimeoutMaxBodyBytes)
 		copied := c.Copy()
 		copied.Request = copied.Request.WithContext(reqCtx)
 		copied.Writer = recorder
@@ -124,6 +129,14 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			}
 			if recorder.status == 0 {
 				recorder.status = http.StatusOK
+			}
+			if recorder.overflowed {
+				writeError(c, &Error{
+					Status:  http.StatusInternalServerError,
+					Code:    "RESPONSE_TOO_LARGE",
+					Message: "response exceeded timeout capture limit",
+				})
+				return
 			}
 			copyHeader(c.Writer.Header(), recorder.header)
 			c.Status(recorder.status)
@@ -146,6 +159,122 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 				})
 			}
 			c.Abort()
+			go drainTimeoutResult(resultCh)
 		}
 	}
+}
+
+func wrapCooperativeTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		reqCtx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+
+		originalRequest := c.Request
+		c.Request = c.Request.WithContext(reqCtx)
+		next(c)
+		c.Request = originalRequest
+
+		if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
+			writeError(c, &Error{
+				Status:  http.StatusRequestTimeout,
+				Code:    "REQUEST_TIMEOUT",
+				Message: "request timed out",
+			})
+			c.Abort()
+		}
+	}
+}
+
+func drainTimeoutResult(resultCh <-chan any) {
+	if panicValue := <-resultCh; panicValue != nil {
+		logTimeoutPanic(panicValue)
+	}
+}
+
+var logTimeoutPanic = func(panicValue any) {
+	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[GIN-NINJA] panic after timeout: %v\n", panicValue)
+}
+
+type timeoutCaptureResponseWriter struct {
+	gin.ResponseWriter
+	header       http.Header
+	body         []byte
+	status       int
+	maxBodyBytes int64
+	overflowed   bool
+}
+
+func newTimeoutCaptureResponseWriter(base gin.ResponseWriter, maxBodyBytes int64) *timeoutCaptureResponseWriter {
+	return &timeoutCaptureResponseWriter{
+		ResponseWriter: base,
+		header:         http.Header{},
+		maxBodyBytes:   maxBodyBytes,
+	}
+}
+
+func (w *timeoutCaptureResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *timeoutCaptureResponseWriter) WriteHeader(statusCode int) {
+	if w.status == 0 {
+		w.status = statusCode
+	}
+}
+
+func (w *timeoutCaptureResponseWriter) WriteHeaderNow() {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+}
+
+func (w *timeoutCaptureResponseWriter) Write(data []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	if w.overflowed {
+		return len(data), nil
+	}
+	if w.maxBodyBytes >= 0 {
+		remaining := w.maxBodyBytes - int64(len(w.body))
+		if remaining <= 0 {
+			w.overflowed = true
+			return len(data), nil
+		}
+		if int64(len(data)) > remaining {
+			w.body = append(w.body, data[:int(remaining)]...)
+			w.overflowed = true
+			return len(data), nil
+		}
+	}
+	w.body = append(w.body, data...)
+	return len(data), nil
+}
+
+func (w *timeoutCaptureResponseWriter) WriteString(s string) (int, error) {
+	return w.Write([]byte(s))
+}
+
+func (w *timeoutCaptureResponseWriter) Status() int {
+	return w.status
+}
+
+func (w *timeoutCaptureResponseWriter) Size() int {
+	return len(w.body)
+}
+
+func (w *timeoutCaptureResponseWriter) Written() bool {
+	return w.status != 0 || len(w.body) > 0
+}
+
+func (w *timeoutCaptureResponseWriter) Flush() {
+	w.overflowed = true
+}
+
+func (w *timeoutCaptureResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return nil, nil, http.ErrNotSupported
+}
+
+func (w *timeoutCaptureResponseWriter) Pusher() http.Pusher {
+	return nil
 }

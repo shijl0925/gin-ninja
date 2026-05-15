@@ -369,7 +369,11 @@ func (op *operation) finalize() {
 
 	handler := op.ginHandler
 	if op.timeout > 0 {
-		handler = wrapTimeout(op.timeout, handler)
+		if op.usesDirectResponseWriter() {
+			handler = wrapCooperativeTimeout(op.timeout, handler)
+		} else {
+			handler = wrapTimeout(op.timeout, handler)
+		}
 	}
 	if op.cache != nil || op.cacheControl != "" || op.etagEnabled {
 		handler = wrapCache(op, handler)
@@ -378,6 +382,20 @@ func (op *operation) finalize() {
 		handler = wrapRateLimit(op.rateLimit, handler)
 	}
 	op.ginHandler = handler
+}
+
+func (op *operation) usesDirectResponseWriter() bool {
+	if op.stream != nil {
+		return true
+	}
+	if op.outputType == nil {
+		return false
+	}
+	responseWriterType := reflect.TypeOf((*responseWriter)(nil)).Elem()
+	if reflect.PointerTo(op.outputType).Implements(responseWriterType) {
+		return true
+	}
+	return op.outputType.Implements(responseWriterType)
 }
 
 func writeError(c *gin.Context, err error) {
