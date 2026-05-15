@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	defaultTimeoutMaxBodyBytes  int64 = 32 << 20
-	defaultTimeoutDrainDuration       = time.Minute
+	defaultTimeoutMaxBodyBytes  = 32 << 20
+	defaultTimeoutDrainDuration = time.Minute
 )
 
 // tokenBucket is a single token-bucket entry keyed by client IP.
@@ -180,10 +180,8 @@ func wrapCooperativeTimeout(timeout time.Duration, next gin.HandlerFunc) gin.Han
 		reqCtx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
-		originalRequest := c.Request
 		c.Request = c.Request.WithContext(reqCtx)
 		next(c)
-		c.Request = originalRequest
 
 		if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
 			writeError(c, &Error{
@@ -218,12 +216,12 @@ type timeoutCaptureResponseWriter struct {
 	header       http.Header
 	body         []byte
 	status       int
-	maxBodyBytes int64
+	maxBodyBytes int
 	overflowed   bool
 	streamed     bool
 }
 
-func newTimeoutCaptureResponseWriter(base gin.ResponseWriter, maxBodyBytes int64) *timeoutCaptureResponseWriter {
+func newTimeoutCaptureResponseWriter(base gin.ResponseWriter, maxBodyBytes int) *timeoutCaptureResponseWriter {
 	return &timeoutCaptureResponseWriter{
 		ResponseWriter: base,
 		header:         http.Header{},
@@ -254,13 +252,13 @@ func (w *timeoutCaptureResponseWriter) Write(data []byte) (int, error) {
 	if w.overflowed {
 		return len(data), nil
 	}
-	remaining := w.maxBodyBytes - int64(len(w.body))
+	remaining := w.maxBodyBytes - len(w.body)
 	if remaining <= 0 {
 		w.overflowed = true
 		return len(data), nil
 	}
-	if int64(len(data)) > remaining {
-		w.body = append(w.body, data[:int(remaining)]...)
+	if len(data) > remaining {
+		w.body = append(w.body, data[:remaining]...)
 		w.overflowed = true
 		return len(data), nil
 	}
