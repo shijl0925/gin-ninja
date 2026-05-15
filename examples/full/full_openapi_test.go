@@ -10,13 +10,13 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
 
-	openAPIResp, err := http.Get(server.URL + "/openapi.json")
+	openAPIResp, err := http.Get(server.URL + "/api/openapi.json")
 	if err != nil {
-		t.Fatalf("GET /openapi.json: %v", err)
+		t.Fatalf("GET /api/openapi.json: %v", err)
 	}
 	defer openAPIResp.Body.Close()
 	if openAPIResp.StatusCode != http.StatusOK {
-		t.Fatalf("expected /openapi.json 200, got %d", openAPIResp.StatusCode)
+		t.Fatalf("expected /api/openapi.json 200, got %d", openAPIResp.StatusCode)
 	}
 
 	var spec map[string]any
@@ -59,8 +59,8 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 		wantPath    string
 		missingPath string
 	}{
-		{path: "/openapi/v1.json", wantPath: "/api/v1/users/", missingPath: "/api/v0/examples/versioned/info"},
-		{path: "/openapi/v0.json", wantPath: "/api/v0/examples/versioned/info", missingPath: "/api/v1/users/"},
+		{path: "/api/openapi/v1.json", wantPath: "/api/v1/users/", missingPath: "/api/v0/examples/versioned/info"},
+		{path: "/api/openapi/v0.json", wantPath: "/api/v0/examples/versioned/info", missingPath: "/api/v1/users/"},
 	} {
 		resp, err := http.Get(server.URL + tc.path)
 		if err != nil {
@@ -83,7 +83,7 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 		if _, ok := versionedPaths[tc.missingPath]; ok {
 			t.Fatalf("%s: did not expect path %s, got %v", tc.path, tc.missingPath, versionedPaths)
 		}
-		if tc.path == "/openapi/v0.json" {
+		if tc.path == "/api/openapi/v0.json" {
 			responses := versionedPaths["/api/v0/examples/versioned/info"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)
 			headers := responses["200"].(map[string]any)["headers"].(map[string]any)
 			for _, name := range []string{"Deprecation", "Sunset", "Link"} {

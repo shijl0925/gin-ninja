@@ -42,11 +42,11 @@ func TestBuildCompactAPI(t *testing.T) {
 		t.Fatalf("GET /health status = %d", rec.Code)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/docs", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/docs", nil)
 	rec = httptest.NewRecorder()
 	api.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /docs status = %d", rec.Code)
+		t.Fatalf("GET /api/docs status = %d", rec.Code)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/examples/features", nil)
