@@ -32,16 +32,18 @@ const (
 	migrationSectionUp     = "-- Up"
 	migrationSectionDown   = "-- Down"
 	maxTimestampCollisions = 1000
+	safeSQLIdentifierExpr  = `[A-Za-z_][A-Za-z0-9_]*`
 )
 
 var (
 	errIrreversibleMigration  = errors.New("migration is irreversible")
 	moduleLinePattern         = regexp.MustCompile(`(?m)^module\s+(\S+)\s*$`)
-	simpleSQLIdentifier       = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_$]*$`)
-	indexPattern              = regexp.MustCompile(`(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)\s+ON\s+([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)`)
-	tablePattern              = regexp.MustCompile(`(?i)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([` + "`\"" + `]?[^\s(` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|\(|$)`)
-	alterAddColumnPattern     = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD(?:\s+COLUMN)?\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|$)`)
-	alterAddConstraintPattern = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)\s+ADD\s+CONSTRAINT\s+([` + "`\"" + `]?[^\s` + "`\"" + `]+[` + "`\"" + `]?)(?:\s|$)`)
+	simpleSQLIdentifier       = regexp.MustCompile(`^` + safeSQLIdentifierExpr + `$`)
+	migrationIdentifierExpr   = `(?:` + safeSQLIdentifierExpr + "|`" + safeSQLIdentifierExpr + "`|\"" + safeSQLIdentifierExpr + "\")"
+	indexPattern              = regexp.MustCompile(`(?i)^CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(` + migrationIdentifierExpr + `)\s+ON\s+(` + migrationIdentifierExpr + `)`)
+	tablePattern              = regexp.MustCompile(`(?i)^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(` + migrationIdentifierExpr + `)(?:\s|\(|$)`)
+	alterAddColumnPattern     = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(` + migrationIdentifierExpr + `)\s+ADD(?:\s+COLUMN)?\s+(` + migrationIdentifierExpr + `)(?:\s|$)`)
+	alterAddConstraintPattern = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(` + migrationIdentifierExpr + `)\s+ADD\s+CONSTRAINT\s+(` + migrationIdentifierExpr + `)(?:\s|$)`)
 )
 
 type migrationProject struct {
@@ -431,13 +433,13 @@ func collectMigrationStatements(project migrationProject) ([]string, error) {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			return nil, fmt.Errorf("go toolchain not found: makemigrations requires the go command to inspect MigrationModels(); install Go or generate migrations in a development/CI environment")
+			return nil, fmt.Errorf("go toolchain not found: makemigrations requires the go command to inspect MigrationModels(), install Go or generate migrations in a development/CI environment")
 		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
 			message = err.Error()
 		}
-		return nil, fmt.Errorf("go run helper: %s; makemigrations requires a working Go module and Go toolchain, so prefer running it in development/CI and deploying generated SQL migrations", message)
+		return nil, fmt.Errorf("go run helper: %s, makemigrations requires a working Go module and Go toolchain, so prefer running it in development/CI and deploying generated SQL migrations", message)
 	}
 	var result helperResult
 	payload := bytes.TrimSpace(stdout.Bytes())
@@ -619,6 +621,9 @@ func reverseMigrationStatement(dialect, statement string) (string, bool) {
 		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s", table, constraint), true
 	}
 	if matches := alterAddColumnPattern.FindStringSubmatch(stmt); len(matches) == 3 {
+		if isConstraintLikeKeyword(matches[2]) {
+			return "", false
+		}
 		table, ok := safeMigrationIdentifier(matches[1])
 		if !ok {
 			return "", false
@@ -630,6 +635,16 @@ func reverseMigrationStatement(dialect, statement string) (string, bool) {
 		return fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column), true
 	}
 	return "", false
+}
+
+func isConstraintLikeKeyword(identifier string) bool {
+	identifier = strings.Trim(identifier, "`\"")
+	switch strings.ToUpper(identifier) {
+	case "CONSTRAINT", "PRIMARY", "FOREIGN", "UNIQUE", "CHECK", "INDEX", "KEY":
+		return true
+	default:
+		return false
+	}
 }
 
 func safeMigrationIdentifier(identifier string) (string, bool) {
