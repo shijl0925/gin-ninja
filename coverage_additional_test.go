@@ -732,6 +732,60 @@ func TestWrapTimeoutContextCancelledInHandler(t *testing.T) {
 	}
 }
 
+func TestTimeoutCaptureResponseWriterBoundsBody(t *testing.T) {
+	t.Parallel()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	recorder := newTimeoutCaptureResponseWriter(c.Writer, 4)
+
+	if n, err := recorder.Write([]byte("abc")); err != nil || n != 3 {
+		t.Fatalf("expected first write to succeed, n=%d err=%v", n, err)
+	}
+	if n, err := recorder.Write([]byte("defgh")); err != nil || n != 5 {
+		t.Fatalf("expected overflowing write to be consumed, n=%d err=%v", n, err)
+	}
+	if !recorder.overflowed {
+		t.Fatal("expected recorder to mark overflow")
+	}
+	if string(recorder.body) != "abcd" {
+		t.Fatalf("expected body capped at limit, got %q", string(recorder.body))
+	}
+	if w.Body.Len() != 0 {
+		t.Fatalf("expected timeout recorder not to write through, got %q", w.Body.String())
+	}
+}
+
+func TestWrapTimeoutLogsPanicAfterTimeout(t *testing.T) {
+	var logged bytes.Buffer
+	oldDefaultErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logged
+	defer func() {
+		gin.DefaultErrorWriter = oldDefaultErrorWriter
+	}()
+
+	router := gin.New()
+	router.GET("/panic-late", wrapTimeout(10*time.Millisecond, func(c *gin.Context) {
+		time.Sleep(30 * time.Millisecond)
+		panic("late panic")
+	}))
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/panic-late", nil))
+	if w.Code != http.StatusRequestTimeout {
+		t.Fatalf("expected 408, got %d", w.Code)
+	}
+
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if strings.Contains(logged.String(), "late panic") {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("expected panic after timeout to be logged, got %q", logged.String())
+}
+
 func TestNinjaAdditionalBranches(t *testing.T) {
 	t.Parallel()
 
