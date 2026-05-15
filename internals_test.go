@@ -242,7 +242,7 @@ func TestBindInput_Errors(t *testing.T) {
 		}
 	})
 
-	t.Run("complete json prefix over limit", func(t *testing.T) {
+	t.Run("json body exceeds size limit after complete prefix", func(t *testing.T) {
 		prefix := `{"name":"alice"}`
 		c, _ := newTestContext(http.MethodPost, "/users/42", prefix+" ")
 		_, err := readJSONBody(c, int64(len(prefix)))
