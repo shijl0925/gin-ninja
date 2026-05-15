@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	ninja "github.com/shijl0925/gin-ninja"
 )
 
 // UploadConfig holds configuration for the upload-limiting middleware.
@@ -98,12 +99,7 @@ func UploadLimit(cfg *UploadConfig) gin.HandlerFunc {
 }
 
 func defaultUploadErrorHandler(c *gin.Context, status int, code, message string) {
-	c.AbortWithStatusJSON(status, gin.H{
-		"error": gin.H{
-			"code":    code,
-			"message": message,
-		},
-	})
+	ninja.WriteError(c, ninja.NewErrorWithCode(status, code, message))
 }
 
 // isAllowedMIMEType checks whether ct is covered by any of the allowed type

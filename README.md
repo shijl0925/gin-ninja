@@ -957,9 +957,9 @@ locale without any additional code:
 POST /users  Accept-Language: zh-CN
 
 {
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "请求参数校验失败",
+  "code": "VALIDATION_ERROR",
+  "message": "请求参数校验失败",
+  "data": {
     "errors": [
       { "field": "email", "message": "必须是有效的电子邮件地址" }
     ]
@@ -1175,11 +1175,17 @@ import "github.com/shijl0925/gin-ninja/pkg/response"
 // Success: {"code": 0, "message": "success", "data": {...}}
 response.Success(c, users)
 
-// Error:   {"code": -1, "message": "not found"}
+// Error:   {"code": 404, "message": "not found", "data": null}
 response.NotFound(c, "user not found")
 
 // Custom:  {"code": 0, "message": "created", "data": {...}}
 response.JSON(c, response.OKWithMessage("created", user))
+```
+
+Framework errors use the same root-level envelope:
+
+```json
+{"code": "NOT_FOUND", "message": "not found", "data": null}
 ```
 
 ---

@@ -507,27 +507,30 @@ func TestWriteError(t *testing.T) {
 	t.Run("api error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &Error{Status: http.StatusTeapot, Code: "TEAPOT", Message: "short and stout"})
-		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "TEAPOT") {
-			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+		body := w.Body.String()
+		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":"TEAPOT"`) || strings.Contains(body, `"error"`) {
+			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
 
 	t.Run("validation error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
-		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(w.Body.String(), "VALIDATION_ERROR") {
-			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+		body := w.Body.String()
+		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":"VALIDATION_ERROR"`) || strings.Contains(body, `"error"`) {
+			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
 
 	t.Run("generic error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, errors.New("boom"))
-		if w.Code != http.StatusInternalServerError || !strings.Contains(w.Body.String(), "INTERNAL_ERROR") {
-			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
+		body := w.Body.String()
+		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":"INTERNAL_ERROR"`) || strings.Contains(body, `"error"`) {
+			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
-		if strings.Contains(w.Body.String(), "boom") {
-			t.Fatalf("raw error detail must not be exposed to clients: %s", w.Body.String())
+		if strings.Contains(body, "boom") {
+			t.Fatalf("raw error detail must not be exposed to clients: %s", body)
 		}
 	})
 

@@ -920,6 +920,12 @@ response.JSON(c, response.OKWithMessage("created", user))
 {"code": 0, "message": "success", "data": {...}}
 ```
 
+框架错误响应使用相同的根级信封：
+
+```json
+{"code": "NOT_FOUND", "message": "not found", "data": null}
+```
+
 ## 过滤、排序与分页
 
 ### 分页

@@ -28,7 +28,7 @@
   - missing `binding:"required"` fields
   - invalid validator rules such as `email`, `min`, or similar tags
   - malformed bound request data
-- It is written as HTTP 422 with a `VALIDATION_ERROR` payload.
+- It is written as HTTP 422 with the standard root-level response envelope and a `VALIDATION_ERROR` code.
 
 ## Error mapping
 

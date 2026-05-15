@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	ninja "github.com/shijl0925/gin-ninja"
 )
 
 var csrfRandRead = rand.Read
@@ -87,12 +88,7 @@ func (cfg *CSRFConfig) withDefaults() *CSRFConfig {
 }
 
 func defaultCSRFErrorHandler(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-		"error": gin.H{
-			"code":    "CSRF_TOKEN_INVALID",
-			"message": "invalid or missing CSRF token",
-		},
-	})
+	ninja.WriteError(c, ninja.NewErrorWithCode(http.StatusForbidden, "CSRF_TOKEN_INVALID", "invalid or missing CSRF token"))
 }
 
 // csrfTokenKey is the gin context key under which the current CSRF token is stored.
