@@ -228,7 +228,8 @@ func TestBindInput_Errors(t *testing.T) {
 	})
 
 	t.Run("json body too large", func(t *testing.T) {
-		c, _ := newTestContext(http.MethodPost, "/users/42", `{"name":"alice"}`)
+		oversizedBody := `{"name":"alice"}`
+		c, _ := newTestContext(http.MethodPost, "/users/42", oversizedBody)
 		c.Params = gin.Params{{Key: "id", Value: "42"}}
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 5)
 		var in bindComplexInput
@@ -244,7 +245,7 @@ func TestBindInput_Errors(t *testing.T) {
 
 	t.Run("json body exceeds size limit after complete prefix", func(t *testing.T) {
 		prefix := `{"name":"alice"}`
-		c, _ := newTestContext(http.MethodPost, "/users/42", prefix+" ")
+		c, _ := newTestContext(http.MethodPost, "/users/42", prefix+"x")
 		_, err := readJSONBody(c, int64(len(prefix)))
 		var apiErr *Error
 		if !errors.As(err, &apiErr) {
