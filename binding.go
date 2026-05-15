@@ -30,6 +30,8 @@ var validate = func() *validator.Validate {
 
 var timeType = reflect.TypeOf(time.Time{})
 
+const defaultJSONBodyLimit int64 = 32 << 20 // 32 MiB
+
 // bindingMetadataCache stores precomputed binding field/tag metadata keyed by
 // reflect.Type. sync.Map makes it safe for concurrent requests, and entries
 // intentionally live for the process lifetime because Go struct types are
@@ -112,12 +114,10 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 
 	// Bind JSON body for mutating methods.
 	if willBindJSON {
-		body, err := io.ReadAll(io.LimitReader(c.Request.Body, 32<<20)) // 32 MB limit
+		body, err := readJSONBody(c, defaultJSONBodyLimit)
 		if err != nil {
 			return err
 		}
-		// Restore body so gin middleware can re-read it if needed.
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		if len(body) > 0 {
 			if err := json.Unmarshal(body, input); err != nil {
@@ -144,6 +144,34 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func readJSONBody(c *gin.Context, limit int64) ([]byte, error) {
+	// Read one extra byte so oversized bodies are reported explicitly instead of
+	// being truncated and decoded as invalid JSON. Bodies up to limit bytes are
+	// accepted; len(body) > limit proves at least one byte exceeded the limit.
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, limit+1))
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			return nil, requestBodyTooLargeError()
+		}
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, requestBodyTooLargeError()
+	}
+	// Restore body so gin middleware can re-read it if needed.
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
+	return body, nil
+}
+
+func requestBodyTooLargeError() *Error {
+	return &Error{
+		Status:  http.StatusRequestEntityTooLarge,
+		Code:    "REQUEST_BODY_TOO_LARGE",
+		Message: "request body too large",
+	}
 }
 
 func getBindingMetadata(t reflect.Type) *bindingMetadata {
