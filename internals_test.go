@@ -227,6 +227,34 @@ func TestBindInput_Errors(t *testing.T) {
 		}
 	})
 
+	t.Run("json body too large", func(t *testing.T) {
+		c, _ := newTestContext(http.MethodPost, "/users/42", `{"name":"alice"}`)
+		c.Params = gin.Params{{Key: "id", Value: "42"}}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 5)
+		var in bindComplexInput
+		err := bindInput(c, http.MethodPost, &in)
+		var apiErr *Error
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != "REQUEST_BODY_TOO_LARGE" {
+			t.Fatalf("unexpected api error: %+v", apiErr)
+		}
+	})
+
+	t.Run("complete json prefix over limit", func(t *testing.T) {
+		prefix := `{"name":"alice"}`
+		c, _ := newTestContext(http.MethodPost, "/users/42", prefix+" ")
+		_, err := readJSONBody(c, int64(len(prefix)))
+		var apiErr *Error
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("expected *Error, got %T", err)
+		}
+		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != "REQUEST_BODY_TOO_LARGE" {
+			t.Fatalf("unexpected api error: %+v", apiErr)
+		}
+	})
+
 	t.Run("validation", func(t *testing.T) {
 		c, _ := newTestContext(http.MethodPost, "/users/42", `{}`)
 		c.Params = gin.Params{{Key: "id", Value: "42"}}
