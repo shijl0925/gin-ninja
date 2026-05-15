@@ -757,13 +757,11 @@ func TestTimeoutCaptureResponseWriterBoundsBody(t *testing.T) {
 }
 
 func TestWrapTimeoutLogsPanicAfterTimeout(t *testing.T) {
-	logged := make(chan any, 1)
-	oldLogTimeoutPanic := logTimeoutPanic
-	logTimeoutPanic = func(panicValue any) {
-		logged <- panicValue
-	}
+	var logged bytes.Buffer
+	oldDefaultErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logged
 	defer func() {
-		logTimeoutPanic = oldLogTimeoutPanic
+		gin.DefaultErrorWriter = oldDefaultErrorWriter
 	}()
 
 	router := gin.New()
@@ -778,14 +776,14 @@ func TestWrapTimeoutLogsPanicAfterTimeout(t *testing.T) {
 		t.Fatalf("expected 408, got %d", w.Code)
 	}
 
-	select {
-	case panicValue := <-logged:
-		if panicValue != "late panic" {
-			t.Fatalf("expected logged panic value, got %v", panicValue)
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if strings.Contains(logged.String(), "late panic") {
+			return
 		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("expected panic after timeout to be logged")
+		time.Sleep(10 * time.Millisecond)
 	}
+	t.Fatalf("expected panic after timeout to be logged, got %q", logged.String())
 }
 
 func TestNinjaAdditionalBranches(t *testing.T) {

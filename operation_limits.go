@@ -138,6 +138,14 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 				})
 				return
 			}
+			if recorder.streamed {
+				writeError(c, &Error{
+					Status:  http.StatusInternalServerError,
+					Code:    "RESPONSE_NOT_CAPTURED",
+					Message: "response could not be captured by timeout wrapper",
+				})
+				return
+			}
 			copyHeader(c.Writer.Header(), recorder.header)
 			c.Status(recorder.status)
 			if len(recorder.body) > 0 && c.Request.Method != http.MethodHead {
@@ -191,7 +199,7 @@ func drainTimeoutResult(resultCh <-chan any) {
 	}
 }
 
-var logTimeoutPanic = func(panicValue any) {
+func logTimeoutPanic(panicValue any) {
 	_, _ = fmt.Fprintf(gin.DefaultErrorWriter, "[GIN-NINJA] panic after timeout: %v\n", panicValue)
 }
 
@@ -202,6 +210,7 @@ type timeoutCaptureResponseWriter struct {
 	status       int
 	maxBodyBytes int64
 	overflowed   bool
+	streamed     bool
 }
 
 func newTimeoutCaptureResponseWriter(base gin.ResponseWriter, maxBodyBytes int64) *timeoutCaptureResponseWriter {
@@ -264,11 +273,11 @@ func (w *timeoutCaptureResponseWriter) Size() int {
 }
 
 func (w *timeoutCaptureResponseWriter) Written() bool {
-	return w.status != 0 || len(w.body) > 0
+	return w.status != 0 || len(w.body) > 0 || w.overflowed || w.streamed
 }
 
 func (w *timeoutCaptureResponseWriter) Flush() {
-	w.overflowed = true
+	w.streamed = true
 }
 
 func (w *timeoutCaptureResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
