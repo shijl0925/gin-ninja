@@ -6,8 +6,8 @@
 //
 // Then visit:
 //   - http://localhost:8080/
-//   - http://localhost:8080/docs
-//   - http://localhost:8080/openapi.json
+//   - http://localhost:8080/api/v1/docs
+//   - http://localhost:8080/api/v1/openapi.json
 package main
 
 import (
@@ -245,7 +245,7 @@ func run(dsn, addr string) error {
 	}
 	api := buildAPI(db)
 
-	log.Println("Docs: http://localhost:8080/docs")
+	log.Println("Docs: http://localhost:8080/api/v1/docs")
 	return api.Run(addr)
 }
 

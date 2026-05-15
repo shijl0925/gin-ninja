@@ -815,7 +815,8 @@ return err
 }
 api := buildAPI(cfg, db, log_)
 log.Printf("Starting %s v%s on http://%s", cfg.App.Name, cfg.App.Version, cfg.Server.Addr())
-log.Printf("Swagger UI: http://%s/docs", cfg.Server.Addr())
+log.Printf("Homepage: http://%s/api/v1", cfg.Server.DisplayAddr())
+log.Printf("Swagger UI: http://%s/api/v1/docs", cfg.Server.DisplayAddr())
 return api.Run(cfg.Server.Addr())
 }
 
@@ -923,7 +924,8 @@ return err
 }
 api := buildAPI(cfg, db, log_)
 log.Printf("Starting %s v%s on http://%s", cfg.App.Name, cfg.App.Version, cfg.Server.Addr())
-log.Printf("Swagger UI: http://%s/docs", cfg.Server.Addr())
+log.Printf("Homepage: http://%s/api/v1", cfg.Server.DisplayAddr())
+log.Printf("Swagger UI: http://%s/api/v1/docs", cfg.Server.DisplayAddr())
 return api.Run(cfg.Server.Addr())
 }
 

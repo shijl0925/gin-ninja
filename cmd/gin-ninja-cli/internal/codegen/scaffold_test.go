@@ -45,6 +45,21 @@ func TestWriteProjectScaffold(t *testing.T) {
 		t.Fatalf("expected generated list input to use query tag for search, got:\n%s", schemaContent)
 	}
 
+	mainContent, err := os.ReadFile(filepath.Join(outputDir, "main.go"))
+	if err != nil {
+		t.Fatalf("read main.go: %v", err)
+	}
+	mainText := string(mainContent)
+	for _, snippet := range []string{
+		`Homepage: http://%s/api/v1`,
+		`Swagger UI: http://%s/api/v1/docs`,
+		`cfg.Server.DisplayAddr()`,
+	} {
+		if !strings.Contains(mainText, snippet) {
+			t.Fatalf("expected generated main.go to contain %q, got:\n%s", snippet, mainText)
+		}
+	}
+
 	runScaffoldGoTest(t, outputDir)
 }
 
@@ -95,6 +110,21 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 	}
 	if !strings.Contains(string(adminContent), "admin.MountUI(api.Engine(), admin.DefaultUIConfig())") {
 		t.Fatalf("expected generated admin scaffold to mount the default admin UI, got:\n%s", adminContent)
+	}
+
+	serverContent, err := os.ReadFile(filepath.Join(outputDir, "internal", "server", "server.go"))
+	if err != nil {
+		t.Fatalf("read internal/server/server.go: %v", err)
+	}
+	serverText := string(serverContent)
+	for _, snippet := range []string{
+		`Homepage: http://%s/api/v1`,
+		`Swagger UI: http://%s/api/v1/docs`,
+		`cfg.Server.DisplayAddr()`,
+	} {
+		if !strings.Contains(serverText, snippet) {
+			t.Fatalf("expected generated server.go to contain %q, got:\n%s", snippet, serverText)
+		}
 	}
 
 	readmeContent, err := os.ReadFile(filepath.Join(outputDir, "README.md"))

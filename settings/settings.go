@@ -133,6 +133,20 @@ func (s ServerConfig) Addr() string {
 	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
+// DisplayAddr returns a host:port string suitable for browser-facing URLs.
+// Wildcard listen hosts are kept by Addr but displayed as localhost.
+func (s ServerConfig) DisplayAddr() string {
+	host := s.Host
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	port := s.Port
+	if port == 0 {
+		port = 8080
+	}
+	return net.JoinHostPort(host, strconv.Itoa(port))
+}
+
 // ReadTimeoutDuration returns the read timeout as a time.Duration.
 func (s ServerConfig) ReadTimeoutDuration() time.Duration {
 	if s.ReadTimeout <= 0 {
