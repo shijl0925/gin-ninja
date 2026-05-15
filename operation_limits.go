@@ -13,7 +13,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const defaultTimeoutMaxBodyBytes int64 = 32 << 20
+const (
+	defaultTimeoutMaxBodyBytes  int64 = 32 << 20
+	defaultTimeoutDrainDuration       = time.Minute
+)
 
 // tokenBucket is a single token-bucket entry keyed by client IP.
 type tokenBucket struct {
@@ -194,8 +197,15 @@ func wrapCooperativeTimeout(timeout time.Duration, next gin.HandlerFunc) gin.Han
 }
 
 func drainTimeoutResult(resultCh <-chan any) {
-	if panicValue := <-resultCh; panicValue != nil {
-		logTimeoutPanic(panicValue)
+	timer := time.NewTimer(defaultTimeoutDrainDuration)
+	defer timer.Stop()
+
+	select {
+	case panicValue := <-resultCh:
+		if panicValue != nil {
+			logTimeoutPanic(panicValue)
+		}
+	case <-timer.C:
 	}
 }
 
@@ -244,17 +254,15 @@ func (w *timeoutCaptureResponseWriter) Write(data []byte) (int, error) {
 	if w.overflowed {
 		return len(data), nil
 	}
-	if w.maxBodyBytes >= 0 {
-		remaining := w.maxBodyBytes - int64(len(w.body))
-		if remaining <= 0 {
-			w.overflowed = true
-			return len(data), nil
-		}
-		if int64(len(data)) > remaining {
-			w.body = append(w.body, data[:int(remaining)]...)
-			w.overflowed = true
-			return len(data), nil
-		}
+	remaining := w.maxBodyBytes - int64(len(w.body))
+	if remaining <= 0 {
+		w.overflowed = true
+		return len(data), nil
+	}
+	if int64(len(data)) > remaining {
+		w.body = append(w.body, data[:int(remaining)]...)
+		w.overflowed = true
+		return len(data), nil
 	}
 	w.body = append(w.body, data...)
 	return len(data), nil
@@ -281,6 +289,7 @@ func (w *timeoutCaptureResponseWriter) Flush() {
 }
 
 func (w *timeoutCaptureResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.streamed = true
 	return nil, nil, http.ErrNotSupported
 }
 
