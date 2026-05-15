@@ -577,7 +577,7 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 		t.Fatalf("expected 404 after delete, got %d: %s", detailAfterDelete.Code, detailAfterDelete.Body.String())
 	}
 
-	openapi := userRequest(t, api, http.MethodGet, "/api/openapi/v2.json", nil)
+	openapi := userRequest(t, api, http.MethodGet, "/openapi/v2.json", nil)
 	if openapi.Code != http.StatusOK {
 		t.Fatalf("expected openapi 200, got %d: %s", openapi.Code, openapi.Body.String())
 	}

@@ -349,7 +349,7 @@ func TestDemoDirectHelpers(t *testing.T) {
 func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) {
 	api := newDemoAPI()
 
-	w := doDemoRequest(api, http.MethodGet, "/api/openapi.json", nil)
+	w := doDemoRequest(api, http.MethodGet, "/openapi.json", nil)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
@@ -403,7 +403,7 @@ func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) 
 		t.Fatalf("expected binary response content, got %v", responseContent)
 	}
 
-	v1Docs := doDemoRequest(api, http.MethodGet, "/api/openapi/v1.json", nil)
+	v1Docs := doDemoRequest(api, http.MethodGet, "/openapi/v1.json", nil)
 	if v1Docs.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", v1Docs.Code, v1Docs.Body.String())
 	}
@@ -419,7 +419,7 @@ func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) 
 		t.Fatalf("did not expect v0 path in v1 docs, got %v", v1Paths)
 	}
 
-	v0Docs := doDemoRequest(api, http.MethodGet, "/api/openapi/v0.json", nil)
+	v0Docs := doDemoRequest(api, http.MethodGet, "/openapi/v0.json", nil)
 	if v0Docs.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", v0Docs.Code, v0Docs.Body.String())
 	}
