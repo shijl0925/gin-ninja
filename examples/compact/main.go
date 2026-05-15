@@ -255,14 +255,6 @@ func registerFeatureRoutes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheSt
 		ninja.Description("This route is reachable but excluded from OpenAPI."),
 		ninja.ExcludeFromDocs(),
 	)
-	ninja.SSE(router, "/events", app.StreamEventsDemo,
-		ninja.Summary("SSE endpoint"),
-		ninja.Description("Demonstrates server-sent events with typed input binding."),
-	)
-	ninja.WebSocket(router, "/ws", app.WebSocketEchoDemo,
-		ninja.Summary("WebSocket endpoint"),
-		ninja.Description("Demonstrates WebSocket upgrades and bidirectional messaging."),
-	)
 	ninja.Post(router, "/upload-single", app.UploadSingleDemo,
 		ninja.Summary("Single file upload"),
 		ninja.Description("Demonstrates multipart form-data binding with one file and extra form fields."),

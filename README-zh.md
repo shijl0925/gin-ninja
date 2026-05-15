@@ -11,7 +11,7 @@ gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发�
 - 使用普通 Go 结构体定义请求输入与响应输出
 - 自动生成 OpenAPI 3.0 文档和 Swagger UI
 - 通过中间件和操作选项复用认证、日志、安全、限流、超时等横切能力
-- 同时支持基础 CRUD、版本化 API、缓存接口、SSE、WebSocket 等场景
+- 同时支持基础 CRUD、版本化 API、缓存接口等场景
 
 典型使用场景：
 
@@ -19,7 +19,7 @@ gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发�
 - 需要严格请求/响应契约的项目
 - 需要自动接口文档的内部平台或开放平台
 - 需要 JWT、Session、CSRF、安全头、上传限制等生产能力的应用
-- 需要版本隔离、路由缓存或实时推送的服务
+- 需要版本隔离或路由缓存的服务
 
 ## 主要特性
 
@@ -33,7 +33,6 @@ gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发�
 - **ModelSchema 风格响应**：支持字段白名单/黑名单过滤
 - **路由级缓存**：支持 `Cache(...)`、`ETag()`、`CacheControl(...)`、标签失效、内存/Redis 存储
 - **版本管理**：支持版本路由、版本文档、弃用与迁移头部
-- **流式能力**：支持 SSE 与 WebSocket
 - **日志能力**：基于 Zap，支持 console / JSON 输出、文件日志与按大小滚动
 - **分页、过滤、排序**：支持 `pagination`、声明式过滤与安全排序
 - **文件传输**：支持 multipart 上传与下载响应
@@ -49,7 +48,7 @@ gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发�
 2. 引擎级与路由级中间件先执行。
 3. gin-ninja 将路径、查询、头、Cookie、JSON、multipart 参数绑定到输入结构体。
 4. 处理器以 `*ninja.Context` 和强类型输入结构体执行业务逻辑。
-5. 框架统一输出 JSON、下载响应、SSE 或 WebSocket。
+5. 框架统一输出 JSON 或下载响应。
 6. 路由元数据会被复用于 OpenAPI 文档与 Swagger UI 生成。
 
 核心组件：
@@ -73,7 +72,6 @@ gin-ninja/
 ├── cache.go          # 路由缓存 / ETag / 缓存失效
 ├── openapi.go        # OpenAPI 3.0 生成与 Swagger UI
 ├── schema.go         # JSON Schema 生成
-├── stream.go         # SSE 与 WebSocket
 ├── transfer.go       # 上传与下载抽象
 ├── versioning.go     # API 版本与弃用头部
 │
@@ -97,7 +95,7 @@ gin-ninja/
 | `operation.go` | 绑定输入、调用处理器、输出响应、应用操作级选项 |
 | `binding.go` | 解析 path/query/header/cookie/json/file 输入 |
 | `middleware/` | 提供 JWT、日志、安全、Session、CSRF、i18n 等通用能力 |
-| `cache.go` / `versioning.go` / `stream.go` | 提供缓存、版本、SSE、WebSocket 等高级特性 |
+| `cache.go` / `versioning.go` | 提供缓存、版本等高级特性 |
 
 ## 安装
 
@@ -1110,50 +1108,6 @@ api := ninja.New(ninja.Config{
 - 配置 `MigrationURL` 时会输出 `Link: <...>; rel="deprecation"`
 - 版本化 OpenAPI 会自动标记废弃接口
 
-## SSE
-
-```go
-type EventsInput struct {
-    Topic string `query:"topic" default:"system"`
-}
-
-ninja.SSE(events, "/stream", func(ctx *ninja.Context, in *EventsInput, stream *ninja.SSEStream) error {
-    return stream.Send(ninja.SSEEvent{
-        Event: "message",
-        Data:  "hello from gin-ninja",
-    })
-})
-```
-
-默认头部：
-
-- `Content-Type: text/event-stream`
-- `Cache-Control: no-cache`
-- `Connection: keep-alive`
-
-## WebSocket
-
-```go
-type ChatInput struct {
-    Room string `query:"room" default:"lobby"`
-}
-
-ninja.WebSocket(ws, "/chat", func(ctx *ninja.Context, in *ChatInput, conn *ninja.WebSocketConn) error {
-    text, err := conn.ReceiveText()
-    if err != nil {
-        return err
-    }
-    return conn.SendText(in.Room + ":" + text)
-})
-```
-
-常用辅助方法：
-
-- `conn.SendText(...)`
-- `conn.ReceiveText()`
-- `conn.SendJSON(...)`
-- `conn.ReceiveJSON(...)`
-
 ## 生命周期钩子
 
 ```go
@@ -1330,7 +1284,7 @@ admin.MountUI(router, admin.UIConfig{
 按功能拆分后的示例：
 
 - [examples/users](./examples/users/)：登录 / 注册、JWT 保护的 users CRUD，以及带缓存失效演示的 v2 users API
-- [examples/features](./examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、SSE、WebSocket、上传、下载等能力演示
+- [examples/features](./examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、上传、下载等能力演示
 - [examples/admin](./examples/admin/)：JWT 保护的 admin 资源 API 与独立 admin 页面
 - [examples/full](./examples/full/)：把以上能力组合到一个完整应用中
 - [examples/compact](./examples/compact/)：`examples/full` 的压缩版对照实现，用更少的本地文件展示同一套能力
@@ -1344,7 +1298,6 @@ admin.MountUI(router, admin.UIConfig{
 - 结构化日志
 - 缓存 / ETag / Cache-Control 示例
 - 版本化 API 与版本化文档
-- SSE / WebSocket 示例
 - 单文件、多文件上传
 - 二进制下载与流式下载
 

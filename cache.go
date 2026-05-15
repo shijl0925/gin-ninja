@@ -429,7 +429,7 @@ func (s *MemoryCacheStore) deleteKeyTagsLocked(key string) {
 
 func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isCacheableMethod(c.Request.Method) || op.stream != nil {
+		if !isCacheableMethod(c.Request.Method) {
 			next(c)
 			return
 		}

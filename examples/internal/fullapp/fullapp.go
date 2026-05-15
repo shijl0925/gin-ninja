@@ -88,7 +88,7 @@ func UsersOptions() Options {
 
 func FeaturesOptions() Options {
 	return Options{
-		Description: "A focused gin-ninja example covering caching, versioned routing, SSE, WebSocket, upload, and download demos.",
+		Description: "A focused gin-ninja example covering caching, versioned routing, upload, and download demos.",
 		Versions: map[string]ninja.VersionConfig{
 			"v1": {
 				Prefix:      "/v1",
@@ -412,14 +412,6 @@ func addFeatureRoutes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheStore) 
 		ninja.Summary("Hidden example endpoint"),
 		ninja.Description("This route is reachable but excluded from OpenAPI."),
 		ninja.ExcludeFromDocs(),
-	)
-	ninja.SSE(exampleRouter, "/events", app.StreamEventsDemo,
-		ninja.Summary("SSE endpoint"),
-		ninja.Description("Demonstrates server-sent events with typed input binding."),
-	)
-	ninja.WebSocket(exampleRouter, "/ws", app.WebSocketEchoDemo,
-		ninja.Summary("WebSocket endpoint"),
-		ninja.Description("Demonstrates WebSocket upgrades and bidirectional messaging."),
 	)
 	ninja.Post(exampleRouter, "/upload-single", app.UploadSingleDemo,
 		ninja.Summary("Single file upload"),

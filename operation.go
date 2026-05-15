@@ -186,7 +186,6 @@ type operation struct {
 	etagEnabled       bool
 	version           string
 	versionInfo       *VersionConfig
-	stream            *streamConfig
 }
 
 // WithTransaction wraps the operation in a request-scoped database transaction.

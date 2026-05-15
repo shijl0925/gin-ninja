@@ -142,11 +142,6 @@ type FeatureListInput struct {
 	Search string `query:"search" default:"demo" description:"Optional feature search term"`
 }
 
-// StreamDemoInput is shared by SSE and WebSocket demo endpoints.
-type StreamDemoInput struct {
-	Name string `query:"name" default:"demo-user" description:"Name echoed by the streaming demo"`
-}
-
 // UploadSingleInput demonstrates single-file multipart binding with form fields.
 type UploadSingleInput struct {
 	Title string              `form:"title" binding:"required" description:"File title"`
