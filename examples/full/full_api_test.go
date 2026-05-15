@@ -19,7 +19,7 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
 
-	for _, path := range []string{"/api/docs", "/api/docs/v1", "/api/docs/v0", "/api/openapi.json", "/api/openapi/v1.json", "/health"} {
+	for _, path := range []string{"/docs", "/docs/v1", "/docs/v0", "/openapi.json", "/openapi/v1.json", "/health"} {
 		resp, err := http.Get(server.URL + path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
@@ -127,9 +127,9 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 		wantTitle   string
 		wantSpecURL string
 	}{
-		{path: "/api/docs", wantTitle: "Full Example - API Docs", wantSpecURL: "/api/openapi.json"},
-		{path: "/api/docs/v1", wantTitle: "Full Example (v1) - API Docs", wantSpecURL: "/api/openapi/v1.json"},
-		{path: "/api/docs/v0", wantTitle: "Full Example (v0) - API Docs", wantSpecURL: "/api/openapi/v0.json"},
+		{path: "/docs", wantTitle: "Full Example - API Docs", wantSpecURL: "/openapi.json"},
+		{path: "/docs/v1", wantTitle: "Full Example (v1) - API Docs", wantSpecURL: "/openapi/v1.json"},
+		{path: "/docs/v0", wantTitle: "Full Example (v0) - API Docs", wantSpecURL: "/openapi/v0.json"},
 	} {
 		resp, err := http.Get(server.URL + tc.path)
 		if err != nil {
@@ -227,7 +227,7 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 	}
 	v0.Body.Close()
 
-	for _, path := range []string{"/api/docs/v9", "/api/openapi/v9.json"} {
+	for _, path := range []string{"/docs/v9", "/openapi/v9.json"} {
 		resp, err := http.Get(server.URL + path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
@@ -238,16 +238,16 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 		resp.Body.Close()
 	}
 
-	docsHeadReq, err := http.NewRequest(http.MethodHead, server.URL+"/api/docs/v1", nil)
+	docsHeadReq, err := http.NewRequest(http.MethodHead, server.URL+"/docs/v1", nil)
 	if err != nil {
 		t.Fatalf("new HEAD docs request: %v", err)
 	}
 	docsHeadResp, err := http.DefaultClient.Do(docsHeadReq)
 	if err != nil {
-		t.Fatalf("HEAD /api/docs/v1: %v", err)
+		t.Fatalf("HEAD /docs/v1: %v", err)
 	}
 	if docsHeadResp.StatusCode != http.StatusNotFound {
-		t.Fatalf("expected HEAD /api/docs/v1 to follow current internal-route behavior and return 404, got %d", docsHeadResp.StatusCode)
+		t.Fatalf("expected HEAD /docs/v1 to follow current internal-route behavior and return 404, got %d", docsHeadResp.StatusCode)
 	}
 	docsHeadResp.Body.Close()
 }

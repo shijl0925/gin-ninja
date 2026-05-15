@@ -22,8 +22,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const internalRoutePrefix = "/api"
-
 type Options struct {
 	Description           string
 	Versions              map[string]ninja.VersionConfig
@@ -184,7 +182,7 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
 		Description: opts.Description,
-		Prefix:      internalRoutePrefix,
+		Prefix:      "/api",
 		Versions:    cloneVersions(opts.Versions),
 		SecuritySchemes: map[string]ninja.SecurityScheme{
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
@@ -256,8 +254,7 @@ func Run(cfg settings.Config, log_ *zap.Logger, opts Options) error {
 	api := BuildAPI(cfg, db, log_, opts)
 	addr := cfg.Server.Addr()
 	log.Printf("Starting %s v%s on http://%s", cfg.App.Name, cfg.App.Version, addr)
-	log.Printf("Homepage: http://%s%s", cfg.Server.DisplayAddr(), internalRoutePrefix)
-	log.Printf("Swagger UI: http://%s%s/docs", cfg.Server.DisplayAddr(), internalRoutePrefix)
+	log.Printf("Swagger UI: http://%s/docs", addr)
 	return api.Run(addr)
 }
 

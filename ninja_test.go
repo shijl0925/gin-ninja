@@ -200,38 +200,38 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 }
 
-func TestNew_InternalRoutesHonorPrefix(t *testing.T) {
+func TestNew_InternalRoutesIgnoreAPIPrefix(t *testing.T) {
 	api := ninja.New(ninja.Config{
 		Title:   "Prefixed",
 		Version: "0.0.1",
 		Prefix:  "/api",
 	})
 
-	home := doRequest(api, http.MethodGet, "/api", nil)
+	home := doRequest(api, http.MethodGet, "/", nil)
 	if home.Code != http.StatusOK {
-		t.Fatalf("expected prefixed homepage 200, got %d", home.Code)
+		t.Fatalf("expected homepage 200, got %d", home.Code)
 	}
-	if !strings.Contains(home.Body.String(), `href="/api/docs"`) {
-		t.Fatalf("expected prefixed docs shortcut in homepage: %q", home.Body.String())
+	if !strings.Contains(home.Body.String(), `href="/docs"`) {
+		t.Fatalf("expected docs shortcut in homepage: %q", home.Body.String())
 	}
 
-	docs := doRequest(api, http.MethodGet, "/api/docs", nil)
+	docs := doRequest(api, http.MethodGet, "/docs", nil)
 	if docs.Code != http.StatusOK {
-		t.Fatalf("expected prefixed docs 200, got %d", docs.Code)
+		t.Fatalf("expected docs 200, got %d", docs.Code)
 	}
-	if !strings.Contains(docs.Body.String(), "/api/openapi.json") {
-		t.Fatalf("expected docs UI to reference prefixed OpenAPI URL: %q", docs.Body.String())
+	if !strings.Contains(docs.Body.String(), "/openapi.json") {
+		t.Fatalf("expected docs UI to reference OpenAPI URL: %q", docs.Body.String())
 	}
 
-	openAPI := doRequest(api, http.MethodGet, "/api/openapi.json", nil)
+	openAPI := doRequest(api, http.MethodGet, "/openapi.json", nil)
 	if openAPI.Code != http.StatusOK {
-		t.Fatalf("expected prefixed OpenAPI 200, got %d", openAPI.Code)
+		t.Fatalf("expected OpenAPI 200, got %d", openAPI.Code)
 	}
 
-	for _, path := range []string{"/", "/docs", "/openapi.json"} {
+	for _, path := range []string{"/api", "/api/docs", "/api/openapi.json"} {
 		w := doRequest(api, http.MethodGet, path, nil)
 		if w.Code != http.StatusNotFound {
-			t.Fatalf("expected unprefixed internal route %s to be unregistered, got %d", path, w.Code)
+			t.Fatalf("expected prefixed internal route %s to be unregistered, got %d", path, w.Code)
 		}
 	}
 }
@@ -867,7 +867,7 @@ func TestOpenAPISpec_PrefixAppliedOnce(t *testing.T) {
 
 	api.AddRouter(r)
 
-	w := doRequest(api, http.MethodGet, "/api/v1/openapi.json", nil)
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
 	var spec map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
 
@@ -1789,7 +1789,7 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 		t.Fatalf("did not expect deprecation header on v2, got %v", v2Resp.Header())
 	}
 
-	v1Docs := doRequest(api, http.MethodGet, "/api/openapi/v1.json", nil)
+	v1Docs := doRequest(api, http.MethodGet, "/openapi/v1.json", nil)
 	if v1Docs.Code != http.StatusOK {
 		t.Fatalf("expected versioned docs, got %d: %s", v1Docs.Code, v1Docs.Body.String())
 	}
@@ -1807,8 +1807,8 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 		t.Fatalf("expected deprecated version operations to be marked deprecated, got %v", get)
 	}
 
-	docsUI := doRequest(api, http.MethodGet, "/api/docs/v1", nil)
-	if docsUI.Code != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/api/openapi/v1.json") {
+	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
+	if docsUI.Code != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/openapi/v1.json") {
 		t.Fatalf("expected versioned docs UI to reference versioned spec, got %d %q", docsUI.Code, docsUI.Body.String())
 	}
 }

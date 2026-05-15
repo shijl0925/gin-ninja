@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path"
 	"sync"
 	"syscall"
 	"time"
@@ -331,8 +330,8 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 // setupInternalRoutes adds the OpenAPI JSON and Swagger UI routes.
 func (api *NinjaAPI) setupInternalRoutes() {
 	if !api.config.DisableHomepage && api.config.HomepageURL != "" {
-		homepageURL := api.internalRoutePath(api.config.HomepageURL)
-		docsURL := api.internalRoutePath(api.config.DocsURL)
+		homepageURL := api.config.HomepageURL
+		docsURL := api.config.DocsURL
 		if api.config.DisableDocs || api.config.HideDocsShortcut {
 			docsURL = ""
 		}
@@ -345,7 +344,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 	}
 
 	if !api.config.DisableOpenAPI && api.config.OpenAPIURL != "" {
-		api.engine.GET(api.internalRoutePath(api.config.OpenAPIURL), func(c *gin.Context) {
+		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
 			data, err := api.openAPIBytes()
 			if err != nil {
 				writeError(c, err)
@@ -356,8 +355,8 @@ func (api *NinjaAPI) setupInternalRoutes() {
 	}
 
 	if !api.config.DisableDocs && !api.config.DisableOpenAPI && api.config.DocsURL != "" && api.config.OpenAPIURL != "" {
-		docsURL := api.internalRoutePath(api.config.DocsURL)
-		openAPIURL := api.internalRoutePath(api.config.OpenAPIURL)
+		docsURL := api.config.DocsURL
+		openAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
 		api.engine.GET(docsURL, func(c *gin.Context) {
 			c.Data(http.StatusOK, "text/html; charset=utf-8",
@@ -365,7 +364,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedOpenAPIPattern(api.internalRoutePath(api.config.OpenAPIURL)); !api.config.DisableOpenAPI && pattern != "" {
+	if pattern := versionedOpenAPIPattern(api.config.OpenAPIURL); !api.config.DisableOpenAPI && pattern != "" {
 		api.engine.GET(pattern, func(c *gin.Context) {
 			version := requestVersion(c)
 			data, ok, err := api.versionOpenAPIBytes(version)
@@ -381,8 +380,8 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		})
 	}
 
-	if pattern := versionedDocsPattern(api.internalRoutePath(api.config.DocsURL)); !api.config.DisableDocs && !api.config.DisableOpenAPI && pattern != "" {
-		baseOpenAPIURL := api.internalRoutePath(api.config.OpenAPIURL)
+	if pattern := versionedDocsPattern(api.config.DocsURL); !api.config.DisableDocs && !api.config.DisableOpenAPI && pattern != "" {
+		baseOpenAPIURL := api.config.OpenAPIURL
 		title := api.config.Title
 		api.engine.GET(pattern, func(c *gin.Context) {
 			version := requestVersion(c)
@@ -394,13 +393,6 @@ func (api *NinjaAPI) setupInternalRoutes() {
 				[]byte(swaggerUIHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
 		})
 	}
-}
-
-func (api *NinjaAPI) internalRoutePath(routePath string) string {
-	if routePath == "" || api.config.Prefix == "" {
-		return routePath
-	}
-	return path.Join(api.config.Prefix, routePath)
 }
 
 func (api *NinjaAPI) RegisterErrorMapper(mapper ErrorMapper) {

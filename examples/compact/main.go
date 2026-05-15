@@ -5,10 +5,9 @@
 //	go run ./examples/compact
 //
 // Then visit:
-//   - http://localhost:8080/api
-//   - http://localhost:8080/api/docs
-//   - http://localhost:8080/api/docs/v2
-//   - http://localhost:8080/api/openapi.json
+//   - http://localhost:8080/docs
+//   - http://localhost:8080/docs/v2
+//   - http://localhost:8080/openapi.json
 //   - http://localhost:8080/admin
 package main
 
@@ -35,8 +34,6 @@ import (
 
 var runCompactMain = run
 var fatalCompact = func(v ...any) { log.Fatal(v...) }
-
-const internalRoutePrefix = "/api"
 
 func initDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	return fullapp.InitDB(cfg)
@@ -76,7 +73,7 @@ func buildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger) *ninja.NinjaAP
 		Title:       cfg.App.Name,
 		Version:     cfg.App.Version,
 		Description: opts.Description,
-		Prefix:      internalRoutePrefix,
+		Prefix:      "/api",
 		Versions:    opts.Versions,
 		SecuritySchemes: map[string]ninja.SecurityScheme{
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
@@ -309,8 +306,7 @@ func run(cfg settings.Config, log_ *zap.Logger) error {
 	api := buildAPI(cfg, db, log_)
 	addr := cfg.Server.Addr()
 	log.Printf("Starting compact example %s v%s on http://%s", cfg.App.Name, cfg.App.Version, addr)
-	log.Printf("Homepage: http://%s%s", cfg.Server.DisplayAddr(), internalRoutePrefix)
-	log.Printf("Swagger UI: http://%s%s/docs", cfg.Server.DisplayAddr(), internalRoutePrefix)
+	log.Printf("Swagger UI: http://%s/docs", addr)
 	return api.Run(addr)
 }
 

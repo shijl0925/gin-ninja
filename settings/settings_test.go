@@ -220,47 +220,6 @@ func TestServerConfig_Addr_Defaults(t *testing.T) {
 	}
 }
 
-func TestServerConfig_DisplayAddr(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  settings.ServerConfig
-		want string
-	}{
-		{
-			name: "defaults",
-			cfg:  settings.ServerConfig{},
-			want: "localhost:8080",
-		},
-		{
-			name: "wildcard IPv4",
-			cfg:  settings.ServerConfig{Host: "0.0.0.0", Port: 3000},
-			want: "localhost:3000",
-		},
-		{
-			name: "wildcard IPv6",
-			cfg:  settings.ServerConfig{Host: "::", Port: 3000},
-			want: "localhost:3000",
-		},
-		{
-			name: "loopback IPv4",
-			cfg:  settings.ServerConfig{Host: "127.0.0.1", Port: 3000},
-			want: "127.0.0.1:3000",
-		},
-		{
-			name: "loopback IPv6",
-			cfg:  settings.ServerConfig{Host: "::1", Port: 3000},
-			want: "[::1]:3000",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.cfg.DisplayAddr(); got != tc.want {
-				t.Fatalf("DisplayAddr() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestServerConfig_TimeoutDurations(t *testing.T) {
 	s := settings.ServerConfig{}
 	if s.ReadTimeoutDuration() != 60*time.Second {

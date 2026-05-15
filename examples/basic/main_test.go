@@ -56,18 +56,18 @@ func TestBasicExampleRoutesAndCRUD(t *testing.T) {
 	server := newBasicTestAPI(t)
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/v1/docs")
+	resp, err := http.Get(server.URL + "/docs")
 	if err != nil {
-		t.Fatalf("GET /api/v1/docs: %v", err)
+		t.Fatalf("GET /docs: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected docs 200, got %d", resp.StatusCode)
 	}
 	resp.Body.Close()
 
-	resp, err = http.Get(server.URL + "/api/v1/openapi.json")
+	resp, err = http.Get(server.URL + "/openapi.json")
 	if err != nil {
-		t.Fatalf("GET /api/v1/openapi.json: %v", err)
+		t.Fatalf("GET /openapi.json: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected openapi 200, got %d", resp.StatusCode)
