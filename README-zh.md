@@ -546,10 +546,12 @@ gin-ninja-cli showmigrations
 gin-ninja-cli sqlmigrate 20260417120000_add_users
 ```
 
-- `makemigrations` 会通过 GORM `AutoMigrate` 的 dry-run SQL 生成时间戳迁移文件，并写入 `migrations/`
+- `makemigrations` 会通过 GORM `AutoMigrate` 的 dry-run SQL 生成时间戳迁移文件，并写入 `migrations/`；它需要 Go 工具链来检查 `MigrationModels()`，建议只在开发或 CI 环境运行
 - `migrate` 会应用未执行迁移、迁移到指定版本，或通过 `zero` 回滚全部迁移
 - `showmigrations` 会列出所有迁移及其是否已执行
 - `sqlmigrate` 会输出指定迁移的 SQL（可通过 `-direction up|down|all` 控制）
+
+生产和测试部署建议随应用发布已经审查过的迁移文件，并只运行 `gin-ninja-cli migrate` 执行这些 SQL 迁移。自动生成的 Down SQL 会保持保守：当 CLI 无法高置信解析简单表、索引、列或约束变更时，会将迁移标记为不可自动回滚，便于你手写回滚脚本。后续版本可考虑由应用侧提供迁移生成入口，替代 `makemigrations` 当前使用的临时 Go helper，降低环境敏感性。
 
 ## CRUD 脚手架生成器
 

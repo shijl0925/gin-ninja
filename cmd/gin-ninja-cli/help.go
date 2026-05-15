@@ -118,6 +118,7 @@ func printMakeMigrationsUsage(w io.Writer) {
 	p := newHelpPrinter(w)
 	fmt.Fprintln(w, p.title("makemigrations"))
 	fmt.Fprintln(w, "Generate a timestamped SQL migration from MigrationModels().")
+	fmt.Fprintln(w, "This development/CI command requires the go command; production should run generated migrations with migrate.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Usage"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli makemigrations [-config <path>] [-app-dir <path>] [-migrations-dir <path>] [-name <name>]"))

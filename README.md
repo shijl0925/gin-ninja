@@ -591,10 +591,12 @@ gin-ninja-cli showmigrations
 gin-ninja-cli sqlmigrate 20260417120000_add_users
 ```
 
-- `makemigrations` captures the SQL emitted by GORM `AutoMigrate` in dry-run mode and writes a timestamped SQL migration under `migrations/`
+- `makemigrations` captures the SQL emitted by GORM `AutoMigrate` in dry-run mode and writes a timestamped SQL migration under `migrations/`; run it in development or CI because it requires the Go toolchain to inspect `MigrationModels()`
 - `migrate` applies pending migrations, migrates to a target migration, or rolls everything back with `zero`
 - `showmigrations` lists all migration files and whether they have been applied
 - `sqlmigrate` prints the generated SQL for a migration (`-direction up|down|all`)
+
+For production and test deployments, prefer shipping reviewed migration files and running `gin-ninja-cli migrate` against those generated SQL migrations. Automatically generated down SQL is intentionally conservative: when the CLI cannot parse a simple table, index, column, or constraint change with high confidence, it marks the migration as irreversible so you can provide a hand-written rollback. A future app-side migration generator may replace the temporary Go helper used by `makemigrations` to reduce environment sensitivity.
 
 ---
 
