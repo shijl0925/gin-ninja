@@ -433,13 +433,13 @@ func collectMigrationStatements(project migrationProject) ([]string, error) {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
-			return nil, fmt.Errorf("go toolchain not found: makemigrations is a development/CI generation command that needs the go command to inspect MigrationModels(). Install Go in that environment, or run migrate with generated SQL migrations")
+			return nil, fmt.Errorf("go toolchain not found. makemigrations is a development/CI generation command that needs the go command to inspect MigrationModels(). Install Go in that environment, or run migrate with generated SQL migrations")
 		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
 			message = err.Error()
 		}
-		return nil, fmt.Errorf("go run helper: %s, makemigrations requires a working Go module and Go toolchain, so prefer running it in development/CI and deploying generated SQL migrations", message)
+		return nil, fmt.Errorf("go run helper: %s. makemigrations requires a working Go module and Go toolchain, so prefer running it in development/CI and deploying generated SQL migrations", message)
 	}
 	var result helperResult
 	payload := bytes.TrimSpace(stdout.Bytes())
@@ -638,7 +638,8 @@ func reverseMigrationStatement(dialect, statement string) (string, bool) {
 }
 
 func buildMigrationIdentifierExpr() string {
-	return fmt.Sprintf(`(?:%s|`+"`%s`"+`|"%s")`, safeSQLIdentifierExpr, safeSQLIdentifierExpr, safeSQLIdentifierExpr)
+	identifier := safeSQLIdentifierExpr
+	return fmt.Sprintf(`(?:%s|`+"`%s`"+`|"%s")`, identifier, identifier, identifier)
 }
 
 // isConstraintLikeKeyword prevents ALTER TABLE ADD constraint clauses from being misread as ADD COLUMN operations.
@@ -655,7 +656,7 @@ func isConstraintLikeKeyword(identifier string) bool {
 func safeMigrationIdentifier(identifier string) (string, bool) {
 	identifier = strings.TrimSpace(identifier)
 	if identifier == "" || strings.Contains(identifier, ".") {
-		// Schema-qualified names need dialect-aware quoting, so automatic down SQL stays conservative.
+		// Schema-qualified names place separate quoting rules on schema and object parts, so automatic down SQL stays conservative.
 		return "", false
 	}
 	if strings.HasPrefix(identifier, "`") || strings.HasPrefix(identifier, `"`) {
