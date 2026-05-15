@@ -1,5 +1,7 @@
 # 中间件与安全
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 中间件
 
 ### 引擎级中间件
@@ -72,3 +74,7 @@ api.UseGin(middleware.SecureHeadersStrict())
 - Cookie 配置 `Secure`、`HTTPOnly`、合适的 `SameSite`；`Secure` 在 release 模式默认开启，本地 HTTP 开发默认关闭，也可通过 `SecureSet` / `CookieSecureSet` 显式覆盖
 - 对所有修改类接口启用 CSRF 防护
 - 上传接口同时配置大小上限和 MIME 白名单
+
+---
+
+上一篇: [配置、Bootstrap 与 ORM](./configuration.md) | 下一篇: [文件传输与 OpenAPI 控制](./files-and-openapi.md)

@@ -1,5 +1,7 @@
 # Getting Started
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## Quick Start
 
 ```go
@@ -290,3 +292,5 @@ A good minimal app package usually contains only:
 - `app/routers.go`
 
 ---
+
+Previous: [Overview](./overview.md) | Next: [Project and CRUD Scaffolding](./scaffolding.md)

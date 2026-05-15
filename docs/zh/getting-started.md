@@ -1,5 +1,7 @@
 # 快速开始
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 快速开始
 
 ```go
@@ -278,3 +280,7 @@ api.AddController("/items", ninja.ControllerFunc(func(r *ninja.Router) {
 - `app/schemas.go`
 - `app/apis.go`
 - `app/routers.go`
+
+---
+
+上一篇: [概览](./overview.md) | 下一篇: [项目与 CRUD 脚手架](./scaffolding.md)

@@ -1,5 +1,7 @@
 # Configuration, Bootstrap, and Lifecycle
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## Configuration (settings)
 
 ```go
@@ -235,3 +237,5 @@ log.Fatal(api.Run(":8080"))
 `Serve(listener)` is available for custom embedding and manual shutdown orchestration.
 
 ---
+
+Previous: [Project and CRUD Scaffolding](./scaffolding.md) | Next: [Middleware and Security](./middleware-security.md)

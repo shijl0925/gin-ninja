@@ -1,6 +1,8 @@
 # Overview
 
-## Overview
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
+## What is gin-ninja?
 
 gin-ninja is designed for Go teams that want Gin's routing performance with a more structured API layer:
 
@@ -137,3 +139,5 @@ This repository now includes a workspace Skill at `.github/skills/gin-ninja/`.
 - or let the agent auto-load it for gin-ninja-specific API, middleware, scaffold, and OpenAPI tasks
 
 ---
+
+Next: [Getting Started](./getting-started.md)

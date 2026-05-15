@@ -1,10 +1,15 @@
 # gin-ninja Documentation
 
-[English](./en/overview.md) | [中文](./zh/overview.md)
+[English](./en/README.md) | [中文](./zh/README.md)
 
 The root README files are intentionally short. Detailed documentation is split by feature area under `docs/en` and `docs/zh`.
 
-## English
+## Start Here
+
+- [English documentation index](./en/README.md)
+- [中文文档索引](./zh/README.md)
+
+## English Guides
 
 - [Overview](./en/overview.md)
 - [Getting Started](./en/getting-started.md)
@@ -16,7 +21,7 @@ The root README files are intentionally short. Detailed documentation is split b
 - [Advanced Features](./en/advanced-features.md)
 - [Admin and Full Example](./en/admin-and-examples.md)
 
-## 中文
+## 中文指南
 
 - [概览](./zh/overview.md)
 - [快速开始](./zh/getting-started.md)

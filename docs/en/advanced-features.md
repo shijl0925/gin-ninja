@@ -1,5 +1,7 @@
 # Advanced Features
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## Route-Level Cache / ETag / Cache-Control
 
 For read-only endpoints, you can enable built-in response caching and conditional requests:
@@ -232,3 +234,5 @@ ws.onmessage = (event) => console.log(event.data);
 OpenAPI documents the route as a `101 Switching Protocols` response so the upgrade is visible in generated docs.
 
 ---
+
+Previous: [File Transfer and OpenAPI Controls](./files-and-openapi.md) | Next: [Admin and Full Example](./admin-and-examples.md)

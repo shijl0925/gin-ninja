@@ -1,6 +1,8 @@
 # 概览
 
-## 概览
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
+## gin-ninja 是什么？
 
 gin-ninja 适合希望继续使用 Gin，但又想要更强结构化 API 开发体验的 Go 项目：
 
@@ -107,3 +109,7 @@ go get github.com/shijl0925/gin-ninja
 
 - 可以直接用 `/gin-ninja` 显式调用
 - 也可以让智能体在处理 gin-ninja 相关 API、中间件、脚手架和 OpenAPI 任务时自动加载
+
+---
+
+下一篇: [快速开始](./getting-started.md)

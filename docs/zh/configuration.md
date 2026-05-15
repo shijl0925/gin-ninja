@@ -1,5 +1,7 @@
 # 配置、Bootstrap 与 ORM
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 配置管理（settings）
 
 ```go
@@ -135,3 +137,7 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 ```
 
 `Run()` 会处理 `SIGINT` / `SIGTERM` 并执行优雅关闭。
+
+---
+
+上一篇: [核心 API、绑定与响应](./core-api.md) | 下一篇: [中间件与安全](./middleware-security.md)

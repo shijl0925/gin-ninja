@@ -1,5 +1,7 @@
 # Middleware and Security
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## Middleware
 
 ### Engine-level (applies to all routes)
@@ -238,3 +240,5 @@ Link:        <https://example.com/migrate-to-v2>; rel="deprecation"
 When `DeprecatedSince` is zero the `Deprecation` header falls back to the literal `"true"`.
 
 ---
+
+Previous: [Configuration, Bootstrap, and Lifecycle](./configuration.md) | Next: [Data, Binding, and Responses](./data-and-responses.md)

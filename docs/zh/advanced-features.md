@@ -1,5 +1,7 @@
 # 高级功能
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 路由缓存 / ETag / Cache-Control
 
 ```go
@@ -116,3 +118,7 @@ ninja.WebSocket(ws, "/chat", func(ctx *ninja.Context, in *ChatInput, conn *ninja
 - `conn.ReceiveText()`
 - `conn.SendJSON(...)`
 - `conn.ReceiveJSON(...)`
+
+---
+
+上一篇: [文件传输与 OpenAPI 控制](./files-and-openapi.md) | 下一篇: [Admin 与完整示例](./admin-and-examples.md)

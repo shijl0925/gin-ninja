@@ -1,5 +1,7 @@
 # Project and CRUD Scaffolding
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## Project / App Scaffold Commands
 
 gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
@@ -227,3 +229,5 @@ For example, a generated scaffold can now emit:
 - association helpers such as `syncProjectTagsRelations(...)`
 
 ---
+
+Previous: [Getting Started](./getting-started.md) | Next: [Configuration, Bootstrap, and Lifecycle](./configuration.md)

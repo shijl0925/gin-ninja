@@ -1,5 +1,7 @@
 # 文件传输与 OpenAPI 控制
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 文件上传与下载
 
 ### 单文件上传
@@ -65,3 +67,7 @@ ninja.Get(router, "/internal/health", healthz,
 - `Cache(...)` / `CacheControl(...)` / `ETag()`
 
 `Timeout(...)` 是协作式超时：框架会提前返回 408 并取消 context，但业务代码仍需主动监听 context 取消并尽快退出。
+
+---
+
+上一篇: [中间件与安全](./middleware-security.md) | 下一篇: [高级功能](./advanced-features.md)

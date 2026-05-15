@@ -1,5 +1,7 @@
 # Data, Binding, and Responses
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## ModelSchema-style Responses
 
 ```go
@@ -181,3 +183,5 @@ Try requests like:
 - `/api/v1/users?is_admin=true&sort=-age`
 
 ---
+
+Previous: [Middleware and Security](./middleware-security.md) | Next: [File Transfer and OpenAPI Controls](./files-and-openapi.md)

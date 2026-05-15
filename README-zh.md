@@ -60,7 +60,7 @@ func main() {
 
 ## 文档导航
 
-详细说明已按功能拆分：
+详细说明已按功能拆分。建议从 [中文文档索引](./docs/zh/README.md) 开始，也可以直接查看：
 
 - [概览](./docs/zh/overview.md)
 - [快速开始](./docs/zh/getting-started.md)
@@ -72,7 +72,7 @@ func main() {
 - [高级功能](./docs/zh/advanced-features.md)
 - [Admin 与完整示例](./docs/zh/admin-and-examples.md)
 
-英文文档从 [README.md](./README.md) 或 [docs/en/overview.md](./docs/en/overview.md) 开始。
+英文文档从 [README.md](./README.md) 或 [English documentation index](./docs/en/README.md) 开始。
 
 ## 示例
 

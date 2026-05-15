@@ -1,5 +1,7 @@
 # 核心 API、绑定与响应
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 核心 API
 
 ### NinjaAPI
@@ -156,3 +158,7 @@ type ListUsersInput struct {
 - `sort=name,-age`
 
 白名单之外的排序字段会被拒绝，不会直接传到查询层。
+
+---
+
+上一篇: [项目与 CRUD 脚手架](./scaffolding.md) | 下一篇: [配置、Bootstrap 与 ORM](./configuration.md)

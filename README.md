@@ -63,7 +63,7 @@ Visit `http://localhost:8080/docs` for Swagger UI and `http://localhost:8080/ope
 
 ## Documentation
 
-Detailed documentation has been split by feature area:
+Detailed documentation has been split by feature area. Start with the [English documentation index](./docs/en/README.md), or jump to a guide:
 
 - [Overview](./docs/en/overview.md)
 - [Getting Started](./docs/en/getting-started.md)
@@ -75,7 +75,7 @@ Detailed documentation has been split by feature area:
 - [Advanced Features](./docs/en/advanced-features.md)
 - [Admin and Full Example](./docs/en/admin-and-examples.md)
 
-Chinese documentation starts at [README-zh.md](./README-zh.md) or [docs/zh/overview.md](./docs/zh/overview.md).
+Chinese documentation starts at [README-zh.md](./README-zh.md) or the [中文文档索引](./docs/zh/README.md).
 
 ## Examples
 

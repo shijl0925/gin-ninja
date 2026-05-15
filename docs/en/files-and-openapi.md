@@ -1,5 +1,7 @@
 # File Transfer and OpenAPI Controls
 
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+
 ## Multipart File Upload & Download
 
 ### Single-file upload
@@ -150,3 +152,5 @@ ninja.Get(users, "/", listUsers,
 Use `Response(...)` / `PaginatedResponse[...]` to document non-default OpenAPI responses, `ExcludeFromDocs()` for internal endpoints, `Timeout(...)` for context-based per-operation deadlines, and `RateLimit(...)` for per-operation throttling. `Timeout(...)` is cooperative: the framework returns 408 early, but handlers still need to honor context cancellation.
 
 ---
+
+Previous: [Data, Binding, and Responses](./data-and-responses.md) | Next: [Advanced Features](./advanced-features.md)

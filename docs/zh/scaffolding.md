@@ -1,5 +1,7 @@
 # 项目与 CRUD 脚手架
 
+[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+
 ## 项目 / 应用脚手架命令
 
 gin-ninja 也提供了类似 Django 的脚手架命令，可快速创建可运行的项目骨架和新的 app 包。
@@ -227,3 +229,7 @@ type Project struct {
 - `Tasks []ProjectTasksOut`
 - `TagsIDs []uint`
 - `syncProjectTagsRelations(...)`
+
+---
+
+上一篇: [快速开始](./getting-started.md) | 下一篇: [核心 API、绑定与响应](./core-api.md)
