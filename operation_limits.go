@@ -14,7 +14,11 @@ import (
 )
 
 const (
-	defaultTimeoutMaxBodyBytes  = 32 << 20
+	// Keep timeout captures large enough for typical JSON responses while
+	// bounding memory held by handlers that keep writing after a timeout.
+	defaultTimeoutMaxBodyBytes = 32 << 20
+	// Avoid creating an extra permanent drain goroutine for handlers that never
+	// finish; panics after this window cannot be observed by the timeout wrapper.
 	defaultTimeoutDrainDuration = time.Minute
 )
 
@@ -250,6 +254,8 @@ func (w *timeoutCaptureResponseWriter) Write(data []byte) (int, error) {
 		w.status = http.StatusOK
 	}
 	if w.overflowed {
+		// Report bytes as consumed so gin.ResponseWriter callers are not exposed
+		// to an artificial capture-only write failure after the cap is reached.
 		return len(data), nil
 	}
 	remaining := w.maxBodyBytes - len(w.body)
