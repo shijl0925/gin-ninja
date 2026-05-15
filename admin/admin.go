@@ -110,7 +110,7 @@ type Resource struct {
 	fields       []*fieldMeta
 	fieldByName  map[string]*fieldMeta
 	primaryKey   *fieldMeta
-	allowedQuery map[string]struct{}
+	resolvedView *resolvedResource
 }
 
 type Site struct {
@@ -1040,7 +1040,7 @@ func anyWritable(fields []*fieldMeta, mode fieldMode) bool {
 	return false
 }
 
-func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta) (*gorm.DB, error) {
+func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta, meta FieldMeta) (*gorm.DB, error) {
 	for _, candidate := range []struct {
 		Suffix string
 		Op     string
@@ -1057,12 +1057,12 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta) (*gorm.DB, err
 		{"__from", "gte"},
 		{"__to", "lte"},
 	} {
-		key := field.Meta.Name + candidate.Suffix
+		key := meta.Name + candidate.Suffix
 		raw := strings.TrimSpace(query.Get(key))
 		if raw == "" {
 			continue
 		}
-		column := queryColumn(field)
+		column := queryColumnFor(field, meta)
 		var (
 			value any
 			err   error
@@ -1074,7 +1074,7 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta) (*gorm.DB, err
 			for _, part := range parts {
 				parsed, parseErr := field.parseString(strings.TrimSpace(part))
 				if parseErr != nil {
-					return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_FILTER", fmt.Sprintf("field %q: %s", field.Meta.Name, parseErr.Error()))
+					return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_FILTER", fmt.Sprintf("field %q: %s", meta.Name, parseErr.Error()))
 				}
 				values = append(values, parsed)
 			}
@@ -1084,7 +1084,7 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta) (*gorm.DB, err
 		default:
 			value, err = field.parseString(raw)
 			if err != nil {
-				return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_FILTER", fmt.Sprintf("field %q: %s", field.Meta.Name, err.Error()))
+				return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_FILTER", fmt.Sprintf("field %q: %s", meta.Name, err.Error()))
 			}
 		}
 		switch candidate.Op {

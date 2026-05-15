@@ -59,10 +59,6 @@ type schemaModel struct {
 	Password string `json:"password"`
 }
 
-type schemaRootTime struct {
-	ModelSchema[time.Time]
-}
-
 type pointerMarshaler string
 
 func (p *pointerMarshaler) MarshalJSON() ([]byte, error) {
@@ -87,6 +83,8 @@ type bindEdgeQueryInput struct {
 	Search string   `query:"search"`
 	Tags   []string `query:"tag"`
 }
+
+type testContextKey string
 
 type bindOverrideInput struct {
 	ID      int    `path:"id" json:"id"`
@@ -433,14 +431,14 @@ func TestContextHelpers(t *testing.T) {
 
 	reqCtx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Hour))
 	t.Cleanup(cancel)
-	reqCtx = context.WithValue(reqCtx, "request-key", "request-value")
+	reqCtx = context.WithValue(reqCtx, testContextKey("request-key"), "request-value")
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(reqCtx)
 	c.Set("gin-key", "gin-value")
 	c.Set(requestIDContextKey, "req-123")
 	c.Set(contextkeys.JWTClaims, contextClaims{userID: 7})
 
 	ctx := newContext(c)
-	if ctx.Value("gin-key") != "gin-value" || ctx.Value("request-key") != "request-value" {
+	if ctx.Value("gin-key") != "gin-value" || ctx.Value(testContextKey("request-key")) != "request-value" {
 		t.Fatal("expected context values from gin and request context")
 	}
 	expectedDeadline, expectedOK := reqCtx.Deadline()
@@ -448,7 +446,7 @@ func TestContextHelpers(t *testing.T) {
 	if ok != expectedOK || !deadline.Equal(expectedDeadline) {
 		t.Fatalf("expected deadline %v (ok=%v), got %v (ok=%v)", expectedDeadline, expectedOK, deadline, ok)
 	}
-	if ctx.StdContext().Value("request-key") != "request-value" {
+	if ctx.StdContext().Value(testContextKey("request-key")) != "request-value" {
 		t.Fatal("expected StdContext passthrough")
 	}
 	if ctx.RequestID() != "req-123" || ctx.GetUserID() != 7 {
@@ -480,7 +478,7 @@ func TestContextResponseHelpers(t *testing.T) {
 			t.Fatalf("expected 201, got %d", w.Code)
 		}
 
-		c, w = newTestContext(http.MethodGet, "/", "")
+		c, _ = newTestContext(http.MethodGet, "/", "")
 		ctx = newContext(c)
 		ctx.JSON204()
 		if ctx.Writer.Status() != http.StatusNoContent {

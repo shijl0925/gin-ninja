@@ -22,6 +22,23 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Run staticcheck
+        run: |
+          BIN_DIR="$(go env GOBIN)"
+          if [ -z "$BIN_DIR" ]; then
+            BIN_DIR="$(go env GOPATH)/bin"
+          fi
+          GOTOOLCHAIN=go1.26.0 go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$BIN_DIR/staticcheck" ./...
+          (
+            cd cmd/gin-ninja-cli
+            "$BIN_DIR/staticcheck" ./...
+          )
+          (
+            cd examples/full/browsertests
+            "$BIN_DIR/staticcheck" ./...
+          )
+
       - name: Test with coverage
         run: |
           go test ./... -coverprofile=coverage.out

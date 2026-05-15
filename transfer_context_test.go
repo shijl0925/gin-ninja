@@ -15,6 +15,8 @@ import (
 	"github.com/shijl0925/gin-ninja/pkg/i18n"
 )
 
+type transferContextKey string
+
 func TestUploadedFileNilHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -213,16 +215,16 @@ func TestContextHelpersAndErrorUtilities(t *testing.T) {
 	t.Parallel()
 
 	c, _ := newTestContext(http.MethodGet, "/ctx", "")
-	baseCtx := context.WithValue(c.Request.Context(), "trace", "trace-123")
+	baseCtx := context.WithValue(c.Request.Context(), transferContextKey("trace"), "trace-123")
 	c.Request = c.Request.WithContext(baseCtx)
 	c.Set(requestIDContextKey, "req-1")
 	c.Set(contextkeys.JWTClaims, contextClaims{userID: 7})
 
 	ctx := newContext(c)
-	if got := ctx.StdContext().Value("trace"); got != "trace-123" {
+	if got := ctx.StdContext().Value(transferContextKey("trace")); got != "trace-123" {
 		t.Fatalf("StdContext().Value(trace) = %v, want trace-123", got)
 	}
-	if got := ctx.Value("trace"); got != "trace-123" {
+	if got := ctx.Value(transferContextKey("trace")); got != "trace-123" {
 		t.Fatalf("Value(trace) = %v, want trace-123", got)
 	}
 	if got := ctx.RequestID(); got != "req-1" {

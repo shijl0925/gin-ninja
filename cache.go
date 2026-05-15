@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"bufio"
+	"container/list"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -59,10 +60,11 @@ type CacheInvalidator struct {
 }
 
 type routeCacheConfig struct {
-	ttl   time.Duration
-	store ResponseCacheStore
-	keyFn CacheKeyFunc
-	tagFn CacheTagFunc
+	ttl          time.Duration
+	store        ResponseCacheStore
+	keyFn        CacheKeyFunc
+	tagFn        CacheTagFunc
+	maxBodyBytes int64
 }
 
 // CachedResponse is the serialized representation of a cached HTTP response.
@@ -79,7 +81,8 @@ type CachedResponse struct {
 type MemoryCacheStore struct {
 	mu         sync.RWMutex
 	items      map[string]*CachedResponse
-	order      []string
+	order      *list.List
+	entries    map[string]*list.Element
 	tags       map[string]map[string]struct{}
 	keyTags    map[string]map[string]struct{}
 	locks      map[string]memoryCacheLock
@@ -88,6 +91,11 @@ type MemoryCacheStore struct {
 }
 
 const defaultMemoryCacheMaxEntries = 1024
+const defaultCacheMaxBodyBytes int64 = 1 << 20
+
+type memoryCacheEntry struct {
+	key string
+}
 
 type memoryCacheLock struct {
 	token   uint64
@@ -96,9 +104,10 @@ type memoryCacheLock struct {
 
 func newRouteCacheConfig(ttl time.Duration) *routeCacheConfig {
 	return &routeCacheConfig{
-		ttl:   ttl,
-		store: NewMemoryCacheStore(),
-		keyFn: defaultCacheKey,
+		ttl:          ttl,
+		store:        NewMemoryCacheStore(),
+		keyFn:        defaultCacheKey,
+		maxBodyBytes: defaultCacheMaxBodyBytes,
 	}
 }
 
@@ -126,6 +135,16 @@ func CacheWithTags(fn CacheTagFunc) CacheOption {
 		if fn != nil {
 			cfg.tagFn = fn
 		}
+	}
+}
+
+// CacheWithMaxBodyBytes limits how much response body data a cached route will
+// buffer for ETag generation and cache storage. Responses larger than max are
+// streamed to the client and are not cached. Use a negative value to disable the
+// limit for trusted small-response routes.
+func CacheWithMaxBodyBytes(max int64) CacheOption {
+	return func(cfg *routeCacheConfig) {
+		cfg.maxBodyBytes = max
 	}
 }
 
@@ -200,7 +219,8 @@ func NewMemoryCacheStoreWithLimit(maxEntries int) *MemoryCacheStore {
 	}
 	return &MemoryCacheStore{
 		items:      map[string]*CachedResponse{},
-		order:      []string{},
+		order:      list.New(),
+		entries:    map[string]*list.Element{},
 		tags:       map[string]map[string]struct{}{},
 		keyTags:    map[string]map[string]struct{}{},
 		locks:      map[string]memoryCacheLock{},
@@ -251,7 +271,9 @@ func (s *MemoryCacheStore) Set(key string, value *CachedResponse) {
 		if len(s.items) >= s.maxEntries {
 			s.evictOldestLocked()
 		}
-		s.order = append(s.order, key)
+		s.entries[key] = s.order.PushBack(memoryCacheEntry{key: key})
+	} else {
+		s.promoteKeyLocked(key)
 	}
 	s.items[key] = cloneCachedResponse(value)
 	s.mu.Unlock()
@@ -362,9 +384,12 @@ func (s *MemoryCacheStore) pruneExpiredLocked(now time.Time) {
 }
 
 func (s *MemoryCacheStore) evictOldestLocked() {
-	for len(s.order) > 0 {
-		key := s.order[0]
-		s.order = s.order[1:]
+	for s.order.Len() > 0 {
+		element := s.order.Front()
+		entry, _ := element.Value.(memoryCacheEntry)
+		key := entry.key
+		s.order.Remove(element)
+		delete(s.entries, key)
 		if _, ok := s.items[key]; ok {
 			s.deleteKeyLocked(key)
 			return
@@ -375,34 +400,19 @@ func (s *MemoryCacheStore) evictOldestLocked() {
 func (s *MemoryCacheStore) deleteKeyLocked(key string) {
 	delete(s.items, key)
 	s.deleteKeyTagsLocked(key)
-	if len(s.order) == 0 {
-		return
+	if element := s.entries[key]; element != nil {
+		s.order.Remove(element)
+		delete(s.entries, key)
 	}
-	filtered := s.order[:0]
-	for _, existing := range s.order {
-		if existing != key {
-			filtered = append(filtered, existing)
-		}
-	}
-	s.order = filtered
 }
 
-// promoteKeyLocked moves key to the back of s.order so that eviction (which
-// removes from the front) targets the least-recently-used entry.
+// promoteKeyLocked moves key to the back of s.order so that eviction targets
+// the least-recently-used entry.
 // Must be called with s.mu held for writing.
 func (s *MemoryCacheStore) promoteKeyLocked(key string) {
-	if len(s.order) == 0 {
-		return
+	if element := s.entries[key]; element != nil {
+		s.order.MoveToBack(element)
 	}
-	// Remove the key from its current position.
-	filtered := s.order[:0]
-	for _, existing := range s.order {
-		if existing != key {
-			filtered = append(filtered, existing)
-		}
-	}
-	// Re-append at the back (most-recently-used position).
-	s.order = append(filtered, key)
 }
 
 func (s *MemoryCacheStore) deleteKeyTagsLocked(key string) {
@@ -441,10 +451,17 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		}
 
 		originalWriter := c.Writer
-		recorder := newCaptureResponseWriter(originalWriter)
+		maxBodyBytes := defaultCacheMaxBodyBytes
+		if op.cache != nil {
+			maxBodyBytes = op.cache.maxBodyBytes
+		}
+		recorder := newCaptureResponseWriter(originalWriter, maxBodyBytes)
 		c.Writer = recorder
 		next(c)
 		c.Writer = originalWriter
+		if recorder.passthrough {
+			return
+		}
 
 		if recorder.status == 0 {
 			recorder.status = http.StatusOK
@@ -668,23 +685,33 @@ func copyHeader(dst, src http.Header) {
 
 type captureResponseWriter struct {
 	gin.ResponseWriter
-	header http.Header
-	body   []byte
-	status int
+	header       http.Header
+	body         []byte
+	status       int
+	maxBodyBytes int64
+	passthrough  bool
 }
 
-func newCaptureResponseWriter(base gin.ResponseWriter) *captureResponseWriter {
+func newCaptureResponseWriter(base gin.ResponseWriter, maxBodyBytes int64) *captureResponseWriter {
 	return &captureResponseWriter{
 		ResponseWriter: base,
 		header:         http.Header{},
+		maxBodyBytes:   maxBodyBytes,
 	}
 }
 
 func (w *captureResponseWriter) Header() http.Header {
+	if w.passthrough {
+		return w.ResponseWriter.Header()
+	}
 	return w.header
 }
 
 func (w *captureResponseWriter) WriteHeader(statusCode int) {
+	if w.passthrough {
+		w.ResponseWriter.WriteHeader(statusCode)
+		return
+	}
 	if w.status == 0 {
 		w.status = statusCode
 	}
@@ -694,10 +721,19 @@ func (w *captureResponseWriter) WriteHeaderNow() {
 	if w.status == 0 {
 		w.status = http.StatusOK
 	}
+	if w.passthrough {
+		w.ResponseWriter.WriteHeaderNow()
+	}
 }
 func (w *captureResponseWriter) Write(data []byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
+	}
+	if w.passthrough {
+		return w.ResponseWriter.Write(data)
+	}
+	if w.maxBodyBytes >= 0 && int64(len(w.body))+int64(len(data)) > w.maxBodyBytes {
+		return w.switchToPassthrough(data)
 	}
 	w.body = append(w.body, data...)
 	return len(data), nil
@@ -712,14 +748,45 @@ func (w *captureResponseWriter) Status() int {
 }
 
 func (w *captureResponseWriter) Size() int {
+	if w.passthrough {
+		return w.ResponseWriter.Size()
+	}
 	return len(w.body)
 }
 
 func (w *captureResponseWriter) Written() bool {
-	return w.status != 0 || len(w.body) > 0
+	return w.passthrough || w.status != 0 || len(w.body) > 0
 }
 
-func (w *captureResponseWriter) Flush() {}
+func (w *captureResponseWriter) Flush() {
+	if !w.passthrough {
+		_, _ = w.switchToPassthrough(nil)
+	}
+	w.ResponseWriter.Flush()
+}
+
+func (w *captureResponseWriter) switchToPassthrough(data []byte) (int, error) {
+	if w.passthrough {
+		return w.ResponseWriter.Write(data)
+	}
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	copyHeader(w.ResponseWriter.Header(), w.header)
+	w.ResponseWriter.WriteHeader(w.status)
+	w.passthrough = true
+	if len(w.body) > 0 {
+		if _, err := w.ResponseWriter.Write(w.body); err != nil {
+			w.body = nil
+			return 0, err
+		}
+		w.body = nil
+	}
+	if len(data) == 0 {
+		return 0, nil
+	}
+	return w.ResponseWriter.Write(data)
+}
 
 func (w *captureResponseWriter) Hijack() (conn net.Conn, rw *bufio.ReadWriter, err error) {
 	hijacker, ok := w.ResponseWriter.(http.Hijacker)

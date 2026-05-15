@@ -12,6 +12,8 @@ import (
 	"gorm.io/gorm"
 )
 
+type ormContextKey string
+
 func testDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
@@ -66,7 +68,7 @@ func TestGetDBFallsBackToGlobalAndWithContext(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest("GET", "/", nil)
-	req = req.WithContext(context.WithValue(req.Context(), "trace_id", "trace-1"))
+	req = req.WithContext(context.WithValue(req.Context(), ormContextKey("trace_id"), "trace-1"))
 	c.Request = req
 
 	if got := GetDB(c); got != db {
@@ -74,7 +76,7 @@ func TestGetDBFallsBackToGlobalAndWithContext(t *testing.T) {
 	}
 
 	withCtx := WithContext(c)
-	if withCtx == nil || withCtx.Statement.Context.Value("trace_id") != "trace-1" {
+	if withCtx == nil || withCtx.Statement.Context.Value(ormContextKey("trace_id")) != "trace-1" {
 		t.Fatalf("expected request context propagation, got %#v", withCtx)
 	}
 

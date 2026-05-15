@@ -200,8 +200,11 @@ func (s *RedisCacheStore) AcquireLock(key string, ttl time.Duration) (func(), bo
 	}
 	ctx := context.Background()
 	token := randomLockToken()
-	ok, err := s.client.SetNX(ctx, s.lockKey(key), token, ttl).Result()
-	if err != nil || !ok {
+	result, err := s.client.SetArgs(ctx, s.lockKey(key), token, redis.SetArgs{
+		Mode: "NX",
+		TTL:  ttl,
+	}).Result()
+	if err != nil || result != "OK" {
 		return nil, false
 	}
 	return func() {

@@ -104,7 +104,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 		reqCtx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
-		recorder := newCaptureResponseWriter(c.Writer)
+		recorder := newCaptureResponseWriter(c.Writer, -1)
 		copied := c.Copy()
 		copied.Request = copied.Request.WithContext(reqCtx)
 		copied.Writer = recorder

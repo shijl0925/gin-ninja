@@ -26,6 +26,65 @@ type errReadCloser struct{}
 func (errReadCloser) Read([]byte) (int, error) { return 0, errors.New("read failed") }
 func (errReadCloser) Close() error             { return nil }
 
+type resolvedResourceTestModel struct {
+	ID     uint
+	Name   string
+	Secret string
+}
+
+func TestResolvedResourceUsesImmutableBaseMetadata(t *testing.T) {
+	t.Run("without field permissions reuses prepared view", func(t *testing.T) {
+		resource := &Resource{
+			Model:      resolvedResourceTestModel{},
+			ListFields: []string{"id", "name"},
+		}
+		if err := resource.prepare(); err != nil {
+			t.Fatalf("prepare: %v", err)
+		}
+
+		first := resource.resolved(nil)
+		second := resource.resolved(nil)
+		if first == nil || first != second || first != resource.resolvedView {
+			t.Fatal("expected resolved resource to reuse the prepared immutable view")
+		}
+		if len(first.fields) == 0 || first.fields[0] != resource.fields[0] {
+			t.Fatal("expected resolved fields to reference prepared immutable field metadata")
+		}
+	})
+
+	t.Run("field permissions do not mutate prepared metadata", func(t *testing.T) {
+		resource := &Resource{
+			Model:      resolvedResourceTestModel{},
+			ListFields: []string{"id", "name", "secret"},
+			FieldPermissions: func(ctx *ninja.Context, resource *Resource, meta *FieldMeta) {
+				if meta.Name == "secret" {
+					meta.List = false
+				}
+			},
+		}
+		if err := resource.prepare(); err != nil {
+			t.Fatalf("prepare: %v", err)
+		}
+
+		view := resource.resolved(nil)
+		if hasResolvedTestString(view.metadata.ListFields, "secret") {
+			t.Fatalf("expected restricted view to hide secret, got %+v", view.metadata.ListFields)
+		}
+		if !hasResolvedTestString(resource.metadata.ListFields, "secret") || !resource.fieldByName["secret"].Meta.List {
+			t.Fatalf("expected prepared metadata to remain unchanged, got %+v", resource.metadata.ListFields)
+		}
+	})
+}
+
+func hasResolvedTestString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 func TestAdminHelperCoverage(t *testing.T) {
 	t.Run("time parsing and tag splitting", func(t *testing.T) {
 		for _, raw := range []string{
@@ -706,7 +765,7 @@ func TestAdminApplyFilterCoverage(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			query, err := applyFilter(db.Model(&filterModel{}), tc.query, tc.field)
+			query, err := applyFilter(db.Model(&filterModel{}), tc.query, tc.field, tc.field.Meta)
 			if tc.hasErr {
 				if err == nil || !strings.Contains(err.Error(), "BAD_FILTER") {
 					t.Fatalf("applyFilter() error = %v, want BAD_FILTER", err)

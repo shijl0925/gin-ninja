@@ -123,6 +123,12 @@ func (r *Resource) prepare() error {
 	actions = appendAction(actions, ActionDelete, r.primaryKey != nil)
 	actions = appendAction(actions, ActionBulkDelete, r.primaryKey != nil)
 	r.metadata.Actions = actions
+	r.resolvedView = &resolvedResource{
+		fields:      r.fields,
+		fieldByName: r.fieldByName,
+		metadata:    r.metadata,
+		primaryKey:  r.primaryKey,
+	}
 	return nil
 }
 

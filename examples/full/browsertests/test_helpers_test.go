@@ -74,10 +74,6 @@ func doFullJSON(t *testing.T, server *httptest.Server, method, path string, body
 	return resp
 }
 
-func compactWhitespace(value string) string {
-	return strings.Join(strings.Fields(value), " ")
-}
-
 func chromiumExecPath(t *testing.T) string {
 	t.Helper()
 

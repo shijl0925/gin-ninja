@@ -50,7 +50,7 @@ func TestCacheInvalidatorAndCaptureWriterAdditionalCoverage(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
-		writer := newCaptureResponseWriter(ctx.Writer)
+		writer := newCaptureResponseWriter(ctx.Writer, -1)
 		writer.Flush()
 		if _, _, err := writer.Hijack(); !errors.Is(err, http.ErrNotSupported) {
 			t.Fatalf("Hijack() error = %v, want %v", err, http.ErrNotSupported)
@@ -153,7 +153,7 @@ func TestRedisCacheStoreAdditionalCoverage(t *testing.T) {
 			t.Fatal("expected expired payload to be deleted")
 		}
 
-		store.SetContext(nil, "expired-on-set", &CachedResponse{Expires: time.Now().Add(-time.Second)})
+		store.SetContext(context.Background(), "expired-on-set", &CachedResponse{Expires: time.Now().Add(-time.Second)})
 		if redisServer.Exists(store.cacheKey("expired-on-set")) {
 			t.Fatal("expected already-expired value to be removed on SetContext")
 		}
