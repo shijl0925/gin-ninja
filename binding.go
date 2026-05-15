@@ -148,7 +148,8 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 
 func readJSONBody(c *gin.Context, limit int64) ([]byte, error) {
 	// Read one extra byte so oversized bodies are reported explicitly instead of
-	// being truncated and decoded as invalid JSON.
+	// being truncated and decoded as invalid JSON. Bodies up to limit bytes are
+	// accepted; len(body) > limit proves at least one byte exceeded the limit.
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, limit+1))
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError

@@ -228,10 +228,11 @@ func TestBindInput_Errors(t *testing.T) {
 	})
 
 	t.Run("json body too large", func(t *testing.T) {
+		const testBodySizeLimit int64 = 5
 		oversizedBody := `{"name":"alice"}`
 		c, _ := newTestContext(http.MethodPost, "/users/42", oversizedBody)
 		c.Params = gin.Params{{Key: "id", Value: "42"}}
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 5)
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, testBodySizeLimit)
 		var in bindComplexInput
 		err := bindInput(c, http.MethodPost, &in)
 		var apiErr *Error
