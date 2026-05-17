@@ -65,6 +65,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	packageName := fs.String("package", "", "Override generated package name")
 	tag := fs.String("tag", "", "Override generated router tag name")
 	withGormX := fs.Bool("with-gormx", false, "Generate gormx-based CRUD code")
+	withTests := fs.Bool("with-tests", false, "Generate unit-test skeleton alongside CRUD code")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
 			return 0
@@ -78,6 +79,7 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 		PackageName: strings.TrimSpace(*packageName),
 		Tag:         strings.TrimSpace(*tag),
 		WithGormX:   withGormX,
+		WithTests:   *withTests,
 	}
 	if cfg.ModelFile == "" || cfg.Model == "" {
 		fmt.Fprintln(stderr, "-model and -model-file are required")
@@ -91,6 +93,14 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	if err := codegen.WriteCRUDFile(cfg, out); err != nil {
 		fmt.Fprintf(stderr, "generate crud scaffold: %v\n", err)
 		return 1
+	}
+	if cfg.WithTests {
+		testOut := codegen.TestOutputPath(out)
+		if err := codegen.WriteCRUDTestFile(cfg, testOut); err != nil {
+			fmt.Fprintf(stderr, "generate crud test scaffold: %v\n", err)
+			return 1
+		}
+		fmt.Fprintf(stdout, "generated %s\n", testOut)
 	}
 	fmt.Fprintf(stdout, "generated %s\n", out)
 	return 0

@@ -43,6 +43,42 @@ func TestRunGenerateCRUD(t *testing.T) {
 	}
 }
 
+func TestRunGenerateCRUDWithTests(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte("package demo\n\ntype User struct {\n\tID uint `json:\"id\"`\n\tName string `json:\"name\"`\n}\n"), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := run(&stdout, &stderr, []string{"generate", "crud", "-model", "User", "-model-file", modelFile, "-with-tests"})
+	if code != 0 {
+		t.Fatalf("run exit code = %d stderr=%s", code, stderr.String())
+	}
+
+	outputFile := filepath.Join(dir, "user_crud_gen.go")
+	testFile := filepath.Join(dir, "user_crud_gen_test.go")
+	for _, path := range []string{outputFile, testFile} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected generated file %s: %v", path, err)
+		}
+		if !strings.Contains(stdout.String(), path) {
+			t.Fatalf("stdout missing generated path %s: %s", path, stdout.String())
+		}
+	}
+
+	content, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("read generated test file: %v", err)
+	}
+	if !strings.Contains(string(content), "TestUserCRUDHandlersSkeleton") {
+		t.Fatalf("unexpected generated test content\n%s", content)
+	}
+}
+
 func TestRunGenerateCRUDWithNativeGORM(t *testing.T) {
 	t.Parallel()
 

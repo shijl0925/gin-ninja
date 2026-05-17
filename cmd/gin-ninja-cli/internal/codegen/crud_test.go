@@ -201,6 +201,80 @@ func TestGenerateCRUDRequiresKnownModel(t *testing.T) {
 	}
 }
 
+func TestGenerateCRUDTestSkeleton(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	content, err := GenerateCRUDTest(CRUDConfig{ModelFile: modelFile, Model: "User"})
+	if err != nil {
+		t.Fatalf("GenerateCRUDTest: %v", err)
+	}
+	generated := string(content)
+
+	checks := []string{
+		"func TestUserCRUDHandlersSkeleton(t *testing.T)",
+		"_ = RegisterUserCRUDRoutes",
+		"_ = ListUsers",
+		"_ = CreateUserInput{}",
+		`TODO: configure a test database and exercise the generated CRUD handlers`,
+	}
+	for _, check := range checks {
+		if !strings.Contains(generated, check) {
+			t.Fatalf("generated test content missing %q\n%s", check, generated)
+		}
+	}
+	if got := DefaultTestOutputName("User"); got != "user_crud_gen_test.go" {
+		t.Fatalf("DefaultTestOutputName = %q", got)
+	}
+	if got := TestOutputPath(filepath.Join(dir, "custom.go")); got != filepath.Join(dir, "custom_test.go") {
+		t.Fatalf("TestOutputPath = %q", got)
+	}
+}
+
+func TestGenerateCRUDWithTestSkeletonBuilds(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID   uint   `+"`json:\"id\"`"+`
+	Name string `+"`json:\"name\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	crudContent, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("GenerateCRUD: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "user_crud_gen.go"), crudContent, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	testContent, err := GenerateCRUDTest(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	if err != nil {
+		t.Fatalf("GenerateCRUDTest: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "user_crud_gen_test.go"), testContent, 0o644); err != nil {
+		t.Fatalf("write generated test file: %v", err)
+	}
+
+	runGoTest(t, dir)
+}
+
 func TestGenerateCRUDStringIDFallsBackToOpts(t *testing.T) {
 	t.Parallel()
 
