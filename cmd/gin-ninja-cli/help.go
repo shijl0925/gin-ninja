@@ -94,7 +94,7 @@ func printGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w, "  Existing projects that already have a model and want typed CRUD handlers quickly.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Usage"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx]"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli generate crud -model <Name> -model-file <path> [-output <path>] [-package <name>] [-tag <name>] [-with-gormx] [-with-tests]"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Recommended flow"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli generate crud -model User -model-file ./app/models.go"))
@@ -108,6 +108,7 @@ func printGenerateUsage(w io.Writer) {
 		{name: "-package <name>", usage: "Override the generated package name"},
 		{name: "-tag <name>", usage: "Override the generated router tag name"},
 		{name: "-with-gormx", usage: "Generate gormx-based CRUD code (default: false)"},
+		{name: "-with-tests", usage: "Generate a unit-test skeleton beside the CRUD file"},
 	})
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Tips"))
