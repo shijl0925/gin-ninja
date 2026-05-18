@@ -543,6 +543,15 @@ func TestWriteError(t *testing.T) {
 		}
 	})
 
+	t.Run("api error without code", func(t *testing.T) {
+		c, w := newTestContext(http.MethodGet, "/", "")
+		writeError(c, &Error{Status: http.StatusBadRequest, Message: "bad request"})
+		body := w.Body.String()
+		if w.Code != http.StatusBadRequest || !strings.Contains(body, `"code":"400"`) {
+			t.Fatalf("unexpected response: %d %s", w.Code, body)
+		}
+	})
+
 	t.Run("validation error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})

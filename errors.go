@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -95,7 +96,7 @@ func NewErrorWithCode(status int, code, message string) *Error {
 
 // errorResponse is the JSON envelope returned for errors.
 type errorResponse struct {
-	Code    interface{} `json:"code"`
+	Code    string      `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
@@ -164,9 +165,9 @@ func WriteError(c *gin.Context, err error) {
 		if status == 0 {
 			status = http.StatusInternalServerError
 		}
-		code := interface{}(e.Code)
-		if e.Code == "" {
-			code = status
+		code := e.Code
+		if code == "" {
+			code = strconv.Itoa(status)
 		}
 		c.AbortWithStatusJSON(status, errorResponse{Code: code, Message: e.Message, Data: e.Detail})
 	case *ValidationError:

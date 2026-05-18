@@ -46,7 +46,7 @@ func TestResponseHelpers(t *testing.T) {
 
 		c, w = newResponseContext()
 		Success(c, gin.H{"ok": true})
-		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"code":0`) {
+		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"code":"0"`) {
 			t.Fatalf("unexpected Success response: %d %s", w.Code, w.Body.String())
 		}
 	})
