@@ -53,7 +53,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **Lifecycle hooks** – startup and shutdown hooks with graceful server shutdown.
 - **Settings** – Viper-based YAML/env configuration management with **multi-environment override** support.
 - **Logger** – Zap-based structured logger with console/JSON output, file sinks, and size-based log rotation.
-- **Standard response envelope** – `{"code": 0, "message": "success", "data": ...}`.
+- **Standard response envelope** – `{"code": "0", "message": "success", "data": ...}`.
 - **Bootstrap helpers** – one-call database and logger initialization.
 - **i18n / L10n** – locale negotiation via `Accept-Language`, translated validation errors and general messages in English and Chinese.
 - **API version deprecation** – RFC-compliant `Deprecation` and `Sunset` date headers, migration link.

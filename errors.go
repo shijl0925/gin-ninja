@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -94,13 +93,6 @@ func NewErrorWithCode(status int, code, message string) *Error {
 	return &Error{Status: status, Code: code, Message: message}
 }
 
-// errorResponse is the JSON envelope returned for errors.
-type errorResponse struct {
-	Code    string      `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data"`
-}
-
 // ErrorMapper converts arbitrary errors into framework errors.
 // Returning nil means the mapper did not handle the error.
 type ErrorMapper func(error) error
@@ -167,20 +159,20 @@ func WriteError(c *gin.Context, err error) {
 		}
 		code := e.Code
 		if code == "" {
-			code = strconv.Itoa(status)
+			code = responseCodeFromStatus(status).String()
 		}
-		c.AbortWithStatusJSON(status, errorResponse{Code: code, Message: e.Message, Data: e.Detail})
+		c.AbortWithStatusJSON(status, R{Code: ResponseCode(code), Message: e.Message, Data: e.Detail})
 	case *ValidationError:
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, errorResponse{
-			Code:    "VALIDATION_ERROR",
+		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, R{
+			Code:    ResponseCode("VALIDATION_ERROR"),
 			Message: "request validation failed",
 			Data: gin.H{
 				"errors": e.Errors,
 			},
 		})
 	default:
-		c.AbortWithStatusJSON(http.StatusInternalServerError, errorResponse{
-			Code:    "INTERNAL_ERROR",
+		c.AbortWithStatusJSON(http.StatusInternalServerError, R{
+			Code:    ResponseCode("INTERNAL_ERROR"),
 			Message: "internal server error",
 			Data:    nil,
 		})

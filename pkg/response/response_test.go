@@ -26,6 +26,10 @@ func TestResponseConstructors(t *testing.T) {
 	if got := Fail(CodeForbidden, "forbidden"); got.Code != CodeForbidden || got.Data != nil {
 		t.Fatalf("unexpected Fail response: %+v", got)
 	}
+	code := "CUSTOM_ERROR"
+	if got := Fail(code, "custom"); got.Code != ResponseCode(code) {
+		t.Fatalf("unexpected Fail response with string code: %+v", got)
+	}
 	if got := FailWithData(CodeValidation, "invalid", gin.H{"field": "name"}); got.Data == nil {
 		t.Fatalf("expected FailWithData payload: %+v", got)
 	}

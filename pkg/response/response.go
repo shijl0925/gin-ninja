@@ -15,35 +15,32 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja"
 )
 
-// Standard business-level codes.
+// ResponseCode is the business-level result code used by response envelopes.
+type ResponseCode = ninja.ResponseCode
+
+// Standard business-level response codes.
 const (
 	// CodeOK indicates a successful operation.
-	CodeOK = "0"
+	CodeOK = ninja.CodeOK
 	// CodeError is the generic business error code.
-	CodeError = "-1"
+	CodeError = ninja.CodeError
 	// CodeUnauthorized indicates missing or invalid authentication.
-	CodeUnauthorized = "401"
+	CodeUnauthorized = ninja.CodeUnauthorized
 	// CodeForbidden indicates the caller lacks sufficient permissions.
-	CodeForbidden = "403"
+	CodeForbidden = ninja.CodeForbidden
 	// CodeNotFound indicates the requested resource was not found.
-	CodeNotFound = "404"
+	CodeNotFound = ninja.CodeNotFound
 	// CodeValidation indicates a request validation failure.
-	CodeValidation = "422"
+	CodeValidation = ninja.CodeValidation
 )
 
 // R is the standard response envelope.
 //
 //	{"code": "0", "message": "success", "data": null}
-type R struct {
-	// Code is the business-level result code ("0" = success).
-	Code string `json:"code"`
-	// Message is a human-readable result description.
-	Message string `json:"message"`
-	// Data contains the response payload (can be any JSON-serialisable value).
-	Data interface{} `json:"data"`
-}
+type R = ninja.R
 
 // OK returns a successful response containing the given data.
 func OK(data interface{}) *R {
@@ -56,13 +53,13 @@ func OKWithMessage(msg string, data interface{}) *R {
 }
 
 // Fail returns an error response with the given code and message.
-func Fail(code string, message string) *R {
-	return &R{Code: code, Message: message, Data: nil}
+func Fail[C ~string](code C, message string) *R {
+	return &R{Code: ResponseCode(code), Message: message, Data: nil}
 }
 
 // FailWithData returns an error response that also carries a data payload.
-func FailWithData(code string, message string, data interface{}) *R {
-	return &R{Code: code, Message: message, Data: data}
+func FailWithData[C ~string](code C, message string, data interface{}) *R {
+	return &R{Code: ResponseCode(code), Message: message, Data: data}
 }
 
 // Error returns a generic error response (code = "-1").
