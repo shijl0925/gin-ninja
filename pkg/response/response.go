@@ -1,7 +1,7 @@
 // Package response provides a standardised JSON response envelope for
 // gin-ninja APIs, following the common pattern used in Go admin backends:
 //
-//	{"code": "0", "message": "success", "data": {...}}
+//	{"code": 200, "message": "success", "data": {...}}
 //
 // Usage:
 //
@@ -12,8 +12,6 @@
 package response
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja"
 )
@@ -39,7 +37,7 @@ const (
 
 // R is the standard response envelope.
 //
-//	{"code": "0", "message": "success", "data": null}
+//	{"code": 200, "message": "success", "data": null}
 type R = ninja.R
 
 // OK returns a successful response containing the given data.
@@ -53,12 +51,12 @@ func OKWithMessage(msg string, data interface{}) *R {
 }
 
 // Fail returns an error response with the given code and message.
-func Fail[C ~string](code C, message string) *R {
+func Fail[C ~int](code C, message string) *R {
 	return &R{Code: ResponseCode(code), Message: message, Data: nil}
 }
 
 // FailWithData returns an error response that also carries a data payload.
-func FailWithData[C ~string](code C, message string, data interface{}) *R {
+func FailWithData[C ~int](code C, message string, data interface{}) *R {
 	return &R{Code: ResponseCode(code), Message: message, Data: data}
 }
 
@@ -73,10 +71,10 @@ func Error(message string) *R {
 
 // JSON writes the response envelope with HTTP 200 OK.
 func JSON(c *gin.Context, r *R) {
-	c.JSON(http.StatusOK, r)
+	c.JSON(ninja.OK.Int(), r)
 }
 
-// Success writes a successful (code="0") response with the given data.
+// Success writes a successful (code=200) response with the given data.
 func Success(c *gin.Context, data interface{}) {
 	JSON(c, OK(data))
 }
@@ -86,7 +84,7 @@ func Unauthorized(c *gin.Context, message string) {
 	if message == "" {
 		message = "unauthorized"
 	}
-	c.AbortWithStatusJSON(http.StatusUnauthorized, Fail(CodeUnauthorized, message))
+	c.AbortWithStatusJSON(ninja.UNAUTHORIZED.Int(), Fail(CodeUnauthorized, message))
 }
 
 // Forbidden writes a 403 response.
@@ -94,7 +92,7 @@ func Forbidden(c *gin.Context, message string) {
 	if message == "" {
 		message = "forbidden"
 	}
-	c.AbortWithStatusJSON(http.StatusForbidden, Fail(CodeForbidden, message))
+	c.AbortWithStatusJSON(ninja.FORBIDDEN.Int(), Fail(CodeForbidden, message))
 }
 
 // NotFound writes a 404 response.
@@ -102,7 +100,7 @@ func NotFound(c *gin.Context, message string) {
 	if message == "" {
 		message = "not found"
 	}
-	c.AbortWithStatusJSON(http.StatusNotFound, Fail(CodeNotFound, message))
+	c.AbortWithStatusJSON(ninja.NOT_FOUND.Int(), Fail(CodeNotFound, message))
 }
 
 // BadRequest writes a 400 response.
@@ -110,7 +108,7 @@ func BadRequest(c *gin.Context, message string) {
 	if message == "" {
 		message = "bad request"
 	}
-	c.AbortWithStatusJSON(http.StatusBadRequest, Fail(CodeError, message))
+	c.AbortWithStatusJSON(ninja.BAD_REQUEST.Int(), Fail(ninja.BAD_REQUEST, message))
 }
 
 // ServerError writes a 500 response.
@@ -118,5 +116,5 @@ func ServerError(c *gin.Context, message string) {
 	if message == "" {
 		message = "internal server error"
 	}
-	c.AbortWithStatusJSON(http.StatusInternalServerError, Fail(CodeError, message))
+	c.AbortWithStatusJSON(ninja.INTERNAL_SERVER_ERROR.Int(), Fail(CodeError, message))
 }

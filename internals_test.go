@@ -520,14 +520,14 @@ func TestContextResponseHelpers(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		ctx := newContext(c)
 		ctx.Forbidden("nope")
-		if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORBIDDEN") {
+		if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"code":403`) {
 			t.Fatalf("unexpected forbidden response: %d %s", w.Code, w.Body.String())
 		}
 
 		c, w = newTestContext(http.MethodGet, "/", "")
 		ctx = newContext(c)
 		ctx.Unauthorized("bad token")
-		if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "UNAUTHORIZED") {
+		if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"code":401`) {
 			t.Fatalf("unexpected unauthorized response: %d %s", w.Code, w.Body.String())
 		}
 	})
@@ -538,7 +538,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &Error{Status: http.StatusTeapot, Code: "TEAPOT", Message: "short and stout"})
 		body := w.Body.String()
-		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":"TEAPOT"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":418`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -547,7 +547,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &Error{Status: http.StatusBadRequest, Message: "bad request"})
 		body := w.Body.String()
-		if w.Code != http.StatusBadRequest || !strings.Contains(body, `"code":"400"`) {
+		if w.Code != http.StatusBadRequest || !strings.Contains(body, `"code":400`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -556,7 +556,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
 		body := w.Body.String()
-		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":"VALIDATION_ERROR"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":422`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -565,7 +565,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, errors.New("boom"))
 		body := w.Body.String()
-		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":"INTERNAL_ERROR"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":500`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 		if strings.Contains(body, "boom") {
@@ -586,7 +586,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		c.Set(ninjaAPIContextKey, api)
 		writeError(c, sentinel)
-		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "MAPPED") {
+		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), `"code":418`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
@@ -594,7 +594,7 @@ func TestWriteError(t *testing.T) {
 	t.Run("default mapper fallback without api", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, context.DeadlineExceeded)
-		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), "REQUEST_TIMEOUT") {
+		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), `"code":408`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})

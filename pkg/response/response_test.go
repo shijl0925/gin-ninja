@@ -26,9 +26,9 @@ func TestResponseConstructors(t *testing.T) {
 	if got := Fail(CodeForbidden, "forbidden"); got.Code != CodeForbidden || got.Data != nil {
 		t.Fatalf("unexpected Fail response: %+v", got)
 	}
-	code := "CUSTOM_ERROR"
+	code := 499
 	if got := Fail(code, "custom"); got.Code != ResponseCode(code) {
-		t.Fatalf("unexpected Fail response with string code: %+v", got)
+		t.Fatalf("unexpected Fail response with numeric code: %+v", got)
 	}
 	if got := FailWithData(CodeValidation, "invalid", gin.H{"field": "name"}); got.Data == nil {
 		t.Fatalf("expected FailWithData payload: %+v", got)
@@ -50,7 +50,7 @@ func TestResponseHelpers(t *testing.T) {
 
 		c, w = newResponseContext()
 		Success(c, gin.H{"ok": true})
-		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"code":"0"`) {
+		if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"code":200`) {
 			t.Fatalf("unexpected Success response: %d %s", w.Code, w.Body.String())
 		}
 	})

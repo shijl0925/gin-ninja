@@ -57,7 +57,7 @@ locale without any additional code:
 POST /users  Accept-Language: zh-CN
 
 {
-  "code": "VALIDATION_ERROR",
+  "code": 422,
   "message": "请求参数校验失败",
   "data": {
     "errors": [

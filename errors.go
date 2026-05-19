@@ -75,12 +75,12 @@ type FieldError struct {
 
 // Common builtin API error templates.
 var (
-	errBadRequest   = &Error{Status: http.StatusBadRequest, Code: "BAD_REQUEST", Message: "bad request"}
-	errUnauthorized = &Error{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: "unauthorized"}
-	errForbidden    = &Error{Status: http.StatusForbidden, Code: "FORBIDDEN", Message: "forbidden"}
-	errNotFound     = &Error{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "not found"}
-	errConflict     = &Error{Status: http.StatusConflict, Code: "CONFLICT", Message: "conflict"}
-	errInternal     = &Error{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "internal server error"}
+	errBadRequest   = &Error{Status: BAD_REQUEST.Int(), Code: "BAD_REQUEST", Message: "bad request"}
+	errUnauthorized = &Error{Status: UNAUTHORIZED.Int(), Code: "UNAUTHORIZED", Message: "unauthorized"}
+	errForbidden    = &Error{Status: FORBIDDEN.Int(), Code: "FORBIDDEN", Message: "forbidden"}
+	errNotFound     = &Error{Status: NOT_FOUND.Int(), Code: "NOT_FOUND", Message: "not found"}
+	errConflict     = &Error{Status: CONFLICT.Int(), Code: "CONFLICT", Message: "conflict"}
+	errInternal     = &Error{Status: INTERNAL_SERVER_ERROR.Int(), Code: "INTERNAL_ERROR", Message: "internal server error"}
 )
 
 // NewError creates a new API error with the given status code and message.
@@ -103,7 +103,7 @@ func defaultErrorMappers() []ErrorMapper {
 			switch {
 			case errors.Is(err, context.DeadlineExceeded):
 				return &Error{
-					Status:  http.StatusRequestTimeout,
+					Status:  REQUEST_TIMEOUT.Int(),
 					Code:    "REQUEST_TIMEOUT",
 					Message: "request timed out",
 				}
@@ -157,22 +157,18 @@ func WriteError(c *gin.Context, err error) {
 		if status == 0 {
 			status = http.StatusInternalServerError
 		}
-		code := e.Code
-		if code == "" {
-			code = responseCodeFromStatus(status).String()
-		}
-		c.AbortWithStatusJSON(status, R{Code: ResponseCode(code), Message: e.Message, Data: e.Detail})
+		c.AbortWithStatusJSON(status, R{Code: responseCodeFromStatus(status), Message: e.Message, Data: e.Detail})
 	case *ValidationError:
-		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, R{
-			Code:    ResponseCode("VALIDATION_ERROR"),
+		c.AbortWithStatusJSON(UNPROCESSABLE_ENTITY.Int(), R{
+			Code:    UNPROCESSABLE_ENTITY,
 			Message: "request validation failed",
 			Data: gin.H{
 				"errors": e.Errors,
 			},
 		})
 	default:
-		c.AbortWithStatusJSON(http.StatusInternalServerError, R{
-			Code:    ResponseCode("INTERNAL_ERROR"),
+		c.AbortWithStatusJSON(INTERNAL_SERVER_ERROR.Int(), R{
+			Code:    INTERNAL_SERVER_ERROR,
 			Message: "internal server error",
 			Data:    nil,
 		})

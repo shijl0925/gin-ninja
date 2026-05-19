@@ -2,7 +2,6 @@ package ninja
 
 import (
 	"context"
-	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -113,23 +112,23 @@ func (c *Context) T(key string, args ...interface{}) string {
 
 // JSON200 is a convenience method to respond with 200 OK and a JSON body.
 func (c *Context) JSON200(obj interface{}) {
-	c.JSON(http.StatusOK, obj)
+	c.JSON(OK.Int(), obj)
 }
 
 // JSON201 is a convenience method to respond with 201 Created and a JSON body.
 func (c *Context) JSON201(obj interface{}) {
-	c.JSON(http.StatusCreated, obj)
+	c.JSON(CREATED.Int(), obj)
 }
 
 // JSON204 is a convenience method to respond with 204 No Content.
 func (c *Context) JSON204() {
-	c.Status(http.StatusNoContent)
+	c.Status(NO_CONTENT.Int())
 }
 
 // Forbidden aborts the request with 403 Forbidden.
 func (c *Context) Forbidden(message string) {
 	WriteError(c.Context, &Error{
-		Status:  http.StatusForbidden,
+		Status:  FORBIDDEN.Int(),
 		Code:    "FORBIDDEN",
 		Message: message,
 	})
@@ -138,7 +137,7 @@ func (c *Context) Forbidden(message string) {
 // Unauthorized aborts the request with 401 Unauthorized.
 func (c *Context) Unauthorized(message string) {
 	WriteError(c.Context, &Error{
-		Status:  http.StatusUnauthorized,
+		Status:  UNAUTHORIZED.Int(),
 		Code:    "UNAUTHORIZED",
 		Message: message,
 	})

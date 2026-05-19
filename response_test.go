@@ -2,20 +2,20 @@ package ninja
 
 import "testing"
 
-func TestResponseCodeStringAndInt(t *testing.T) {
-	if got := CodeOK.String(); got != "0" {
-		t.Fatalf("CodeOK.String() = %q", got)
+func TestResponseCodeHelpers(t *testing.T) {
+	if got := OK.String(); got != "200" {
+		t.Fatalf("OK.String() = %q", got)
 	}
-
-	got, err := CodeNotFound.Int()
-	if err != nil {
-		t.Fatalf("CodeNotFound.Int() error = %v", err)
+	if got := NOT_FOUND.Int(); got != 404 {
+		t.Fatalf("NOT_FOUND.Int() = %d", got)
 	}
-	if got != 404 {
-		t.Fatalf("CodeNotFound.Int() = %d", got)
+	if got := CREATED.Text(); got != "Created" {
+		t.Fatalf("CREATED.Text() = %q", got)
 	}
-
-	if _, err := ResponseCode("VALIDATION_ERROR").Int(); err == nil {
-		t.Fatal("expected non-numeric response code to fail integer parsing")
+	if got := UNAUTHORIZED.Description(); got != "No permission -- see authorization schemes" {
+		t.Fatalf("UNAUTHORIZED.Description() = %q", got)
+	}
+	if got := CodeNotFound; got != NOT_FOUND {
+		t.Fatalf("CodeNotFound = %d, want %d", got, NOT_FOUND)
 	}
 }
