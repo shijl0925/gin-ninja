@@ -1420,14 +1420,14 @@ query.Preload("{{ .Preload }}")
 {{- if or .ListFields .SearchFields }}
 filterOpts, err := filter.BuildOptions(in)
 if err != nil {
-return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+return nil, ninja.NewErrorWithCode(400, 400, err.Error())
 }
 {{- else }}
 filterOpts := []gormx.DBOption{}
 {{- end }}
 {{- if .SortFields }}
 if err := order.ApplyOrder(query, in); err != nil {
-return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+return nil, ninja.NewErrorWithCode(400, 400, err.Error())
 }
 {{- end }}
 opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)
@@ -1446,14 +1446,14 @@ return nil, err
 {{- if or .ListFields .SearchFields }}
 	query, err = filter.ApplyDB(query, in)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+		return nil, ninja.NewErrorWithCode(400, 400, err.Error())
 	}
 {{- end }}
 	countQuery := query.Session(&gorm.Session{})
 {{- if .SortFields }}
 	query, err = order.ApplyDB(query, in)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+		return nil, ninja.NewErrorWithCode(400, 400, err.Error())
 	}
 {{- end }}
 	var total int64
@@ -1664,7 +1664,7 @@ func load{{ $.ModelName }}{{ .FieldName }}Relations(db *gorm.DB, ids []{{ .Targe
 		seen[id] = struct{}{}
 		item, ok := byID[id]
 		if !ok {
-			return nil, ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("relation %q record %v not found", "{{ .FieldName }}", id))
+			return nil, ninja.NewErrorWithCode(400, 400, fmt.Sprintf("relation %q record %v not found", "{{ .FieldName }}", id))
 		}
 		out = append(out, item)
 	}
@@ -1682,7 +1682,7 @@ func sync{{ $.ModelName }}{{ .FieldName }}Relation(db *gorm.DB, item *{{ $.Model
 	var related {{ .TargetModel }}
 	if err := db.Where("{{ .TargetIDColumn }} = ?", id).First(&related).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("relation %q record %v not found", "{{ .FieldName }}", id))
+			return ninja.NewErrorWithCode(400, 400, fmt.Sprintf("relation %q record %v not found", "{{ .FieldName }}", id))
 		}
 		return err
 	}

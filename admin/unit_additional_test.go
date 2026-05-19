@@ -286,28 +286,28 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 		ctx = makeCtx(io.NopCloser(strings.NewReader("{")))
 		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate); err == nil {
 			t.Fatal("expected invalid JSON error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "INVALID_JSON" {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_JSON error, got %T %v", err, err)
 		}
 
 		ctx = makeCtx(io.NopCloser(strings.NewReader(`{"unknown":"value"}`)))
 		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate); err == nil {
 			t.Fatal("expected unknown field error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `unknown field "unknown"`) {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, `unknown field "unknown"`) {
 			t.Fatalf("expected BAD_REQUEST unknown field, got %T %v", err, err)
 		}
 
 		ctx = makeCtx(io.NopCloser(strings.NewReader(`{"age":1}`)))
 		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeUpdate); err == nil {
 			t.Fatal("expected non-writable field error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `field "age" is not writable`) {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, `field "age" is not writable`) {
 			t.Fatalf("expected BAD_REQUEST not writable, got %T %v", err, err)
 		}
 
 		ctx = makeCtx(io.NopCloser(strings.NewReader(`{"name":1}`)))
 		if _, err := resource.decodeWritePayloadFor(view, ctx, fieldModeCreate); err == nil {
 			t.Fatal("expected field decode error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `field "name"`) {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, `field "name"`) {
 			t.Fatalf("expected BAD_REQUEST field decode message, got %T %v", err, err)
 		}
 
@@ -358,7 +358,7 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 
 		if err := resource.validateRequiredFor(view, map[string]any{}, fieldModeCreate); err == nil {
 			t.Fatal("expected missing required field error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `field "name" is required`) {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, `field "name" is required`) {
 			t.Fatalf("expected BAD_REQUEST required error, got %T %v", err, err)
 		}
 		if err := resource.validateRequiredFor(view, map[string]any{}, fieldModeUpdate); err != nil {
@@ -466,7 +466,7 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 
 		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "owner_id"}); err == nil {
 			t.Fatal("expected missing relation resource error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `relation resource "users" is not registered`) {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, `relation resource "users" is not registered`) {
 			t.Fatalf("expected missing relation resource BAD_REQUEST, got %T %v", err, err)
 		}
 
@@ -487,7 +487,7 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 		projectResource.fieldByName["owner_id"].Meta.Relation.LabelField = "missing"
 		if _, err := projectResource.handleRelationOptions(site)(ctx, &relationOptionsInput{Field: "owner_id"}); err == nil {
 			t.Fatal("expected missing relation field error")
-		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != "BAD_REQUEST" || !strings.Contains(apiErr.Message, `relation fields "id"/"missing" are not available`) {
+		} else if apiErr, ok := err.(*ninja.Error); !ok || apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, `relation fields "id"/"missing" are not available`) {
 			t.Fatalf("expected missing relation field BAD_REQUEST, got %T %v", err, err)
 		}
 

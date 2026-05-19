@@ -16,8 +16,8 @@ func TestErrorStringFormatting(t *testing.T) {
 	}{
 		{
 			name: "code and message",
-			err:  &Error{Status: http.StatusTeapot, Code: "TEAPOT", Message: "short and stout"},
-			want: "[418] TEAPOT: short and stout",
+			err:  &Error{Status: http.StatusTeapot, Code: http.StatusTeapot, Message: "short and stout"},
+			want: "[418] 418: short and stout",
 		},
 		{
 			name: "message only",
@@ -26,8 +26,8 @@ func TestErrorStringFormatting(t *testing.T) {
 		},
 		{
 			name: "code only",
-			err:  &Error{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED"},
-			want: "[401] UNAUTHORIZED",
+			err:  &Error{Status: http.StatusUnauthorized, Code: http.StatusUnauthorized},
+			want: "[401] 401",
 		},
 		{
 			name: "status only",
@@ -59,14 +59,14 @@ func TestBuiltinErrorHelpers(t *testing.T) {
 		errFn  func() *Error
 		isFn   func(error) bool
 		status int
-		code   string
+		code   int
 	}{
-		{"bad request", BadRequestError, IsBadRequest, http.StatusBadRequest, "BAD_REQUEST"},
-		{"unauthorized", UnauthorizedError, IsUnauthorized, http.StatusUnauthorized, "UNAUTHORIZED"},
-		{"forbidden", ForbiddenError, IsForbidden, http.StatusForbidden, "FORBIDDEN"},
-		{"not found", NotFoundError, IsNotFound, http.StatusNotFound, "NOT_FOUND"},
-		{"conflict", ConflictError, IsConflict, http.StatusConflict, "CONFLICT"},
-		{"internal", InternalError, IsInternal, http.StatusInternalServerError, "INTERNAL_ERROR"},
+		{"bad request", BadRequestError, IsBadRequest, http.StatusBadRequest, http.StatusBadRequest},
+		{"unauthorized", UnauthorizedError, IsUnauthorized, http.StatusUnauthorized, http.StatusUnauthorized},
+		{"forbidden", ForbiddenError, IsForbidden, http.StatusForbidden, http.StatusForbidden},
+		{"not found", NotFoundError, IsNotFound, http.StatusNotFound, http.StatusNotFound},
+		{"conflict", ConflictError, IsConflict, http.StatusConflict, http.StatusConflict},
+		{"internal", InternalError, IsInternal, http.StatusInternalServerError, http.StatusInternalServerError},
 	}
 
 	for _, tc := range cases {
@@ -96,7 +96,7 @@ func TestErrorFactoryAndCloneHelpers(t *testing.T) {
 	if got := NewError(http.StatusForbidden, "denied"); got.Status != http.StatusForbidden || got.Message != "denied" {
 		t.Fatalf("NewError() = %+v", got)
 	}
-	if got := NewErrorWithCode(http.StatusConflict, "CONFLICT", "taken"); got.Code != "CONFLICT" || got.Message != "taken" {
+	if got := NewErrorWithCode(http.StatusConflict, http.StatusConflict, "taken"); got.Code != http.StatusConflict || got.Message != "taken" {
 		t.Fatalf("NewErrorWithCode() = %+v", got)
 	}
 	if cloneBuiltinError(nil) != nil {

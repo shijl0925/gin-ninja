@@ -130,7 +130,7 @@ func (c *Context) JSON204() {
 func (c *Context) Forbidden(message string) {
 	WriteError(c.Context, &Error{
 		Status:  http.StatusForbidden,
-		Code:    "FORBIDDEN",
+		Code:    http.StatusForbidden,
 		Message: message,
 	})
 }
@@ -139,7 +139,7 @@ func (c *Context) Forbidden(message string) {
 func (c *Context) Unauthorized(message string) {
 	WriteError(c.Context, &Error{
 		Status:  http.StatusUnauthorized,
-		Code:    "UNAUTHORIZED",
+		Code:    http.StatusUnauthorized,
 		Message: message,
 	})
 }

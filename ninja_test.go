@@ -1700,7 +1700,7 @@ func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
 
 		ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
 			atomic.AddInt32(&calls, 1)
-			return nil, ninja.NewErrorWithCode(http.StatusBadGateway, "UPSTREAM", "upstream failed")
+			return nil, ninja.NewErrorWithCode(http.StatusBadGateway, http.StatusBadGateway, "upstream failed")
 		}, ninja.Cache(time.Minute))
 		api.AddRouter(r)
 
@@ -1895,7 +1895,7 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		r := ninja.NewRouter("/stream-boundary")
 
 		ninja.SSE(r, "/before", func(ctx *ninja.Context, in *streamInput, stream *ninja.SSEStream) error {
-			return ninja.NewErrorWithCode(http.StatusBadRequest, "STREAM_INPUT", "invalid stream input")
+			return ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, "invalid stream input")
 		})
 		api.AddRouter(r)
 
@@ -1906,7 +1906,7 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
 			t.Fatalf("expected JSON error content type, got %q", got)
 		}
-		if body := resp.Body.String(); !strings.Contains(body, `"code":"STREAM_INPUT"`) {
+		if body := resp.Body.String(); !strings.Contains(body, `"code":400`) {
 			t.Fatalf("expected JSON error body, got %q", body)
 		}
 	})

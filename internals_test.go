@@ -222,7 +222,7 @@ func TestBindInput_Errors(t *testing.T) {
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("expected *Error, got %T", err)
 		}
-		if apiErr.Status != http.StatusBadRequest || apiErr.Code != "INVALID_JSON" {
+		if apiErr.Status != http.StatusBadRequest || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("unexpected api error: %+v", apiErr)
 		}
 	})
@@ -239,7 +239,7 @@ func TestBindInput_Errors(t *testing.T) {
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("expected *Error, got %T", err)
 		}
-		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != "REQUEST_BODY_TOO_LARGE" {
+		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("unexpected api error: %+v", apiErr)
 		}
 	})
@@ -252,7 +252,7 @@ func TestBindInput_Errors(t *testing.T) {
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("expected *Error, got %T", err)
 		}
-		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != "REQUEST_BODY_TOO_LARGE" {
+		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("unexpected api error: %+v", apiErr)
 		}
 	})
@@ -277,7 +277,7 @@ func TestBindInput_Errors(t *testing.T) {
 		var in bindComplexInput
 		err := bindInput(c, http.MethodPost, &in)
 		var apiErr *Error
-		if !errors.As(err, &apiErr) || apiErr.Code != "BAD_PATH_PARAM" {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_PATH_PARAM, got %v", err)
 		}
 
@@ -285,7 +285,7 @@ func TestBindInput_Errors(t *testing.T) {
 		c.Params = gin.Params{{Key: "id", Value: "1"}}
 		c.Request.Header.Set("X-Score", "bad")
 		err = bindInput(c, http.MethodPost, &in)
-		if !errors.As(err, &apiErr) || apiErr.Code != "BAD_HEADER" {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_HEADER, got %v", err)
 		}
 
@@ -297,7 +297,7 @@ func TestBindInput_Errors(t *testing.T) {
 		var cookieIn cookieInput
 		c.Request.AddCookie(&http.Cookie{Name: "session", Value: "bad"})
 		err = bindInput(c, http.MethodPost, &cookieIn)
-		if !errors.As(err, &apiErr) || apiErr.Code != "BAD_COOKIE" {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_COOKIE, got %v", err)
 		}
 	})
@@ -308,7 +308,7 @@ func TestBindInput_Errors(t *testing.T) {
 		var in bindComplexInput
 		err := bindInput(c, http.MethodGet, &in)
 		var apiErr *Error
-		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_QUERY" || apiErr.Status != http.StatusBadRequest {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest || apiErr.Status != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_QUERY bad request, got %v", err)
 		}
 	})
@@ -322,7 +322,7 @@ func TestBindInput_Errors(t *testing.T) {
 		var in formInput
 		err := bindInput(c, http.MethodPost, &in)
 		var apiErr *Error
-		if !errors.As(err, &apiErr) || apiErr.Code != "INVALID_FORM" || apiErr.Status != http.StatusBadRequest {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest || apiErr.Status != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_FORM bad request, got %v", err)
 		}
 	})
@@ -536,9 +536,9 @@ func TestContextResponseHelpers(t *testing.T) {
 func TestWriteError(t *testing.T) {
 	t.Run("api error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, &Error{Status: http.StatusTeapot, Code: "TEAPOT", Message: "short and stout"})
+		writeError(c, &Error{Status: http.StatusTeapot, Code: http.StatusTeapot, Message: "short and stout"})
 		body := w.Body.String()
-		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":"TEAPOT"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":418`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -547,7 +547,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
 		body := w.Body.String()
-		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":"VALIDATION_ERROR"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":422`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -556,7 +556,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, errors.New("boom"))
 		body := w.Body.String()
-		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":"INTERNAL_ERROR"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":500`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 		if strings.Contains(body, "boom") {
@@ -569,7 +569,7 @@ func TestWriteError(t *testing.T) {
 		api := New(Config{})
 		api.RegisterErrorMapper(func(err error) error {
 			if errors.Is(err, sentinel) {
-				return &Error{Status: http.StatusTeapot, Code: "MAPPED", Message: "mapped"}
+				return &Error{Status: http.StatusTeapot, Code: http.StatusTeapot, Message: "mapped"}
 			}
 			return nil
 		})
@@ -810,7 +810,7 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 	if err := NewError(http.StatusBadRequest, "bad"); err.Status != http.StatusBadRequest || err.Message != "bad" {
 		t.Fatalf("unexpected NewError result: %+v", err)
 	}
-	if err := NewErrorWithCode(http.StatusConflict, "CONFLICT", "duplicate"); err.Code != "CONFLICT" {
+	if err := NewErrorWithCode(http.StatusConflict, http.StatusConflict, "duplicate"); err.Code != http.StatusConflict {
 		t.Fatalf("unexpected NewErrorWithCode result: %+v", err)
 	}
 	if ForbiddenError().Error() == "" || (&ValidationError{Errors: []FieldError{{Field: "x", Message: "y"}}}).Error() == "" {

@@ -95,7 +95,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 		if err != nil {
 			return &Error{
 				Status:  http.StatusBadRequest,
-				Code:    "INVALID_MULTIPART",
+				Code:    http.StatusBadRequest,
 				Message: "invalid multipart form",
 			}
 		}
@@ -123,7 +123,7 @@ func bindInput(c *gin.Context, method string, input interface{}) error {
 			if err := json.Unmarshal(body, input); err != nil {
 				return &Error{
 					Status:  http.StatusBadRequest,
-					Code:    "INVALID_JSON",
+					Code:    http.StatusBadRequest,
 					Message: "invalid request body",
 				}
 			}
@@ -169,7 +169,7 @@ func readJSONBody(c *gin.Context, limit int64) ([]byte, error) {
 func requestBodyTooLargeError() *Error {
 	return &Error{
 		Status:  http.StatusRequestEntityTooLarge,
-		Code:    "REQUEST_BODY_TOO_LARGE",
+		Code:    http.StatusRequestEntityTooLarge,
 		Message: "request body too large",
 	}
 }
@@ -248,7 +248,7 @@ func formBodyValues(c *gin.Context) (map[string][]string, error) {
 		if err := c.Request.ParseForm(); err != nil {
 			return nil, &Error{
 				Status:  http.StatusBadRequest,
-				Code:    "INVALID_FORM",
+				Code:    http.StatusBadRequest,
 				Message: "invalid form body",
 			}
 		}
@@ -261,7 +261,7 @@ func bindMultipartFields(c *gin.Context, t reflect.Type, v reflect.Value) error 
 	if err != nil {
 		return &Error{
 			Status:  http.StatusBadRequest,
-			Code:    "INVALID_MULTIPART",
+			Code:    http.StatusBadRequest,
 			Message: "invalid multipart form",
 		}
 	}
@@ -282,7 +282,7 @@ func bindMultipartValue(t reflect.Type, v reflect.Value, form *multipart.Form) e
 			if err := setFieldFromStrings(fv, values); err != nil {
 				return &Error{
 					Status:  http.StatusBadRequest,
-					Code:    "BAD_FORM_VALUE",
+					Code:    http.StatusBadRequest,
 					Message: fmt.Sprintf("form field '%s': %s", field.formTag, err.Error()),
 				}
 			}
@@ -307,7 +307,7 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
 					return &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "BAD_PATH_PARAM",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("path param '%s': %s", field.pathTag, err.Error()),
 					}
 				}
@@ -320,7 +320,7 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw...)); err != nil {
 					return &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "BAD_HEADER",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("header '%s': %s", field.headerTag, err.Error()),
 					}
 				}
@@ -333,7 +333,7 @@ func bindSpecialFields(c *gin.Context, t reflect.Type, v reflect.Value) error {
 				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
 					return &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "BAD_COOKIE",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("cookie '%s': %s", field.cookieTag, err.Error()),
 					}
 				}
@@ -366,7 +366,7 @@ func bindRequestFields(
 				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
 					return nil, &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "BAD_PATH_PARAM",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("path param '%s': %s", field.pathTag, err.Error()),
 					}
 				}
@@ -379,7 +379,7 @@ func bindRequestFields(
 				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw...)); err != nil {
 					return nil, &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "BAD_HEADER",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("header '%s': %s", field.headerTag, err.Error()),
 					}
 				}
@@ -392,7 +392,7 @@ func bindRequestFields(
 				if err := setFieldFromStrings(fv, valuesForStringField(fv, raw)); err != nil {
 					return nil, &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "BAD_COOKIE",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("cookie '%s': %s", field.cookieTag, err.Error()),
 					}
 				}
@@ -404,7 +404,7 @@ func bindRequestFields(
 				if err := setFieldFromStrings(fv, raw); err != nil {
 					return nil, &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "INVALID_QUERY",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("query field '%s': %s", field.queryTag, err.Error()),
 					}
 				}
@@ -416,7 +416,7 @@ func bindRequestFields(
 				if err := setFieldFromStrings(fv, raw); err != nil {
 					return nil, &Error{
 						Status:  http.StatusBadRequest,
-						Code:    "INVALID_FORM",
+						Code:    http.StatusBadRequest,
 						Message: fmt.Sprintf("form field '%s': %s", field.formTag, err.Error()),
 					}
 				}
@@ -430,7 +430,7 @@ func bindRequestFields(
 					if err := setFieldFromStrings(fv, values); err != nil {
 						return nil, &Error{
 							Status:  http.StatusBadRequest,
-							Code:    "BAD_FORM_VALUE",
+							Code:    http.StatusBadRequest,
 							Message: fmt.Sprintf("form field '%s': %s", field.formTag, err.Error()),
 						}
 					}
@@ -460,7 +460,7 @@ func bindMultipartFileValue(field bindingField, fv reflect.Value, filesByName ma
 	if err := setFileField(fv, files); err != nil {
 		return &Error{
 			Status:  http.StatusBadRequest,
-			Code:    "BAD_FILE_FIELD",
+			Code:    http.StatusBadRequest,
 			Message: fmt.Sprintf("file field '%s': %s", field.fileTag, err.Error()),
 		}
 	}
@@ -502,7 +502,7 @@ func applyDefaults(c *gin.Context, meta *bindingMetadata, v reflect.Value) error
 		if err := setFieldFromString(fv, field.defaultValue); err != nil {
 			return &Error{
 				Status:  http.StatusBadRequest,
-				Code:    "BAD_DEFAULT_VALUE",
+				Code:    http.StatusBadRequest,
 				Message: fmt.Sprintf("default for field '%s': %s", field.name, err.Error()),
 			}
 		}
