@@ -95,7 +95,7 @@ func NewErrorWithCode(status int, code, message string) *Error {
 
 // errorResponse is the JSON envelope returned for errors.
 type errorResponse struct {
-	Code    interface{} `json:"code"`
+	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
@@ -164,14 +164,10 @@ func WriteError(c *gin.Context, err error) {
 		if status == 0 {
 			status = http.StatusInternalServerError
 		}
-		code := interface{}(e.Code)
-		if e.Code == "" {
-			code = status
-		}
-		c.AbortWithStatusJSON(status, errorResponse{Code: code, Message: e.Message, Data: e.Detail})
+		c.AbortWithStatusJSON(status, errorResponse{Code: status, Message: e.Message, Data: e.Detail})
 	case *ValidationError:
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, errorResponse{
-			Code:    "VALIDATION_ERROR",
+			Code:    http.StatusUnprocessableEntity,
 			Message: "request validation failed",
 			Data: gin.H{
 				"errors": e.Errors,
@@ -179,7 +175,7 @@ func WriteError(c *gin.Context, err error) {
 		})
 	default:
 		c.AbortWithStatusJSON(http.StatusInternalServerError, errorResponse{
-			Code:    "INTERNAL_ERROR",
+			Code:    http.StatusInternalServerError,
 			Message: "internal server error",
 			Data:    nil,
 		})

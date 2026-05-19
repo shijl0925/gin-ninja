@@ -538,7 +538,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &Error{Status: http.StatusTeapot, Code: "TEAPOT", Message: "short and stout"})
 		body := w.Body.String()
-		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":"TEAPOT"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":418`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -547,7 +547,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
 		body := w.Body.String()
-		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":"VALIDATION_ERROR"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":422`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 	})
@@ -556,7 +556,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, errors.New("boom"))
 		body := w.Body.String()
-		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":"INTERNAL_ERROR"`) || strings.Contains(body, `"error"`) {
+		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":500`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
 		}
 		if strings.Contains(body, "boom") {

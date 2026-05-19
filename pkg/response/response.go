@@ -22,15 +22,19 @@ const (
 	// CodeOK indicates a successful operation.
 	CodeOK = 0
 	// CodeError is the generic business error code.
-	CodeError = -1
+	CodeError = http.StatusInternalServerError
+	// CodeBadRequest indicates a malformed request.
+	CodeBadRequest = http.StatusBadRequest
 	// CodeUnauthorized indicates missing or invalid authentication.
-	CodeUnauthorized = 401
+	CodeUnauthorized = http.StatusUnauthorized
 	// CodeForbidden indicates the caller lacks sufficient permissions.
-	CodeForbidden = 403
+	CodeForbidden = http.StatusForbidden
 	// CodeNotFound indicates the requested resource was not found.
-	CodeNotFound = 404
+	CodeNotFound = http.StatusNotFound
+	// CodeConflict indicates a resource conflict.
+	CodeConflict = http.StatusConflict
 	// CodeValidation indicates a request validation failure.
-	CodeValidation = 422
+	CodeValidation = http.StatusUnprocessableEntity
 )
 
 // R is the standard response envelope.
@@ -113,7 +117,7 @@ func BadRequest(c *gin.Context, message string) {
 	if message == "" {
 		message = "bad request"
 	}
-	c.AbortWithStatusJSON(http.StatusBadRequest, Fail(CodeError, message))
+	c.AbortWithStatusJSON(http.StatusBadRequest, Fail(CodeBadRequest, message))
 }
 
 // ServerError writes a 500 response.
@@ -121,5 +125,5 @@ func ServerError(c *gin.Context, message string) {
 	if message == "" {
 		message = "internal server error"
 	}
-	c.AbortWithStatusJSON(http.StatusInternalServerError, Fail(CodeError, message))
+	c.AbortWithStatusJSON(http.StatusInternalServerError, Fail(http.StatusInternalServerError, message))
 }
