@@ -767,8 +767,8 @@ func TestAdminApplyFilterCoverage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			query, err := applyFilter(db.Model(&filterModel{}), tc.query, tc.field, tc.field.Meta)
 			if tc.hasErr {
-				if err == nil || !strings.Contains(err.Error(), "BAD_FILTER") {
-					t.Fatalf("applyFilter() error = %v, want BAD_FILTER", err)
+				if err == nil || !strings.Contains(err.Error(), "400") {
+					t.Fatalf("applyFilter() error = %v, want status 400", err)
 				}
 				return
 			}

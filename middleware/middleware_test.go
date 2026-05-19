@@ -1099,7 +1099,7 @@ func TestUploadLimit_CustomErrorHandler(t *testing.T) {
 	r.Use(middleware.UploadLimit(&middleware.UploadConfig{
 		MaxSize:          4,
 		AllowedMIMETypes: []string{"application/json"},
-		ErrorHandler: func(c *gin.Context, status int, code, message string) {
+		ErrorHandler: func(c *gin.Context, status int, code int, message string) {
 			c.AbortWithStatusJSON(status, gin.H{
 				"status":  status,
 				"code":    code,
@@ -1122,7 +1122,7 @@ func TestUploadLimit_CustomErrorHandler(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("unmarshal error response: %v", err)
 	}
-	if body["code"] != "PAYLOAD_TOO_LARGE" {
+	if body["code"] != float64(http.StatusRequestEntityTooLarge) {
 		t.Fatalf("expected custom error code, got %+v", body)
 	}
 }
@@ -1289,7 +1289,7 @@ func TestMiddleware_HTTPIntegration_SessionCSRFSecureHeadersAndUploadLimit(t *te
 	if oversizedResp.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected oversized upload to return 413, got %d: %s", oversizedResp.Code, oversizedResp.Body.String())
 	}
-	if !strings.Contains(oversizedResp.Body.String(), "PAYLOAD_TOO_LARGE") {
+	if !strings.Contains(oversizedResp.Body.String(), `"code":413`) {
 		t.Fatalf("expected payload-too-large error, got %s", oversizedResp.Body.String())
 	}
 	if got := oversizedResp.Header().Get("X-Frame-Options"); got != "DENY" {

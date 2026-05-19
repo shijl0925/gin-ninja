@@ -520,14 +520,14 @@ func TestContextResponseHelpers(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		ctx := newContext(c)
 		ctx.Forbidden("nope")
-		if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), "FORBIDDEN") {
+		if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"code":403`) {
 			t.Fatalf("unexpected forbidden response: %d %s", w.Code, w.Body.String())
 		}
 
 		c, w = newTestContext(http.MethodGet, "/", "")
 		ctx = newContext(c)
 		ctx.Unauthorized("bad token")
-		if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), "UNAUTHORIZED") {
+		if w.Code != http.StatusUnauthorized || !strings.Contains(w.Body.String(), `"code":401`) {
 			t.Fatalf("unexpected unauthorized response: %d %s", w.Code, w.Body.String())
 		}
 	})
@@ -577,7 +577,7 @@ func TestWriteError(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		c.Set(ninjaAPIContextKey, api)
 		writeError(c, sentinel)
-		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), "MAPPED") {
+		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), `"code":418`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
@@ -585,7 +585,7 @@ func TestWriteError(t *testing.T) {
 	t.Run("default mapper fallback without api", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
 		writeError(c, context.DeadlineExceeded)
-		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), "REQUEST_TIMEOUT") {
+		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), `"code":408`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
 	})
