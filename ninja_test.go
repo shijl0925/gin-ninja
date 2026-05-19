@@ -1906,7 +1906,7 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
 			t.Fatalf("expected JSON error content type, got %q", got)
 		}
-		if body := resp.Body.String(); !strings.Contains(body, `"code":"STREAM_INPUT"`) {
+		if body := resp.Body.String(); !strings.Contains(body, `"code":400`) {
 			t.Fatalf("expected JSON error body, got %q", body)
 		}
 	})

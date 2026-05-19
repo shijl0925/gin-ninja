@@ -1289,7 +1289,7 @@ func TestMiddleware_HTTPIntegration_SessionCSRFSecureHeadersAndUploadLimit(t *te
 	if oversizedResp.Code != http.StatusRequestEntityTooLarge {
 		t.Fatalf("expected oversized upload to return 413, got %d: %s", oversizedResp.Code, oversizedResp.Body.String())
 	}
-	if !strings.Contains(oversizedResp.Body.String(), "PAYLOAD_TOO_LARGE") {
+	if !strings.Contains(oversizedResp.Body.String(), `"code":413`) {
 		t.Fatalf("expected payload-too-large error, got %s", oversizedResp.Body.String())
 	}
 	if got := oversizedResp.Header().Get("X-Frame-Options"); got != "DENY" {

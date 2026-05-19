@@ -173,7 +173,7 @@ func TestRecovery_LogsAndWritesInternalError(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "INTERNAL_ERROR") {
+	if !strings.Contains(w.Body.String(), `"code":500`) {
 		t.Fatalf("unexpected response body: %s", w.Body.String())
 	}
 	if logs.Len() != 1 {

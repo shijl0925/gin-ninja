@@ -406,14 +406,14 @@ func TestAdminCreateReportsSoftDeletedDuplicateConflict(t *testing.T) {
 	}
 
 	var payload struct {
-		Code    string `json:"code"`
+		Code    int    `json:"code"`
 		Message string `json:"message"`
 	}
 	if err := json.NewDecoder(createResp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode conflict payload: %v", err)
 	}
-	if payload.Code != "SOFT_DELETED_CONFLICT" {
-		t.Fatalf("expected SOFT_DELETED_CONFLICT, got %+v", payload)
+	if payload.Code != http.StatusConflict {
+		t.Fatalf("expected conflict code, got %+v", payload)
 	}
 	if payload.Message != "a soft-deleted record with the same value for field(s): email already exists; restore or permanently remove it before saving" {
 		t.Fatalf("expected soft-delete guidance in message, got %+v", payload)
