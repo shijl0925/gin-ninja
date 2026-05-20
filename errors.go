@@ -86,14 +86,6 @@ func NewError(status int, message string) *Error {
 	return &Error{Code: status, Message: message}
 }
 
-// NewErrorWithCode creates a new API error with the given status code and message.
-//
-// Deprecated: use NewError. Error.Code is the HTTP status code; separate
-// business error codes are no longer represented by Error.
-func NewErrorWithCode(status int, _ int, message string) *Error {
-	return NewError(status, message)
-}
-
 // errorResponse is the JSON envelope returned for errors.
 type errorResponse struct {
 	Code    int         `json:"code"`
