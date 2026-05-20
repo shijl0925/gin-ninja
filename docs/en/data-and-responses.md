@@ -37,13 +37,13 @@ If you only need ad-hoc filtering without defining a new response type, use `nin
 ```go
 import "github.com/shijl0925/gin-ninja/pkg/response"
 
-// Success: {"code": 0, "message": "success", "data": {...}}
+// Success: {"code": 200, "message": "success", "data": {...}}
 response.Success(c, users)
 
 // Error:   {"code": 404, "message": "not found", "data": null}
 response.NotFound(c, "user not found")
 
-// Custom:  {"code": 0, "message": "created", "data": {...}}
+// Custom:  {"code": 200, "message": "created", "data": {...}}
 response.JSON(c, response.OKWithMessage("created", user))
 ```
 
