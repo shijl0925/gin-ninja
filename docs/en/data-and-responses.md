@@ -50,7 +50,7 @@ response.JSON(c, response.OKWithMessage("created", user))
 Framework errors use the same root-level envelope:
 
 ```json
-{"code": "NOT_FOUND", "message": "not found", "data": null}
+{"code": 404, "message": "not found", "data": null}
 ```
 
 ---
