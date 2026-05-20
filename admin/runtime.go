@@ -159,21 +159,21 @@ func (r *Resource) decodeWritePayloadFor(view *resolvedResource, ctx *ninja.Cont
 
 	var payload map[string]json.RawMessage
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "INVALID_JSON", "invalid request body")
+		return nil, ninja.NewError(http.StatusBadRequest, "invalid request body")
 	}
 
 	values := make(map[string]any, len(payload))
 	for name, raw := range payload {
 		field, ok := view.fieldByName[name]
 		if !ok {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("unknown field %q", name))
+			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("unknown field %q", name))
 		}
 		if !view.allowed(field, mode) {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is not writable", name))
+			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q is not writable", name))
 		}
 		decoded, err := field.decodeJSON(raw)
 		if err != nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q: %s", name, err.Error()))
+			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q: %s", name, err.Error()))
 		}
 		values[name] = decoded
 	}
@@ -221,7 +221,7 @@ func (r *Resource) validateRequiredFor(view *resolvedResource, values map[string
 		if _, ok := values[meta.Name]; ok {
 			continue
 		}
-		return ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("field %q is required", meta.Name))
+		return ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q is required", meta.Name))
 	}
 	return nil
 }
@@ -295,7 +295,7 @@ func (r *Resource) hasNonPersistedValues(view *resolvedResource, values map[stri
 func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query url.Values, in *listInput) (*gorm.DB, error) {
 	if term := strings.TrimSpace(in.Search); term != "" {
 		if len(view.metadata.SearchFields) == 0 {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_SEARCH", "search is not enabled for this resource")
+			return nil, ninja.NewError(http.StatusBadRequest, "search is not enabled for this resource")
 		}
 		parts := make([]string, 0, len(view.metadata.SearchFields))
 		args := make([]any, 0, len(view.metadata.SearchFields))
@@ -334,7 +334,7 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 		for _, sortField := range order.ParseSort(in.Sort) {
 			field := allowed[sortField.Name]
 			if field == nil {
-				return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_SORT", fmt.Sprintf("unsupported sort field %q", sortField.Name))
+				return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("unsupported sort field %q", sortField.Name))
 			}
 			direction := "ASC"
 			if sortField.Desc {
@@ -376,7 +376,7 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 
 		target := site.byName[fieldMeta.Relation.Resource]
 		if target == nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("relation resource %q is not registered", fieldMeta.Relation.Resource))
+			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("relation resource %q is not registered", fieldMeta.Relation.Resource))
 		}
 		if err := site.authorize(ctx, ActionList, target); err != nil {
 			return nil, err
@@ -386,7 +386,7 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 		valueField := targetView.fieldByName[fieldMeta.Relation.ValueField]
 		labelField := targetView.fieldByName[fieldMeta.Relation.LabelField]
 		if valueField == nil || labelField == nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, "BAD_REQUEST", fmt.Sprintf("relation fields %q/%q are not available", fieldMeta.Relation.ValueField, fieldMeta.Relation.LabelField))
+			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("relation fields %q/%q are not available", fieldMeta.Relation.ValueField, fieldMeta.Relation.LabelField))
 		}
 
 		db := target.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context)).Model(target.newModel())

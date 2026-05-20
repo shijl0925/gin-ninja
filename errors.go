@@ -11,10 +11,8 @@ import (
 
 // Error represents an API error response.
 type Error struct {
-	// Status is the HTTP status code.
-	Status int `json:"-"`
-	// Code is an optional machine-readable error code.
-	Code string `json:"code,omitempty"`
+	// Code is the HTTP status code returned in both the response status and body.
+	Code int `json:"code,omitempty"`
 	// Message is a human-readable description of the error.
 	Message string `json:"message"`
 	// Detail provides additional error context.
@@ -26,14 +24,14 @@ func (e *Error) Error() string {
 		return "<nil>"
 	}
 	switch {
-	case e.Code != "" && e.Message != "":
-		return fmt.Sprintf("[%d] %s: %s", e.Status, e.Code, e.Message)
-	case e.Code != "":
-		return fmt.Sprintf("[%d] %s", e.Status, e.Code)
+	case e.Code != 0 && e.Message != "":
+		return fmt.Sprintf("[%d] %s", e.Code, e.Message)
+	case e.Code != 0:
+		return fmt.Sprintf("[%d]", e.Code)
 	case e.Message != "":
-		return fmt.Sprintf("[%d] %s", e.Status, e.Message)
+		return e.Message
 	default:
-		return fmt.Sprintf("[%d]", e.Status)
+		return ""
 	}
 }
 
@@ -47,12 +45,12 @@ func (e *Error) Is(target error) bool {
 		return false
 	}
 	switch {
-	case e.Code != "" && other.Code != "":
-		return e.Status == other.Status && e.Code == other.Code
+	case e.Code != 0 && other.Code != 0:
+		return e.Code == other.Code
 	case e.Message != "" && other.Message != "":
-		return e.Status == other.Status && e.Message == other.Message
+		return e.Message == other.Message
 	default:
-		return e.Status != 0 && e.Status == other.Status
+		return false
 	}
 }
 
@@ -75,27 +73,22 @@ type FieldError struct {
 
 // Common builtin API error templates.
 var (
-	errBadRequest   = &Error{Status: http.StatusBadRequest, Code: "BAD_REQUEST", Message: "bad request"}
-	errUnauthorized = &Error{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: "unauthorized"}
-	errForbidden    = &Error{Status: http.StatusForbidden, Code: "FORBIDDEN", Message: "forbidden"}
-	errNotFound     = &Error{Status: http.StatusNotFound, Code: "NOT_FOUND", Message: "not found"}
-	errConflict     = &Error{Status: http.StatusConflict, Code: "CONFLICT", Message: "conflict"}
-	errInternal     = &Error{Status: http.StatusInternalServerError, Code: "INTERNAL_ERROR", Message: "internal server error"}
+	errBadRequest   = &Error{Code: http.StatusBadRequest, Message: "bad request"}
+	errUnauthorized = &Error{Code: http.StatusUnauthorized, Message: "unauthorized"}
+	errForbidden    = &Error{Code: http.StatusForbidden, Message: "forbidden"}
+	errNotFound     = &Error{Code: http.StatusNotFound, Message: "not found"}
+	errConflict     = &Error{Code: http.StatusConflict, Message: "conflict"}
+	errInternal     = &Error{Code: http.StatusInternalServerError, Message: "internal server error"}
 )
 
 // NewError creates a new API error with the given status code and message.
 func NewError(status int, message string) *Error {
-	return &Error{Status: status, Message: message}
-}
-
-// NewErrorWithCode creates a new API error with a status code, machine-readable code, and message.
-func NewErrorWithCode(status int, code, message string) *Error {
-	return &Error{Status: status, Code: code, Message: message}
+	return &Error{Code: status, Message: message}
 }
 
 // errorResponse is the JSON envelope returned for errors.
 type errorResponse struct {
-	Code    interface{} `json:"code"`
+	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
 }
@@ -110,8 +103,7 @@ func defaultErrorMappers() []ErrorMapper {
 			switch {
 			case errors.Is(err, context.DeadlineExceeded):
 				return &Error{
-					Status:  http.StatusRequestTimeout,
-					Code:    "REQUEST_TIMEOUT",
+					Code:    http.StatusRequestTimeout,
 					Message: "request timed out",
 				}
 			default:
@@ -160,18 +152,14 @@ func WriteError(c *gin.Context, err error) {
 
 	switch e := err.(type) {
 	case *Error:
-		status := e.Status
-		if status == 0 {
-			status = http.StatusInternalServerError
+		code := e.Code
+		if e.Code == 0 {
+			code = http.StatusInternalServerError
 		}
-		code := interface{}(e.Code)
-		if e.Code == "" {
-			code = status
-		}
-		c.AbortWithStatusJSON(status, errorResponse{Code: code, Message: e.Message, Data: e.Detail})
+		c.AbortWithStatusJSON(code, errorResponse{Code: code, Message: e.Message, Data: e.Detail})
 	case *ValidationError:
 		c.AbortWithStatusJSON(http.StatusUnprocessableEntity, errorResponse{
-			Code:    "VALIDATION_ERROR",
+			Code:    http.StatusUnprocessableEntity,
 			Message: "request validation failed",
 			Data: gin.H{
 				"errors": e.Errors,
@@ -179,7 +167,7 @@ func WriteError(c *gin.Context, err error) {
 		})
 	default:
 		c.AbortWithStatusJSON(http.StatusInternalServerError, errorResponse{
-			Code:    "INTERNAL_ERROR",
+			Code:    http.StatusInternalServerError,
 			Message: "internal server error",
 			Data:    nil,
 		})

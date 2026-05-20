@@ -89,7 +89,7 @@ func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
 `*ninja.Error` 表示协议级错误，使用对应 HTTP 状态码返回。
 
 ```go
-return nil, ninja.NewErrorWithCode(http.StatusForbidden, "ACCOUNT_DISABLED", "account is disabled")
+return nil, ninja.NewError(http.StatusForbidden, "account is disabled")
 ```
 
 `ValidationError` 会返回 HTTP 422。
@@ -107,13 +107,13 @@ response.JSON(c, response.OKWithMessage("created", user))
 成功响应默认格式：
 
 ```json
-{"code": 0, "message": "success", "data": {...}}
+{"code": 200, "message": "success", "data": {...}}
 ```
 
 框架错误响应使用相同的根级信封：
 
 ```json
-{"code": "NOT_FOUND", "message": "not found", "data": null}
+{"code": 404, "message": "not found", "data": null}
 ```
 
 ## 过滤、排序与分页

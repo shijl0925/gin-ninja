@@ -25,7 +25,7 @@ type UploadConfig struct {
 	AllowedMIMETypes []string
 	// ErrorHandler is an optional custom handler invoked when the request is
 	// rejected.  The default handler writes an appropriate JSON error.
-	ErrorHandler func(c *gin.Context, status int, code, message string)
+	ErrorHandler func(c *gin.Context, status int, code int, message string)
 }
 
 const defaultMaxUploadSize = 10 << 20 // 10 MiB
@@ -71,7 +71,7 @@ func UploadLimit(cfg *UploadConfig) gin.HandlerFunc {
 
 		// 1. Check declared Content-Length.
 		if cl := c.Request.ContentLength; cl > maxSize {
-			errHandler(c, http.StatusRequestEntityTooLarge, "PAYLOAD_TOO_LARGE",
+			errHandler(c, http.StatusRequestEntityTooLarge, http.StatusRequestEntityTooLarge,
 				fmt.Sprintf("request body must not exceed %d bytes", maxSize))
 			return
 		}
@@ -88,7 +88,7 @@ func UploadLimit(cfg *UploadConfig) gin.HandlerFunc {
 				ct = strings.TrimSpace(ct[:idx])
 			}
 			if !isAllowedMIMEType(ct, allowedTypes) {
-				errHandler(c, http.StatusUnsupportedMediaType, "UNSUPPORTED_MEDIA_TYPE",
+				errHandler(c, http.StatusUnsupportedMediaType, http.StatusUnsupportedMediaType,
 					fmt.Sprintf("content type %q is not allowed", ct))
 				return
 			}
@@ -98,8 +98,8 @@ func UploadLimit(cfg *UploadConfig) gin.HandlerFunc {
 	}
 }
 
-func defaultUploadErrorHandler(c *gin.Context, status int, code, message string) {
-	ninja.WriteError(c, ninja.NewErrorWithCode(status, code, message))
+func defaultUploadErrorHandler(c *gin.Context, status int, _ int, message string) {
+	ninja.WriteError(c, ninja.NewError(status, message))
 }
 
 // isAllowedMIMEType checks whether ct is covered by any of the allowed type

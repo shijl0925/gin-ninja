@@ -10,7 +10,7 @@
   - `ninja.NotFoundError()`
   - `ninja.ConflictError()`
   - `ninja.InternalError()`
-- Use `ninja.NewError(status, message)` or `ninja.NewErrorWithCode(status, code, message)` for custom HTTP errors.
+- Use `ninja.NewError(status, message)` for custom HTTP errors.
 - Use the predicate helpers when branching on returned errors:
   - `ninja.IsBadRequest(err)`
   - `ninja.IsUnauthorized(err)`

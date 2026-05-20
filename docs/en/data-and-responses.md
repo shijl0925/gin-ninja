@@ -37,20 +37,20 @@ If you only need ad-hoc filtering without defining a new response type, use `nin
 ```go
 import "github.com/shijl0925/gin-ninja/pkg/response"
 
-// Success: {"code": 0, "message": "success", "data": {...}}
+// Success: {"code": 200, "message": "success", "data": {...}}
 response.Success(c, users)
 
 // Error:   {"code": 404, "message": "not found", "data": null}
 response.NotFound(c, "user not found")
 
-// Custom:  {"code": 0, "message": "created", "data": {...}}
+// Custom:  {"code": 200, "message": "created", "data": {...}}
 response.JSON(c, response.OKWithMessage("created", user))
 ```
 
 Framework errors use the same root-level envelope:
 
 ```json
-{"code": "NOT_FOUND", "message": "not found", "data": null}
+{"code": 404, "message": "not found", "data": null}
 ```
 
 ---
@@ -106,7 +106,7 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
     filterOpts, err := filter.BuildOptions(in)
     if err != nil {
-        return nil, ninja.NewErrorWithCode(400, "BAD_FILTER", err.Error())
+        return nil, ninja.NewError(400, err.Error())
     }
 
     opts := append(filterOpts, query.ToOptions()...)
@@ -149,7 +149,7 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
     query, _ := gormx.NewQuery[User]()
 
     if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewErrorWithCode(400, "BAD_SORT", err.Error())
+        return nil, ninja.NewError(400, err.Error())
     }
 
     items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)

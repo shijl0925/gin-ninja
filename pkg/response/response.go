@@ -1,7 +1,7 @@
 // Package response provides a standardised JSON response envelope for
 // gin-ninja APIs, following the common pattern used in Go admin backends:
 //
-//	{"code": 0, "message": "success", "data": {...}}
+//	{"code": 200, "message": "success", "data": {...}}
 //
 // Usage:
 //
@@ -20,9 +20,9 @@ import (
 // Standard business-level codes.
 const (
 	// CodeOK indicates a successful operation.
-	CodeOK = 0
+	CodeOK = 200
 	// CodeError is the generic business error code.
-	CodeError = -1
+	CodeError = 500
 	// CodeUnauthorized indicates missing or invalid authentication.
 	CodeUnauthorized = 401
 	// CodeForbidden indicates the caller lacks sufficient permissions.
@@ -35,9 +35,9 @@ const (
 
 // R is the standard response envelope.
 //
-//	{"code": 0, "message": "success", "data": null}
+//	{"code": 200, "message": "success", "data": null}
 type R struct {
-	// Code is the business-level result code (0 = success).
+	// Code is the business-level result code (200 = success).
 	Code int `json:"code"`
 	// Message is a human-readable result description.
 	Message string `json:"message"`
@@ -65,7 +65,7 @@ func FailWithData(code int, message string, data interface{}) *R {
 	return &R{Code: code, Message: message, Data: data}
 }
 
-// Error returns a generic error response (code = -1).
+// Error returns a generic error response (code = 500).
 func Error(message string) *R {
 	return Fail(CodeError, message)
 }
@@ -79,7 +79,7 @@ func JSON(c *gin.Context, r *R) {
 	c.JSON(http.StatusOK, r)
 }
 
-// Success writes a successful (code=0) response with the given data.
+// Success writes a successful (code=200) response with the given data.
 func Success(c *gin.Context, data interface{}) {
 	JSON(c, OK(data))
 }

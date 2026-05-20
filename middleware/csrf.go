@@ -88,7 +88,7 @@ func (cfg *CSRFConfig) withDefaults() *CSRFConfig {
 }
 
 func defaultCSRFErrorHandler(c *gin.Context) {
-	ninja.WriteError(c, ninja.NewErrorWithCode(http.StatusForbidden, "CSRF_TOKEN_INVALID", "invalid or missing CSRF token"))
+	ninja.WriteError(c, ninja.NewError(http.StatusForbidden, "invalid or missing CSRF token"))
 }
 
 // csrfTokenKey is the gin context key under which the current CSRF token is stored.

@@ -16,23 +16,23 @@ func TestErrorStringFormatting(t *testing.T) {
 	}{
 		{
 			name: "code and message",
-			err:  &Error{Status: http.StatusTeapot, Code: "TEAPOT", Message: "short and stout"},
-			want: "[418] TEAPOT: short and stout",
+			err:  &Error{Code: http.StatusTeapot, Message: "short and stout"},
+			want: "[418] short and stout",
 		},
 		{
 			name: "message only",
-			err:  &Error{Status: http.StatusBadRequest, Message: "bad request"},
-			want: "[400] bad request",
+			err:  &Error{Message: "bad request"},
+			want: "bad request",
 		},
 		{
 			name: "code only",
-			err:  &Error{Status: http.StatusUnauthorized, Code: "UNAUTHORIZED"},
-			want: "[401] UNAUTHORIZED",
+			err:  &Error{Code: http.StatusUnauthorized},
+			want: "[401]",
 		},
 		{
-			name: "status only",
-			err:  &Error{Status: http.StatusInternalServerError},
-			want: "[500]",
+			name: "empty error",
+			err:  &Error{},
+			want: "",
 		},
 		{
 			name: "nil error",
@@ -55,18 +55,17 @@ func TestBuiltinErrorHelpers(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name   string
-		errFn  func() *Error
-		isFn   func(error) bool
-		status int
-		code   string
+		name  string
+		errFn func() *Error
+		isFn  func(error) bool
+		code  int
 	}{
-		{"bad request", BadRequestError, IsBadRequest, http.StatusBadRequest, "BAD_REQUEST"},
-		{"unauthorized", UnauthorizedError, IsUnauthorized, http.StatusUnauthorized, "UNAUTHORIZED"},
-		{"forbidden", ForbiddenError, IsForbidden, http.StatusForbidden, "FORBIDDEN"},
-		{"not found", NotFoundError, IsNotFound, http.StatusNotFound, "NOT_FOUND"},
-		{"conflict", ConflictError, IsConflict, http.StatusConflict, "CONFLICT"},
-		{"internal", InternalError, IsInternal, http.StatusInternalServerError, "INTERNAL_ERROR"},
+		{"bad request", BadRequestError, IsBadRequest, http.StatusBadRequest},
+		{"unauthorized", UnauthorizedError, IsUnauthorized, http.StatusUnauthorized},
+		{"forbidden", ForbiddenError, IsForbidden, http.StatusForbidden},
+		{"not found", NotFoundError, IsNotFound, http.StatusNotFound},
+		{"conflict", ConflictError, IsConflict, http.StatusConflict},
+		{"internal", InternalError, IsInternal, http.StatusInternalServerError},
 	}
 
 	for _, tc := range cases {
@@ -74,7 +73,7 @@ func TestBuiltinErrorHelpers(t *testing.T) {
 			t.Parallel()
 
 			err := tc.errFn()
-			if err.Status != tc.status || err.Code != tc.code {
+			if err.Code != tc.code {
 				t.Fatalf("unexpected builtin error: %+v", err)
 			}
 			if !tc.isFn(err) {
@@ -93,11 +92,11 @@ func TestBuiltinErrorHelpers(t *testing.T) {
 func TestErrorFactoryAndCloneHelpers(t *testing.T) {
 	t.Parallel()
 
-	if got := NewError(http.StatusForbidden, "denied"); got.Status != http.StatusForbidden || got.Message != "denied" {
+	if got := NewError(http.StatusForbidden, "denied"); got.Code != http.StatusForbidden || got.Message != "denied" {
 		t.Fatalf("NewError() = %+v", got)
 	}
-	if got := NewErrorWithCode(http.StatusConflict, "CONFLICT", "taken"); got.Code != "CONFLICT" || got.Message != "taken" {
-		t.Fatalf("NewErrorWithCode() = %+v", got)
+	if got := NewError(http.StatusConflict, "taken"); got.Code != http.StatusConflict || got.Message != "taken" {
+		t.Fatalf("NewError() = %+v", got)
 	}
 	if cloneBuiltinError(nil) != nil {
 		t.Fatal("expected cloneBuiltinError(nil) to be nil")

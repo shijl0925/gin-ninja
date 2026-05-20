@@ -189,5 +189,5 @@ func versionDeprecationMiddleware(cfg VersionConfig) gin.HandlerFunc {
 }
 
 func versionNotFound(c *gin.Context) {
-	WriteError(c, NewErrorWithCode(http.StatusNotFound, "API_VERSION_NOT_FOUND", "API version not found"))
+	WriteError(c, NewError(http.StatusNotFound, "API version not found"))
 }

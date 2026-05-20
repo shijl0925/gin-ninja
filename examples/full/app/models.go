@@ -59,7 +59,7 @@ func (u *User) BeforeSave(*gorm.DB) error {
 		return nil
 	}
 	if len(u.Password) < 8 {
-		return ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"password\" must be at least 8 characters")
+		return ninja.NewError(400, "field \"password\" must be at least 8 characters")
 	}
 	u.Password = hashPassword(u.Password)
 	return nil
@@ -97,7 +97,7 @@ func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {
 	seen := make(map[uint]struct{}, len(roleIDs))
 	for _, id := range roleIDs {
 		if id == 0 {
-			return ninja.NewErrorWithCode(400, "BAD_REQUEST", "field \"role_ids\" must not contain zero")
+			return ninja.NewError(400, "field \"role_ids\" must not contain zero")
 		}
 		if _, exists := seen[id]; exists {
 			continue
@@ -126,7 +126,7 @@ func syncUserRoles(tx *gorm.DB, user *User, roleIDs []uint) error {
 	for _, id := range normalized {
 		role, ok := roleByID[id]
 		if !ok {
-			return ninja.NewErrorWithCode(400, "BAD_REQUEST", fmt.Sprintf("role %d does not exist", id))
+			return ninja.NewError(400, fmt.Sprintf("role %d does not exist", id))
 		}
 		orderedRoles = append(orderedRoles, role)
 	}

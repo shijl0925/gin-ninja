@@ -100,8 +100,7 @@ func wrapRateLimit(limiter *rateLimiter, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !limiter.allow(c.ClientIP(), time.Now()) {
 			writeError(c, &Error{
-				Status:  http.StatusTooManyRequests,
-				Code:    "RATE_LIMITED",
+				Code:    http.StatusTooManyRequests,
 				Message: "rate limit exceeded",
 			})
 			c.Abort()
@@ -139,16 +138,14 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			}
 			if recorder.overflowed {
 				writeError(c, &Error{
-					Status:  http.StatusInternalServerError,
-					Code:    "RESPONSE_TOO_LARGE",
+					Code:    http.StatusInternalServerError,
 					Message: "response exceeded timeout capture limit",
 				})
 				return
 			}
 			if recorder.streamed {
 				writeError(c, &Error{
-					Status:  http.StatusInternalServerError,
-					Code:    "RESPONSE_NOT_CAPTURED",
+					Code:    http.StatusInternalServerError,
 					Message: "response could not be captured by timeout wrapper",
 				})
 				return
@@ -168,8 +165,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			cancel()
 			if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
 				writeError(c, &Error{
-					Status:  http.StatusRequestTimeout,
-					Code:    "REQUEST_TIMEOUT",
+					Code:    http.StatusRequestTimeout,
 					Message: "request timed out",
 				})
 			}
@@ -189,8 +185,7 @@ func wrapCooperativeTimeout(timeout time.Duration, next gin.HandlerFunc) gin.Han
 
 		if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
 			writeError(c, &Error{
-				Status:  http.StatusRequestTimeout,
-				Code:    "REQUEST_TIMEOUT",
+				Code:    http.StatusRequestTimeout,
 				Message: "request timed out",
 			})
 			c.Abort()
