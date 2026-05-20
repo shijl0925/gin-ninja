@@ -43,13 +43,13 @@ func login(ctx *ninja.Context, in *LoginInput, cfg settings.JWTConfig) (*LoginOu
 	user, err := repo.SelectOneByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, query.ToOptions()...)...)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ninja.NewErrorWithCode(401, 401, "invalid email or password")
+			return nil, ninja.NewError(401, "invalid email or password")
 		}
 		return nil, err
 	}
 
 	if !checkPassword(user.Password, in.Password) {
-		return nil, ninja.NewErrorWithCode(401, 401, "invalid email or password")
+		return nil, ninja.NewError(401, "invalid email or password")
 	}
 
 	token, err := middleware.GenerateTokenWithConfig(user.ID, user.Name, cfg)
@@ -75,7 +75,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 	_, err := repo.SelectOneByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, query.ToOptions()...)...)
 	switch {
 	case err == nil:
-		return nil, ninja.NewErrorWithCode(409, 409, "email already registered")
+		return nil, ninja.NewError(409, "email already registered")
 	case !errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, err
 	}
@@ -95,10 +95,10 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 
 	filterOpts, err := filter.BuildOptions(in)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(400, 400, err.Error())
+		return nil, ninja.NewError(400, err.Error())
 	}
 	if err := order.ApplyOrder(query, in); err != nil {
-		return nil, ninja.NewErrorWithCode(400, 400, err.Error())
+		return nil, ninja.NewError(400, err.Error())
 	}
 
 	opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)

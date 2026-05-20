@@ -768,10 +768,10 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 			IDs []json.RawMessage `json:"ids"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, "invalid request body")
+			return nil, ninja.NewError(http.StatusBadRequest, "invalid request body")
 		}
 		if len(payload.IDs) == 0 {
-			return nil, ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, "ids must not be empty")
+			return nil, ninja.NewError(http.StatusBadRequest, "ids must not be empty")
 		}
 
 		ids := make([]any, 0, len(payload.IDs))
@@ -807,7 +807,7 @@ func (r *Resource) handleBulkDelete(site *Site) func(*ninja.Context, *struct{}) 
 func (r *Resource) findByID(db *gorm.DB, raw string) (any, error) {
 	value, err := r.primaryKey.parseString(raw)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, "invalid id")
+		return nil, ninja.NewError(http.StatusBadRequest, "invalid id")
 	}
 	model := r.newModel()
 	if err := db.First(model, value).Error; err != nil {
@@ -822,7 +822,7 @@ func (r *Resource) findByID(db *gorm.DB, raw string) (any, error) {
 func (r *Resource) parsePrimaryKeyJSON(raw json.RawMessage) (any, error) {
 	value, err := r.primaryKey.decodeJSON(raw)
 	if err != nil {
-		return nil, ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, "invalid id value")
+		return nil, ninja.NewError(http.StatusBadRequest, "invalid id value")
 	}
 	return value, nil
 }
@@ -836,7 +836,7 @@ func (r *Resource) normalizeWriteError(ctx *ninja.Context, action Action, desire
 		for _, field := range fields {
 			names = append(names, field.Meta.Name)
 		}
-		return ninja.NewErrorWithCode(http.StatusConflict, http.StatusConflict, fmt.Sprintf("a soft-deleted record with the same value for field(s): %s already exists; restore or permanently remove it before saving", strings.Join(names, ", ")))
+		return ninja.NewError(http.StatusConflict, fmt.Sprintf("a soft-deleted record with the same value for field(s): %s already exists; restore or permanently remove it before saving", strings.Join(names, ", ")))
 	}
 	return ninja.ConflictError()
 }
@@ -1074,7 +1074,7 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta, meta FieldMeta
 			for _, part := range parts {
 				parsed, parseErr := field.parseString(strings.TrimSpace(part))
 				if parseErr != nil {
-					return nil, ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, fmt.Sprintf("field %q: %s", meta.Name, parseErr.Error()))
+					return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q: %s", meta.Name, parseErr.Error()))
 				}
 				values = append(values, parsed)
 			}
@@ -1084,7 +1084,7 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta, meta FieldMeta
 		default:
 			value, err = field.parseString(raw)
 			if err != nil {
-				return nil, ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, fmt.Sprintf("field %q: %s", meta.Name, err.Error()))
+				return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q: %s", meta.Name, err.Error()))
 			}
 		}
 		switch candidate.Op {

@@ -98,8 +98,8 @@ func UploadLimit(cfg *UploadConfig) gin.HandlerFunc {
 	}
 }
 
-func defaultUploadErrorHandler(c *gin.Context, status int, code int, message string) {
-	ninja.WriteError(c, ninja.NewErrorWithCode(status, code, message))
+func defaultUploadErrorHandler(c *gin.Context, status int, _ int, message string) {
+	ninja.WriteError(c, ninja.NewError(status, message))
 }
 
 // isAllowedMIMEType checks whether ct is covered by any of the allowed type

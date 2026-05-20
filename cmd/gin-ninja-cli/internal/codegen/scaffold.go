@@ -1388,10 +1388,8 @@ const appErrorsTemplate = `package {{ .PackageName }}
 
 import ninja "github.com/shijl0925/gin-ninja"
 
-const {{ .ModelName }}NameRequiredErrorCode = 400
-
 func New{{ .ModelName }}NameRequiredError() error {
-return ninja.NewErrorWithCode(400, {{ .ModelName }}NameRequiredErrorCode, "{{ lower .ModelName }} name is required")
+return ninja.NewError(400, "{{ lower .ModelName }} name is required")
 }
 `
 

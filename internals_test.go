@@ -222,7 +222,7 @@ func TestBindInput_Errors(t *testing.T) {
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("expected *Error, got %T", err)
 		}
-		if apiErr.Status != http.StatusBadRequest || apiErr.Code != http.StatusBadRequest {
+		if apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("unexpected api error: %+v", apiErr)
 		}
 	})
@@ -239,7 +239,7 @@ func TestBindInput_Errors(t *testing.T) {
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("expected *Error, got %T", err)
 		}
-		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != http.StatusRequestEntityTooLarge {
+		if apiErr.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("unexpected api error: %+v", apiErr)
 		}
 	})
@@ -252,7 +252,7 @@ func TestBindInput_Errors(t *testing.T) {
 		if !errors.As(err, &apiErr) {
 			t.Fatalf("expected *Error, got %T", err)
 		}
-		if apiErr.Status != http.StatusRequestEntityTooLarge || apiErr.Code != http.StatusRequestEntityTooLarge {
+		if apiErr.Code != http.StatusRequestEntityTooLarge {
 			t.Fatalf("unexpected api error: %+v", apiErr)
 		}
 	})
@@ -308,7 +308,7 @@ func TestBindInput_Errors(t *testing.T) {
 		var in bindComplexInput
 		err := bindInput(c, http.MethodGet, &in)
 		var apiErr *Error
-		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest || apiErr.Status != http.StatusBadRequest {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_QUERY bad request, got %v", err)
 		}
 	})
@@ -322,7 +322,7 @@ func TestBindInput_Errors(t *testing.T) {
 		var in formInput
 		err := bindInput(c, http.MethodPost, &in)
 		var apiErr *Error
-		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest || apiErr.Status != http.StatusBadRequest {
+		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_FORM bad request, got %v", err)
 		}
 	})
@@ -536,7 +536,7 @@ func TestContextResponseHelpers(t *testing.T) {
 func TestWriteError(t *testing.T) {
 	t.Run("api error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, &Error{Status: http.StatusTeapot, Code: http.StatusTeapot, Message: "short and stout"})
+		writeError(c, &Error{Code: http.StatusTeapot, Message: "short and stout"})
 		body := w.Body.String()
 		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":418`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -569,7 +569,7 @@ func TestWriteError(t *testing.T) {
 		api := New(Config{})
 		api.RegisterErrorMapper(func(err error) error {
 			if errors.Is(err, sentinel) {
-				return &Error{Status: http.StatusTeapot, Code: http.StatusTeapot, Message: "mapped"}
+				return &Error{Code: http.StatusTeapot, Message: "mapped"}
 			}
 			return nil
 		})
@@ -807,11 +807,11 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 		t.Fatalf("expected security schemes clone to be independent: %+v", schemes)
 	}
 
-	if err := NewError(http.StatusBadRequest, "bad"); err.Status != http.StatusBadRequest || err.Message != "bad" {
+	if err := NewError(http.StatusBadRequest, "bad"); err.Code != http.StatusBadRequest || err.Message != "bad" {
 		t.Fatalf("unexpected NewError result: %+v", err)
 	}
-	if err := NewErrorWithCode(http.StatusConflict, http.StatusConflict, "duplicate"); err.Code != http.StatusConflict {
-		t.Fatalf("unexpected NewErrorWithCode result: %+v", err)
+	if err := NewError(http.StatusConflict, "duplicate"); err.Code != http.StatusConflict {
+		t.Fatalf("unexpected NewError result: %+v", err)
 	}
 	if ForbiddenError().Error() == "" || (&ValidationError{Errors: []FieldError{{Field: "x", Message: "y"}}}).Error() == "" {
 		t.Fatal("expected error strings to be non-empty")

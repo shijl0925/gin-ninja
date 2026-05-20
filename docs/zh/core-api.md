@@ -89,7 +89,7 @@ func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
 `*ninja.Error` 表示协议级错误，使用对应 HTTP 状态码返回。
 
 ```go
-return nil, ninja.NewErrorWithCode(http.StatusForbidden, "ACCOUNT_DISABLED", "account is disabled")
+return nil, ninja.NewError(http.StatusForbidden, "account is disabled")
 ```
 
 `ValidationError` 会返回 HTTP 422。

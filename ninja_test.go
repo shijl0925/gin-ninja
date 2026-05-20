@@ -1700,7 +1700,7 @@ func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
 
 		ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
 			atomic.AddInt32(&calls, 1)
-			return nil, ninja.NewErrorWithCode(http.StatusBadGateway, http.StatusBadGateway, "upstream failed")
+			return nil, ninja.NewError(http.StatusBadGateway, "upstream failed")
 		}, ninja.Cache(time.Minute))
 		api.AddRouter(r)
 
@@ -1895,7 +1895,7 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		r := ninja.NewRouter("/stream-boundary")
 
 		ninja.SSE(r, "/before", func(ctx *ninja.Context, in *streamInput, stream *ninja.SSEStream) error {
-			return ninja.NewErrorWithCode(http.StatusBadRequest, http.StatusBadRequest, "invalid stream input")
+			return ninja.NewError(http.StatusBadRequest, "invalid stream input")
 		})
 		api.AddRouter(r)
 

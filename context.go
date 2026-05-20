@@ -129,7 +129,6 @@ func (c *Context) JSON204() {
 // Forbidden aborts the request with 403 Forbidden.
 func (c *Context) Forbidden(message string) {
 	WriteError(c.Context, &Error{
-		Status:  http.StatusForbidden,
 		Code:    http.StatusForbidden,
 		Message: message,
 	})
@@ -138,7 +137,6 @@ func (c *Context) Forbidden(message string) {
 // Unauthorized aborts the request with 401 Unauthorized.
 func (c *Context) Unauthorized(message string) {
 	WriteError(c.Context, &Error{
-		Status:  http.StatusUnauthorized,
 		Code:    http.StatusUnauthorized,
 		Message: message,
 	})
