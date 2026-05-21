@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/shijl0925/gin-ninja/settings"
 )
 
 func TestSanitizeStartupDSN(t *testing.T) {
@@ -51,14 +49,13 @@ func TestSanitizeStartupDSN(t *testing.T) {
 }
 
 func TestStartupDSNStructuredConfigOmitsPasswords(t *testing.T) {
-	mysqlDSN := startupDSN(settings.DatabaseConfig{
+	mysqlDSN := startupDSN(StartupDatabaseConfig{
 		Driver: "mysql",
-		MySQL: settings.MySQLConfig{
-			Host:     "127.0.0.1",
-			Port:     3306,
-			User:     "demo",
-			Password: "secret",
-			Name:     "app",
+		MySQL: StartupMySQLConfig{
+			Host: "127.0.0.1",
+			Port: 3306,
+			User: "demo",
+			Name: "app",
 		},
 	})
 	if mysqlDSN != "demo@tcp(127.0.0.1:3306)/app" {
@@ -68,15 +65,14 @@ func TestStartupDSNStructuredConfigOmitsPasswords(t *testing.T) {
 		t.Fatalf("mysql dsn leaked password: %q", mysqlDSN)
 	}
 
-	postgresDSN := startupDSN(settings.DatabaseConfig{
+	postgresDSN := startupDSN(StartupDatabaseConfig{
 		Driver: "postgres",
-		Postgres: settings.PostgresConfig{
-			Host:     "127.0.0.1",
-			Port:     5432,
-			User:     "demo",
-			Password: "secret",
-			Name:     "app",
-			SSLMode:  "disable",
+		Postgres: StartupPostgresConfig{
+			Host:    "127.0.0.1",
+			Port:    5432,
+			User:    "demo",
+			Name:    "app",
+			SSLMode: "disable",
 		},
 	})
 	if postgresDSN != "host=127.0.0.1 port=5432 dbname=app user=demo sslmode=disable" {
@@ -88,17 +84,15 @@ func TestStartupDSNStructuredConfigOmitsPasswords(t *testing.T) {
 }
 
 func TestServe_PrintsStartupBanner(t *testing.T) {
-	cfg := settings.Config{
-		App: settings.AppConfig{
-			Env: "demo",
-		},
-		Database: settings.DatabaseConfig{
+	cfg := StartupConfig{
+		Env: "demo",
+		Database: StartupDatabaseConfig{
 			Driver: "postgres",
 			DSN:    "postgres://app:secret@localhost:5432/demo?sslmode=disable",
 		},
 	}
 
-	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true, Settings: &cfg})
+	api := New(Config{Title: "Banner Test", Version: "1.0.0-test", DisableGinDefault: true, Startup: cfg})
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

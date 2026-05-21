@@ -16,10 +16,9 @@ import (
 type ScaffoldTemplate string
 
 const (
-	ScaffoldTemplateMinimal  ScaffoldTemplate = "minimal"
-	ScaffoldTemplateStandard ScaffoldTemplate = "standard"
-	ScaffoldTemplateAuth     ScaffoldTemplate = "auth"
-	ScaffoldTemplateAdmin    ScaffoldTemplate = "admin"
+	ScaffoldTemplateCore  ScaffoldTemplate = "core"
+	ScaffoldTemplateFull  ScaffoldTemplate = "full"
+	ScaffoldTemplateAdmin ScaffoldTemplate = "admin"
 )
 
 type ScaffoldDatabase string
@@ -202,12 +201,16 @@ type appTemplateData struct {
 func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool, withGormx *bool) (scaffoldOptions, error) {
 	templateName = strings.ToLower(strings.TrimSpace(templateName))
 	if templateName == "" {
-		templateName = string(ScaffoldTemplateMinimal)
+		templateName = string(ScaffoldTemplateCore)
 	}
 
 	templateKind := ScaffoldTemplate(templateName)
 	switch templateKind {
-	case ScaffoldTemplateMinimal, ScaffoldTemplateStandard, ScaffoldTemplateAuth, ScaffoldTemplateAdmin:
+	case ScaffoldTemplateCore, ScaffoldTemplateFull, ScaffoldTemplateAdmin:
+	case "minimal":
+		templateKind = ScaffoldTemplateCore
+	case "standard", "auth":
+		templateKind = ScaffoldTemplateFull
 	default:
 		return scaffoldOptions{}, fmt.Errorf("unknown scaffold template %q", templateName)
 	}
@@ -219,14 +222,14 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		WithAdmin: withAdmin,
 		WithGormx: boolValueOrDefault(withGormx, true),
 	}
-	if templateKind == ScaffoldTemplateAuth {
+	if templateKind == ScaffoldTemplateFull {
 		opts.WithAuth = true
 	}
 	if templateKind == ScaffoldTemplateAdmin {
 		opts.WithAuth = true
 		opts.WithAdmin = true
 	}
-	opts.Standard = templateKind != ScaffoldTemplateMinimal || opts.WithTests || opts.WithAuth || opts.WithAdmin
+	opts.Standard = templateKind != ScaffoldTemplateCore || opts.WithTests || opts.WithAuth || opts.WithAdmin
 	return opts, nil
 }
 
@@ -789,7 +792,7 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
-Settings:          &cfg,
+Startup:           settings.StartupConfig(cfg),
 TransactionHandlers: orm.TransactionHandlers(),
 })
 
@@ -885,7 +888,7 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
-Settings:          &cfg,
+Startup:           settings.StartupConfig(cfg),
 TransactionHandlers: orm.TransactionHandlers(),
 {{- if .Options.WithAuth }}
 SecuritySchemes: map[string]ninja.SecurityScheme{

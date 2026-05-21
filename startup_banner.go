@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shijl0925/gin-ninja/settings"
 )
 
 const startupLogo = ` ██████╗ ██╗███╗   ██╗      ███╗   ██╗██╗███╗   ██╗     ██╗ █████╗ 
@@ -24,14 +23,67 @@ const startupLogo = ` ██████╗ ██╗███╗   ██╗   
 
 var startupSensitiveKVPattern = regexp.MustCompile(`(?i)\b((?:password|passwd|pwd|pass|secret|token)\s*=\s*)('[^']*'|"[^"]*"|[^ ]+)`)
 
+// StartupConfig is lightweight metadata used by the core startup banner.
+type StartupConfig struct {
+	Env      string
+	Version  string
+	Server   StartupServerConfig
+	Database StartupDatabaseConfig
+}
+
+// StartupServerConfig holds the server values shown by the startup banner.
+type StartupServerConfig struct {
+	Port int
+}
+
+// StartupDatabaseConfig holds database values shown by the startup banner.
+type StartupDatabaseConfig struct {
+	Driver   string
+	DSN      string
+	MySQL    StartupMySQLConfig
+	Postgres StartupPostgresConfig
+}
+
+type StartupMySQLConfig struct {
+	Host string
+	Port int
+	User string
+	Name string
+}
+
+func (c StartupMySQLConfig) IsConfigured() bool {
+	return strings.TrimSpace(c.Host) != "" ||
+		c.Port > 0 ||
+		strings.TrimSpace(c.User) != "" ||
+		strings.TrimSpace(c.Name) != ""
+}
+
+type StartupPostgresConfig struct {
+	Host     string
+	Port     int
+	User     string
+	Name     string
+	SSLMode  string
+	TimeZone string
+}
+
+func (c StartupPostgresConfig) IsConfigured() bool {
+	return strings.TrimSpace(c.Host) != "" ||
+		c.Port > 0 ||
+		strings.TrimSpace(c.User) != "" ||
+		strings.TrimSpace(c.Name) != "" ||
+		strings.TrimSpace(c.SSLMode) != "" ||
+		strings.TrimSpace(c.TimeZone) != ""
+}
+
 func (api *NinjaAPI) printStartupBanner(listener net.Listener) {
 	_, _ = io.WriteString(os.Stdout, api.startupBanner(listener))
 }
 
 func (api *NinjaAPI) startupBanner(listener net.Listener) string {
-	var cfg settings.Config
-	if api != nil && api.config.Settings != nil {
-		cfg = *api.config.Settings
+	var cfg StartupConfig
+	if api != nil {
+		cfg = api.config.Startup
 	}
 
 	var b strings.Builder
@@ -48,7 +100,7 @@ func (api *NinjaAPI) startupBanner(listener net.Listener) string {
 	return b.String()
 }
 
-func startupDSN(cfg settings.DatabaseConfig) string {
+func startupDSN(cfg StartupDatabaseConfig) string {
 	if dsn := strings.TrimSpace(cfg.DSN); dsn != "" {
 		return sanitizeStartupDSN(dsn)
 	}
@@ -120,8 +172,8 @@ func startupPort(listener net.Listener, fallback int) string {
 	return "-"
 }
 
-func startupEnv(cfg settings.Config) string {
-	if env := strings.TrimSpace(cfg.App.Env); env != "" {
+func startupEnv(cfg StartupConfig) string {
+	if env := strings.TrimSpace(cfg.Env); env != "" {
 		return env
 	}
 	if mode := strings.TrimSpace(gin.Mode()); mode != "" {
@@ -130,13 +182,13 @@ func startupEnv(cfg settings.Config) string {
 	return "-"
 }
 
-func startupVersion(api *NinjaAPI, cfg settings.Config) string {
+func startupVersion(api *NinjaAPI, cfg StartupConfig) string {
 	if api != nil {
 		if version := strings.TrimSpace(api.config.Version); version != "" {
 			return version
 		}
 	}
-	if version := strings.TrimSpace(cfg.App.Version); version != "" {
+	if version := strings.TrimSpace(cfg.Version); version != "" {
 		return version
 	}
 	return "-"

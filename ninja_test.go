@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
@@ -1585,48 +1584,7 @@ func TestGet_CacheWithTagsSupportsInvalidation(t *testing.T) {
 	}
 }
 
-func TestRedisCacheStore_GetTagInvalidateAndLock(t *testing.T) {
-	mr := miniredis.RunT(t)
-	store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-		Addr:   mr.Addr(),
-		Prefix: "test:",
-	})
-	if err != nil {
-		t.Fatalf("NewRedisCacheStore: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
 
-	store.Set("users:1", &ninja.CachedResponse{
-		Status:  http.StatusOK,
-		Header:  http.Header{"Content-Type": []string{"application/json"}},
-		Body:    []byte(`{"count":1}`),
-		Expires: time.Now().Add(time.Minute),
-	})
-	store.AddTags("users:1", "users", "users:1")
-
-	cached, ok := store.Get("users:1")
-	if !ok || cached == nil || cached.Status != http.StatusOK {
-		t.Fatalf("expected cached redis response, got ok=%v cached=%+v", ok, cached)
-	}
-	if removed := store.InvalidateTags("users:1"); removed != 1 {
-		t.Fatalf("expected one invalidated redis key, got %d", removed)
-	}
-	if _, ok := store.Get("users:1"); ok {
-		t.Fatal("expected redis key to be removed after tag invalidation")
-	}
-
-	unlock, ok := store.AcquireLock("users:1", time.Second)
-	if !ok || unlock == nil {
-		t.Fatal("expected first redis lock acquisition to succeed")
-	}
-	if _, ok := store.AcquireLock("users:1", time.Second); ok {
-		t.Fatal("expected second redis lock acquisition to fail while held")
-	}
-	unlock()
-	if _, ok := store.AcquireLock("users:1", time.Second); !ok {
-		t.Fatal("expected redis lock acquisition to succeed after unlock")
-	}
-}
 
 func TestGet_CacheETagWildcardAndMultipleValues(t *testing.T) {
 	api := newTestAPI()

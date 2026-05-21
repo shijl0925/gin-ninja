@@ -29,26 +29,25 @@ jobs:
             BIN_DIR="$(go env GOPATH)/bin"
           fi
           GOTOOLCHAIN=go1.26.0 go install honnef.co/go/tools/cmd/staticcheck@latest
-          "$BIN_DIR/staticcheck" ./...
-          (
-            cd cmd/gin-ninja-cli
-            "$BIN_DIR/staticcheck" ./...
-          )
-          (
-            cd examples/full/browsertests
-            "$BIN_DIR/staticcheck" ./...
-          )
+          for module in . settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples cmd/gin-ninja-cli examples/full/browsertests; do
+            (
+              cd "$module"
+              GOWORK=off "$BIN_DIR/staticcheck" ./...
+            )
+          done
 
       - name: Test with coverage
         run: |
-          go test ./... -coverprofile=coverage.out
+          GOWORK=off go test ./... -coverprofile=coverage.out
+          for module in settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples cmd/gin-ninja-cli examples/full/browsertests; do
+            (
+              cd "$module"
+              GOWORK=off go test ./...
+            )
+          done
           (
             cd cmd/gin-ninja-cli
-            go test ./... -coverprofile=coverage-cli.out
-          )
-          (
-            cd examples/full/browsertests
-            go test ./...
+            GOWORK=off go test ./... -coverprofile=coverage-cli.out
           )
           {
             echo 'mode: set'
@@ -66,11 +65,12 @@ jobs:
 
       - name: Build
         run: |
-          go build ./...
-          (
-            cd cmd/gin-ninja-cli
-            go build ./...
-          )
+          for module in . settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples cmd/gin-ninja-cli; do
+            (
+              cd "$module"
+              GOWORK=off go build ./...
+            )
+          done
 
   postgres-migration-integration:
     if: github.event_name == 'pull_request'

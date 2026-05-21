@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/shijl0925/gin-ninja/settings"
 )
 
 const ninjaAPIContextKey = "gin_ninja_api"
@@ -53,9 +52,8 @@ type Config struct {
 	// SecuritySchemes defines reusable OpenAPI security schemes, such as JWT
 	// bearer authentication shown by Swagger UI's "Authorize" button.
 	SecuritySchemes map[string]SecurityScheme
-	// Settings is optional instance-scoped application configuration used by
-	// framework helpers such as the startup banner.
-	Settings *settings.Config
+	// Startup is optional instance-scoped metadata used by the startup banner.
+	Startup StartupConfig
 	// TransactionHandlers configures request-scoped transaction helpers for
 	// operations that use WithTransaction.
 	TransactionHandlers *TransactionHandlers
