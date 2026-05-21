@@ -204,13 +204,18 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		templateName = string(ScaffoldTemplateCore)
 	}
 
+	forceAuth := false
 	templateKind := ScaffoldTemplate(templateName)
 	switch templateKind {
 	case ScaffoldTemplateCore, ScaffoldTemplateFull, ScaffoldTemplateAdmin:
+		forceAuth = templateKind == ScaffoldTemplateFull
 	case "minimal":
 		templateKind = ScaffoldTemplateCore
-	case "standard", "auth":
+	case "standard":
 		templateKind = ScaffoldTemplateFull
+	case "auth":
+		templateKind = ScaffoldTemplateFull
+		forceAuth = true
 	default:
 		return scaffoldOptions{}, fmt.Errorf("unknown scaffold template %q", templateName)
 	}
@@ -222,7 +227,7 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		WithAdmin: withAdmin,
 		WithGormx: boolValueOrDefault(withGormx, true),
 	}
-	if templateKind == ScaffoldTemplateFull {
+	if forceAuth {
 		opts.WithAuth = true
 	}
 	if templateKind == ScaffoldTemplateAdmin {

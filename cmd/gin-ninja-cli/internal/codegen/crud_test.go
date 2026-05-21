@@ -765,8 +765,7 @@ type Project struct {
 func runGoTest(t *testing.T, dir string) {
 	t.Helper()
 
-	repoRoot := repoRoot(t)
-	goMod := "module demo\n\ngo 1.26\n\nrequire github.com/shijl0925/gin-ninja v0.0.0\n\nreplace github.com/shijl0925/gin-ninja => " + repoRoot + "\n"
+	goMod := "module demo\n\ngo 1.26\n\nrequire github.com/shijl0925/gin-ninja v0.0.0\n\n" + localModuleReplaces(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 		t.Fatalf("write go.mod: %v", err)
 	}

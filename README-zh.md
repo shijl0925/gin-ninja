@@ -2,7 +2,7 @@
 
 [English](./README.md) | [中文](./README-zh.md)
 
-gin-ninja 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Web/API 框架，灵感来自 django-ninja。它在保留 Gin 路由能力和生态的同时，提供类型安全处理器、自动 OpenAPI 3.0 文档、生产可用中间件、路由级缓存、API 版本管理、流式能力，以及与 [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) 的集成。
+gin-ninja 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的轻量 Web/API 框架，灵感来自 django-ninja。核心模块专注于类型安全处理器、自动 Binding、OpenAPI 3.0 文档、Router、路由级缓存、API 版本管理、流式能力与文件传输；Admin、ORM、settings/bootstrap、中间件与 Redis 缓存作为可选模块独立使用。
 
 ## 亮点
 
@@ -10,12 +10,22 @@ gin-ninja 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Web/API �
 - 自动绑定 path、query、header、cookie、JSON、form、file 参数
 - 默认生成 `/openapi.json` 与 `/docs` Swagger UI
 - 支持 Router 分组、API Controller、操作级选项、中间件与生命周期钩子
-- 内置分页、过滤、排序、缓存、版本管理、SSE、WebSocket、上传下载、settings、bootstrap 与 admin 能力
+- 内置分页、缓存、版本管理、SSE、WebSocket 与上传下载
+- 可选使用 `admin`、`orm`、`settings`、`bootstrap`、`middleware`、`filter`、`order`、`cache/redis` 等扩展模块
 
 ## 安装
 
 ```bash
 go get github.com/shijl0925/gin-ninja
+```
+
+可选扩展可按需安装：
+
+```bash
+go get github.com/shijl0925/gin-ninja/admin
+go get github.com/shijl0925/gin-ninja/orm
+go get github.com/shijl0925/gin-ninja/bootstrap
+go get github.com/shijl0925/gin-ninja/middleware
 ```
 
 ## 快速开始
@@ -25,11 +35,7 @@ package main
 
 import (
     "log"
-
-    "github.com/gin-gonic/gin"
     ninja "github.com/shijl0925/gin-ninja"
-    "github.com/shijl0925/gin-ninja/middleware"
-    "github.com/shijl0925/gin-ninja/settings"
 )
 
 type HelloInput struct {
@@ -45,8 +51,7 @@ func sayHello(ctx *ninja.Context, in *HelloInput) (*HelloOutput, error) {
 }
 
 func main() {
-    api := ninja.New(ninja.Config{Title: "Hello API", Version: "1.0.0", DisableGinDefault: true})
-    api.UseGin(gin.Logger(), gin.Recovery(), middleware.RequestID(), middleware.CORSFromConfig(settings.CORSConfig{}))
+    api := ninja.New(ninja.Config{Title: "Hello API", Version: "1.0.0"})
 
     r := ninja.NewRouter("/hello", ninja.WithTags("Hello"))
     ninja.Get(r, "/", sayHello, ninja.Summary("Say hello"))
@@ -76,7 +81,7 @@ func main() {
 
 ## 示例
 
-可运行示例位于 [`examples/`](./examples/)，包括 `basic`、`users`、`features`、`admin` 和 `full`。
+可运行示例位于独立的 [`examples/`](./examples/) 模块，包括 `basic`、`users`、`features`、`admin` 和 `full`。
 
 ## License
 

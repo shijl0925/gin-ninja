@@ -7,7 +7,7 @@ CLI_NAME := gin-ninja-cli
 CLI_BUILD_DIR := $(CURDIR)/bin
 CLI_BUILD_PATH := $(CLI_BUILD_DIR)/$(CLI_NAME)
 CLI_INSTALL_PATH := $(GOBIN)/$(CLI_NAME)
-GO_MODULES := . settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples cmd/gin-ninja-cli examples/full/browsertests
+GO_MODULES := . settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples cmd/gin-ninja-cli
 
 .PHONY: build-cli install-cli test
 

@@ -474,15 +474,13 @@ func TestWriteAppScaffoldForceAllowsNonEmptyDirectory(t *testing.T) {
 func runScaffoldGoTest(t *testing.T, dir string) {
 	t.Helper()
 
-	repoRoot := repoRoot(t)
-
 	goModPath := filepath.Join(dir, "go.mod")
 	content, err := os.ReadFile(goModPath)
 	if err != nil {
 		t.Fatalf("read go.mod: %v", err)
 	}
 	if !strings.Contains(string(content), "replace github.com/shijl0925/gin-ninja => ") {
-		content = append(content, []byte("\nreplace github.com/shijl0925/gin-ninja => "+repoRoot+"\n")...)
+		content = append(content, []byte("\n"+localModuleReplaces(t, dir))...)
 		if err := os.WriteFile(goModPath, content, 0o644); err != nil {
 			t.Fatalf("write go.mod: %v", err)
 		}

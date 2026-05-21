@@ -5,7 +5,7 @@
 
 [English](./README.md) | [中文](./README-zh.md)
 
-A **django-ninja** inspired web framework built on top of [Gin](https://github.com/gin-gonic/gin). It adds type-safe request/response handling, automatic OpenAPI 3.0 documentation, production-ready middleware, route caching, API versioning, streaming helpers, and first-class [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) integration.
+A **django-ninja** inspired lightweight web/API framework built on top of [Gin](https://github.com/gin-gonic/gin). The core module focuses on type-safe request/response handling, automatic Binding, OpenAPI 3.0 documentation, routers, route caching, API versioning, streaming helpers, and file transfer. Admin, ORM, settings/bootstrap, middleware, and Redis cache integrations are optional modules.
 
 ## Highlights
 
@@ -13,12 +13,22 @@ A **django-ninja** inspired web framework built on top of [Gin](https://github.c
 - Automatic binding for path, query, header, cookie, JSON, form, and file inputs
 - Generated OpenAPI JSON and Swagger UI at `/openapi.json` and `/docs`
 - Router groups, API controllers, operation options, middleware, and lifecycle hooks
-- Built-in support for pagination, filtering, sorting, caching, versioning, SSE, WebSocket, upload/download, settings, bootstrap helpers, and admin APIs
+- Built-in support for pagination, caching, versioning, SSE, WebSocket, and upload/download
+- Optional modules for `admin`, `orm`, `settings`, `bootstrap`, `middleware`, `filter`, `order`, and `cache/redis`
 
 ## Installation
 
 ```bash
 go get github.com/shijl0925/gin-ninja
+```
+
+Optional extensions can be added independently:
+
+```bash
+go get github.com/shijl0925/gin-ninja/admin
+go get github.com/shijl0925/gin-ninja/orm
+go get github.com/shijl0925/gin-ninja/bootstrap
+go get github.com/shijl0925/gin-ninja/middleware
 ```
 
 ## Quick Start
@@ -28,11 +38,7 @@ package main
 
 import (
     "log"
-
-    "github.com/gin-gonic/gin"
     ninja "github.com/shijl0925/gin-ninja"
-    "github.com/shijl0925/gin-ninja/middleware"
-    "github.com/shijl0925/gin-ninja/settings"
 )
 
 type HelloInput struct {
@@ -48,8 +54,7 @@ func sayHello(ctx *ninja.Context, in *HelloInput) (*HelloOutput, error) {
 }
 
 func main() {
-    api := ninja.New(ninja.Config{Title: "Hello API", Version: "1.0.0", DisableGinDefault: true})
-    api.UseGin(gin.Logger(), gin.Recovery(), middleware.RequestID(), middleware.CORSFromConfig(settings.CORSConfig{}))
+    api := ninja.New(ninja.Config{Title: "Hello API", Version: "1.0.0"})
 
     r := ninja.NewRouter("/hello", ninja.WithTags("Hello"))
     ninja.Get(r, "/", sayHello, ninja.Summary("Say hello"))
@@ -79,7 +84,7 @@ Chinese documentation starts at [README-zh.md](./README-zh.md) or the [中文文
 
 ## Examples
 
-Runnable examples live under [`examples/`](./examples/), including `basic`, `users`, `features`, `admin`, and `full`.
+Runnable examples live under the separate [`examples/`](./examples/) module, including `basic`, `users`, `features`, `admin`, and `full`.
 
 ## License
 
