@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/examples/full/app"
@@ -18,6 +20,7 @@ func TestBuildCompactAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gorm.Open: %v", err)
 	}
+
 	if err := db.AutoMigrate(&app.User{}, &app.Role{}, &app.Project{}); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
@@ -54,5 +57,55 @@ func TestBuildCompactAPI(t *testing.T) {
 	api.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /api/v1/examples/features status = %d", rec.Code)
+	}
+}
+
+func TestCompactInitHelpersAndMain(t *testing.T) {
+	store, shutdown := initCacheStore(settings.Config{})
+	if store == nil {
+		t.Fatal("expected memory cache store")
+	}
+	if err := shutdown(t.Context()); err != nil {
+		t.Fatalf("memory cache shutdown: %v", err)
+	}
+
+	store, shutdown = initCacheStore(settings.Config{
+		Redis: settings.RedisConfig{Enabled: true, Addr: "127.0.0.1:1"},
+	})
+	if store == nil {
+		t.Fatal("expected fallback memory cache store")
+	}
+	if err := shutdown(t.Context()); err != nil {
+		t.Fatalf("fallback cache shutdown: %v", err)
+	}
+
+	dbPath := filepath.Join(t.TempDir(), "compact.db")
+	db, err := initDB(&settings.DatabaseConfig{Driver: "sqlite", DSN: dbPath})
+	if err != nil {
+		t.Fatalf("initDB sqlite: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("db.DB: %v", err)
+	}
+	_ = sqlDB.Close()
+
+	origRun := runCompactMain
+	origFatal := fatalCompact
+	defer func() {
+		runCompactMain = origRun
+		fatalCompact = origFatal
+	}()
+	runCompactMain = func(cfg settings.Config, log *zap.Logger) error {
+		if cfg.App.Name == "" {
+			t.Fatal("expected config loaded by main")
+		}
+		return errors.New("boom")
+	}
+	fatalCalled := false
+	fatalCompact = func(v ...any) { fatalCalled = true }
+	main()
+	if !fatalCalled {
+		t.Fatal("expected main to call fatal on run error")
 	}
 }
