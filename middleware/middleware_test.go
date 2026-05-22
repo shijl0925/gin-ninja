@@ -162,6 +162,18 @@ func TestCORS_DefaultAllowsAll(t *testing.T) {
 	}
 }
 
+func TestCORS_NilPanicsInReleaseMode(t *testing.T) {
+	withGinMode(t, gin.ReleaseMode)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected CORS(nil) to panic in release mode")
+		}
+	}()
+
+	_ = middleware.CORS(nil)
+}
+
 func TestCORS_CustomConfig(t *testing.T) {
 	r := gin.New()
 	r.Use(middleware.CORS(&middleware.CORSConfig{
