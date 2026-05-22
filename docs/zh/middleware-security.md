@@ -16,7 +16,7 @@ api.UseGin(
 )
 ```
 
-生产环境建议使用 `middleware.CORSFromConfig(cfg.CORS)`，并在配置中显式设置 `allow_origins`。
+生产环境必须使用 `middleware.CORSFromConfig(cfg.CORS)` 或显式的 `middleware.CORSConfig`，并在配置中显式设置 `allow_origins`。不要在生产环境使用 `middleware.CORS(nil)`：它会允许所有来源，并且在 Gin release mode 下会直接 panic。
 
 ### 路由级中间件
 

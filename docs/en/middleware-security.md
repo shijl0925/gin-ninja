@@ -16,7 +16,7 @@ api.UseGin(
 )
 ```
 
-For production, prefer `middleware.CORSFromConfig(cfg.CORS)` and keep `cfg.CORS.allow_origins` explicit.
+For production, use `middleware.CORSFromConfig(cfg.CORS)` or an explicit `middleware.CORSConfig`, and keep `cfg.CORS.allow_origins` explicit. Do not use `middleware.CORS(nil)` in production: it allows all origins and panics in Gin release mode.
 
 ### Router-level (applies only to that group)
 

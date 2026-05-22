@@ -59,6 +59,8 @@ func main() {
 }
 ```
 
+Use `middleware.CORSFromConfig(...)` or an explicit `middleware.CORSConfig` in production. `middleware.CORS(nil)` is development-only; it allows all origins and panics in Gin release mode.
+
 Visit `http://localhost:8080/docs` for Swagger UI and `http://localhost:8080/openapi.json` for the generated OpenAPI document.
 
 ## Documentation

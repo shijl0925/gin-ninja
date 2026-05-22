@@ -56,6 +56,8 @@ func main() {
 }
 ```
 
+生产环境必须使用 `middleware.CORSFromConfig(...)` 或显式的 `middleware.CORSConfig`。`middleware.CORS(nil)` 仅适合本地开发；它会允许所有来源，并且在 Gin release mode 下会直接 panic。
+
 启动后可访问 `http://localhost:8080/docs` 查看 Swagger UI，访问 `http://localhost:8080/openapi.json` 获取 OpenAPI 文档。
 
 ## 文档导航
