@@ -135,8 +135,13 @@ func TestParseTagBoundaryCases(t *testing.T) {
 		{name: "doc example", tag: "name|email,like", wantFields: []string{"name", "email"}, wantOp: OpLike},
 		{name: "trim whitespace", tag: " name | email , like ", wantFields: []string{"name", "email"}, wantOp: OpLike},
 		{name: "default operator", tag: "status", wantFields: []string{"status"}, wantOp: OpEq},
+		{name: "table column", tag: "users.email,eq", wantFields: []string{"users.email"}, wantOp: OpEq},
 		{name: "empty field", tag: " |email,like", wantErr: "empty field name"},
 		{name: "extra comma", tag: "name,email,like", wantErr: "must be in the form"},
+		{name: "sql fragment", tag: "name;drop,eq", wantErr: "unsafe field name"},
+		{name: "quoted field", tag: "`name`,eq", wantErr: "unsafe field name"},
+		{name: "multiple dots", tag: "users.profile.email,eq", wantErr: "unsafe field name"},
+		{name: "leading digit", tag: "1name,eq", wantErr: "unsafe field name"},
 	}
 
 	for _, tc := range cases {
@@ -163,6 +168,13 @@ func TestParseTagBoundaryCases(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestToColumnSupportsSafeTableColumn(t *testing.T) {
+	column := toColumn("users.email")
+	if column.Table != "users" || column.Name != "email" {
+		t.Fatalf("unexpected table column: %+v", column)
 	}
 }
 

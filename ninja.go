@@ -181,10 +181,9 @@ func (api *NinjaAPI) Handler() http.Handler {
 //	api.UseGin(middleware.Logger(log))
 //	api.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
-	api.routesMu.RLock()
-	hasRouters := len(api.routers) > 0
-	api.routesMu.RUnlock()
-	if api.isAccepting() || hasRouters {
+	api.routesMu.Lock()
+	defer api.routesMu.Unlock()
+	if api.isAccepting() || len(api.routers) > 0 {
 		panic("gin-ninja: cannot add global gin middleware after routers are mounted")
 	}
 	api.engine.Use(mw...)
