@@ -284,20 +284,27 @@ func TestModelSchemaAdditionalCoverage(t *testing.T) {
 	})
 
 	t.Run("struct serialization helpers", func(t *testing.T) {
-		type embedded struct {
+		type ExportedEmbedded struct {
 			Hidden string `json:"hidden"`
 		}
+		type ExportedPointerEmbedded struct {
+			Visible string `json:"visible"`
+		}
 		type sample struct {
-			embedded
-			Name  string    `json:"name"`
-			Empty string    `json:"empty,omitempty"`
-			Text  textValue `json:"text"`
+			ExportedEmbedded
+			*ExportedPointerEmbedded
+			Name    string    `json:"name"`
+			Empty   string    `json:"empty,omitempty"`
+			Text    textValue `json:"text"`
+			private string
 		}
 
 		serialized, err := serializeModelSchemaStruct(reflect.ValueOf(sample{
-			embedded: embedded{Hidden: "secret"},
-			Name:     "alice",
-			Text:     "demo",
+			ExportedEmbedded:        ExportedEmbedded{Hidden: "secret"},
+			ExportedPointerEmbedded: &ExportedPointerEmbedded{Visible: "public"},
+			Name:                    "alice",
+			Text:                    "demo",
+			private:                 "ignored",
 		}), newModelSchemaFilter(nil, []string{"name"}))
 		if err != nil {
 			t.Fatalf("serializeModelSchemaStruct: %v", err)
@@ -308,19 +315,35 @@ func TestModelSchemaAdditionalCoverage(t *testing.T) {
 		if serialized["text"] == nil {
 			t.Fatalf("expected embedded/custom values, got %+v", serialized)
 		}
+		if serialized["hidden"] != "secret" || serialized["visible"] != "public" {
+			t.Fatalf("expected anonymous embedded fields to be flattened, got %+v", serialized)
+		}
+		if _, ok := serialized["private"]; ok {
+			t.Fatalf("expected unexported field to be omitted, got %+v", serialized)
+		}
+		serialized, err = serializeModelSchemaStruct(reflect.ValueOf(sample{
+			ExportedEmbedded: ExportedEmbedded{Hidden: "secret"},
+			Text:             "demo",
+		}), modelSchemaFilter{})
+		if err != nil {
+			t.Fatalf("serializeModelSchemaStruct nil embedded pointer: %v", err)
+		}
+		if _, ok := serialized["visible"]; ok {
+			t.Fatalf("expected nil anonymous pointer fields to be omitted, got %+v", serialized)
+		}
 
 		var anyValue any = pointerMarshaler("value")
 		if preserved, ok := preserveCustomJSONValue(reflect.ValueOf(anyValue)); !ok || preserved == nil {
 			t.Fatalf("expected pointer receiver marshaler to be preserved, got value=%v ok=%v", preserved, ok)
 		}
 
-		field := reflect.TypeOf(sample{}).Field(2)
+		field := reflect.TypeOf(sample{}).Field(3)
 		if !isJSONOmitEmpty(field) {
 			t.Fatal("expected omitempty tag to be detected")
 		}
 
 		filtered := newModelSchemaFilter(nil, []string{"name"})
-		structField := reflect.TypeOf(sample{}).Field(1)
+		structField := reflect.TypeOf(sample{}).Field(2)
 		if filtered.includes(structField, "name") {
 			t.Fatal("expected excluded field to be rejected")
 		}
