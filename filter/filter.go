@@ -286,6 +286,9 @@ func parseTag(tag string, field reflect.StructField) ([]string, Operator, Combin
 		if fieldName == "" {
 			return nil, "", "", fmt.Errorf("filter tag on %s contains an empty field name in multi-field specification", field.Name)
 		}
+		if !isSafeFieldName(fieldName) {
+			return nil, "", "", fmt.Errorf("filter tag on %s uses unsafe field name %q", field.Name, fieldName)
+		}
 		fields = append(fields, fieldName)
 	}
 
@@ -341,6 +344,31 @@ func toColumn(field string) clause.Column {
 		column.Name = name
 	}
 	return column
+}
+
+func isSafeFieldName(field string) bool {
+	if field == "" {
+		return false
+	}
+	table, name, ok := strings.Cut(field, ".")
+	if !ok {
+		return isSafeIdentifier(field)
+	}
+	return isSafeIdentifier(table) && isSafeIdentifier(name) && !strings.Contains(name, ".")
+}
+
+func isSafeIdentifier(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	for i := 0; i < len(identifier); i++ {
+		ch := identifier[i]
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch == '_' || i > 0 && ch >= '0' && ch <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func toValues(value any) []any {
