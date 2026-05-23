@@ -288,6 +288,129 @@ func TestJWTAuthWithConfig(t *testing.T) {
 	}
 }
 
+func TestAPIKeyAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		mw        gin.HandlerFunc
+		setup     func(*http.Request)
+		wantCode  int
+		wantValue string
+	}{
+		{
+			name: "header",
+			mw: middleware.APIKeyHeader("X-API-Key", func(_ *gin.Context, key string) (any, bool) {
+				return "header-user", key == "supersecret"
+			}),
+			setup: func(req *http.Request) { req.Header.Set("X-API-Key", "supersecret") },
+		},
+		{
+			name: "cookie",
+			mw: middleware.APIKeyCookie("api_key", func(_ *gin.Context, key string) (any, bool) {
+				return "cookie-user", key == "supersecret"
+			}),
+			setup: func(req *http.Request) { req.AddCookie(&http.Cookie{Name: "api_key", Value: "supersecret"}) },
+		},
+		{
+			name: "query",
+			mw: middleware.APIKeyQuery("api_key", func(_ *gin.Context, key string) (any, bool) {
+				return "query-user", key == "supersecret"
+			}),
+			setup: func(req *http.Request) {
+				q := req.URL.Query()
+				q.Set("api_key", "supersecret")
+				req.URL.RawQuery = q.Encode()
+			},
+		},
+		{
+			name: "invalid",
+			mw: middleware.APIKeyHeader("X-API-Key", func(_ *gin.Context, key string) (any, bool) {
+				return nil, key == "supersecret"
+			}),
+			setup:    func(req *http.Request) { req.Header.Set("X-API-Key", "wrong") },
+			wantCode: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := gin.New()
+			r.Use(tt.mw)
+			r.GET("/protected", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{
+					"principal": middleware.GetAuthPrincipal(c),
+					"key":       middleware.AuthPrincipalKey(),
+				})
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+			tt.setup(req)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			wantCode := tt.wantCode
+			if wantCode == 0 {
+				wantCode = http.StatusOK
+			}
+			if w.Code != wantCode {
+				t.Fatalf("expected %d, got %d: %s", wantCode, w.Code, w.Body.String())
+			}
+			if wantCode == http.StatusOK && !strings.Contains(w.Body.String(), middleware.AuthPrincipalKey()) {
+				t.Fatalf("expected auth principal key in response, got %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestHTTPBasicAuth(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.HTTPBasicAuth("Area", func(_ *gin.Context, username, password string) (any, bool) {
+		return username, username == "alice" && password == "secret"
+	}))
+	r.GET("/protected", func(c *gin.Context) {
+		c.String(http.StatusOK, middleware.GetAuthPrincipal(c).(string))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.SetBasicAuth("alice", "secret")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK || w.Body.String() != "alice" {
+		t.Fatalf("expected authenticated basic request, got %d: %s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/protected", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Header().Get("WWW-Authenticate"), "Basic") {
+		t.Fatalf("expected basic challenge, got %d headers=%v", w.Code, w.Header())
+	}
+}
+
+func TestOAuth2BearerAuth(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.OAuth2BearerAuth(func(_ *gin.Context, token string) (any, bool) {
+		return "oauth-user", token == "valid-token"
+	}))
+	r.GET("/protected", func(c *gin.Context) {
+		c.String(http.StatusOK, middleware.GetAuthPrincipal(c).(string))
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK || w.Body.String() != "oauth-user" {
+		t.Fatalf("expected authenticated bearer request, got %d: %s", w.Code, w.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/protected", nil)
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized || w.Header().Get("WWW-Authenticate") != "Bearer" {
+		t.Fatalf("expected bearer challenge, got %d headers=%v", w.Code, w.Header())
+	}
+}
+
 func TestGenerateTokenWithSecret_EmptySecret(t *testing.T) {
 	if _, err := middleware.GenerateTokenWithSecret(1, "alice", "", time.Hour); err == nil {
 		t.Fatal("expected empty secret error")

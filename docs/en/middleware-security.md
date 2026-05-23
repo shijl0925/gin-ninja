@@ -40,6 +40,44 @@ fmt.Println(claims.UserID, claims.Username)
 
 ```
 
+### API Key, Basic, and OAuth2 Bearer Authentication
+
+gin-ninja also includes middleware helpers for common non-JWT authentication schemes. Each helper validates the incoming credential with your callback and stores the returned principal on the Gin context.
+
+```go
+api := ninja.New(ninja.Config{
+    SecuritySchemes: map[string]ninja.SecurityScheme{
+        "apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+        "basicAuth":  ninja.HTTPBasicSecurityScheme(),
+        "oauth2": ninja.OAuth2SecurityScheme(ninja.OAuthFlows{
+            ClientCredentials: &ninja.OAuthFlow{
+                TokenURL: "/oauth/token",
+                Scopes: map[string]string{"read": "read data"},
+            },
+        }),
+    },
+})
+
+r := ninja.NewRouter("/internal",
+    ninja.WithAPIKeyAuth("apiKeyAuth"),
+)
+r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+    if key == "supersecret" {
+        return key, true
+    }
+    return nil, false
+}))
+```
+
+Available helpers:
+
+- `middleware.APIKeyHeader(...)`, `middleware.APIKeyCookie(...)`, `middleware.APIKeyQuery(...)`
+- `middleware.HTTPBasicAuth(...)`
+- `middleware.HTTPBearerAuth(...)` / `middleware.OAuth2BearerAuth(...)`
+- `middleware.GetAuthPrincipal(...)`
+- OpenAPI helpers: `APIKeyHeaderSecurityScheme`, `APIKeyCookieSecurityScheme`, `APIKeyQuerySecurityScheme`, `HTTPBasicSecurityScheme`, `OAuth2SecurityScheme`
+- Router/operation docs helpers: `WithAPIKeyAuth`, `WithBasicAuth`, `WithOAuth2Auth`, `APIKeyAuth`, `BasicAuth`, `OAuth2Auth`
+
 ### I18n – Locale Negotiation and Translated Messages
 
 Register `middleware.I18n()` to automatically negotiate the client locale from the `Accept-Language`

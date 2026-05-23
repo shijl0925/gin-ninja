@@ -51,6 +51,21 @@ func WithBearerAuth() RouterOption {
 	return WithSecurity("bearerAuth")
 }
 
+// WithBasicAuth applies the default basicAuth OpenAPI security requirement.
+func WithBasicAuth() RouterOption {
+	return WithSecurity("basicAuth")
+}
+
+// WithAPIKeyAuth applies the named API key OpenAPI security requirement.
+func WithAPIKeyAuth(name string) RouterOption {
+	return WithSecurity(name)
+}
+
+// WithOAuth2Auth applies the default oauth2 OpenAPI security requirement.
+func WithOAuth2Auth(scopes ...string) RouterOption {
+	return WithSecurity("oauth2", scopes...)
+}
+
 // WithVersion marks the router and its nested operations as belonging to a
 // named API version.
 func WithVersion(version string) RouterOption {

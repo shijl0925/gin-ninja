@@ -934,7 +934,32 @@ func cloneSecuritySchemes(in map[string]SecurityScheme) map[string]SecuritySchem
 	}
 	out := make(map[string]SecurityScheme, len(in))
 	for name, scheme := range in {
+		scheme.Flows = cloneOAuthFlows(scheme.Flows)
 		out[name] = scheme
 	}
 	return out
+}
+
+func cloneOAuthFlows(in *OAuthFlows) *OAuthFlows {
+	if in == nil {
+		return nil
+	}
+	return &OAuthFlows{
+		Implicit:          cloneOAuthFlow(in.Implicit),
+		Password:          cloneOAuthFlow(in.Password),
+		ClientCredentials: cloneOAuthFlow(in.ClientCredentials),
+		AuthorizationCode: cloneOAuthFlow(in.AuthorizationCode),
+	}
+}
+
+func cloneOAuthFlow(in *OAuthFlow) *OAuthFlow {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Scopes = cloneStringMap(in.Scopes)
+	if out.Scopes == nil {
+		out.Scopes = map[string]string{}
+	}
+	return &out
 }

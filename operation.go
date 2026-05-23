@@ -53,6 +53,21 @@ func BearerAuth() OperationOption {
 	return Security("bearerAuth")
 }
 
+// BasicAuth marks this operation as requiring the default basicAuth scheme.
+func BasicAuth() OperationOption {
+	return Security("basicAuth")
+}
+
+// APIKeyAuth marks this operation as requiring the named API key scheme.
+func APIKeyAuth(name string) OperationOption {
+	return Security(name)
+}
+
+// OAuth2Auth marks this operation as requiring the default oauth2 scheme.
+func OAuth2Auth(scopes ...string) OperationOption {
+	return Security("oauth2", scopes...)
+}
+
 // Deprecated marks the operation as deprecated in the docs.
 func Deprecated() OperationOption {
 	return func(op *operation) { op.deprecated = true }
