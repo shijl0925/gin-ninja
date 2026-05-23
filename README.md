@@ -75,6 +75,7 @@ Detailed documentation has been split by feature area. Start with the [English d
 - [Data, Binding, and Responses](./docs/en/data-and-responses.md)
 - [File Transfer and OpenAPI Controls](./docs/en/files-and-openapi.md)
 - [Advanced Features](./docs/en/advanced-features.md)
+- [Testing APIs with TestClient](./docs/en/testing.md)
 - [Admin and Full Example](./docs/en/admin-and-examples.md)
 
 Chinese documentation starts at [README-zh.md](./README-zh.md) or the [中文文档索引](./docs/zh/README.md).
