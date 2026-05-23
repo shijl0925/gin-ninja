@@ -80,6 +80,21 @@ func TestClientJSONHeadersAndCookies(t *testing.T) {
 	}
 }
 
+func TestClientWithHeaderOverwritesDefault(t *testing.T) {
+	client := ninjatest.NewWithT(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		values := r.Header.Values("Authorization")
+		if len(values) != 1 || values[0] != "Bearer B" {
+			t.Fatalf("unexpected Authorization headers: %v", values)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}), ninjatest.WithHeader("Authorization", "Bearer A"), ninjatest.WithHeader("Authorization", "Bearer B"))
+
+	resp := client.Get("/")
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", resp.StatusCode)
+	}
+}
+
 type testFormInput struct {
 	Name string `form:"name"`
 }
@@ -104,6 +119,51 @@ func TestClientFormBodyAndRawRequest(t *testing.T) {
 		t.Fatalf("DecodeJSON: %v", err)
 	}
 	if out.Message != "form alice" {
+		t.Fatalf("unexpected response: %+v", out)
+	}
+}
+
+type testUploadInput struct {
+	Title string              `form:"title"`
+	File  *ninja.UploadedFile `file:"file"`
+}
+
+type testUploadOutput struct {
+	Title    string `json:"title"`
+	FileName string `json:"fileName"`
+	Content  string `json:"content"`
+}
+
+func testUpload(_ *ninja.Context, in *testUploadInput) (*testUploadOutput, error) {
+	content, err := in.File.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	return &testUploadOutput{
+		Title:    in.Title,
+		FileName: in.File.Filename,
+		Content:  string(content),
+	}, nil
+}
+
+func TestClientMultipartBody(t *testing.T) {
+	router := ninja.NewRouter("/uploads")
+	ninja.Post(router, "/", testUpload)
+
+	client := ninjatest.NewWithT(t, router)
+	resp := client.Post("/uploads/", ninjatest.Multipart(
+		url.Values{"title": {"demo"}},
+		ninjatest.File("file", "demo.txt", "hello multipart"),
+	))
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, resp.String())
+	}
+
+	var out testUploadOutput
+	if err := resp.DecodeJSON(&out); err != nil {
+		t.Fatalf("DecodeJSON: %v", err)
+	}
+	if out.Title != "demo" || out.FileName != "demo.txt" || out.Content != "hello multipart" {
 		t.Fatalf("unexpected response: %+v", out)
 	}
 }

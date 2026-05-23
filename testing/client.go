@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -45,13 +46,13 @@ func WithT(t TestingT) ClientOption {
 	}
 }
 
-// WithHeader adds a default header to every request.
+// WithHeader sets a default header on every request.
 func WithHeader(name, value string) ClientOption {
 	return func(c *clientConfig) {
 		if c.defaultHeaders == nil {
 			c.defaultHeaders = http.Header{}
 		}
-		c.defaultHeaders.Add(name, value)
+		c.defaultHeaders.Set(name, value)
 	}
 }
 
@@ -228,10 +229,11 @@ func (c *TestClient) Delete(path string, opts ...RequestOption) *Response {
 // Response is the simplified response returned by TestClient.
 type Response struct {
 	StatusCode int
-	Code       int
-	Header     http.Header
-	Body       []byte
-	Cookies    []*http.Cookie
+	// Deprecated: use StatusCode.
+	Code    int
+	Header  http.Header
+	Body    []byte
+	Cookies []*http.Cookie
 }
 
 // String returns the response body as a string.
@@ -255,10 +257,43 @@ func (r *Response) JSON(out any) error {
 	return r.DecodeJSON(out)
 }
 
+// MultipartBody describes a multipart/form-data request body.
+type MultipartBody struct {
+	Fields url.Values
+	Files  []MultipartFile
+}
+
+// MultipartFile describes one file part in a multipart/form-data request body.
+type MultipartFile struct {
+	FieldName string
+	FileName  string
+	Body      any
+}
+
+// Multipart creates a multipart/form-data request body from fields and files.
+func Multipart(fields url.Values, files ...MultipartFile) *MultipartBody {
+	return &MultipartBody{
+		Fields: cloneValues(fields),
+		Files:  append([]MultipartFile(nil), files...),
+	}
+}
+
+// File creates a file part for Multipart. body may be an io.Reader, []byte, or string.
+func File(fieldName, fileName string, body any) MultipartFile {
+	return MultipartFile{FieldName: fieldName, FileName: fileName, Body: body}
+}
+
 func encodeBody(body any) (io.Reader, string, error) {
 	switch v := body.(type) {
 	case nil:
 		return http.NoBody, "", nil
+	case *MultipartBody:
+		if v == nil {
+			return nil, "", fmt.Errorf("nil multipart body")
+		}
+		return encodeMultipartBody(*v)
+	case MultipartBody:
+		return encodeMultipartBody(v)
 	case io.Reader:
 		return v, "", nil
 	case []byte:
@@ -274,6 +309,64 @@ func encodeBody(body any) (io.Reader, string, error) {
 		}
 		return bytes.NewReader(payload), "application/json", nil
 	}
+}
+
+func encodeMultipartBody(body MultipartBody) (io.Reader, string, error) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	for key, values := range body.Fields {
+		for _, value := range values {
+			if err := writer.WriteField(key, value); err != nil {
+				return nil, "", err
+			}
+		}
+	}
+	for _, file := range body.Files {
+		if file.FieldName == "" {
+			return nil, "", fmt.Errorf("multipart file field name is required")
+		}
+		part, err := writer.CreateFormFile(file.FieldName, file.FileName)
+		if err != nil {
+			return nil, "", err
+		}
+		reader, err := multipartFileReader(file.Body)
+		if err != nil {
+			return nil, "", err
+		}
+		if _, err := io.Copy(part, reader); err != nil {
+			return nil, "", err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+	return bytes.NewReader(buf.Bytes()), writer.FormDataContentType(), nil
+}
+
+func multipartFileReader(body any) (io.Reader, error) {
+	switch v := body.(type) {
+	case nil:
+		return nil, fmt.Errorf("multipart file body is required")
+	case io.Reader:
+		return v, nil
+	case []byte:
+		return bytes.NewReader(v), nil
+	case string:
+		return strings.NewReader(v), nil
+	default:
+		return nil, fmt.Errorf("unsupported multipart file body type %T", body)
+	}
+}
+
+func cloneValues(values url.Values) url.Values {
+	if values == nil {
+		return nil
+	}
+	clone := make(url.Values, len(values))
+	for key, vals := range values {
+		clone[key] = append([]string(nil), vals...)
+	}
+	return clone
 }
 
 func copyHeader(dst, src http.Header) {
