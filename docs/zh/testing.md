@@ -48,14 +48,25 @@ func TestUsers(t *testing.T) {
 - `Get`、`Post`、`Put`、`Patch`、`Delete` 和 `Request` 会发起内存内请求。
 - struct、map、slice 和标量请求体会自动编码为 JSON，并默认设置 `Content-Type: application/json`。
 - `url.Values` 请求体会编码为表单，并默认设置 `application/x-www-form-urlencoded`。
+- `ninjatest.Multipart(...)` 可构造用于上传测试的 `multipart/form-data` 请求体。
 - `io.Reader`、`[]byte` 和 `string` 请求体会原样发送；需要时可用 `ninjatest.Header(...)` 设置请求头。
+- `ninjatest.WithHeader(...)` 会设置默认请求头；同名 header 的多次调用会覆盖前值。
 - `NewRequest` 配合 `Do` 可自定义原始 `*http.Request`。
-- 响应对象提供 `StatusCode`、`Code`、`Header`、`Body`、`Cookies`、`String()` 和 `DecodeJSON(...)`。
+- 响应对象提供 `StatusCode`、`Header`、`Body`、`Cookies`、`String()` 和 `DecodeJSON(...)`。`Code` 保留为 `StatusCode` 的废弃兼容别名。
 
 ```go
 resp := client.Post("/users/",
     CreateUserInput{Name: "alice"},
     ninjatest.Header("X-Trace-ID", "test-1"),
     ninjatest.Cookie(&http.Cookie{Name: "mode", Value: "test"}),
+)
+```
+
+```go
+resp := client.Post("/uploads/",
+    ninjatest.Multipart(
+        url.Values{"title": {"demo"}},
+        ninjatest.File("file", "demo.txt", "hello multipart"),
+    ),
 )
 ```

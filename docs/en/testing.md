@@ -48,14 +48,25 @@ When testing a router and you need API config such as a prefix or custom docs se
 - `Get`, `Post`, `Put`, `Patch`, `Delete`, and `Request` execute in-memory requests.
 - Structs, maps, slices, and scalar request bodies are encoded as JSON and default to `Content-Type: application/json`.
 - `url.Values` bodies are encoded as forms and default to `application/x-www-form-urlencoded`.
+- `ninjatest.Multipart(...)` builds `multipart/form-data` bodies for upload tests.
 - `io.Reader`, `[]byte`, and `string` bodies are sent as-is; set headers with `ninjatest.Header(...)` when needed.
+- `ninjatest.WithHeader(...)` sets a default header; repeated calls with the same name overwrite the previous value.
 - `NewRequest` plus `Do` lets tests customize a raw `*http.Request`.
-- Responses expose `StatusCode`, `Code`, `Header`, `Body`, `Cookies`, `String()`, and `DecodeJSON(...)`.
+- Responses expose `StatusCode`, `Header`, `Body`, `Cookies`, `String()`, and `DecodeJSON(...)`. `Code` remains as a deprecated alias of `StatusCode`.
 
 ```go
 resp := client.Post("/users/",
     CreateUserInput{Name: "alice"},
     ninjatest.Header("X-Trace-ID", "test-1"),
     ninjatest.Cookie(&http.Cookie{Name: "mode", Value: "test"}),
+)
+```
+
+```go
+resp := client.Post("/uploads/",
+    ninjatest.Multipart(
+        url.Values{"title": {"demo"}},
+        ninjatest.File("file", "demo.txt", "hello multipart"),
+    ),
 )
 ```
