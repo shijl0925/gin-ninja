@@ -12,6 +12,7 @@
 4. [核心 API、绑定与响应](./core-api.md)：定义请求输入、响应模型、分页、过滤与排序。
 5. [中间件与安全](./middleware-security.md)：接入认证、Session、CSRF、安全头、日志、i18n 和上传限制。
 6. [高级功能](./advanced-features.md)：使用缓存、API 版本、SSE 和 WebSocket。
+7. [使用 TestClient 测试 API](./testing.md)：无需手动组装 `httptest` 即可测试路由和 API。
 
 ## 功能索引
 
@@ -25,4 +26,5 @@
 | 中间件、认证、Session、CSRF、安全 | [中间件与安全](./middleware-security.md) |
 | 上传下载、OpenAPI 操作选项 | [文件传输与 OpenAPI 控制](./files-and-openapi.md) |
 | 缓存、API 版本、SSE、WebSocket | [高级功能](./advanced-features.md) |
+| TestClient 与 API 测试 | [使用 TestClient 测试 API](./testing.md) |
 | Admin 后台与完整示例 | [Admin 与完整示例](./admin-and-examples.md) |
