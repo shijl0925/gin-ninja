@@ -73,6 +73,7 @@ func validateJWTToken(c *gin.Context, secret string) {
 	}
 
 	c.Set(claimsKey, claims)
+	setAuthPrincipal(c, claims)
 	c.Next()
 }
 

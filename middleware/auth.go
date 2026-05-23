@@ -9,6 +9,7 @@ import (
 )
 
 const authPrincipalKey = "gin_ninja_auth_principal"
+const authScopesKey = "gin_ninja_auth_scopes"
 
 // APIKeyAuthenticator validates an API key and returns the authenticated principal.
 type APIKeyAuthenticator func(c *gin.Context, key string) (any, bool)
@@ -19,16 +20,39 @@ type BasicAuthenticator func(c *gin.Context, username, password string) (any, bo
 // BearerTokenAuthenticator validates a bearer token and returns the authenticated principal.
 type BearerTokenAuthenticator func(c *gin.Context, token string) (any, bool)
 
-// AuthPrincipalKey returns the context key used to store non-JWT auth principals.
+// OAuth2TokenAuthenticator validates an OAuth2 bearer token and returns the
+// authenticated principal and granted scopes.
+type OAuth2TokenAuthenticator func(c *gin.Context, token string) (principal any, scopes []string, valid bool)
+
+// AuthPrincipalKey returns the context key used to store auth principals.
 func AuthPrincipalKey() string { return authPrincipalKey }
 
-// GetAuthPrincipal retrieves the principal stored by API key, Basic, or OAuth2 bearer middleware.
+// AuthScopesKey returns the context key used to store granted OAuth2 scopes.
+func AuthScopesKey() string { return authScopesKey }
+
+// GetAuthPrincipal retrieves the principal stored by API key, Basic, bearer,
+// OAuth2, or JWT middleware.
 func GetAuthPrincipal(c *gin.Context) any {
 	v, exists := c.Get(authPrincipalKey)
+	if exists {
+		return v
+	}
+	v, exists = c.Get(claimsKey)
+	if exists {
+		return v
+	}
+	return nil
+}
+
+// GetAuthScopes retrieves the granted OAuth2 scopes stored by scope-aware
+// OAuth2 bearer middleware.
+func GetAuthScopes(c *gin.Context) []string {
+	v, exists := c.Get(authScopesKey)
 	if !exists {
 		return nil
 	}
-	return v
+	scopes, _ := v.([]string)
+	return append([]string{}, scopes...)
 }
 
 // APIKeyHeader returns middleware that authenticates an API key from a header.
@@ -67,15 +91,15 @@ func HTTPBasicAuth(realm string, authenticate BasicAuthenticator) gin.HandlerFun
 	return func(c *gin.Context) {
 		username, password, ok := c.Request.BasicAuth()
 		if !ok {
-			unauthorizedWithChallenge(c, `Basic realm="`+strings.ReplaceAll(realm, `"`, `\"`)+`"`, "missing basic credentials")
+			unauthorizedWithChallenge(c, basicChallenge(realm), "missing basic credentials")
 			return
 		}
 		principal, valid := authenticate(c, username, password)
 		if !valid {
-			unauthorizedWithChallenge(c, `Basic realm="`+strings.ReplaceAll(realm, `"`, `\"`)+`"`, "invalid basic credentials")
+			unauthorizedWithChallenge(c, basicChallenge(realm), "invalid basic credentials")
 			return
 		}
-		c.Set(authPrincipalKey, principal)
+		setAuthPrincipal(c, principal)
 		c.Next()
 	}
 }
@@ -96,7 +120,7 @@ func HTTPBearerAuth(authenticate BearerTokenAuthenticator) gin.HandlerFunc {
 			unauthorizedWithChallenge(c, "Bearer", "invalid token")
 			return
 		}
-		c.Set(authPrincipalKey, principal)
+		setAuthPrincipal(c, principal)
 		c.Next()
 	}
 }
@@ -104,6 +128,34 @@ func HTTPBearerAuth(authenticate BearerTokenAuthenticator) gin.HandlerFunc {
 // OAuth2BearerAuth returns middleware for OAuth2 bearer token protected endpoints.
 func OAuth2BearerAuth(authenticate BearerTokenAuthenticator) gin.HandlerFunc {
 	return HTTPBearerAuth(authenticate)
+}
+
+// OAuth2BearerAuthWithScopes returns middleware for OAuth2 bearer token
+// protected endpoints that require all listed scopes.
+func OAuth2BearerAuthWithScopes(requiredScopes []string, authenticate OAuth2TokenAuthenticator) gin.HandlerFunc {
+	if authenticate == nil {
+		panic("oauth2 bearer auth: authenticator must not be nil")
+	}
+	requiredScopes = append([]string{}, requiredScopes...)
+	return func(c *gin.Context) {
+		token := extractBearerToken(c)
+		if token == "" {
+			unauthorizedWithChallenge(c, bearerChallenge(requiredScopes, ""), "missing or malformed token")
+			return
+		}
+		principal, grantedScopes, valid := authenticate(c, token)
+		if !valid {
+			unauthorizedWithChallenge(c, bearerChallenge(requiredScopes, "invalid_token"), "invalid token")
+			return
+		}
+		if !hasRequiredScopes(grantedScopes, requiredScopes) {
+			forbiddenWithChallenge(c, bearerChallenge(requiredScopes, "insufficient_scope"), "insufficient scope")
+			return
+		}
+		setAuthPrincipal(c, principal)
+		setAuthScopes(c, grantedScopes)
+		c.Next()
+	}
 }
 
 func apiKeyAuth(extract func(*gin.Context) string, authenticate APIKeyAuthenticator) gin.HandlerFunc {
@@ -121,12 +173,63 @@ func apiKeyAuth(extract func(*gin.Context) string, authenticate APIKeyAuthentica
 			response.Unauthorized(c, "invalid api key")
 			return
 		}
-		c.Set(authPrincipalKey, principal)
+		setAuthPrincipal(c, principal)
 		c.Next()
 	}
+}
+
+func setAuthPrincipal(c *gin.Context, principal any) {
+	c.Set(authPrincipalKey, principal)
+}
+
+func setAuthScopes(c *gin.Context, scopes []string) {
+	c.Set(authScopesKey, append([]string{}, scopes...))
 }
 
 func unauthorizedWithChallenge(c *gin.Context, challenge, message string) {
 	c.Header("WWW-Authenticate", challenge)
 	response.Unauthorized(c, message)
+}
+
+func forbiddenWithChallenge(c *gin.Context, challenge, message string) {
+	c.Header("WWW-Authenticate", challenge)
+	response.Forbidden(c, message)
+}
+
+func basicChallenge(realm string) string {
+	return `Basic realm="` + quoteAuthParam(realm) + `"`
+}
+
+func bearerChallenge(scopes []string, errCode string) string {
+	params := make([]string, 0, 2)
+	if errCode != "" {
+		params = append(params, `error="`+quoteAuthParam(errCode)+`"`)
+	}
+	if len(scopes) > 0 {
+		params = append(params, `scope="`+quoteAuthParam(strings.Join(scopes, " "))+`"`)
+	}
+	if len(params) == 0 {
+		return "Bearer"
+	}
+	return "Bearer " + strings.Join(params, ", ")
+}
+
+func quoteAuthParam(value string) string {
+	return strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value)
+}
+
+func hasRequiredScopes(grantedScopes, requiredScopes []string) bool {
+	if len(requiredScopes) == 0 {
+		return true
+	}
+	granted := make(map[string]struct{}, len(grantedScopes))
+	for _, scope := range grantedScopes {
+		granted[scope] = struct{}{}
+	}
+	for _, scope := range requiredScopes {
+		if _, ok := granted[scope]; !ok {
+			return false
+		}
+	}
+	return true
 }

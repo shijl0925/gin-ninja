@@ -272,9 +272,11 @@ func TestJWTAuthWithConfig(t *testing.T) {
 	r.Use(middleware.JWTAuthWithConfig(cfg))
 	r.GET("/protected", func(c *gin.Context) {
 		claims := middleware.GetClaims(c)
+		principal := middleware.GetAuthPrincipal(c).(*middleware.Claims)
 		c.JSON(http.StatusOK, gin.H{
-			"user_id": claims.UserID,
-			"key":     middleware.ClaimsKey(),
+			"user_id":            claims.UserID,
+			"principal_username": principal.Username,
+			"key":                middleware.ClaimsKey(),
 		})
 	})
 
@@ -283,7 +285,7 @@ func TestJWTAuthWithConfig(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), middleware.ClaimsKey()) {
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), middleware.ClaimsKey()) || !strings.Contains(w.Body.String(), "config-user") {
 		t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -363,7 +365,7 @@ func TestAPIKeyAuth(t *testing.T) {
 
 func TestHTTPBasicAuth(t *testing.T) {
 	r := gin.New()
-	r.Use(middleware.HTTPBasicAuth("Area", func(_ *gin.Context, username, password string) (any, bool) {
+	r.Use(middleware.HTTPBasicAuth(`Area "A"\B`, func(_ *gin.Context, username, password string) (any, bool) {
 		return username, username == "alice" && password == "secret"
 	}))
 	r.GET("/protected", func(c *gin.Context) {
@@ -381,7 +383,7 @@ func TestHTTPBasicAuth(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/protected", nil)
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized || !strings.Contains(w.Header().Get("WWW-Authenticate"), "Basic") {
+	if w.Code != http.StatusUnauthorized || w.Header().Get("WWW-Authenticate") != `Basic realm="Area \"A\"\\B"` {
 		t.Fatalf("expected basic challenge, got %d headers=%v", w.Code, w.Header())
 	}
 }
@@ -408,6 +410,50 @@ func TestOAuth2BearerAuth(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized || w.Header().Get("WWW-Authenticate") != "Bearer" {
 		t.Fatalf("expected bearer challenge, got %d headers=%v", w.Code, w.Header())
+	}
+}
+
+func TestOAuth2BearerAuthWithScopes(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.OAuth2BearerAuthWithScopes([]string{"read", "write"}, func(_ *gin.Context, token string) (any, []string, bool) {
+		if token != "valid-token" {
+			return nil, nil, false
+		}
+		return "oauth-user", []string{"read", "write", "admin"}, true
+	}))
+	r.GET("/protected", func(c *gin.Context) {
+		scopes := middleware.GetAuthScopes(c)
+		scopes[0] = "mutated"
+		c.JSON(http.StatusOK, gin.H{
+			"principal": middleware.GetAuthPrincipal(c),
+			"scope":     middleware.GetAuthScopes(c)[0],
+		})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "oauth-user") || !strings.Contains(w.Body.String(), "read") {
+		t.Fatalf("expected authenticated scoped request, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestOAuth2BearerAuthWithScopesRejectsMissingScope(t *testing.T) {
+	r := gin.New()
+	r.Use(middleware.OAuth2BearerAuthWithScopes([]string{"read", "write"}, func(_ *gin.Context, token string) (any, []string, bool) {
+		return "oauth-user", []string{"read"}, token == "valid-token"
+	}))
+	r.GET("/protected", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden || !strings.Contains(w.Header().Get("WWW-Authenticate"), `error="insufficient_scope"`) || !strings.Contains(w.Header().Get("WWW-Authenticate"), `scope="read write"`) {
+		t.Fatalf("expected insufficient scope challenge, got %d headers=%v body=%s", w.Code, w.Header(), w.Body.String())
 	}
 }
 
