@@ -315,9 +315,10 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 			api.versionSpec(currentVersion).addOperation(&opForSpec)
 		}
 
-		group.Handle(op.method, op.path, op.ginHandler)
+		handlers := append(append([]gin.HandlerFunc{}, op.ginMiddleware...), op.ginHandler)
+		group.Handle(op.method, op.path, handlers...)
 		if op.method == http.MethodGet {
-			group.Handle(http.MethodHead, op.path, op.ginHandler)
+			group.Handle(http.MethodHead, op.path, handlers...)
 		}
 	}
 
