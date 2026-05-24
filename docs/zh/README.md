@@ -22,7 +22,7 @@
 | 第一个 API、Controller、轻量结构 | [快速开始](./getting-started.md) |
 | startproject/startapp、迁移、CRUD 生成 | [项目与 CRUD 脚手架](./scaffolding.md) |
 | ModelSchema、响应信封、绑定、过滤、排序 | [数据、绑定与响应](./data-and-responses.md) |
-| settings、Bootstrap、ORM、生命周期 | [配置、Bootstrap 与 ORM](./configuration.md) |
+| settings、Bootstrap、ORM、生命周期 | [配置、Bootstrap 与生命周期](./configuration.md) |
 | 中间件、认证、Session、CSRF、安全 | [中间件与安全](./middleware-security.md) |
 | 上传下载、OpenAPI 操作选项 | [文件传输与 OpenAPI 控制](./files-and-openapi.md) |
 | 缓存、API 版本、SSE、WebSocket | [高级功能](./advanced-features.md) |

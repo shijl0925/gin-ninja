@@ -140,7 +140,7 @@ make dev
 
 生成的代码定位为起步骨架，能够作为最小 CRUD 风格模板直接编译；后续你仍可按业务需要继续补充模型、校验、中间件、路由和业务逻辑。
 
-## 数据库迁移命令
+### 数据库迁移命令
 
 CLI 也支持类似 Django 的数据库迁移工作流。对应的 app package 需要导出：
 
@@ -232,4 +232,4 @@ type Project struct {
 
 ---
 
-上一篇: [快速开始](./getting-started.md) | 下一篇: [数据、绑定与响应](./data-and-responses.md)
+上一篇: [快速开始](./getting-started.md) | 下一篇: [配置、Bootstrap 与生命周期](./configuration.md)
