@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/pagination"
 )
 
@@ -934,7 +935,9 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
 	})
-	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth(func(c *gin.Context) {
+		c.Next()
+	}))
 
 	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*listOutput, error) {
 		return &listOutput{}, nil
@@ -975,6 +978,92 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 	}
 	if len(scopeList) != 0 {
 		t.Fatalf("expected bearerAuth scopes to be empty, got %v", scopeList)
+	}
+}
+
+func TestRouterAuthMiddlewareBindsSecurityAndRuntime(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Test",
+		Version: "0.0.1",
+		SecuritySchemes: map[string]ninja.SecurityScheme{
+			"apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+		},
+	})
+	r := ninja.NewRouter("/internal", ninja.WithAPIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(_ *gin.Context, key string) (any, bool) {
+		return "api-user", key == "supersecret"
+	})))
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*map[string]string, error) {
+		principal, _ := middleware.GetAuthPrincipal(ctx.Context).(string)
+		return &map[string]string{"principal": principal}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/internal/", nil)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing API key to be rejected, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequestWithHeaders(api, http.MethodGet, "/internal/", nil, func(req *http.Request) {
+		req.Header.Set("X-API-Key", "supersecret")
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "api-user") {
+		t.Fatalf("expected valid API key to pass, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/internal/"].(map[string]interface{})["get"].(map[string]interface{})
+	security := get["security"].([]interface{})
+	if len(security) != 1 {
+		t.Fatalf("expected one security requirement, got %v", security)
+	}
+	if _, ok := security[0].(map[string]interface{})["apiKeyAuth"]; !ok {
+		t.Fatalf("expected apiKeyAuth security requirement, got %v", security[0])
+	}
+}
+
+func TestOperationAuthMiddlewareBindsSecurityAndRuntime(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Test",
+		Version: "0.0.1",
+		SecuritySchemes: map[string]ninja.SecurityScheme{
+			"apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+		},
+	})
+	r := ninja.NewRouter("/internal")
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*map[string]string, error) {
+		principal, _ := middleware.GetAuthPrincipal(ctx.Context).(string)
+		return &map[string]string{"principal": principal}, nil
+	}, ninja.APIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(_ *gin.Context, key string) (any, bool) {
+		return "operation-user", key == "supersecret"
+	})))
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/internal/", nil)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing API key to be rejected, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequestWithHeaders(api, http.MethodGet, "/internal/", nil, func(req *http.Request) {
+		req.Header.Set("X-API-Key", "supersecret")
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "operation-user") {
+		t.Fatalf("expected valid API key to pass, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/internal/"].(map[string]interface{})["get"].(map[string]interface{})
+	security := get["security"].([]interface{})
+	if len(security) != 1 {
+		t.Fatalf("expected one security requirement, got %v", security)
+	}
+	if _, ok := security[0].(map[string]interface{})["apiKeyAuth"]; !ok {
+		t.Fatalf("expected apiKeyAuth security requirement, got %v", security[0])
 	}
 }
 

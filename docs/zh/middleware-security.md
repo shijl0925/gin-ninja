@@ -28,12 +28,79 @@ protected.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 ### 常用内置中间件
 
 - **JWT**：`middleware.JWTAuthWithConfig(...)`、`middleware.GenerateTokenWithConfig(...)`
+- **API Key**：`middleware.APIKeyHeader(...)`、`middleware.APIKeyCookie(...)`、`middleware.APIKeyQuery(...)`
+- **HTTP Basic**：`middleware.HTTPBasicAuth(...)`
+- **Bearer Token**：`middleware.HTTPBearerAuth(...)`
 - **i18n**：`middleware.I18n()`，支持 `en` / `zh`
 - **Session**：HMAC-SHA256 签名 Cookie Session
 - **CSRF**：双重提交 Cookie 模式
 - **SecureHeaders**：统一设置安全响应头
 - **UploadLimit**：限制请求体大小与 MIME 白名单
 - **RequestID / Logger / Recovery / CORS**：常见基础中间件
+
+### API Key、HTTP Basic 与 OAuth2 Bearer
+
+这些内置认证中间件会调用你提供的回调校验凭据，并把回调返回的 principal 存入 Gin context，可通过 `middleware.GetAuthPrincipal(...)` 读取。
+
+```go
+api := ninja.New(ninja.Config{
+    SecuritySchemes: map[string]ninja.SecurityScheme{
+        "apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+        "basicAuth":  ninja.HTTPBasicSecurityScheme(),
+        "oauth2": ninja.OAuth2SecurityScheme(ninja.OAuthFlows{
+            ClientCredentials: &ninja.OAuthFlow{
+                TokenURL: "/oauth/token",
+                Scopes: map[string]string{"read": "读取数据"},
+            },
+        }),
+    },
+})
+
+r := ninja.NewRouter("/internal",
+    ninja.WithAPIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+        if key == "supersecret" {
+            return key, true
+        }
+        return nil, false
+    })),
+)
+```
+
+`WithBearerAuth`、`WithBasicAuth`、`WithAPIKeyAuth` 和
+`WithOAuth2AuthMiddleware` 路由选项会把运行时 Gin 中间件和 OpenAPI
+security 元数据绑定在一起，且必须传入中间件。只想写文档、并在其他地方挂中间件时，请显式使用 `WithSecurity(...)` 或 `Security(...)`。
+
+需要校验 OAuth2 scope 时，使用 scope 感知的中间件：
+
+```go
+r := ninja.NewRouter("/internal",
+    ninja.WithOAuth2AuthMiddleware(
+        middleware.OAuth2BearerAuthWithScopes([]string{"read"}, func(c *gin.Context, token string) (any, []string, bool) {
+            if token == "supersecret" {
+                return "user", []string{"read"}, true
+            }
+            return nil, nil, false
+        }),
+        "read",
+    ),
+)
+```
+
+JWT 认证成功后的 claims 也可以通过 `middleware.GetAuthPrincipal(...)` 统一读取。
+
+如果仍偏好显式两步写法，请把文档型 security 选项和中间件放在一起：
+
+```go
+r := ninja.NewRouter("/internal", ninja.WithSecurity("apiKeyAuth"))
+r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+    if key == "supersecret" {
+        return key, true
+    }
+    return nil, false
+}))
+```
+
+OpenAPI 辅助函数包括：`APIKeyHeaderSecurityScheme`、`APIKeyCookieSecurityScheme`、`APIKeyQuerySecurityScheme`、`HTTPBasicSecurityScheme`、`OAuth2SecurityScheme`。路由/操作认证辅助函数包括：`WithAPIKeyAuth`、`WithBasicAuth`、`WithOAuth2AuthMiddleware`、`APIKeyAuth`、`BasicAuth`。文档型 security 辅助函数包括：`WithSecurity`、`Security`、`WithOAuth2Auth`、`OAuth2Auth`。
 
 ### i18n
 

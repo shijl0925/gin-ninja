@@ -40,6 +40,81 @@ fmt.Println(claims.UserID, claims.Username)
 
 ```
 
+### API Key, Basic, and OAuth2 Bearer Authentication
+
+gin-ninja also includes middleware helpers for common non-JWT authentication schemes. Each helper validates the incoming credential with your callback and stores the returned principal on the Gin context.
+
+```go
+api := ninja.New(ninja.Config{
+    SecuritySchemes: map[string]ninja.SecurityScheme{
+        "apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+        "basicAuth":  ninja.HTTPBasicSecurityScheme(),
+        "oauth2": ninja.OAuth2SecurityScheme(ninja.OAuthFlows{
+            ClientCredentials: &ninja.OAuthFlow{
+                TokenURL: "/oauth/token",
+                Scopes: map[string]string{"read": "read data"},
+            },
+        }),
+    },
+})
+
+r := ninja.NewRouter("/internal",
+    ninja.WithAPIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+        if key == "supersecret" {
+            return key, true
+        }
+        return nil, false
+    })),
+)
+```
+
+The `WithBearerAuth`, `WithBasicAuth`, `WithAPIKeyAuth`, and
+`WithOAuth2AuthMiddleware` router options bind runtime Gin middleware and
+OpenAPI security metadata in one place. They require a middleware argument; use
+`WithSecurity(...)` or `Security(...)` only when you intentionally want
+documentation-only security metadata and enforce authentication elsewhere.
+
+For OAuth2 endpoints that require scopes, use the scope-aware helper:
+
+```go
+r := ninja.NewRouter("/internal",
+    ninja.WithOAuth2AuthMiddleware(
+        middleware.OAuth2BearerAuthWithScopes([]string{"read"}, func(c *gin.Context, token string) (any, []string, bool) {
+            if token == "supersecret" {
+                return "user", []string{"read"}, true
+            }
+            return nil, nil, false
+        }),
+        "read",
+    ),
+)
+```
+
+JWT-authenticated claims are also available through `middleware.GetAuthPrincipal(...)`.
+
+If you prefer the explicit two-step form, keep the documentation-only security option and middleware next to each other:
+
+```go
+r := ninja.NewRouter("/internal", ninja.WithSecurity("apiKeyAuth"))
+r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+    if key == "supersecret" {
+        return key, true
+    }
+    return nil, false
+}))
+```
+
+Available helpers:
+
+- `middleware.APIKeyHeader(...)`, `middleware.APIKeyCookie(...)`, `middleware.APIKeyQuery(...)`
+- `middleware.HTTPBasicAuth(...)`
+- `middleware.HTTPBearerAuth(...)`
+- `middleware.OAuth2BearerAuthWithScopes(...)`
+- `middleware.GetAuthPrincipal(...)`
+- OpenAPI helpers: `APIKeyHeaderSecurityScheme`, `APIKeyCookieSecurityScheme`, `APIKeyQuerySecurityScheme`, `HTTPBasicSecurityScheme`, `OAuth2SecurityScheme`
+- Router/operation auth helpers: `WithAPIKeyAuth`, `WithBasicAuth`, `WithOAuth2AuthMiddleware`, `APIKeyAuth`, `BasicAuth`
+- Documentation-only security helpers: `WithSecurity`, `Security`, `WithOAuth2Auth`, `OAuth2Auth`
+
 ### I18n – Locale Negotiation and Translated Messages
 
 Register `middleware.I18n()` to automatically negotiate the client locale from the `Accept-Language`
