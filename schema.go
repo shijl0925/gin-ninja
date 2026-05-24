@@ -344,6 +344,21 @@ func paginatedSchema(itemSchema *Schema) *Schema {
 	}
 }
 
+func cursorPaginatedSchema(itemSchema *Schema) *Schema {
+	return &Schema{
+		Type: "object",
+		Properties: map[string]*Schema{
+			"items":           {Type: "array", Items: itemSchema},
+			"next_cursor":     {Type: "string"},
+			"previous_cursor": {Type: "string"},
+			"size":            {Type: "integer", Format: "int64"},
+			"has_next":        {Type: "boolean"},
+			"has_previous":    {Type: "boolean"},
+		},
+		Required: []string{"items", "size", "has_next", "has_previous"},
+	}
+}
+
 var invalidComponentNameChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 func sanitizeComponentName(name string) string {

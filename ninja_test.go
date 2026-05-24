@@ -1072,6 +1072,54 @@ func TestOpenAPISpec_DefaultsTagDescriptionsAndPaginatedResponse(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpec_CursorPaginatedResponse(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/events")
+
+	type eventInput struct {
+		pagination.CursorPagination
+	}
+	type eventOut struct {
+		ID int `json:"id"`
+	}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *eventInput) (*pagination.CursorPage[eventOut], error) {
+		return pagination.NewCursorPage([]eventOut{{ID: 1}}, in.CursorPagination, "next"), nil
+	}, ninja.CursorPaginated[eventOut]())
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	get := spec["paths"].(map[string]interface{})["/events/"].(map[string]interface{})["get"].(map[string]interface{})
+	params := get["parameters"].([]interface{})
+	paramByName := map[string]map[string]interface{}{}
+	for _, raw := range params {
+		param := raw.(map[string]interface{})
+		paramByName[param["name"].(string)] = param
+	}
+	if _, ok := paramByName["cursor"]; !ok {
+		t.Fatalf("expected cursor query parameter, got %v", paramByName)
+	}
+	if _, ok := paramByName["size"]; !ok {
+		t.Fatalf("expected size query parameter, got %v", paramByName)
+	}
+
+	respSchema := get["responses"].(map[string]interface{})["200"].(map[string]interface{})["content"].(map[string]interface{})["application/json"].(map[string]interface{})["schema"].(map[string]interface{})
+	props := respSchema["properties"].(map[string]interface{})
+	items := props["items"].(map[string]interface{})
+	if items["type"] != "array" {
+		t.Fatalf("expected cursor-paginated items array, got %v", items)
+	}
+	if props["next_cursor"].(map[string]interface{})["type"] != "string" {
+		t.Fatalf("expected next_cursor string schema, got %v", props["next_cursor"])
+	}
+	if props["has_next"].(map[string]interface{})["type"] != "boolean" {
+		t.Fatalf("expected has_next boolean schema, got %v", props["has_next"])
+	}
+}
+
 func TestOperationTimeoutAndRateLimit(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/ops")

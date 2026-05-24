@@ -117,6 +117,14 @@ func Paginated[T any]() OperationOption {
 	}
 }
 
+// CursorPaginated declares a standard cursor-paginated success response schema.
+func CursorPaginated[T any]() OperationOption {
+	return func(op *operation) {
+		var item T
+		op.cursorPaginatedItemType = reflect.TypeOf(item)
+	}
+}
+
 // PaginatedResponse documents an additional paginated OpenAPI response.
 func PaginatedResponse[T any](status int, description string) OperationOption {
 	return func(op *operation) {
@@ -125,6 +133,18 @@ func PaginatedResponse[T any](status int, description string) OperationOption {
 			status:            status,
 			description:       description,
 			paginatedItemType: reflect.TypeOf(item),
+		})
+	}
+}
+
+// CursorPaginatedResponse documents an additional cursor-paginated OpenAPI response.
+func CursorPaginatedResponse[T any](status int, description string) OperationOption {
+	return func(op *operation) {
+		var item T
+		op.responses = append(op.responses, documentedResponse{
+			status:                  status,
+			description:             description,
+			cursorPaginatedItemType: reflect.TypeOf(item),
 		})
 	}
 }
@@ -153,40 +173,42 @@ func RateLimit(requestsPerSecond int, burst ...int) OperationOption {
 }
 
 type documentedResponse struct {
-	status            int
-	description       string
-	responseType      reflect.Type
-	paginatedItemType reflect.Type
+	status                  int
+	description             string
+	responseType            reflect.Type
+	paginatedItemType       reflect.Type
+	cursorPaginatedItemType reflect.Type
 }
 
 // operation holds all metadata about a single API endpoint and the
 // gin-compatible handler function that wraps the user-supplied typed handler.
 type operation struct {
-	method            string
-	path              string
-	ginHandler        gin.HandlerFunc
-	inputType         reflect.Type
-	outputType        reflect.Type
-	summary           string
-	description       string
-	operationID       string
-	tags              []string
-	tagDescriptions   map[string]string
-	security          []SecurityRequirement
-	deprecated        bool
-	successStatus     int
-	responses         []documentedResponse
-	paginatedItemType reflect.Type
-	timeout           time.Duration
-	rateLimit         *rateLimiter
-	excludeFromDocs   bool
-	withTransaction   bool
-	cache             *routeCacheConfig
-	cacheControl      string
-	etagEnabled       bool
-	version           string
-	versionInfo       *VersionConfig
-	stream            *streamConfig
+	method                  string
+	path                    string
+	ginHandler              gin.HandlerFunc
+	inputType               reflect.Type
+	outputType              reflect.Type
+	summary                 string
+	description             string
+	operationID             string
+	tags                    []string
+	tagDescriptions         map[string]string
+	security                []SecurityRequirement
+	deprecated              bool
+	successStatus           int
+	responses               []documentedResponse
+	paginatedItemType       reflect.Type
+	cursorPaginatedItemType reflect.Type
+	timeout                 time.Duration
+	rateLimit               *rateLimiter
+	excludeFromDocs         bool
+	withTransaction         bool
+	cache                   *routeCacheConfig
+	cacheControl            string
+	etagEnabled             bool
+	version                 string
+	versionInfo             *VersionConfig
+	stream                  *streamConfig
 }
 
 // WithTransaction wraps the operation in a request-scoped database transaction.

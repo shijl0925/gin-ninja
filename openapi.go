@@ -231,6 +231,10 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		successResponse.Content = map[string]mediaTypeSpec{
 			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
 		}
+	} else if op.cursorPaginatedItemType != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(op.cursorPaginatedItemType))},
+		}
 	} else if op.outputType != nil {
 		contentType, schema := s.responseSchemaForType(op.outputType)
 		successResponse.Content = map[string]mediaTypeSpec{
@@ -264,6 +268,10 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		if documented.paginatedItemType != nil {
 			response.Content = map[string]mediaTypeSpec{
 				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(documented.paginatedItemType))},
+			}
+		} else if documented.cursorPaginatedItemType != nil {
+			response.Content = map[string]mediaTypeSpec{
+				"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(documented.cursorPaginatedItemType))},
 			}
 		} else if documented.responseType != nil {
 			contentType, schema := s.responseSchemaForType(documented.responseType)

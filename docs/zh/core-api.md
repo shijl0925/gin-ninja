@@ -159,6 +159,28 @@ type ListUsersInput struct {
 
 白名单之外的排序字段会被拒绝，不会直接传到查询层。
 
+### 游标分页
+
+数据量大或列表实时变化时，使用 `pagination.CursorPagination` 避免页码分页在
+翻页期间因插入数据产生跳项或重复。游标对 gin-ninja 是不透明字符串，处理器
+负责把稳定排序字段编码到游标中，并通过 `pagination.CursorPage[T]` 返回下一页游标：
+
+```go
+type ListEventsInput struct {
+    pagination.CursorPagination
+}
+
+func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[EventOut], error) {
+    items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
+}
+```
+
+OpenAPI 响应结构可用 `ninja.CursorPaginated[EventOut]()` 声明。
+
 ---
 
 上一篇: [项目与 CRUD 脚手架](./scaffolding.md) | 下一篇: [配置、Bootstrap 与 ORM](./configuration.md)

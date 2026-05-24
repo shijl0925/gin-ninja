@@ -38,6 +38,20 @@ type PageInput struct {
 	Size int `query:"size" binding:"omitempty,min=1,max=100" json:"-"`
 }
 
+// CursorPagination is an embeddable struct that captures cursor pagination
+// query parameters. Cursor values are opaque to gin-ninja; handlers should
+// encode the stable ordering values needed by their storage layer.
+//
+//	type ListEventsInput struct {
+//	    pagination.CursorPagination
+//	}
+type CursorPagination struct {
+	// Cursor is the opaque cursor returned by a previous page.
+	Cursor string `query:"cursor" json:"-"`
+	// Size is the number of items per page (default: 20, max: 100).
+	Size int `query:"size" binding:"omitempty,min=1,max=100" json:"-"`
+}
+
 // GetPage returns the effective page number (at least 1).
 func (p PageInput) GetPage() int {
 	if p.Page < 1 {
@@ -78,6 +92,28 @@ func (p PageInput) Limit() int {
 	return p.GetSize()
 }
 
+// GetCursor returns the requested opaque cursor.
+func (p CursorPagination) GetCursor() string {
+	return p.Cursor
+}
+
+// GetSize returns the effective cursor page size (between 1 and MaxSize).
+func (p CursorPagination) GetSize() int {
+	switch {
+	case p.Size < 1:
+		return DefaultSize
+	case p.Size > MaxSize:
+		return MaxSize
+	default:
+		return p.Size
+	}
+}
+
+// Limit returns the SQL LIMIT value for cursor pagination.
+func (p CursorPagination) Limit() int {
+	return p.GetSize()
+}
+
 // Page is the paginated response envelope returned by list endpoints.
 //
 //	func listUsers(...) (*pagination.Page[UserOut], error) {
@@ -114,5 +150,46 @@ func NewPage[T any](items []T, total int64, input PageInput) *Page[T] {
 		Page:  input.GetPage(),
 		Size:  size,
 		Pages: pages,
+	}
+}
+
+// CursorPage is the cursor-paginated response envelope returned by list endpoints.
+//
+//	func listEvents(...) (*pagination.CursorPage[EventOut], error) {
+//	    return pagination.NewCursorPage(items, input.CursorPagination, nextCursor), nil
+//	}
+type CursorPage[T any] struct {
+	// Items contains the records for the current page.
+	Items []T `json:"items"`
+	// NextCursor is the opaque cursor clients can pass to fetch the next page.
+	NextCursor string `json:"next_cursor,omitempty"`
+	// PreviousCursor is the opaque cursor clients can pass to fetch the previous page.
+	PreviousCursor string `json:"previous_cursor,omitempty"`
+	// Size is the number of items per page that was requested.
+	Size int `json:"size"`
+	// HasNext indicates whether a next page is available.
+	HasNext bool `json:"has_next"`
+	// HasPrevious indicates whether a previous page is available.
+	HasPrevious bool `json:"has_previous"`
+}
+
+// NewCursorPage constructs a cursor-paginated response from a slice of items,
+// the original cursor input, and the next cursor. Pass previousCursor when
+// backward pagination is supported.
+func NewCursorPage[T any](items []T, input CursorPagination, nextCursor string, previousCursor ...string) *CursorPage[T] {
+	if items == nil {
+		items = []T{}
+	}
+	prev := ""
+	if len(previousCursor) > 0 {
+		prev = previousCursor[0]
+	}
+	return &CursorPage[T]{
+		Items:          items,
+		NextCursor:     nextCursor,
+		PreviousCursor: prev,
+		Size:           input.GetSize(),
+		HasNext:        nextCursor != "",
+		HasPrevious:    prev != "",
 	}
 }

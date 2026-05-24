@@ -160,6 +160,29 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 }
 ```
 
+### Cursor pagination
+
+Use `pagination.CursorPagination` when list endpoints need stable pagination over
+large or frequently changing datasets. The cursor is opaque to gin-ninja; encode
+the ordered field values your storage layer needs, then return the next cursor
+in `pagination.CursorPage[T]`:
+
+```go
+type ListEventsInput struct {
+    pagination.CursorPagination
+}
+
+func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[EventOut], error) {
+    items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
+}
+```
+
+Document the response envelope with `ninja.CursorPaginated[EventOut]()`.
+
 If you need a public alias that maps to a different database column, use `alias:column` or `alias=column`:
 
 ```go
