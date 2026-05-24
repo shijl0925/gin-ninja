@@ -78,10 +78,9 @@ site.MustRegisterModel(&admin.ModelResource{
 adminRouter := ninja.NewRouter(
     "/admin",
     ninja.WithTags("Admin"),
-    ninja.WithBearerAuth(),
+    ninja.WithBearerAuth(middleware.JWTAuthWithConfig(cfg.JWT)),
     ninja.WithVersion("v1"),
 )
-adminRouter.UseGin(middleware.JWTAuthWithConfig(cfg.JWT)) // 保护所有 Admin API 路由
 
 site.Mount(adminRouter)
 api.AddRouter(adminRouter)

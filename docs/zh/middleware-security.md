@@ -67,8 +67,8 @@ r := ninja.NewRouter("/internal",
 ```
 
 `WithBearerAuth`、`WithBasicAuth`、`WithAPIKeyAuth` 和
-`WithOAuth2AuthMiddleware` 路由选项可以把运行时 Gin 中间件和 OpenAPI
-security 元数据绑定在一起，降低“文档写了认证但实际未拦截”的误配风险。只想写文档、并在其他地方挂中间件时，仍可使用原有的文档型写法。
+`WithOAuth2AuthMiddleware` 路由选项会把运行时 Gin 中间件和 OpenAPI
+security 元数据绑定在一起，且必须传入中间件。只想写文档、并在其他地方挂中间件时，请显式使用 `WithSecurity(...)` 或 `Security(...)`。
 
 需要校验 OAuth2 scope 时，使用 scope 感知的中间件：
 
@@ -88,10 +88,10 @@ r := ninja.NewRouter("/internal",
 
 JWT 认证成功后的 claims 也可以通过 `middleware.GetAuthPrincipal(...)` 统一读取。
 
-如果仍偏好显式两步写法，请把 security 选项和中间件放在一起：
+如果仍偏好显式两步写法，请把文档型 security 选项和中间件放在一起：
 
 ```go
-r := ninja.NewRouter("/internal", ninja.WithAPIKeyAuth("apiKeyAuth"))
+r := ninja.NewRouter("/internal", ninja.WithSecurity("apiKeyAuth"))
 r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
     if key == "supersecret" {
         return key, true
@@ -100,7 +100,7 @@ r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (
 }))
 ```
 
-OpenAPI 辅助函数包括：`APIKeyHeaderSecurityScheme`、`APIKeyCookieSecurityScheme`、`APIKeyQuerySecurityScheme`、`HTTPBasicSecurityScheme`、`OAuth2SecurityScheme`。路由/操作文档辅助函数包括：`WithAPIKeyAuth`、`WithBasicAuth`、`WithOAuth2Auth`、`WithOAuth2AuthMiddleware`、`APIKeyAuth`、`BasicAuth`、`OAuth2Auth`。
+OpenAPI 辅助函数包括：`APIKeyHeaderSecurityScheme`、`APIKeyCookieSecurityScheme`、`APIKeyQuerySecurityScheme`、`HTTPBasicSecurityScheme`、`OAuth2SecurityScheme`。路由/操作认证辅助函数包括：`WithAPIKeyAuth`、`WithBasicAuth`、`WithOAuth2AuthMiddleware`、`APIKeyAuth`、`BasicAuth`。文档型 security 辅助函数包括：`WithSecurity`、`Security`、`WithOAuth2Auth`、`OAuth2Auth`。
 
 ### i18n
 

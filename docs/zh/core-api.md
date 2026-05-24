@@ -22,7 +22,7 @@
 - `ninja.NewRouter(prefix, opts...)`
 - `router.AddRouter(sub)`：嵌套子路由
 - `router.UseGin(...)`：注册路由级 Gin 中间件
-- `ninja.WithTags(...)`、`ninja.WithVersion(...)`、`ninja.WithBearerAuth()` 等 RouterOption
+- `ninja.WithTags(...)`、`ninja.WithVersion(...)`、`ninja.WithBearerAuth(authMiddleware)` 等 RouterOption
 
 ### Context
 

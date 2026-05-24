@@ -63,7 +63,7 @@ ninja.Get(router, "/internal/health", healthz,
 - `ExcludeFromDocs()`
 - `Timeout(...)`
 - `RateLimit(...)`
-- `Security(...)` / `BearerAuth()`
+- `Security(...)` / `BearerAuth(authMiddleware)`
 - `Cache(...)` / `CacheControl(...)` / `ETag()`
 
 `Timeout(...)` 是协作式超时：框架会提前返回 408 并取消 context，但业务代码仍需主动监听 context 取消并尽快退出。

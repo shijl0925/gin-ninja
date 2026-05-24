@@ -935,7 +935,9 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
 	})
-	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth(func(c *gin.Context) {
+		c.Next()
+	}))
 
 	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*listOutput, error) {
 		return &listOutput{}, nil

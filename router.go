@@ -55,28 +55,34 @@ func WithSecurityMiddleware(name string, mw gin.HandlerFunc, scopes ...string) R
 	}
 }
 
-// WithBearerAuth applies the default JWT bearer OpenAPI security requirement.
-// If middleware is provided, it is also attached to the router.
+// WithBearerAuth applies the default JWT bearer OpenAPI security requirement
+// and attaches the matching middleware. Use WithSecurity("bearerAuth") for
+// documentation-only security metadata.
 func WithBearerAuth(mw ...gin.HandlerFunc) RouterOption {
 	return func(r *Router) {
+		requireAuthMiddleware("WithBearerAuth", mw)
 		WithSecurity("bearerAuth")(r)
 		appendAuthMiddleware(r, mw...)
 	}
 }
 
-// WithBasicAuth applies the default basicAuth OpenAPI security requirement.
-// If middleware is provided, it is also attached to the router.
+// WithBasicAuth applies the default basicAuth OpenAPI security requirement and
+// attaches the matching middleware. Use WithSecurity("basicAuth") for
+// documentation-only security metadata.
 func WithBasicAuth(mw ...gin.HandlerFunc) RouterOption {
 	return func(r *Router) {
+		requireAuthMiddleware("WithBasicAuth", mw)
 		WithSecurity("basicAuth")(r)
 		appendAuthMiddleware(r, mw...)
 	}
 }
 
-// WithAPIKeyAuth applies the named API key OpenAPI security requirement. If
-// middleware is provided, it is also attached to the router.
+// WithAPIKeyAuth applies the named API key OpenAPI security requirement and
+// attaches the matching middleware. Use WithSecurity(name) for
+// documentation-only security metadata.
 func WithAPIKeyAuth(name string, mw ...gin.HandlerFunc) RouterOption {
 	return func(r *Router) {
+		requireAuthMiddleware("WithAPIKeyAuth", mw)
 		WithSecurity(name)(r)
 		appendAuthMiddleware(r, mw...)
 	}
@@ -229,7 +235,7 @@ func registerTypedOperation(r *Router, op *operation, opts ...OperationOption) {
 //
 //	api.AddController("/books", &BookController{db: db},
 //	    ninja.WithTags("Books"),
-//	    ninja.WithBearerAuth(),
+//	    ninja.WithBearerAuth(authMiddleware),
 //	)
 type Controller interface {
 	Register(r *Router)

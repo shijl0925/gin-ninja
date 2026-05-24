@@ -69,9 +69,10 @@ r := ninja.NewRouter("/internal",
 ```
 
 The `WithBearerAuth`, `WithBasicAuth`, `WithAPIKeyAuth`, and
-`WithOAuth2AuthMiddleware` router options can bind runtime Gin middleware and
-OpenAPI security metadata in one place. The older documentation-only forms
-remain available when you intentionally attach middleware elsewhere.
+`WithOAuth2AuthMiddleware` router options bind runtime Gin middleware and
+OpenAPI security metadata in one place. They require a middleware argument; use
+`WithSecurity(...)` or `Security(...)` only when you intentionally want
+documentation-only security metadata and enforce authentication elsewhere.
 
 For OAuth2 endpoints that require scopes, use the scope-aware helper:
 
@@ -91,10 +92,10 @@ r := ninja.NewRouter("/internal",
 
 JWT-authenticated claims are also available through `middleware.GetAuthPrincipal(...)`.
 
-If you prefer the explicit two-step form, keep the security option and middleware next to each other:
+If you prefer the explicit two-step form, keep the documentation-only security option and middleware next to each other:
 
 ```go
-r := ninja.NewRouter("/internal", ninja.WithAPIKeyAuth("apiKeyAuth"))
+r := ninja.NewRouter("/internal", ninja.WithSecurity("apiKeyAuth"))
 r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
     if key == "supersecret" {
         return key, true
@@ -111,7 +112,8 @@ Available helpers:
 - `middleware.OAuth2BearerAuthWithScopes(...)`
 - `middleware.GetAuthPrincipal(...)`
 - OpenAPI helpers: `APIKeyHeaderSecurityScheme`, `APIKeyCookieSecurityScheme`, `APIKeyQuerySecurityScheme`, `HTTPBasicSecurityScheme`, `OAuth2SecurityScheme`
-- Router/operation docs helpers: `WithAPIKeyAuth`, `WithBasicAuth`, `WithOAuth2Auth`, `WithOAuth2AuthMiddleware`, `APIKeyAuth`, `BasicAuth`, `OAuth2Auth`
+- Router/operation auth helpers: `WithAPIKeyAuth`, `WithBasicAuth`, `WithOAuth2AuthMiddleware`, `APIKeyAuth`, `BasicAuth`
+- Documentation-only security helpers: `WithSecurity`, `Security`, `WithOAuth2Auth`, `OAuth2Auth`
 
 ### I18n – Locale Negotiation and Translated Messages
 

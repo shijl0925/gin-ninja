@@ -57,28 +57,34 @@ func SecurityMiddleware(name string, mw gin.HandlerFunc, scopes ...string) Opera
 	}
 }
 
-// BearerAuth marks this operation as requiring the default bearerAuth scheme.
-// If middleware is provided, it is also attached to the operation.
+// BearerAuth marks this operation as requiring the default bearerAuth scheme
+// and attaches the matching middleware. Use Security("bearerAuth") for
+// documentation-only security metadata.
 func BearerAuth(mw ...gin.HandlerFunc) OperationOption {
 	return func(op *operation) {
+		requireAuthMiddleware("BearerAuth", mw)
 		Security("bearerAuth")(op)
 		appendOperationAuthMiddleware(op, mw...)
 	}
 }
 
-// BasicAuth marks this operation as requiring the default basicAuth scheme.
-// If middleware is provided, it is also attached to the operation.
+// BasicAuth marks this operation as requiring the default basicAuth scheme and
+// attaches the matching middleware. Use Security("basicAuth") for
+// documentation-only security metadata.
 func BasicAuth(mw ...gin.HandlerFunc) OperationOption {
 	return func(op *operation) {
+		requireAuthMiddleware("BasicAuth", mw)
 		Security("basicAuth")(op)
 		appendOperationAuthMiddleware(op, mw...)
 	}
 }
 
-// APIKeyAuth marks this operation as requiring the named API key scheme.
-// If middleware is provided, it is also attached to the operation.
+// APIKeyAuth marks this operation as requiring the named API key scheme and
+// attaches the matching middleware. Use Security(name) for documentation-only
+// security metadata.
 func APIKeyAuth(name string, mw ...gin.HandlerFunc) OperationOption {
 	return func(op *operation) {
+		requireAuthMiddleware("APIKeyAuth", mw)
 		Security(name)(op)
 		appendOperationAuthMiddleware(op, mw...)
 	}
@@ -101,6 +107,12 @@ func appendOperationAuthMiddleware(op *operation, mw ...gin.HandlerFunc) {
 			panic("gin-ninja: auth middleware must not be nil")
 		}
 		op.ginMiddleware = append(op.ginMiddleware, handler)
+	}
+}
+
+func requireAuthMiddleware(helper string, mw []gin.HandlerFunc) {
+	if len(mw) == 0 {
+		panic("gin-ninja: " + helper + " requires auth middleware; use Security/WithSecurity for documentation-only security metadata")
 	}
 }
 

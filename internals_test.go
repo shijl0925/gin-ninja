@@ -836,13 +836,16 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 }
 
 func TestOptionHelpers(t *testing.T) {
+	noopAuth := func(c *gin.Context) {
+		c.Next()
+	}
 	router := NewRouter(
 		"/users",
 		WithTags("Users", "Admin"),
 		WithSecurity("oauth2", "read"),
-		WithBearerAuth(),
-		WithBasicAuth(),
-		WithAPIKeyAuth("apiKey"),
+		WithBearerAuth(noopAuth),
+		WithBasicAuth(noopAuth),
+		WithAPIKeyAuth("apiKey", noopAuth),
 		WithOAuth2Auth("write"),
 		WithVersion("v1"),
 	)
@@ -861,9 +864,9 @@ func TestOptionHelpers(t *testing.T) {
 	Tags("Users")(op)
 	TagDescription("Users", "user operations")(op)
 	Security("oauth2", "read")(op)
-	BearerAuth()(op)
-	BasicAuth()(op)
-	APIKeyAuth("apiKey")(op)
+	BearerAuth(noopAuth)(op)
+	BasicAuth(noopAuth)(op)
+	APIKeyAuth("apiKey", noopAuth)(op)
 	OAuth2Auth("write")(op)
 	Deprecated()(op)
 	Cache(time.Minute)(op)
@@ -894,6 +897,25 @@ func TestOptionHelpers(t *testing.T) {
 	if !op.withTransaction {
 		t.Fatalf("expected WithTransaction to enable transaction wrapping: %+v", op)
 	}
+}
+
+func TestAuthHelpersRequireMiddleware(t *testing.T) {
+	assertPanics := func(name string, fn func()) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Fatalf("expected %s to panic without middleware", name)
+			}
+		}()
+		fn()
+	}
+
+	assertPanics("WithBearerAuth", func() { WithBearerAuth()(NewRouter("/")) })
+	assertPanics("WithBasicAuth", func() { WithBasicAuth()(NewRouter("/")) })
+	assertPanics("WithAPIKeyAuth", func() { WithAPIKeyAuth("apiKey")(NewRouter("/")) })
+	assertPanics("BearerAuth", func() { BearerAuth()(&operation{}) })
+	assertPanics("BasicAuth", func() { BasicAuth()(&operation{}) })
+	assertPanics("APIKeyAuth", func() { APIKeyAuth("apiKey")(&operation{}) })
 }
 
 func TestRouterRegistrationHelpers(t *testing.T) {

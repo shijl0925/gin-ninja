@@ -195,7 +195,7 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 //
 //	api.AddController("/books", &BookController{db: db},
 //	    ninja.WithTags("Books"),
-//	    ninja.WithBearerAuth(),
+//	    ninja.WithBearerAuth(authMiddleware),
 //	)
 func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOption) {
 	r := NewRouter(prefix, opts...)
