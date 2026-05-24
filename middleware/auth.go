@@ -125,11 +125,6 @@ func HTTPBearerAuth(authenticate BearerTokenAuthenticator) gin.HandlerFunc {
 	}
 }
 
-// OAuth2BearerAuth returns middleware for OAuth2 bearer token protected endpoints.
-func OAuth2BearerAuth(authenticate BearerTokenAuthenticator) gin.HandlerFunc {
-	return HTTPBearerAuth(authenticate)
-}
-
 // OAuth2BearerAuthWithScopes returns middleware for OAuth2 bearer token
 // protected endpoints that require all listed scopes.
 func OAuth2BearerAuthWithScopes(requiredScopes []string, authenticate OAuth2TokenAuthenticator) gin.HandlerFunc {

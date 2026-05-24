@@ -108,7 +108,7 @@ Available helpers:
 
 - `middleware.APIKeyHeader(...)`, `middleware.APIKeyCookie(...)`, `middleware.APIKeyQuery(...)`
 - `middleware.HTTPBasicAuth(...)`
-- `middleware.HTTPBearerAuth(...)` / `middleware.OAuth2BearerAuth(...)`
+- `middleware.HTTPBearerAuth(...)`
 - `middleware.OAuth2BearerAuthWithScopes(...)`
 - `middleware.GetAuthPrincipal(...)`
 - OpenAPI helpers: `APIKeyHeaderSecurityScheme`, `APIKeyCookieSecurityScheme`, `APIKeyQuerySecurityScheme`, `HTTPBasicSecurityScheme`, `OAuth2SecurityScheme`

@@ -388,10 +388,10 @@ func TestHTTPBasicAuth(t *testing.T) {
 	}
 }
 
-func TestOAuth2BearerAuth(t *testing.T) {
+func TestHTTPBearerAuth(t *testing.T) {
 	r := gin.New()
-	r.Use(middleware.OAuth2BearerAuth(func(_ *gin.Context, token string) (any, bool) {
-		return "oauth-user", token == "valid-token"
+	r.Use(middleware.HTTPBearerAuth(func(_ *gin.Context, token string) (any, bool) {
+		return "bearer-user", token == "valid-token"
 	}))
 	r.GET("/protected", func(c *gin.Context) {
 		c.String(http.StatusOK, middleware.GetAuthPrincipal(c).(string))
@@ -401,7 +401,7 @@ func TestOAuth2BearerAuth(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer valid-token")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK || w.Body.String() != "oauth-user" {
+	if w.Code != http.StatusOK || w.Body.String() != "bearer-user" {
 		t.Fatalf("expected authenticated bearer request, got %d: %s", w.Code, w.Body.String())
 	}
 

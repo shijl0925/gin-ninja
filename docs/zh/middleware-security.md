@@ -30,7 +30,7 @@ protected.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 - **JWT**：`middleware.JWTAuthWithConfig(...)`、`middleware.GenerateTokenWithConfig(...)`
 - **API Key**：`middleware.APIKeyHeader(...)`、`middleware.APIKeyCookie(...)`、`middleware.APIKeyQuery(...)`
 - **HTTP Basic**：`middleware.HTTPBasicAuth(...)`
-- **OAuth2 Bearer**：`middleware.OAuth2BearerAuth(...)`
+- **Bearer Token**：`middleware.HTTPBearerAuth(...)`
 - **i18n**：`middleware.I18n()`，支持 `en` / `zh`
 - **Session**：HMAC-SHA256 签名 Cookie Session
 - **CSRF**：双重提交 Cookie 模式
