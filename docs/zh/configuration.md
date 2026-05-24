@@ -140,4 +140,4 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 
 ---
 
-上一篇: [核心 API、绑定与响应](./core-api.md) | 下一篇: [中间件与安全](./middleware-security.md)
+上一篇: [数据、绑定与响应](./data-and-responses.md) | 下一篇: [中间件与安全](./middleware-security.md)

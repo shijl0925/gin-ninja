@@ -232,4 +232,4 @@ type Project struct {
 
 ---
 
-上一篇: [快速开始](./getting-started.md) | 下一篇: [核心 API、绑定与响应](./core-api.md)
+上一篇: [快速开始](./getting-started.md) | 下一篇: [数据、绑定与响应](./data-and-responses.md)

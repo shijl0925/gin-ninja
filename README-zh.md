@@ -67,7 +67,7 @@ func main() {
 - [概览](./docs/zh/overview.md)
 - [快速开始](./docs/zh/getting-started.md)
 - [项目与 CRUD 脚手架](./docs/zh/scaffolding.md)
-- [核心 API、绑定与响应](./docs/zh/core-api.md)
+- [数据、绑定与响应](./docs/zh/data-and-responses.md)
 - [配置、Bootstrap 与 ORM](./docs/zh/configuration.md)
 - [中间件与安全](./docs/zh/middleware-security.md)
 - [文件传输与 OpenAPI 控制](./docs/zh/files-and-openapi.md)
