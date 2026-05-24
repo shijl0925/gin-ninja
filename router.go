@@ -46,9 +46,66 @@ func WithSecurity(name string, scopes ...string) RouterOption {
 	}
 }
 
-// WithBearerAuth applies the default JWT bearer OpenAPI security requirement.
-func WithBearerAuth() RouterOption {
-	return WithSecurity("bearerAuth")
+// WithSecurityMiddleware adds an OpenAPI security requirement and attaches the
+// matching Gin middleware to this router.
+func WithSecurityMiddleware(name string, mw gin.HandlerFunc, scopes ...string) RouterOption {
+	return func(r *Router) {
+		WithSecurity(name, scopes...)(r)
+		appendAuthMiddleware(r, mw)
+	}
+}
+
+// WithBearerAuth applies the default JWT bearer OpenAPI security requirement
+// and attaches the matching middleware. Use WithSecurity("bearerAuth") for
+// documentation-only security metadata.
+func WithBearerAuth(mw ...gin.HandlerFunc) RouterOption {
+	return func(r *Router) {
+		requireAuthMiddleware("WithBearerAuth", mw)
+		WithSecurity("bearerAuth")(r)
+		appendAuthMiddleware(r, mw...)
+	}
+}
+
+// WithBasicAuth applies the default basicAuth OpenAPI security requirement and
+// attaches the matching middleware. Use WithSecurity("basicAuth") for
+// documentation-only security metadata.
+func WithBasicAuth(mw ...gin.HandlerFunc) RouterOption {
+	return func(r *Router) {
+		requireAuthMiddleware("WithBasicAuth", mw)
+		WithSecurity("basicAuth")(r)
+		appendAuthMiddleware(r, mw...)
+	}
+}
+
+// WithAPIKeyAuth applies the named API key OpenAPI security requirement and
+// attaches the matching middleware. Use WithSecurity(name) for
+// documentation-only security metadata.
+func WithAPIKeyAuth(name string, mw ...gin.HandlerFunc) RouterOption {
+	return func(r *Router) {
+		requireAuthMiddleware("WithAPIKeyAuth", mw)
+		WithSecurity(name)(r)
+		appendAuthMiddleware(r, mw...)
+	}
+}
+
+// WithOAuth2Auth applies the default oauth2 OpenAPI security requirement.
+func WithOAuth2Auth(scopes ...string) RouterOption {
+	return WithSecurity("oauth2", scopes...)
+}
+
+// WithOAuth2AuthMiddleware applies the default oauth2 OpenAPI security
+// requirement and attaches the matching Gin middleware to this router.
+func WithOAuth2AuthMiddleware(mw gin.HandlerFunc, scopes ...string) RouterOption {
+	return WithSecurityMiddleware("oauth2", mw, scopes...)
+}
+
+func appendAuthMiddleware(r *Router, mw ...gin.HandlerFunc) {
+	for _, handler := range mw {
+		if handler == nil {
+			panic("gin-ninja: auth middleware must not be nil")
+		}
+		r.ginMiddleware = append(r.ginMiddleware, handler)
+	}
 }
 
 // WithVersion marks the router and its nested operations as belonging to a
@@ -178,7 +235,7 @@ func registerTypedOperation(r *Router, op *operation, opts ...OperationOption) {
 //
 //	api.AddController("/books", &BookController{db: db},
 //	    ninja.WithTags("Books"),
-//	    ninja.WithBearerAuth(),
+//	    ninja.WithBearerAuth(authMiddleware),
 //	)
 type Controller interface {
 	Register(r *Router)

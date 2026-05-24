@@ -40,6 +40,80 @@ fmt.Println(claims.UserID, claims.Username)
 
 ```
 
+### API Key、HTTP Basic 与 OAuth2 Bearer 认证
+
+gin-ninja 还包含常见非 JWT 认证方案的中间件辅助函数。每个辅助函数都会通过你提供的回调校验传入凭据，并把回调返回的 principal 存入 Gin context。
+
+```go
+api := ninja.New(ninja.Config{
+    SecuritySchemes: map[string]ninja.SecurityScheme{
+        "apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+        "basicAuth":  ninja.HTTPBasicSecurityScheme(),
+        "oauth2": ninja.OAuth2SecurityScheme(ninja.OAuthFlows{
+            ClientCredentials: &ninja.OAuthFlow{
+                TokenURL: "/oauth/token",
+                Scopes: map[string]string{"read": "读取数据"},
+            },
+        }),
+    },
+})
+
+r := ninja.NewRouter("/internal",
+    ninja.WithAPIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+        if key == "supersecret" {
+            return key, true
+        }
+        return nil, false
+    })),
+)
+```
+
+`WithBearerAuth`、`WithBasicAuth`、`WithAPIKeyAuth` 和
+`WithOAuth2AuthMiddleware` 路由选项会把运行时 Gin 中间件和 OpenAPI
+security 元数据绑定在一起。它们要求传入中间件；只有在确实想要仅文档用
+security 元数据，并在其他地方执行认证时，才使用 `WithSecurity(...)` 或 `Security(...)`。
+
+对于需要 OAuth2 scope 的端点，请使用 scope 感知的辅助函数：
+
+```go
+r := ninja.NewRouter("/internal",
+    ninja.WithOAuth2AuthMiddleware(
+        middleware.OAuth2BearerAuthWithScopes([]string{"read"}, func(c *gin.Context, token string) (any, []string, bool) {
+            if token == "supersecret" {
+                return "user", []string{"read"}, true
+            }
+            return nil, nil, false
+        }),
+        "read",
+    ),
+)
+```
+
+JWT 认证后的 claims 也可以通过 `middleware.GetAuthPrincipal(...)` 获取。
+
+如果更偏好显式的两步写法，请把仅文档用 security 选项和中间件相邻放置：
+
+```go
+r := ninja.NewRouter("/internal", ninja.WithSecurity("apiKeyAuth"))
+r.UseGin(middleware.APIKeyHeader("X-API-Key", func(c *gin.Context, key string) (any, bool) {
+    if key == "supersecret" {
+        return key, true
+    }
+    return nil, false
+}))
+```
+
+可用辅助函数：
+
+- `middleware.APIKeyHeader(...)`、`middleware.APIKeyCookie(...)`、`middleware.APIKeyQuery(...)`
+- `middleware.HTTPBasicAuth(...)`
+- `middleware.HTTPBearerAuth(...)`
+- `middleware.OAuth2BearerAuthWithScopes(...)`
+- `middleware.GetAuthPrincipal(...)`
+- OpenAPI 辅助函数：`APIKeyHeaderSecurityScheme`、`APIKeyCookieSecurityScheme`、`APIKeyQuerySecurityScheme`、`HTTPBasicSecurityScheme`、`OAuth2SecurityScheme`
+- 路由/操作认证辅助函数：`WithAPIKeyAuth`、`WithBasicAuth`、`WithOAuth2AuthMiddleware`、`APIKeyAuth`、`BasicAuth`
+- 仅文档用 security 辅助函数：`WithSecurity`、`Security`、`WithOAuth2Auth`、`OAuth2Auth`
+
 ### i18n – 语言协商与翻译消息
 
 注册 `middleware.I18n()` 后，会从 `Accept-Language` 请求头自动协商客户端语言。支持的 locale 为 `"en"`（英文）和 `"zh"`（中文），默认回退到 `"en"`。

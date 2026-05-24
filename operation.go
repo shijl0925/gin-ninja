@@ -48,9 +48,72 @@ func Security(name string, scopes ...string) OperationOption {
 	}
 }
 
-// BearerAuth marks this operation as requiring the default bearerAuth scheme.
-func BearerAuth() OperationOption {
-	return Security("bearerAuth")
+// SecurityMiddleware adds an OpenAPI security requirement and attaches the
+// matching Gin middleware to this operation.
+func SecurityMiddleware(name string, mw gin.HandlerFunc, scopes ...string) OperationOption {
+	return func(op *operation) {
+		Security(name, scopes...)(op)
+		appendOperationAuthMiddleware(op, mw)
+	}
+}
+
+// BearerAuth marks this operation as requiring the default bearerAuth scheme
+// and attaches the matching middleware. Use Security("bearerAuth") for
+// documentation-only security metadata.
+func BearerAuth(mw ...gin.HandlerFunc) OperationOption {
+	return func(op *operation) {
+		requireAuthMiddleware("BearerAuth", mw)
+		Security("bearerAuth")(op)
+		appendOperationAuthMiddleware(op, mw...)
+	}
+}
+
+// BasicAuth marks this operation as requiring the default basicAuth scheme and
+// attaches the matching middleware. Use Security("basicAuth") for
+// documentation-only security metadata.
+func BasicAuth(mw ...gin.HandlerFunc) OperationOption {
+	return func(op *operation) {
+		requireAuthMiddleware("BasicAuth", mw)
+		Security("basicAuth")(op)
+		appendOperationAuthMiddleware(op, mw...)
+	}
+}
+
+// APIKeyAuth marks this operation as requiring the named API key scheme and
+// attaches the matching middleware. Use Security(name) for documentation-only
+// security metadata.
+func APIKeyAuth(name string, mw ...gin.HandlerFunc) OperationOption {
+	return func(op *operation) {
+		requireAuthMiddleware("APIKeyAuth", mw)
+		Security(name)(op)
+		appendOperationAuthMiddleware(op, mw...)
+	}
+}
+
+// OAuth2Auth marks this operation as requiring the default oauth2 scheme.
+func OAuth2Auth(scopes ...string) OperationOption {
+	return Security("oauth2", scopes...)
+}
+
+// OAuth2AuthMiddleware applies the default oauth2 OpenAPI security requirement
+// and attaches the matching Gin middleware to this operation.
+func OAuth2AuthMiddleware(mw gin.HandlerFunc, scopes ...string) OperationOption {
+	return SecurityMiddleware("oauth2", mw, scopes...)
+}
+
+func appendOperationAuthMiddleware(op *operation, mw ...gin.HandlerFunc) {
+	for _, handler := range mw {
+		if handler == nil {
+			panic("gin-ninja: auth middleware must not be nil")
+		}
+		op.ginMiddleware = append(op.ginMiddleware, handler)
+	}
+}
+
+func requireAuthMiddleware(helper string, mw []gin.HandlerFunc) {
+	if len(mw) == 0 {
+		panic("gin-ninja: " + helper + " requires auth middleware; use Security/WithSecurity for documentation-only security metadata")
+	}
 }
 
 // Deprecated marks the operation as deprecated in the docs.
@@ -186,6 +249,7 @@ type operation struct {
 	method                  string
 	path                    string
 	ginHandler              gin.HandlerFunc
+	ginMiddleware           []gin.HandlerFunc
 	inputType               reflect.Type
 	outputType              reflect.Type
 	summary                 string

@@ -798,13 +798,30 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 		t.Fatalf("expected security requirements clone to be independent: %+v", clonedRequirements)
 	}
 
-	schemes := map[string]SecurityScheme{"bearerAuth": HTTPBearerSecurityScheme("JWT")}
+	schemes := map[string]SecurityScheme{
+		"bearerAuth": HTTPBearerSecurityScheme("JWT"),
+		"basicAuth":  HTTPBasicSecurityScheme(),
+		"apiKey":     APIKeyHeaderSecurityScheme("X-API-Key"),
+		"oauth2": OAuth2SecurityScheme(OAuthFlows{
+			ClientCredentials: &OAuthFlow{
+				TokenURL: "https://example.com/token",
+				Scopes:   map[string]string{"read": "read data"},
+			},
+		}),
+	}
 	clonedSchemes := cloneSecuritySchemes(schemes)
 	scheme := clonedSchemes["bearerAuth"]
 	scheme.BearerFormat = "opaque"
 	clonedSchemes["bearerAuth"] = scheme
+	clonedSchemes["oauth2"].Flows.ClientCredentials.Scopes["read"] = "changed"
 	if schemes["bearerAuth"].BearerFormat != "JWT" {
 		t.Fatalf("expected security schemes clone to be independent: %+v", schemes)
+	}
+	if schemes["oauth2"].Flows.ClientCredentials.Scopes["read"] != "read data" {
+		t.Fatalf("expected oauth2 scopes clone to be independent: %+v", schemes["oauth2"].Flows.ClientCredentials.Scopes)
+	}
+	if schemes["basicAuth"].Scheme != "basic" || schemes["apiKey"].In != "header" {
+		t.Fatalf("unexpected security scheme helpers: %+v", schemes)
 	}
 
 	if err := NewError(http.StatusBadRequest, "bad"); err.Code != http.StatusBadRequest || err.Message != "bad" {
@@ -819,9 +836,21 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 }
 
 func TestOptionHelpers(t *testing.T) {
-	router := NewRouter("/users", WithTags("Users", "Admin"), WithSecurity("oauth2", "read"), WithBearerAuth(), WithVersion("v1"))
+	noopAuth := func(c *gin.Context) {
+		c.Next()
+	}
+	router := NewRouter(
+		"/users",
+		WithTags("Users", "Admin"),
+		WithSecurity("oauth2", "read"),
+		WithBearerAuth(noopAuth),
+		WithBasicAuth(noopAuth),
+		WithAPIKeyAuth("apiKey", noopAuth),
+		WithOAuth2Auth("write"),
+		WithVersion("v1"),
+	)
 	WithTagDescription("Users", "user operations")(router)
-	if len(router.tags) != 2 || len(router.security) != 2 || router.version != "v1" {
+	if len(router.tags) != 2 || len(router.security) != 5 || router.version != "v1" {
 		t.Fatalf("unexpected router options: %+v", router)
 	}
 	if router.tagDescriptions["Users"] != "user operations" {
@@ -835,7 +864,10 @@ func TestOptionHelpers(t *testing.T) {
 	Tags("Users")(op)
 	TagDescription("Users", "user operations")(op)
 	Security("oauth2", "read")(op)
-	BearerAuth()(op)
+	BearerAuth(noopAuth)(op)
+	BasicAuth(noopAuth)(op)
+	APIKeyAuth("apiKey", noopAuth)(op)
+	OAuth2Auth("write")(op)
 	Deprecated()(op)
 	Cache(time.Minute)(op)
 	CacheControl("private, max-age=60")(op)
@@ -855,7 +887,7 @@ func TestOptionHelpers(t *testing.T) {
 	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
 	}
-	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 2 {
+	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 5 {
 		t.Fatalf("unexpected operation options: %+v", op)
 	}
 	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.cursorPaginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil || op.cache == nil || !op.etagEnabled {
@@ -867,6 +899,25 @@ func TestOptionHelpers(t *testing.T) {
 	if !op.withTransaction {
 		t.Fatalf("expected WithTransaction to enable transaction wrapping: %+v", op)
 	}
+}
+
+func TestAuthHelpersRequireMiddleware(t *testing.T) {
+	assertPanics := func(name string, fn func()) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Fatalf("expected %s to panic without middleware", name)
+			}
+		}()
+		fn()
+	}
+
+	assertPanics("WithBearerAuth", func() { WithBearerAuth()(NewRouter("/")) })
+	assertPanics("WithBasicAuth", func() { WithBasicAuth()(NewRouter("/")) })
+	assertPanics("WithAPIKeyAuth", func() { WithAPIKeyAuth("apiKey")(NewRouter("/")) })
+	assertPanics("BearerAuth", func() { BearerAuth()(&operation{}) })
+	assertPanics("BasicAuth", func() { BasicAuth()(&operation{}) })
+	assertPanics("APIKeyAuth", func() { APIKeyAuth("apiKey")(&operation{}) })
 }
 
 func TestRouterRegistrationHelpers(t *testing.T) {
