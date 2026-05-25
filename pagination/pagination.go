@@ -47,7 +47,7 @@ type PageInput struct {
 //	}
 type CursorPagination struct {
 	// Cursor is the opaque cursor returned by a previous page.
-	Cursor string `query:"cursor" json:"-"`
+	Cursor string `query:"cursor" binding:"omitempty,max=512" json:"-"`
 	// Size is the number of items per page (default: 20, max: 100).
 	Size int `query:"size" binding:"omitempty,min=1,max=100" json:"-"`
 }

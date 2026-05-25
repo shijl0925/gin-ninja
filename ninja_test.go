@@ -1159,6 +1159,15 @@ func TestOpenAPISpec_DefaultsTagDescriptionsAndPaginatedResponse(t *testing.T) {
 	if items["type"] != "array" {
 		t.Fatalf("expected paginated items array, got %v", items)
 	}
+	props := respSchema["properties"].(map[string]interface{})
+	if got := props["total"].(map[string]interface{})["format"]; got != "int64" {
+		t.Fatalf("expected total int64 format, got %v", props["total"])
+	}
+	for _, name := range []string{"page", "size", "pages"} {
+		if got := props[name].(map[string]interface{})["format"]; got != nil {
+			t.Fatalf("expected %s to omit integer format, got %v", name, props[name])
+		}
+	}
 }
 
 func TestOpenAPISpec_CursorPaginatedResponse(t *testing.T) {
@@ -1206,6 +1215,15 @@ func TestOpenAPISpec_CursorPaginatedResponse(t *testing.T) {
 	}
 	if props["has_next"].(map[string]interface{})["type"] != "boolean" {
 		t.Fatalf("expected has_next boolean schema, got %v", props["has_next"])
+	}
+	if got := props["size"].(map[string]interface{})["format"]; got != nil {
+		t.Fatalf("expected cursor size to omit integer format, got %v", props["size"])
+	}
+
+	tooLongCursor := strings.Repeat("x", 513)
+	resp := doRequest(api, http.MethodGet, "/events/?cursor="+tooLongCursor, nil)
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected oversized cursor to fail validation, got %d: %s", resp.Code, resp.Body.String())
 	}
 }
 

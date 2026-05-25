@@ -180,6 +180,22 @@ func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage
 
 使用 `ninja.CursorPaginated[EventOut]()` 声明响应信封文档。
 
+对于简单的 GORM 单列 keyset 分页，可以使用 `orm.SelectCursorPage`：
+
+```go
+items, nextCursor, err := orm.SelectCursorPage(
+    db,
+    in.CursorPagination,
+    "id",
+    in.GetCursor(),
+    func(item Event) string { return strconv.Itoa(item.ID) },
+)
+if err != nil {
+    return nil, err
+}
+return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
+```
+
 如果需要把公开别名映射到不同的数据库列，可以使用 `alias:column` 或 `alias=column`：
 
 ```go

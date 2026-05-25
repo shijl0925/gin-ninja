@@ -183,6 +183,22 @@ func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage
 
 Document the response envelope with `ninja.CursorPaginated[EventOut]()`.
 
+For simple single-column keyset pagination with GORM, use `orm.SelectCursorPage`:
+
+```go
+items, nextCursor, err := orm.SelectCursorPage(
+    db,
+    in.CursorPagination,
+    "id",
+    in.GetCursor(),
+    func(item Event) string { return strconv.Itoa(item.ID) },
+)
+if err != nil {
+    return nil, err
+}
+return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
+```
+
 If you need a public alias that maps to a different database column, use `alias:column` or `alias=column`:
 
 ```go
