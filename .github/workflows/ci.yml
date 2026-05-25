@@ -41,7 +41,7 @@ jobs:
 
       - name: Test with coverage
         run: |
-          go test ./... -coverprofile=coverage.out
+          go test ./... -coverprofile=coverage-root.out
           (
             cd cmd/gin-ninja-cli
             go test ./... -coverprofile=coverage-cli.out
@@ -52,15 +52,17 @@ jobs:
           )
           {
             echo 'mode: set'
-            tail -n +2 coverage.out
+            tail -n +2 coverage-root.out
             tail -n +2 cmd/gin-ninja-cli/coverage-cli.out
-          } > coverage-all.out
+          } > coverage.out
 
       - name: Install DeepSource CLI
+        if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
         run: curl -fsSL https://cli.deepsource.com/install | BINDIR=./bin sh
 
       - name: Upload coverage to DeepSource
-        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage-all.out
+        if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
+        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage.out
         env:
           DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
 
