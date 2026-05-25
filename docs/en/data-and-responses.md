@@ -190,7 +190,7 @@ items, nextCursor, err := orm.SelectCursorPage(
     db,
     in.CursorPagination,
     "id",
-    in.GetCursor(),
+    strconv.Atoi,
     func(item Event) string { return strconv.Itoa(item.ID) },
 )
 if err != nil {

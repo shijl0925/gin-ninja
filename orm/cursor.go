@@ -11,6 +11,10 @@ import (
 // CursorPageOption customizes SelectCursorPage query construction.
 type CursorPageOption func(*cursorPageConfig)
 
+// CursorDecoder converts the opaque cursor string into the column value used
+// by the keyset WHERE condition.
+type CursorDecoder[C any] func(string) (C, error)
+
 type cursorPageConfig struct {
 	desc bool
 }
@@ -26,11 +30,11 @@ func CursorPageDesc() CursorPageOption {
 // SelectCursorPage applies single-column keyset pagination to db, fetches one
 // extra row to detect the next page, and returns the trimmed items plus the next
 // cursor value. The cursorColumn argument must be a trusted model column name.
-func SelectCursorPage[T any](
+func SelectCursorPage[T any, C any](
 	db *gorm.DB,
 	input pagination.CursorPagination,
 	cursorColumn string,
-	cursorValue any,
+	decodeCursor CursorDecoder[C],
 	cursorFromItem func(T) string,
 	opts ...CursorPageOption,
 ) ([]T, string, error) {
@@ -39,6 +43,9 @@ func SelectCursorPage[T any](
 	}
 	if cursorColumn == "" {
 		return nil, "", errors.New("orm: cursor column is required")
+	}
+	if decodeCursor == nil {
+		return nil, "", errors.New("orm: cursor decoder is required")
 	}
 	if cursorFromItem == nil {
 		return nil, "", errors.New("orm: cursor extractor is required")
@@ -53,7 +60,11 @@ func SelectCursorPage[T any](
 
 	column := clause.Column{Name: cursorColumn}
 	query := db.Order(clause.OrderByColumn{Column: column, Desc: cfg.desc})
-	if hasCursorValue(cursorValue) {
+	if cursor := input.GetCursor(); cursor != "" {
+		cursorValue, err := decodeCursor(cursor)
+		if err != nil {
+			return nil, "", err
+		}
 		if cfg.desc {
 			query = query.Where(clause.Lt{Column: column, Value: cursorValue})
 		} else {
@@ -72,14 +83,4 @@ func SelectCursorPage[T any](
 
 	items = items[:limit]
 	return items, cursorFromItem(items[len(items)-1]), nil
-}
-
-func hasCursorValue(value any) bool {
-	if value == nil {
-		return false
-	}
-	if s, ok := value.(string); ok {
-		return s != ""
-	}
-	return true
 }
