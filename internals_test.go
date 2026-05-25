@@ -878,6 +878,8 @@ func TestOptionHelpers(t *testing.T) {
 	Response(http.StatusNotFound, "not found", nil)(op)
 	Paginated[schemaSample]()(op)
 	PaginatedResponse[schemaSample](http.StatusPartialContent, "partial")(op)
+	CursorPaginated[schemaSample]()(op)
+	CursorPaginatedResponse[schemaSample](http.StatusMultiStatus, "cursor partial")(op)
 	Timeout(time.Second)(op)
 	RateLimit(2, 3)(op)
 	WithTransaction()(op)
@@ -888,10 +890,10 @@ func TestOptionHelpers(t *testing.T) {
 	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 5 {
 		t.Fatalf("unexpected operation options: %+v", op)
 	}
-	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil || op.cache == nil || !op.etagEnabled {
+	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.cursorPaginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil || op.cache == nil || !op.etagEnabled {
 		t.Fatalf("unexpected extended operation options: %+v", op)
 	}
-	if len(op.responses) != 3 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil {
+	if len(op.responses) != 4 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil || op.responses[3].cursorPaginatedItemType == nil {
 		t.Fatalf("unexpected documented responses: %+v", op.responses)
 	}
 	if !op.withTransaction {

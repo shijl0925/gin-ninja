@@ -1,4 +1,4 @@
-# 配置、Bootstrap 与 ORM
+# 配置、Bootstrap 与生命周期
 
 [文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
 
@@ -9,10 +9,10 @@ import "github.com/shijl0925/gin-ninja/settings"
 
 cfg := settings.MustLoad("config.yaml")
 // 或
-cfg := settings.MustLoadForEnv("config.yaml")
+cfg, err := settings.Load("config.yaml")
 ```
 
-示例配置：
+示例 `config.yaml`：
 
 ```yaml
 app:
@@ -52,16 +52,43 @@ log:
   compress: false       # 为 true 时压缩旧日志
 ```
 
-补充说明：
+MySQL / PostgreSQL 可以使用同一个 `database` 配置块：
 
-- 环境变量使用双下划线覆盖配置，例如：`SERVER__PORT=9090`
-- `MustLoadWithOverrides` 支持加载基础配置后再叠加覆盖文件
-- `MustLoadForEnv` 会根据 `app.env` 自动合并 `config.<env>.yaml`
-- MySQL/PostgreSQL 既支持原始 DSN，也支持结构化字段配置
+```yaml
+database:
+  # MySQL
+  driver: "mysql"
+  dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+
+  # 或使用结构化字段，密码中的特殊字符会被安全转义：
+  # mysql:
+  #   host: "127.0.0.1"
+  #   port: 3306
+  #   user: "root"
+  #   password: "p@ss:word+plus"
+  #   name: "gin_ninja"
+  #   charset: "utf8mb4"
+  #   parse_time: true
+  #   loc: "Local"
+
+  # PostgreSQL
+  # driver: "postgres"
+  # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+  # postgres:
+  #   host: "127.0.0.1"
+  #   port: 5432
+  #   user: "postgres"
+  #   password: "p@ss word"
+  #   name: "gin_ninja"
+  #   sslmode: "disable"
+  #   time_zone: "Asia/Shanghai"
+```
+
+如果仍然提供原始 MySQL DSN，且密码包含 `@`、`:`、`/`、`?`、`#` 或 `+` 等保留字符，请先对密码片段进行 URL 编码。结构化的 `database.mysql` / `database.postgres` 字段可以避免手动转义。
 
 ### 配置值中的密码与环境变量占位符
 
-将明文密码写入 `config.yaml` 存在安全风险，尤其在容器化或云原生部署中文件可能被提交到代码仓库。gin-ninja 支持在任意字符串配置值中使用 Spring 风格的 `${VAR}` / `${VAR:默认值}` 占位符。YAML 文件解析完成后，框架会自动将每个占位符替换为对应的环境变量值；若环境变量未设置或为空，则使用 `:` 后面的默认值（不写默认值则字段变为空字符串）。
+将明文密码写入 `config.yaml` 存在安全风险，尤其在容器化或云部署中文件可能被提交到代码仓库。gin-ninja 支持在任意字符串配置值中使用 Spring 风格的 `${VAR}` / `${VAR:default}` 占位符。YAML 文件解析完成后，每个 token 都会替换为对应环境变量的值。如果变量未设置或为空，则使用第一个 `:` 后面的默认值；省略默认值会让字段变为空字符串。
 
 ```yaml
 database:
@@ -69,7 +96,7 @@ database:
   # 整条 DSN 来自环境变量，未设置时回退到本地开发连接。
   dsn: "${DATASOURCE_URL:host=localhost user=postgres dbname=myapp sslmode=disable}"
 
-  # 也可以用结构化字段，每个凭证对应独立的环境变量。
+  # 或使用结构化字段，每个凭证对应独立环境变量。
   postgres:
     host:     "${DB_HOST:localhost}"
     user:     "${DB_USER:postgres}"
@@ -94,13 +121,49 @@ database:
 | 来源 | 示例 |
 |---|---|
 | `config.yaml` 中的字面值 | `password: "fallback"` |
-| 占位符内的默认值 | `password: "${DB_PASSWORD:fallback}"` |
+| `${VAR:default}` 中的默认值 | `password: "${DB_PASSWORD:fallback}"` |
 | 占位符对应的环境变量 | `DB_PASSWORD=real-pass` |
 | 双下划线环境变量覆盖 | `DATABASE__POSTGRES__PASSWORD=top` |
 
-双下划线覆盖（Viper `AutomaticEnv`）优先级最高，在占位符展开之后生效。对于没有占位符的字段，仍可通过双下划线环境变量直接覆盖。
+双下划线覆盖（Viper `AutomaticEnv`）最后应用，因此优先级高于占位符。对于没有占位符的字段，也可以用它直接覆盖。
 
-## Bootstrap 与 ORM
+环境变量使用双下划线分隔符覆盖文件配置：
+
+```bash
+export SERVER__PORT=9090
+export JWT__SECRET=my-secret
+```
+
+### 多环境配置合并
+
+对于有环境差异配置的项目，使用 `LoadWithOverrides` 或 `LoadForEnv`。
+
+**`LoadWithOverrides`** – 先加载基础文件，再合并一个或多个覆盖文件。后面的文件优先生效。缺失的覆盖文件会被静默跳过，因此即使某些环境才有该文件，也可以安全地提交覆盖路径。
+
+```go
+// 如果存在 config.local.yaml，则合并到 config.yaml 之上。
+cfg := settings.MustLoadWithOverrides("config.yaml", "config.local.yaml")
+```
+
+**`LoadForEnv`** – 根据 `app.env`（或 `APP__ENV` 环境变量）自动发现并合并对应环境的覆盖文件。
+
+```
+config.yaml             ← 基础配置（总是加载）
+config.production.yaml  ← app.env=production 时合并
+config.staging.yaml     ← app.env=staging 时合并
+config.development.yaml ← app.env=development（默认）时合并
+```
+
+```go
+// 从 config.yaml 读取 app.env，然后合并 config.<env>.yaml。
+cfg := settings.MustLoadForEnv("config.yaml")
+```
+
+只有覆盖文件中出现的键会被修改；其他键保持基础配置或默认值。
+
+---
+
+## Bootstrap
 
 ```go
 import (
@@ -110,23 +173,45 @@ import (
 )
 
 cfg := settings.MustLoad("config.yaml")
+
 log := bootstrap.InitLogger(&cfg.Log)
 defer func() { _ = log.Sync() }()
 
+// 初始化数据库。
 db := bootstrap.MustInitDB(&cfg.Database)
 orm.Init(db)
 ```
 
-- `bootstrap.MustInitDB` 通过驱动注册包解析数据库驱动，按需引入即可，例如：
-  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
-  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
-  - `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
-- `orm.Middleware(db)` 可把数据库句柄注入请求上下文
-- 事务场景可以在操作上使用 `ninja.WithTransaction()`
+`bootstrap.MustInitDB` 通过注册包解析数据库驱动。请按配置的驱动导入对应包，例如：
+
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
+- `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
+
+`examples/full/config.yaml` 已包含可直接复制的 MySQL 和 PostgreSQL DSN 示例。
+
+### 解析器变更的边界用例清单
+
+对于任何解析外部字符串的代码（DSN、请求头、query/form 值、filter/sort DSL、版本参数），请验证：
+
+- 协议字符串应作为结构化输入处理，而不是普通文本
+- 覆盖特殊字符：`@ : / ? # % + = , ;` 和空格
+- 覆盖空值、格式错误、重复输入和大小写混合输入
+- 文档示例有对应测试
+- 纯解析辅助函数有 fuzz/property 覆盖，避免 panic 和静默重新解释
+
+---
 
 ## 生命周期钩子
 
 ```go
+api := ninja.New(ninja.Config{
+    GracefulShutdownTimeout: 15 * time.Second,
+    ReadTimeout:             15 * time.Second,
+    WriteTimeout:            30 * time.Second,
+    IdleTimeout:             60 * time.Second,
+})
+
 api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
     return warmCache(ctx)
 })
@@ -134,10 +219,13 @@ api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
 api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
     return closeResources()
 })
+
+log.Fatal(api.Run(":8080"))
 ```
 
-`Run()` 会处理 `SIGINT` / `SIGTERM` 并执行优雅关闭。
+`Run()` 会在 `SIGINT` / `SIGTERM` 时执行优雅关闭，并且只执行一次 shutdown hooks。
+`Serve(listener)` 可用于自定义嵌入和手动关闭编排。
 
 ---
 
-上一篇: [核心 API、绑定与响应](./core-api.md) | 下一篇: [中间件与安全](./middleware-security.md)
+上一篇: [项目与 CRUD 脚手架](./scaffolding.md) | 下一篇: [中间件与安全](./middleware-security.md)
