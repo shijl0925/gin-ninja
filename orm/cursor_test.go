@@ -2,9 +2,12 @@ package orm
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 
+	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/pagination"
 )
 
@@ -143,16 +146,59 @@ func TestSelectCursorPageDecodesOnlyNonEmptyCursor(t *testing.T) {
 
 func TestSelectCursorPageReturnsDecodeError(t *testing.T) {
 	db := testDB(t)
-	wantErr := errors.New("bad cursor")
 
 	_, _, err := SelectCursorPage(
 		db,
 		pagination.CursorPagination{Cursor: "bad", Size: 2},
 		"id",
-		func(string) (int, error) { return 0, wantErr },
+		func(string) (int, error) { return 0, errors.New("bad cursor") },
 		func(item cursorTestItem) string { return strconv.Itoa(item.ID) },
 	)
-	if !errors.Is(err, wantErr) {
-		t.Fatalf("expected decode error %v, got %v", wantErr, err)
+	var apiErr *ninja.Error
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected ninja error, got %T: %v", err, err)
+	}
+	if apiErr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, apiErr.Code)
+	}
+	if !ninja.IsBadRequest(err) {
+		t.Fatalf("expected bad request error, got %v", err)
+	}
+	if !strings.Contains(apiErr.Message, "invalid cursor: bad cursor") {
+		t.Fatalf("unexpected error message %q", apiErr.Message)
+	}
+}
+
+func TestSelectCursorPageRejectsEmptyNextCursor(t *testing.T) {
+	db := testDB(t)
+	if err := db.Migrator().DropTable(&cursorTestItem{}); err != nil {
+		t.Fatalf("DropTable: %v", err)
+	}
+	if err := db.AutoMigrate(&cursorTestItem{}); err != nil {
+		t.Fatalf("AutoMigrate: %v", err)
+	}
+	if err := db.Create([]cursorTestItem{
+		{ID: 1, Name: "one"},
+		{ID: 2, Name: "two"},
+		{ID: 3, Name: "three"},
+	}).Error; err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	_, nextCursor, err := SelectCursorPage(
+		db,
+		pagination.CursorPagination{Size: 2},
+		"id",
+		strconv.Atoi,
+		func(cursorTestItem) string { return "" },
+	)
+	if err == nil {
+		t.Fatal("expected empty next cursor error")
+	}
+	if nextCursor != "" {
+		t.Fatalf("nextCursor = %q, want empty", nextCursor)
+	}
+	if !strings.Contains(err.Error(), "cursor extractor returned empty string") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

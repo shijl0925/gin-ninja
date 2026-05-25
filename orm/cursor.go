@@ -2,7 +2,10 @@ package orm
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
 
+	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -63,7 +66,7 @@ func SelectCursorPage[T any, C any](
 	if cursor := input.GetCursor(); cursor != "" {
 		cursorValue, err := decodeCursor(cursor)
 		if err != nil {
-			return nil, "", err
+			return nil, "", ninja.NewError(http.StatusBadRequest, fmt.Sprintf("invalid cursor: %s", err))
 		}
 		if cfg.desc {
 			query = query.Where(clause.Lt{Column: column, Value: cursorValue})
@@ -82,5 +85,9 @@ func SelectCursorPage[T any, C any](
 	}
 
 	items = items[:limit]
-	return items, cursorFromItem(items[len(items)-1]), nil
+	nextCursor := cursorFromItem(items[len(items)-1])
+	if nextCursor == "" {
+		return nil, "", errors.New("orm: cursor extractor returned empty string for non-terminal page")
+	}
+	return items, nextCursor, nil
 }
