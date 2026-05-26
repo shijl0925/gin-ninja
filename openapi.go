@@ -497,8 +497,34 @@ func (s *openAPISpec) registerTags(tags []string, descriptions map[string]string
 }
 
 // ---------------------------------------------------------------------------
-// Swagger UI HTML
+// Docs UI HTML
 // ---------------------------------------------------------------------------
+
+// DocsRenderer renders an HTML documentation UI for an OpenAPI URL.
+type DocsRenderer interface {
+	Render(openapiURL, title string) string
+}
+
+type docsRendererFunc func(openapiURL, title string) string
+
+func (f docsRendererFunc) Render(openapiURL, title string) string {
+	return f(openapiURL, title)
+}
+
+// Swagger returns the default Swagger UI docs renderer.
+func Swagger() DocsRenderer {
+	return docsRendererFunc(swaggerUIHTML)
+}
+
+// Redoc returns a ReDoc docs renderer.
+func Redoc() DocsRenderer {
+	return docsRendererFunc(redocHTML)
+}
+
+// ReDoc returns a ReDoc docs renderer.
+func ReDoc() DocsRenderer {
+	return Redoc()
+}
 
 func swaggerUIHTML(openapiURL, title string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
@@ -526,6 +552,21 @@ window.onload = function() {
 </script>
 </body>
 </html>`, html.EscapeString(title), htmltemplate.JSEscapeString(openapiURL))
+}
+
+func redocHTML(openapiURL, title string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+  <title>%s - API Docs</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<redoc spec-url="%s"></redoc>
+<script src="https://unpkg.com/redoc@2/bundles/redoc.standalone.js"></script>
+</body>
+</html>`, html.EscapeString(title), html.EscapeString(openapiURL))
 }
 
 // homepageHTML returns the HTML for the Gin Ninja welcome homepage.
