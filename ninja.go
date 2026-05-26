@@ -25,6 +25,14 @@ type Config struct {
 	Version string
 	// Description is an optional long description of the API.
 	Description string
+	// TermsOfService is the URL for the API terms of service in OpenAPI docs.
+	TermsOfService string
+	// Contact describes API support contact information in OpenAPI docs.
+	Contact *Contact
+	// LicenseInfo describes API license information in OpenAPI docs.
+	LicenseInfo *LicenseInfo
+	// Servers describes API server URLs in OpenAPI docs.
+	Servers []Server
 	// DocsURL is the path at which the docs UI is served (default: "/docs").
 	// Set DisableDocs to true to disable the UI.
 	DocsURL string
@@ -78,6 +86,25 @@ type Config struct {
 	// GracefulShutdownTimeout bounds how long Run waits for shutdown hooks and
 	// in-flight requests after receiving SIGINT or SIGTERM. Zero uses 10s.
 	GracefulShutdownTimeout time.Duration
+}
+
+// Contact describes the OpenAPI info.contact object.
+type Contact struct {
+	Name  string `json:"name,omitempty"`
+	URL   string `json:"url,omitempty"`
+	Email string `json:"email,omitempty"`
+}
+
+// LicenseInfo describes the OpenAPI info.license object.
+type LicenseInfo struct {
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
+
+// Server describes an OpenAPI server object.
+type Server struct {
+	URL         string `json:"url"`
+	Description string `json:"description,omitempty"`
 }
 
 // NinjaAPI is the central API instance.  It wraps a *gin.Engine and

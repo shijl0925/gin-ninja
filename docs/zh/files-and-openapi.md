@@ -118,6 +118,36 @@ OpenAPI 会把上传输入描述为 `multipart/form-data`，把 `*ninja.Download
 
 ## OpenAPI 操作级控制
 
+### 文档元信息与服务器地址
+
+通过 `ninja.Config` 配置标准 OpenAPI info 字段和服务器地址：
+
+```go
+api := ninja.New(ninja.Config{
+    Title:          "My API",
+    Version:        "1.0.0",
+    Description:    "Public API documentation.",
+    TermsOfService: "https://example.com/terms",
+    Contact: &ninja.Contact{
+        Name:  "Support",
+        URL:   "https://example.com/support",
+        Email: "support@example.com",
+    },
+    LicenseInfo: &ninja.LicenseInfo{
+        Name: "MIT",
+        URL:  "https://opensource.org/license/mit",
+    },
+    Servers: []ninja.Server{
+        {URL: "https://api.example.com", Description: "Production"},
+        {URL: "https://staging-api.example.com", Description: "Staging"},
+    },
+})
+```
+
+这些配置会输出为标准 OpenAPI `info.termsOfService`、`info.contact`、`info.license` 以及根级 `servers` 字段，供 Swagger UI 和 ReDoc 使用。
+
+### 操作级控制
+
 ```go
 users := ninja.NewRouter(
     "/users",

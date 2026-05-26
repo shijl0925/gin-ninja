@@ -18,6 +18,7 @@ import (
 type openAPISpec struct {
 	OpenAPI    string               `json:"openapi"`
 	Info       openAPIInfo          `json:"info"`
+	Servers    []Server             `json:"servers,omitempty"`
 	Paths      map[string]*pathItem `json:"paths"`
 	Components openAPIComponents    `json:"components"`
 	Tags       []openAPITag         `json:"tags,omitempty"`
@@ -29,9 +30,12 @@ type openAPISpec struct {
 }
 
 type openAPIInfo struct {
-	Title       string `json:"title"`
-	Version     string `json:"version"`
-	Description string `json:"description,omitempty"`
+	Title          string       `json:"title"`
+	Version        string       `json:"version"`
+	Description    string       `json:"description,omitempty"`
+	TermsOfService string       `json:"termsOfService,omitempty"`
+	Contact        *Contact     `json:"contact,omitempty"`
+	License        *LicenseInfo `json:"license,omitempty"`
 }
 
 type openAPIComponents struct {
@@ -103,11 +107,15 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 	return &openAPISpec{
 		OpenAPI: "3.0.3",
 		Info: openAPIInfo{
-			Title:       cfg.Title,
-			Version:     cfg.Version,
-			Description: cfg.Description,
+			Title:          cfg.Title,
+			Version:        cfg.Version,
+			Description:    cfg.Description,
+			TermsOfService: cfg.TermsOfService,
+			Contact:        cloneContact(cfg.Contact),
+			License:        cloneLicenseInfo(cfg.LicenseInfo),
 		},
-		Paths: make(map[string]*pathItem),
+		Servers: cloneServers(cfg.Servers),
+		Paths:   make(map[string]*pathItem),
 		Components: openAPIComponents{
 			Schemas:         make(map[string]*Schema),
 			SecuritySchemes: cloneSecuritySchemes(cfg.SecuritySchemes),
@@ -121,6 +129,8 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 // build returns the final spec ready for JSON serialisation.
 func (s *openAPISpec) build() *openAPISpec {
 	built := *s
+	built.Info = cloneOpenAPIInfo(s.Info)
+	built.Servers = cloneServers(s.Servers)
 	built.Paths = make(map[string]*pathItem, len(s.Paths))
 	for path, item := range s.Paths {
 		built.Paths[path] = item
@@ -147,6 +157,37 @@ func (s *openAPISpec) build() *openAPISpec {
 		}
 	}
 	return &built
+}
+
+func cloneOpenAPIInfo(info openAPIInfo) openAPIInfo {
+	info.Contact = cloneContact(info.Contact)
+	info.License = cloneLicenseInfo(info.License)
+	return info
+}
+
+func cloneContact(contact *Contact) *Contact {
+	if contact == nil {
+		return nil
+	}
+	cloned := *contact
+	return &cloned
+}
+
+func cloneLicenseInfo(license *LicenseInfo) *LicenseInfo {
+	if license == nil {
+		return nil
+	}
+	cloned := *license
+	return &cloned
+}
+
+func cloneServers(servers []Server) []Server {
+	if len(servers) == 0 {
+		return nil
+	}
+	cloned := make([]Server, len(servers))
+	copy(cloned, servers)
+	return cloned
 }
 
 // addOperation registers an operation in the spec.
