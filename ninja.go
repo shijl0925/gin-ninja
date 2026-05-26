@@ -25,13 +25,16 @@ type Config struct {
 	Version string
 	// Description is an optional long description of the API.
 	Description string
-	// DocsURL is the path at which the Swagger UI is served (default: "/docs").
+	// DocsURL is the path at which the docs UI is served (default: "/docs").
 	// Set DisableDocs to true to disable the UI.
 	DocsURL string
-	// DisableDocs disables the Swagger UI route.
+	// Docs selects the docs UI renderer (default: Swagger()). Use Redoc() to
+	// serve ReDoc at DocsURL.
+	Docs DocsRenderer
+	// DisableDocs disables the docs UI route.
 	DisableDocs bool
 	// HideDocsShortcut hides the "API Docs" shortcut on the homepage while
-	// leaving the Swagger UI route configured by DocsURL unchanged.
+	// leaving the docs UI route configured by DocsURL unchanged.
 	HideDocsShortcut bool
 	// OpenAPIURL is the path at which the raw OpenAPI JSON is served (default: "/openapi.json").
 	OpenAPIURL string
@@ -120,6 +123,9 @@ func New(config Config) *NinjaAPI {
 	}
 	if config.OpenAPIURL == "" && !config.DisableOpenAPI {
 		config.OpenAPIURL = "/openapi.json"
+	}
+	if config.Docs == nil {
+		config.Docs = Swagger()
 	}
 	if config.DisableOpenAPI {
 		config.DisableDocs = true
@@ -327,7 +333,7 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 	}
 }
 
-// setupInternalRoutes adds the OpenAPI JSON and Swagger UI routes.
+// setupInternalRoutes adds the OpenAPI JSON and docs UI routes.
 func (api *NinjaAPI) setupInternalRoutes() {
 	if !api.config.DisableHomepage && api.config.HomepageURL != "" {
 		homepageURL := api.config.HomepageURL
@@ -360,7 +366,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		title := api.config.Title
 		api.engine.GET(docsURL, func(c *gin.Context) {
 			c.Data(http.StatusOK, "text/html; charset=utf-8",
-				[]byte(swaggerUIHTML(openAPIURL, title)))
+				[]byte(api.docsHTML(openAPIURL, title)))
 		})
 	}
 
@@ -390,9 +396,17 @@ func (api *NinjaAPI) setupInternalRoutes() {
 				return
 			}
 			c.Data(http.StatusOK, "text/html; charset=utf-8",
-				[]byte(swaggerUIHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
+				[]byte(api.docsHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
 		})
 	}
+}
+
+func (api *NinjaAPI) docsHTML(openapiURL, title string) string {
+	renderer := api.config.Docs
+	if renderer == nil {
+		renderer = Swagger()
+	}
+	return renderer.Render(openapiURL, title)
 }
 
 func (api *NinjaAPI) RegisterErrorMapper(mapper ErrorMapper) {

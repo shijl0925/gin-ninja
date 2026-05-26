@@ -78,6 +78,29 @@ func TestNew_DocsRouteExists(t *testing.T) {
 	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
 		t.Fatalf("expected HTML content-type, got %s", ct)
 	}
+	body := w.Body.String()
+	if !strings.Contains(body, "SwaggerUIBundle") || !strings.Contains(body, "/openapi.json") {
+		t.Fatalf("expected default Swagger UI docs body, got %q", body)
+	}
+}
+
+func TestNew_RedocRouteExists(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Redoc Test",
+		Version: "0.0.1",
+		Docs:    ninja.Redoc(),
+	})
+	w := doRequest(api, http.MethodGet, "/docs", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "<redoc") || !strings.Contains(body, `spec-url="/openapi.json"`) || !strings.Contains(body, "redoc.standalone.js") {
+		t.Fatalf("expected ReDoc docs body, got %q", body)
+	}
+	if strings.Contains(body, "SwaggerUIBundle") {
+		t.Fatalf("expected ReDoc to replace Swagger UI, got %q", body)
+	}
 }
 
 func TestNew_HomepageRouteExists(t *testing.T) {
@@ -1965,6 +1988,28 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
 	if docsUI.Code != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/openapi/v1.json") {
 		t.Fatalf("expected versioned docs UI to reference versioned spec, got %d %q", docsUI.Code, docsUI.Body.String())
+	}
+}
+
+func TestVersionedRoutersUseSelectedDocsRenderer(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Versioned Redoc",
+		Version: "main",
+		Docs:    ninja.Redoc(),
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {Prefix: "/v1"},
+		},
+	})
+	v1 := ninja.NewRouter("/users", ninja.WithVersion("v1"))
+	ninja.Get(v1, "/", func(ctx *ninja.Context, _ *struct{}) (*versionOutput, error) {
+		return &versionOutput{Version: "v1"}, nil
+	})
+	api.AddRouter(v1)
+
+	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
+	body := docsUI.Body.String()
+	if docsUI.Code != http.StatusOK || !strings.Contains(body, `spec-url="/openapi/v1.json"`) || !strings.Contains(body, "redoc.standalone.js") {
+		t.Fatalf("expected versioned ReDoc UI to reference versioned spec, got %d %q", docsUI.Code, body)
 	}
 }
 
