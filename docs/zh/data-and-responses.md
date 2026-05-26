@@ -124,6 +124,7 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 - 零值会被忽略，因此省略的查询参数不会添加条件
 - `like` 适合包含式模糊匹配
 - `filter:"name|email,like"` 表示 `(name LIKE ? OR email LIKE ?)`；多字段声明式过滤使用 OR 语义
+- 对于标签无法表达的逻辑，输入结构体可以实现 `FilterExpression() clause.Expression`；返回的表达式会由 `filter.BuildOptions(...)` 和 `filter.ApplyDB(...)` 与标签过滤条件按 `AND` 一起应用
 - 无效过滤声明会在你暴露 `filter.BuildOptions(...)` 或 `filter.Apply(...)` 错误时返回 400
 
 ### 安全排序

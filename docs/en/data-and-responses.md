@@ -124,6 +124,7 @@ Behavior notes:
 - zero values are ignored, so omitted query params do not add conditions
 - `like` is suitable for contains-style fuzzy matching
 - `filter:"name|email,like"` means `(name LIKE ? OR email LIKE ?)`; multi-field declarative filters use OR semantics
+- for logic that cannot be represented by tags, the input may implement `FilterExpression() clause.Expression`; the returned expression is applied with `AND` alongside tagged filters by `filter.BuildOptions(...)` and `filter.ApplyDB(...)`
 - invalid filter declarations return a 400 error when you surface `filter.BuildOptions(...)` or `filter.Apply(...)` errors
 
 ### Safe sorting
