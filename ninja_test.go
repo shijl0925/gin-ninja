@@ -224,6 +224,75 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 }
 
+func TestNew_OpenAPIMetadata(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:          "Enterprise API",
+		Version:        "2.0.0",
+		Description:    "Public enterprise API",
+		TermsOfService: "https://example.com/terms",
+		Contact: &ninja.Contact{
+			Name:  "Support",
+			URL:   "https://example.com/support",
+			Email: "support@example.com",
+		},
+		LicenseInfo: &ninja.LicenseInfo{
+			Name: "MIT",
+			URL:  "https://opensource.org/license/mit",
+		},
+		Servers: []ninja.Server{
+			{URL: "https://api.example.com", Description: "Production"},
+			{URL: "https://staging-api.example.com", Description: "Staging"},
+		},
+	})
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("failed to parse openapi JSON: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected info object in spec")
+	}
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService in info, got %v", info["termsOfService"])
+	}
+	contact, ok := info["contact"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected contact object in info")
+	}
+	if contact["name"] != "Support" || contact["email"] != "support@example.com" || contact["url"] != "https://example.com/support" {
+		t.Fatalf("unexpected contact object: %+v", contact)
+	}
+	license, ok := info["license"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected license object in info")
+	}
+	if license["name"] != "MIT" || license["url"] != "https://opensource.org/license/mit" {
+		t.Fatalf("unexpected license object: %+v", license)
+	}
+
+	servers, ok := spec["servers"].([]interface{})
+	if !ok {
+		t.Fatalf("expected servers array in spec")
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+	production, ok := servers[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected server object, got %T", servers[0])
+	}
+	if production["url"] != "https://api.example.com" || production["description"] != "Production" {
+		t.Fatalf("unexpected production server: %+v", production)
+	}
+}
+
 func TestNew_InternalRoutesIgnoreAPIPrefix(t *testing.T) {
 	api := ninja.New(ninja.Config{
 		Title:   "Prefixed",
