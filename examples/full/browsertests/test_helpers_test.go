@@ -130,6 +130,7 @@ func isBrowserStartupInfraError(err error) bool {
 		"chrome failed to start",
 		"ThreadCache::IsValid",
 		"scheduler_loop_quarantine_support.h",
+		"websocket url timeout reached",
 	} {
 		if strings.Contains(text, token) {
 			return true
