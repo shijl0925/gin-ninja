@@ -326,7 +326,7 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 		group.Use(func(c *gin.Context) {
 			ctx := newContext(c)
 			if err := mw(ctx); err != nil {
-				writeError(c, err)
+				WriteError(c, err)
 				c.Abort()
 				return
 			}
@@ -337,21 +337,21 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 	for _, op := range router.operations {
 		// Build a copy of the operation with the correct full path for the spec.
 		opForSpec := *op
-		opForSpec.path = prefix + op.path
-		opForSpec.version = currentVersion
-		opForSpec.versionInfo = cloneVersionInfo(currentInfo)
+		opForSpec.route.path = prefix + op.route.path
+		opForSpec.version.name = currentVersion
+		opForSpec.version.info = cloneVersionInfo(currentInfo)
 		if currentInfo != nil && currentInfo.Deprecated {
-			opForSpec.deprecated = true
+			opForSpec.spec.deprecated = true
 		}
 		api.openAPI.addOperation(&opForSpec)
 		if currentVersion != "" {
 			api.versionSpec(currentVersion).addOperation(&opForSpec)
 		}
 
-		handlers := append(append([]gin.HandlerFunc{}, op.ginMiddleware...), op.ginHandler)
-		group.Handle(op.method, op.path, handlers...)
-		if op.method == http.MethodGet {
-			group.Handle(http.MethodHead, op.path, handlers...)
+		handlers := append(append([]gin.HandlerFunc{}, op.route.ginMiddleware...), op.route.ginHandler)
+		group.Handle(op.route.method, op.route.path, handlers...)
+		if op.route.method == http.MethodGet {
+			group.Handle(http.MethodHead, op.route.path, handlers...)
 		}
 	}
 
@@ -380,7 +380,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
 			data, err := api.openAPIBytes()
 			if err != nil {
-				writeError(c, err)
+				WriteError(c, err)
 				return
 			}
 			c.Data(http.StatusOK, "application/json; charset=utf-8", data)
@@ -402,7 +402,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 			version := requestVersion(c)
 			data, ok, err := api.versionOpenAPIBytes(version)
 			if err != nil {
-				writeError(c, err)
+				WriteError(c, err)
 				return
 			}
 			if !ok {

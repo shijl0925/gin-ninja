@@ -669,7 +669,7 @@ func TestContextResponseHelpers(t *testing.T) {
 func TestWriteError(t *testing.T) {
 	t.Run("api error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, &Error{Code: http.StatusTeapot, Message: "short and stout"})
+		WriteError(c, &Error{Code: http.StatusTeapot, Message: "short and stout"})
 		body := w.Body.String()
 		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":418`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -678,7 +678,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("validation error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
+		WriteError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
 		body := w.Body.String()
 		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":422`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -687,7 +687,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("generic error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, errors.New("boom"))
+		WriteError(c, errors.New("boom"))
 		body := w.Body.String()
 		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":500`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -709,7 +709,7 @@ func TestWriteError(t *testing.T) {
 
 		c, w := newTestContext(http.MethodGet, "/", "")
 		c.Set(ninjaAPIContextKey, api)
-		writeError(c, sentinel)
+		WriteError(c, sentinel)
 		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), `"code":418`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
@@ -717,7 +717,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("default mapper fallback without api", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, context.DeadlineExceeded)
+		WriteError(c, context.DeadlineExceeded)
 		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), `"code":408`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
@@ -1017,19 +1017,19 @@ func TestOptionHelpers(t *testing.T) {
 	RateLimit(2, 3)(op)
 	WithTransaction()(op)
 
-	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
+	if op.spec.summary != "list users" || op.spec.description != "full description" || op.spec.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
 	}
-	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 5 {
+	if !op.spec.deprecated || !op.spec.excludeFromDocs || op.spec.successStatus != http.StatusAccepted || len(op.spec.security) != 5 {
 		t.Fatalf("unexpected operation options: %+v", op)
 	}
-	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.cursorPaginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil || op.cache == nil || !op.etagEnabled {
+	if op.spec.tagDescriptions["Users"] != "user operations" || op.spec.paginatedItemType == nil || op.spec.cursorPaginatedItemType == nil || op.behavior.timeout != time.Second || op.behavior.rateLimit == nil || op.cache.config == nil || !op.cache.etagEnabled {
 		t.Fatalf("unexpected extended operation options: %+v", op)
 	}
-	if len(op.responses) != 4 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil || op.responses[3].cursorPaginatedItemType == nil {
-		t.Fatalf("unexpected documented responses: %+v", op.responses)
+	if len(op.spec.responses) != 4 || op.spec.responses[0].responseType == nil || op.spec.responses[1].responseType != nil || op.spec.responses[2].paginatedItemType == nil || op.spec.responses[3].cursorPaginatedItemType == nil {
+		t.Fatalf("unexpected documented responses: %+v", op.spec.responses)
 	}
-	if !op.withTransaction {
+	if !op.behavior.withTransaction {
 		t.Fatalf("expected WithTransaction to enable transaction wrapping: %+v", op)
 	}
 }
@@ -1073,19 +1073,19 @@ func TestRouterRegistrationHelpers(t *testing.T) {
 
 	putOp := router.operations[0]
 	patchOp := router.operations[1]
-	if putOp.method != http.MethodPut || patchOp.method != http.MethodPatch {
-		t.Fatalf("unexpected methods: %s %s", putOp.method, patchOp.method)
+	if putOp.route.method != http.MethodPut || patchOp.route.method != http.MethodPatch {
+		t.Fatalf("unexpected methods: %s %s", putOp.route.method, patchOp.route.method)
 	}
-	if putOp.successStatus != http.StatusOK || patchOp.successStatus != http.StatusOK {
-		t.Fatalf("unexpected success statuses: %d %d", putOp.successStatus, patchOp.successStatus)
+	if putOp.spec.successStatus != http.StatusOK || patchOp.spec.successStatus != http.StatusOK {
+		t.Fatalf("unexpected success statuses: %d %d", putOp.spec.successStatus, patchOp.spec.successStatus)
 	}
-	if putOp.tagDescriptions["Items"] != "item operations" || patchOp.tagDescriptions["Admin"] != "admin operations" {
-		t.Fatalf("expected tag descriptions to be copied into operations: %+v %+v", putOp.tagDescriptions, patchOp.tagDescriptions)
+	if putOp.spec.tagDescriptions["Items"] != "item operations" || patchOp.spec.tagDescriptions["Admin"] != "admin operations" {
+		t.Fatalf("expected tag descriptions to be copied into operations: %+v %+v", putOp.spec.tagDescriptions, patchOp.spec.tagDescriptions)
 	}
 
 	router.tagDescriptions["Items"] = "mutated"
-	if putOp.tagDescriptions["Items"] != "item operations" || patchOp.tagDescriptions["Items"] != "item operations" {
-		t.Fatalf("expected operation tag descriptions to be cloned, got %+v %+v", putOp.tagDescriptions, patchOp.tagDescriptions)
+	if putOp.spec.tagDescriptions["Items"] != "item operations" || patchOp.spec.tagDescriptions["Items"] != "item operations" {
+		t.Fatalf("expected operation tag descriptions to be cloned, got %+v %+v", putOp.spec.tagDescriptions, patchOp.spec.tagDescriptions)
 	}
 }
 
@@ -1095,7 +1095,7 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 	}, nil)
 
 	c, _ := newTestContext(http.MethodGet, "/", "")
-	op.ginHandler(c)
+	op.route.ginHandler(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for nil output, got %d", c.Writer.Status())
 	}
@@ -1104,7 +1104,7 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 		return nil
 	}, nil)
 	c, _ = newTestContext(http.MethodDelete, "/1", "")
-	voidOp.ginHandler(c)
+	voidOp.route.ginHandler(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for void operation, got %d", c.Writer.Status())
 	}
@@ -1148,7 +1148,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 
 	c, w := newTestContext(http.MethodGet, "/", "")
 	c.Set(ninjaAPIContextKey, api)
-	op.ginHandler(c)
+	op.route.ginHandler(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for transaction-wrapped operation, got %d", w.Code)
 	}
@@ -1168,7 +1168,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 
 	c, w = newTestContext(http.MethodDelete, "/1", "")
 	c.Set(ninjaAPIContextKey, api)
-	voidOp.ginHandler(c)
+	voidOp.route.ginHandler(c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for transaction-wrapped void operation error, got %d", w.Code)
 	}
@@ -1206,7 +1206,7 @@ func TestOperationWithTransactionRollsBackWhenTimeoutContextExpires(t *testing.T
 	router := gin.New()
 	router.GET("/", func(c *gin.Context) {
 		c.Set(ninjaAPIContextKey, api)
-		op.ginHandler(c)
+		op.route.ginHandler(c)
 	})
 
 	w := httptest.NewRecorder()

@@ -136,11 +136,11 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 
 	t.Run("deprecated version documents deprecation headers", func(t *testing.T) {
 		headers := spec.responseHeadersForOperation(&operation{
-			versionInfo: &VersionConfig{
+			version: operationVersion{info: &VersionConfig{
 				Deprecated:   true,
 				SunsetTime:   time.Date(2027, time.January, 2, 3, 4, 5, 0, time.UTC),
 				MigrationURL: "https://example.com/migrate",
-			},
+			}},
 		})
 
 		if _, ok := headers["Deprecation"]; !ok {
@@ -156,10 +156,10 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 
 	t.Run("deprecated version documents sunset header from compatibility string", func(t *testing.T) {
 		headers := spec.responseHeadersForOperation(&operation{
-			versionInfo: &VersionConfig{
+			version: operationVersion{info: &VersionConfig{
 				Deprecated: true,
 				Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
-			},
+			}},
 		})
 
 		if _, ok := headers["Sunset"]; !ok {
@@ -169,11 +169,11 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 
 	t.Run("non-deprecated version does not document deprecation headers", func(t *testing.T) {
 		headers := spec.responseHeadersForOperation(&operation{
-			versionInfo: &VersionConfig{
+			version: operationVersion{info: &VersionConfig{
 				Deprecated:   false,
 				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
 				MigrationURL: "https://example.com/migrate",
-			},
+			}},
 		})
 
 		if headers != nil {

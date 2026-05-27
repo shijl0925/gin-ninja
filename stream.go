@@ -124,8 +124,8 @@ func (c *WebSocketConn) ReceiveText() (string, error) {
 func SSE[TIn any](r *Router, path string, handler func(*Context, *TIn, *SSEStream) error, opts ...OperationOption) {
 	r.assertNotMounted("add operation")
 	op := newSSEOperation(path, handler, r.tags)
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
+	op.spec.security = cloneSecurityRequirements(r.security)
+	op.spec.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -137,8 +137,8 @@ func SSE[TIn any](r *Router, path string, handler func(*Context, *TIn, *SSEStrea
 func WebSocket[TIn any](r *Router, path string, handler func(*Context, *TIn, *WebSocketConn) error, opts ...OperationOption) {
 	r.assertNotMounted("add operation")
 	op := newWebSocketOperation(path, handler, r.tags)
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
+	op.spec.security = cloneSecurityRequirements(r.security)
+	op.spec.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -151,25 +151,29 @@ func newSSEOperation[TIn any](path string, handler func(*Context, *TIn, *SSEStre
 	inputType := reflect.TypeOf(zeroIn)
 
 	op := &operation{
-		method:        http.MethodGet,
-		path:          path,
-		inputType:     inputType,
-		tags:          append([]string(nil), defaultTags...),
-		successStatus: http.StatusOK,
-		stream:        &streamConfig{kind: streamKindSSE},
+		route: operationRoute{
+			method:    http.MethodGet,
+			path:      path,
+			inputType: inputType,
+		},
+		spec: operationDocSpec{
+			tags:          append([]string(nil), defaultTags...),
+			successStatus: http.StatusOK,
+		},
+		stream: operationStream{config: &streamConfig{kind: streamKindSSE}},
 	}
 
-	op.ginHandler = func(c *gin.Context) {
+	op.route.ginHandler = func(c *gin.Context) {
 		ctx := newContext(c)
 		input := new(TIn)
 		if err := bindInput(c, http.MethodGet, input); err != nil {
-			writeError(c, err)
+			WriteError(c, err)
 			return
 		}
 
 		stream := &SSEStream{c: c}
 		if err := handler(ctx, input, stream); err != nil && !stream.sent && !c.Writer.Written() {
-			writeError(c, err)
+			WriteError(c, err)
 		}
 	}
 
@@ -181,19 +185,23 @@ func newWebSocketOperation[TIn any](path string, handler func(*Context, *TIn, *W
 	inputType := reflect.TypeOf(zeroIn)
 
 	op := &operation{
-		method:        http.MethodGet,
-		path:          path,
-		inputType:     inputType,
-		tags:          append([]string(nil), defaultTags...),
-		successStatus: http.StatusSwitchingProtocols,
-		stream:        &streamConfig{kind: streamKindWebSocket},
+		route: operationRoute{
+			method:    http.MethodGet,
+			path:      path,
+			inputType: inputType,
+		},
+		spec: operationDocSpec{
+			tags:          append([]string(nil), defaultTags...),
+			successStatus: http.StatusSwitchingProtocols,
+		},
+		stream: operationStream{config: &streamConfig{kind: streamKindWebSocket}},
 	}
 
-	op.ginHandler = func(c *gin.Context) {
+	op.route.ginHandler = func(c *gin.Context) {
 		ctx := newContext(c)
 		input := new(TIn)
 		if err := bindInput(c, http.MethodGet, input); err != nil {
-			writeError(c, err)
+			WriteError(c, err)
 			return
 		}
 
