@@ -160,7 +160,8 @@ func TestWrapTimeoutCopiesHeadersStatusAndSuppressesHeadBody(t *testing.T) {
 
 	handler := wrapTimeout(time.Second, func(c *gin.Context) {
 		c.Header("X-Test", "yes")
-		c.String(http.StatusCreated, "created")
+		c.Status(http.StatusCreated)
+		_, _ = c.Writer.Write([]byte("created"))
 	})
 	handler(c)
 
