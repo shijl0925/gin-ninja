@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 type sseStringer string
@@ -466,8 +467,8 @@ func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
 	t.Parallel()
 
 	store := NewMemoryCacheStoreWithLimit(0)
-	if store.maxEntries != defaultMemoryCacheMaxEntries {
-		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaultMemoryCacheMaxEntries)
+	if store.maxEntries != defaults.MemoryCacheMaxEntries {
+		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaults.MemoryCacheMaxEntries)
 	}
 
 	store.Set("ignored", nil)

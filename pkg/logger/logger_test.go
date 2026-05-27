@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 	"github.com/shijl0925/gin-ninja/settings"
 	"go.uber.org/zap/zapcore"
 )
@@ -125,14 +126,14 @@ func TestBuildRollingLoggerDefaultsAndDirectories(t *testing.T) {
 	if rotator.Filename != logFile {
 		t.Fatalf("expected filename %q, got %q", logFile, rotator.Filename)
 	}
-	if rotator.MaxSize != defaultMaxSizeMB {
-		t.Fatalf("expected default max size %d, got %d", defaultMaxSizeMB, rotator.MaxSize)
+	if rotator.MaxSize != defaults.LoggerMaxSizeMB {
+		t.Fatalf("expected default max size %d, got %d", defaults.LoggerMaxSizeMB, rotator.MaxSize)
 	}
-	if rotator.MaxAge != defaultMaxAgeDays {
-		t.Fatalf("expected default max age %d, got %d", defaultMaxAgeDays, rotator.MaxAge)
+	if rotator.MaxAge != defaults.LoggerMaxAgeDays {
+		t.Fatalf("expected default max age %d, got %d", defaults.LoggerMaxAgeDays, rotator.MaxAge)
 	}
-	if rotator.MaxBackups != defaultMaxBackups {
-		t.Fatalf("expected default max backups %d, got %d", defaultMaxBackups, rotator.MaxBackups)
+	if rotator.MaxBackups != defaults.LoggerMaxBackups {
+		t.Fatalf("expected default max backups %d, got %d", defaults.LoggerMaxBackups, rotator.MaxBackups)
 	}
 
 	sink := buildSink(settings.LogConfig{Output: logFile})

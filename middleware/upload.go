@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 // UploadConfig holds configuration for the upload-limiting middleware.
@@ -28,8 +29,6 @@ type UploadConfig struct {
 	ErrorHandler func(c *gin.Context, status int, code int, message string)
 }
 
-const defaultMaxUploadSize = 10 << 20 // 10 MiB
-
 // UploadLimit returns a gin middleware that enforces upload size limits and an
 // optional content-type whitelist.
 //
@@ -45,7 +44,7 @@ func UploadLimit(cfg *UploadConfig) gin.HandlerFunc {
 	}
 	maxSize := cfg.MaxSize
 	if maxSize <= 0 {
-		maxSize = defaultMaxUploadSize
+		maxSize = defaults.MaxUploadSize
 	}
 
 	allowedTypes := make([]string, len(cfg.AllowedMIMETypes))

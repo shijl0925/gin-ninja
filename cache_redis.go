@@ -10,9 +10,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
-
-const defaultRedisCachePrefix = "gin-ninja:"
 
 // RedisCacheConfig configures the built-in Redis-backed response cache store.
 type RedisCacheConfig struct {
@@ -37,7 +36,7 @@ func NewRedisCacheStore(cfg RedisCacheConfig) (*RedisCacheStore, error) {
 	}
 	prefix := strings.TrimSpace(cfg.Prefix)
 	if prefix == "" {
-		prefix = defaultRedisCachePrefix
+		prefix = defaults.RedisCachePrefix
 	}
 	return NewRedisCacheStoreWithClient(redis.NewClient(&redis.Options{
 		Addr:     addr,
@@ -50,7 +49,7 @@ func NewRedisCacheStore(cfg RedisCacheConfig) (*RedisCacheStore, error) {
 // NewRedisCacheStoreWithClient wraps an existing Redis client.
 func NewRedisCacheStoreWithClient(client *redis.Client, prefix string) *RedisCacheStore {
 	if strings.TrimSpace(prefix) == "" {
-		prefix = defaultRedisCachePrefix
+		prefix = defaults.RedisCachePrefix
 	}
 	return &RedisCacheStore{
 		client: client,
