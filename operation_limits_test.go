@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 func TestRateLimiterPruneLockedRemovesIdleClients(t *testing.T) {
 	now := time.Now()
 	limiter := newRateLimiter(1, 1)
-	limiter.clients["expired"] = &tokenBucket{tokens: 1, last: now.Add(-rateLimiterClientTTL - time.Second)}
-	limiter.clients["active"] = &tokenBucket{tokens: 1, last: now.Add(-rateLimiterClientTTL + time.Second)}
+	limiter.clients["expired"] = &tokenBucket{tokens: 1, last: now.Add(-defaults.RateLimiterClientTTL - time.Second)}
+	limiter.clients["active"] = &tokenBucket{tokens: 1, last: now.Add(-defaults.RateLimiterClientTTL + time.Second)}
 
 	limiter.mu.Lock()
 	limiter.pruneLocked(now)
@@ -35,8 +36,8 @@ func TestRateLimiterAllowCapsTokensAndPrunes(t *testing.T) {
 	now := time.Now()
 	limiter := newRateLimiter(10, 2)
 	limiter.clients["client"] = &tokenBucket{tokens: 1, last: now.Add(-time.Second)}
-	limiter.clients["expired"] = &tokenBucket{tokens: 1, last: now.Add(-rateLimiterClientTTL - time.Second)}
-	limiter.lastPrune = now.Add(-rateLimiterPruneInterval - time.Second)
+	limiter.clients["expired"] = &tokenBucket{tokens: 1, last: now.Add(-defaults.RateLimiterClientTTL - time.Second)}
+	limiter.lastPrune = now.Add(-defaults.RateLimiterPruneInterval - time.Second)
 
 	if !limiter.allow("client", now) {
 		t.Fatal("expected request to be allowed")
@@ -70,7 +71,7 @@ func TestRateLimiterAllowIsPerClientAndRefills(t *testing.T) {
 func TestRateLimiterPruneKeepsBoundaryTTLClients(t *testing.T) {
 	now := time.Now()
 	limiter := newRateLimiter(1, 1)
-	limiter.clients["boundary"] = &tokenBucket{tokens: 1, last: now.Add(-rateLimiterClientTTL)}
+	limiter.clients["boundary"] = &tokenBucket{tokens: 1, last: now.Add(-defaults.RateLimiterClientTTL)}
 
 	limiter.mu.Lock()
 	limiter.pruneLocked(now)

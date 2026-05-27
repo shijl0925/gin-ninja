@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 type CacheOption func(*routeCacheConfig)
@@ -90,9 +91,6 @@ type MemoryCacheStore struct {
 	lockSeq    uint64
 }
 
-const defaultMemoryCacheMaxEntries = 1024
-const defaultCacheMaxBodyBytes int64 = 1 << 20
-
 type memoryCacheEntry struct {
 	key string
 }
@@ -107,7 +105,7 @@ func newRouteCacheConfig(ttl time.Duration) *routeCacheConfig {
 		ttl:          ttl,
 		store:        NewMemoryCacheStore(),
 		keyFn:        defaultCacheKey,
-		maxBodyBytes: defaultCacheMaxBodyBytes,
+		maxBodyBytes: defaults.CacheMaxBodyBytes,
 	}
 }
 
@@ -209,13 +207,13 @@ func (i *CacheInvalidator) AcquireLock(key string, ttl time.Duration) (func(), b
 
 // NewMemoryCacheStore creates an in-memory route cache store.
 func NewMemoryCacheStore() *MemoryCacheStore {
-	return NewMemoryCacheStoreWithLimit(defaultMemoryCacheMaxEntries)
+	return NewMemoryCacheStoreWithLimit(defaults.MemoryCacheMaxEntries)
 }
 
 // NewMemoryCacheStoreWithLimit creates an in-memory route cache store with a bounded size.
 func NewMemoryCacheStoreWithLimit(maxEntries int) *MemoryCacheStore {
 	if maxEntries <= 0 {
-		maxEntries = defaultMemoryCacheMaxEntries
+		maxEntries = defaults.MemoryCacheMaxEntries
 	}
 	return &MemoryCacheStore{
 		items:      map[string]*CachedResponse{},
@@ -451,7 +449,7 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		}
 
 		originalWriter := c.Writer
-		maxBodyBytes := defaultCacheMaxBodyBytes
+		maxBodyBytes := defaults.CacheMaxBodyBytes
 		if op.cache != nil {
 			maxBodyBytes = op.cache.maxBodyBytes
 		}
