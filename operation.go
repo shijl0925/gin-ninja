@@ -13,38 +13,38 @@ type OperationOption func(*operation)
 
 // Summary sets the human-readable summary shown in the OpenAPI docs.
 func Summary(s string) OperationOption {
-	return func(op *operation) { op.summary = s }
+	return func(op *operation) { op.spec.summary = s }
 }
 
 // Description sets the long description shown in the OpenAPI docs.
 func Description(d string) OperationOption {
-	return func(op *operation) { op.description = d }
+	return func(op *operation) { op.spec.description = d }
 }
 
 // OperationID sets an explicit operationId in the OpenAPI spec.
 func OperationID(id string) OperationOption {
-	return func(op *operation) { op.operationID = id }
+	return func(op *operation) { op.spec.operationID = id }
 }
 
 // Tags overrides the tags for this specific operation.
 func Tags(tags ...string) OperationOption {
-	return func(op *operation) { op.tags = tags }
+	return func(op *operation) { op.spec.tags = tags }
 }
 
 // TagDescription records a top-level OpenAPI tag description for this operation.
 func TagDescription(tag, description string) OperationOption {
 	return func(op *operation) {
-		if op.tagDescriptions == nil {
-			op.tagDescriptions = map[string]string{}
+		if op.spec.tagDescriptions == nil {
+			op.spec.tagDescriptions = map[string]string{}
 		}
-		op.tagDescriptions[tag] = description
+		op.spec.tagDescriptions[tag] = description
 	}
 }
 
 // Security adds an OpenAPI security requirement to this operation.
 func Security(name string, scopes ...string) OperationOption {
 	return func(op *operation) {
-		op.security = append(op.security, SecurityRequirement{name: append([]string{}, scopes...)})
+		op.spec.security = append(op.spec.security, SecurityRequirement{name: append([]string{}, scopes...)})
 	}
 }
 
@@ -106,7 +106,7 @@ func appendOperationAuthMiddleware(op *operation, mw ...gin.HandlerFunc) {
 		if handler == nil {
 			panic("gin-ninja: auth middleware must not be nil")
 		}
-		op.ginMiddleware = append(op.ginMiddleware, handler)
+		op.route.ginMiddleware = append(op.route.ginMiddleware, handler)
 	}
 }
 
@@ -118,42 +118,42 @@ func requireAuthMiddleware(helper string, mw []gin.HandlerFunc) {
 
 // Deprecated marks the operation as deprecated in the docs.
 func Deprecated() OperationOption {
-	return func(op *operation) { op.deprecated = true }
+	return func(op *operation) { op.spec.deprecated = true }
 }
 
 // Cache enables route-level response caching for safe read endpoints.
 func Cache(ttl time.Duration, opts ...CacheOption) OperationOption {
 	return func(op *operation) {
-		op.cache = newRouteCacheConfig(ttl)
+		op.cache.config = newRouteCacheConfig(ttl)
 		for _, opt := range opts {
-			opt(op.cache)
+			opt(op.cache.config)
 		}
-		if op.cacheControl == "" && ttl > 0 {
-			op.cacheControl = defaultCacheControl(ttl)
+		if op.cache.control == "" && ttl > 0 {
+			op.cache.control = defaultCacheControl(ttl)
 		}
-		op.etagEnabled = true
+		op.cache.etagEnabled = true
 	}
 }
 
 // CacheControl sets the Cache-Control response header for successful responses.
 func CacheControl(value string) OperationOption {
-	return func(op *operation) { op.cacheControl = value }
+	return func(op *operation) { op.cache.control = value }
 }
 
 // ETag enables automatic ETag generation for successful responses.
 func ETag() OperationOption {
-	return func(op *operation) { op.etagEnabled = true }
+	return func(op *operation) { op.cache.etagEnabled = true }
 }
 
 // ExcludeFromDocs omits the operation from the generated OpenAPI spec.
 func ExcludeFromDocs() OperationOption {
-	return func(op *operation) { op.excludeFromDocs = true }
+	return func(op *operation) { op.spec.excludeFromDocs = true }
 }
 
 // SuccessStatus sets the HTTP status code used for successful responses.
 // The default is 200 OK (201 Created is common for POST).
 func SuccessStatus(code int) OperationOption {
-	return func(op *operation) { op.successStatus = code }
+	return func(op *operation) { op.spec.successStatus = code }
 }
 
 // Response documents an additional OpenAPI response for the operation.
@@ -164,7 +164,7 @@ func Response(status int, description string, model any) OperationOption {
 		if model != nil {
 			modelType = reflect.TypeOf(model)
 		}
-		op.responses = append(op.responses, documentedResponse{
+		op.spec.responses = append(op.spec.responses, documentedResponse{
 			status:       status,
 			description:  description,
 			responseType: modelType,
@@ -176,7 +176,7 @@ func Response(status int, description string, model any) OperationOption {
 func Paginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
-		op.paginatedItemType = reflect.TypeOf(item)
+		op.spec.paginatedItemType = reflect.TypeOf(item)
 	}
 }
 
@@ -184,7 +184,7 @@ func Paginated[T any]() OperationOption {
 func CursorPaginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
-		op.cursorPaginatedItemType = reflect.TypeOf(item)
+		op.spec.cursorPaginatedItemType = reflect.TypeOf(item)
 	}
 }
 
@@ -192,7 +192,7 @@ func CursorPaginated[T any]() OperationOption {
 func PaginatedResponse[T any](status int, description string) OperationOption {
 	return func(op *operation) {
 		var item T
-		op.responses = append(op.responses, documentedResponse{
+		op.spec.responses = append(op.spec.responses, documentedResponse{
 			status:            status,
 			description:       description,
 			paginatedItemType: reflect.TypeOf(item),
@@ -204,7 +204,7 @@ func PaginatedResponse[T any](status int, description string) OperationOption {
 func CursorPaginatedResponse[T any](status int, description string) OperationOption {
 	return func(op *operation) {
 		var item T
-		op.responses = append(op.responses, documentedResponse{
+		op.spec.responses = append(op.spec.responses, documentedResponse{
 			status:                  status,
 			description:             description,
 			cursorPaginatedItemType: reflect.TypeOf(item),
@@ -217,21 +217,21 @@ func CursorPaginatedResponse[T any](status int, description string) OperationOpt
 // long-running handlers must observe ctx.Done() or ctx.Request.Context().Done()
 // to stop promptly.
 func Timeout(d time.Duration) OperationOption {
-	return func(op *operation) { op.timeout = d }
+	return func(op *operation) { op.behavior.timeout = d }
 }
 
 // RateLimit applies a per-operation in-memory token-bucket rate limit.
 func RateLimit(requestsPerSecond int, burst ...int) OperationOption {
 	return func(op *operation) {
 		if requestsPerSecond <= 0 {
-			op.rateLimit = nil
+			op.behavior.rateLimit = nil
 			return
 		}
 		b := requestsPerSecond
 		if len(burst) > 0 && burst[0] > 0 {
 			b = burst[0]
 		}
-		op.rateLimit = newRateLimiter(float64(requestsPerSecond), float64(b))
+		op.behavior.rateLimit = newRateLimiter(float64(requestsPerSecond), float64(b))
 	}
 }
 
@@ -243,15 +243,16 @@ type documentedResponse struct {
 	cursorPaginatedItemType reflect.Type
 }
 
-// operation holds all metadata about a single API endpoint and the
-// gin-compatible handler function that wraps the user-supplied typed handler.
-type operation struct {
-	method                  string
-	path                    string
-	ginHandler              gin.HandlerFunc
-	ginMiddleware           []gin.HandlerFunc
-	inputType               reflect.Type
-	outputType              reflect.Type
+type operationRoute struct {
+	method        string
+	path          string
+	ginHandler    gin.HandlerFunc
+	ginMiddleware []gin.HandlerFunc
+	inputType     reflect.Type
+	outputType    reflect.Type
+}
+
+type operationDocSpec struct {
 	summary                 string
 	description             string
 	operationID             string
@@ -263,21 +264,44 @@ type operation struct {
 	responses               []documentedResponse
 	paginatedItemType       reflect.Type
 	cursorPaginatedItemType reflect.Type
-	timeout                 time.Duration
-	rateLimit               *rateLimiter
 	excludeFromDocs         bool
-	withTransaction         bool
-	cache                   *routeCacheConfig
-	cacheControl            string
-	etagEnabled             bool
-	version                 string
-	versionInfo             *VersionConfig
-	stream                  *streamConfig
+}
+
+type operationBehavior struct {
+	timeout         time.Duration
+	rateLimit       *rateLimiter
+	withTransaction bool
+}
+
+type operationCache struct {
+	config      *routeCacheConfig
+	control     string
+	etagEnabled bool
+}
+
+type operationVersion struct {
+	name string
+	info *VersionConfig
+}
+
+type operationStream struct {
+	config *streamConfig
+}
+
+// operation holds all metadata about a single API endpoint and the
+// gin-compatible handler function that wraps the user-supplied typed handler.
+type operation struct {
+	route    operationRoute
+	spec     operationDocSpec
+	behavior operationBehavior
+	cache    operationCache
+	version  operationVersion
+	stream   operationStream
 }
 
 // WithTransaction wraps the operation in a request-scoped database transaction.
 func WithTransaction() OperationOption {
-	return func(op *operation) { op.withTransaction = true }
+	return func(op *operation) { op.behavior.withTransaction = true }
 }
 
 func cloneSecurityRequirements(reqs []SecurityRequirement) []SecurityRequirement {
@@ -327,21 +351,25 @@ func newOperation[TIn any, TOut any](
 	outputType := reflect.TypeOf(zeroOut)
 
 	op := &operation{
-		method:        method,
-		path:          path,
-		inputType:     inputType,
-		outputType:    outputType,
-		tags:          append([]string(nil), defaultTags...),
-		successStatus: http.StatusOK,
+		route: operationRoute{
+			method:     method,
+			path:       path,
+			inputType:  inputType,
+			outputType: outputType,
+		},
+		spec: operationDocSpec{
+			tags:          append([]string(nil), defaultTags...),
+			successStatus: http.StatusOK,
+		},
 	}
 
-	op.ginHandler = func(c *gin.Context) {
+	op.route.ginHandler = func(c *gin.Context) {
 		ctx := newContext(c)
 
 		// Allocate and populate the typed input.
 		input := new(TIn)
 		if err := bindInput(c, method, input); err != nil {
-			writeError(c, err)
+			WriteError(c, err)
 			return
 		}
 
@@ -354,7 +382,7 @@ func newOperation[TIn any, TOut any](
 			output, err = handler(ctx, input)
 			return err
 		}
-		if op.withTransaction {
+		if op.behavior.withTransaction {
 			api, _ := currentAPI(c)
 			_, _, _, withTransaction := apiTransactionHandlers(api)
 			if withTransaction == nil {
@@ -368,7 +396,7 @@ func newOperation[TIn any, TOut any](
 			err = invoke()
 		}
 		if err != nil {
-			writeError(c, err)
+			WriteError(c, err)
 			return
 		}
 
@@ -378,15 +406,15 @@ func newOperation[TIn any, TOut any](
 			return
 		}
 		if writer, ok := any(output).(responseWriter); ok {
-			writer.writeTo(c, op.successStatus)
+			writer.writeTo(c, op.spec.successStatus)
 			return
 		}
 		if c.Request.Method == http.MethodHead {
 			c.Header("Content-Type", "application/json; charset=utf-8")
-			c.Status(op.successStatus)
+			c.Status(op.spec.successStatus)
 			return
 		}
-		c.JSON(op.successStatus, output)
+		c.JSON(op.spec.successStatus, output)
 	}
 
 	return op
@@ -403,20 +431,23 @@ func newVoidOperation[TIn any](
 	inputType := reflect.TypeOf(zeroIn)
 
 	op := &operation{
-		method:        method,
-		path:          path,
-		inputType:     inputType,
-		outputType:    nil,
-		tags:          append([]string(nil), defaultTags...),
-		successStatus: http.StatusNoContent,
+		route: operationRoute{
+			method:    method,
+			path:      path,
+			inputType: inputType,
+		},
+		spec: operationDocSpec{
+			tags:          append([]string(nil), defaultTags...),
+			successStatus: http.StatusNoContent,
+		},
 	}
 
-	op.ginHandler = func(c *gin.Context) {
+	op.route.ginHandler = func(c *gin.Context) {
 		ctx := newContext(c)
 
 		input := new(TIn)
 		if err := bindInput(c, method, input); err != nil {
-			writeError(c, err)
+			WriteError(c, err)
 			return
 		}
 
@@ -424,7 +455,7 @@ func newVoidOperation[TIn any](
 			return handler(ctx, input)
 		}
 		var err error
-		if op.withTransaction {
+		if op.behavior.withTransaction {
 			api, _ := currentAPI(c)
 			_, _, _, withTransaction := apiTransactionHandlers(api)
 			if withTransaction == nil {
@@ -438,7 +469,7 @@ func newVoidOperation[TIn any](
 			err = invoke()
 		}
 		if err != nil {
-			writeError(c, err)
+			WriteError(c, err)
 			return
 		}
 
@@ -449,43 +480,39 @@ func newVoidOperation[TIn any](
 }
 
 func (op *operation) finalize() {
-	if op.ginHandler == nil {
+	if op.route.ginHandler == nil {
 		return
 	}
 
-	handler := op.ginHandler
-	if op.timeout > 0 {
+	handler := op.route.ginHandler
+	if op.behavior.timeout > 0 {
 		if op.usesDirectResponseWriter() {
-			handler = wrapCooperativeTimeout(op.timeout, handler)
+			handler = wrapCooperativeTimeout(op.behavior.timeout, handler)
 		} else {
-			handler = wrapTimeout(op.timeout, handler)
+			handler = wrapTimeout(op.behavior.timeout, handler)
 		}
 	}
-	if op.cache != nil || op.cacheControl != "" || op.etagEnabled {
+	if op.cache.config != nil || op.cache.control != "" || op.cache.etagEnabled {
 		handler = wrapCache(op, handler)
 	}
-	if op.rateLimit != nil {
-		handler = wrapRateLimit(op.rateLimit, handler)
+	if op.behavior.rateLimit != nil {
+		handler = wrapRateLimit(op.behavior.rateLimit, handler)
 	}
-	op.ginHandler = handler
+	op.route.ginHandler = handler
 }
 
 func (op *operation) usesDirectResponseWriter() bool {
-	if op.stream != nil {
+	if op.stream.config != nil {
 		return true
 	}
-	if op.outputType == nil {
+	if op.route.outputType == nil {
 		return false
 	}
 	responseWriterType := reflect.TypeOf((*responseWriter)(nil)).Elem()
-	if reflect.PointerTo(op.outputType).Implements(responseWriterType) {
+	if reflect.PointerTo(op.route.outputType).Implements(responseWriterType) {
 		return true
 	}
-	return op.outputType.Implements(responseWriterType)
-}
-
-func writeError(c *gin.Context, err error) {
-	WriteError(c, err)
+	return op.route.outputType.Implements(responseWriterType)
 }
 
 func invokeWithContextGuard(c *gin.Context, invoke func() error) error {

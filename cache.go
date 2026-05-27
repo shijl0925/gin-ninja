@@ -427,7 +427,7 @@ func (s *MemoryCacheStore) deleteKeyTagsLocked(key string) {
 
 func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isCacheableMethod(c.Request.Method) || op.stream != nil {
+		if !isCacheableMethod(c.Request.Method) || op.stream.config != nil {
 			next(c)
 			return
 		}
@@ -437,22 +437,22 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		if cacheStore != nil && cacheKey != "" {
 			if cached, ok := cacheStoreGet(ctx, cacheStore, cacheKey); ok {
 				if !isExpiredCachedResponse(cached, time.Now()) {
-					writeCachedResponse(c, cached, op.cacheControl)
+					writeCachedResponse(c, cached, op.cache.control)
 					return
 				}
 			}
 		}
 
-		if isDownloadType(op.outputType) {
+		if isDownloadType(op.route.outputType) {
 			next(c)
 			return
 		}
 
-		originalWriter := c.Writer
 		maxBodyBytes := defaults.CacheMaxBodyBytes
-		if op.cache != nil {
-			maxBodyBytes = op.cache.maxBodyBytes
+		if op.cache.config != nil {
+			maxBodyBytes = op.cache.config.maxBodyBytes
 		}
+		originalWriter := c.Writer
 		recorder := newCaptureResponseWriter(originalWriter, maxBodyBytes)
 		c.Writer = recorder
 		next(c)
@@ -464,12 +464,12 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		if recorder.status == 0 {
 			recorder.status = http.StatusOK
 		}
-		if op.cacheControl != "" && recorder.status >= 200 && recorder.status < 400 && recorder.header.Get("Cache-Control") == "" {
-			recorder.header.Set("Cache-Control", op.cacheControl)
+		if op.cache.control != "" && recorder.status >= 200 && recorder.status < 400 && recorder.header.Get("Cache-Control") == "" {
+			recorder.header.Set("Cache-Control", op.cache.control)
 		}
 
 		etag := recorder.header.Get("ETag")
-		if op.etagEnabled && etag == "" && recorder.status >= 200 && recorder.status < 400 && len(recorder.body) > 0 {
+		if op.cache.etagEnabled && etag == "" && recorder.status >= 200 && recorder.status < 400 && len(recorder.body) > 0 {
 			etag = generateETag(recorder.body)
 			recorder.header.Set("ETag", etag)
 		}
@@ -486,30 +486,30 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 			_, _ = originalWriter.Write(recorder.body)
 		}
 
-		if cacheStore != nil && cacheKey != "" && op.cache != nil && recorder.status >= 200 && recorder.status < 300 {
+		if cacheStore != nil && cacheKey != "" && op.cache.config != nil && recorder.status >= 200 && recorder.status < 300 {
 			cacheStoreSet(ctx, cacheStore, cacheKey, &CachedResponse{
 				Status:  recorder.status,
 				Header:  cloneHeader(recorder.header),
 				Body:    append([]byte(nil), recorder.body...),
-				Expires: time.Now().Add(op.cache.ttl),
+				Expires: time.Now().Add(op.cache.config.ttl),
 				ETag:    etag,
 			})
-			if tagStore, ok := cacheStore.(ResponseCacheTagStore); ok && op.cache.tagFn != nil {
-				tagStore.AddTags(cacheKey, op.cache.tagFn(ctx)...)
+			if tagStore, ok := cacheStore.(ResponseCacheTagStore); ok && op.cache.config.tagFn != nil {
+				tagStore.AddTags(cacheKey, op.cache.config.tagFn(ctx)...)
 			}
 		}
 	}
 }
 
 func cacheLookup(op *operation, ctx *Context) (string, ResponseCacheStore) {
-	if op.cache == nil || op.cache.ttl <= 0 {
+	if op.cache.config == nil || op.cache.config.ttl <= 0 {
 		return "", nil
 	}
-	keyFn := op.cache.keyFn
+	keyFn := op.cache.config.keyFn
 	if keyFn == nil {
 		keyFn = defaultCacheKey
 	}
-	return keyFn(ctx), op.cache.store
+	return keyFn(ctx), op.cache.config.store
 }
 
 func cacheStoreGet(ctx *Context, store ResponseCacheStore, key string) (*CachedResponse, bool) {

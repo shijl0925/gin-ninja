@@ -557,7 +557,7 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 		if key, cacheStore := cacheLookup(&operation{}, nil); key != "" || cacheStore != nil {
 			t.Fatalf("expected empty cache lookup, got key=%q store=%v", key, cacheStore)
 		}
-		op := &operation{cache: &routeCacheConfig{ttl: time.Minute, keyFn: func(*Context) string { return "k" }, store: store}}
+		op := &operation{cache: operationCache{config: &routeCacheConfig{ttl: time.Minute, keyFn: func(*Context) string { return "k" }, store: store}}}
 		if key, cacheStore := cacheLookup(op, nil); key != "k" || cacheStore != store {
 			t.Fatalf("unexpected cache lookup result key=%q store=%v", key, cacheStore)
 		}
@@ -607,7 +607,7 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 
 		op := &operation{}
 		RateLimit(0)(op)
-		if op.rateLimit != nil {
+		if op.behavior.rateLimit != nil {
 			t.Fatal("expected RateLimit(0) to disable limiter")
 		}
 	})

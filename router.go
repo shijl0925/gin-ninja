@@ -190,8 +190,8 @@ func Get[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn)
 // Post registers a POST endpoint.
 func Post[TIn any, TOut any](r *Router, path string, handler func(*Context, *TIn) (*TOut, error), opts ...OperationOption) {
 	op := newOperation[TIn, TOut](http.MethodPost, path, handler, r.tags)
-	if op.successStatus == http.StatusOK {
-		op.successStatus = http.StatusCreated
+	if op.spec.successStatus == http.StatusOK {
+		op.spec.successStatus = http.StatusCreated
 	}
 	registerTypedOperation(r, op, opts...)
 }
@@ -208,8 +208,8 @@ func Patch[TIn any, TOut any](r *Router, path string, handler func(*Context, *TI
 
 func registerTypedOperation(r *Router, op *operation, opts ...OperationOption) {
 	r.assertNotMounted("add operation")
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
+	op.spec.security = cloneSecurityRequirements(r.security)
+	op.spec.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	for _, opt := range opts {
 		opt(op)
 	}
@@ -262,8 +262,8 @@ func (f ControllerFunc) Register(r *Router) { f(r) }
 func Delete[TIn any](r *Router, path string, handler func(*Context, *TIn) error, opts ...OperationOption) {
 	r.assertNotMounted("add operation")
 	op := newVoidOperation[TIn](http.MethodDelete, path, handler, r.tags)
-	op.security = cloneSecurityRequirements(r.security)
-	op.tagDescriptions = cloneStringMap(r.tagDescriptions)
+	op.spec.security = cloneSecurityRequirements(r.security)
+	op.spec.tagDescriptions = cloneStringMap(r.tagDescriptions)
 	for _, opt := range opts {
 		opt(op)
 	}

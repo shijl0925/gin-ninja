@@ -523,14 +523,18 @@ func TestWrapCacheStreamsAndSkipsOversizedResponses(t *testing.T) {
 
 	store := NewMemoryCacheStore()
 	op := &operation{
-		method:       http.MethodGet,
-		outputType:   reflect.TypeOf(struct{}{}),
-		cache:        newRouteCacheConfig(time.Minute),
-		cacheControl: defaultCacheControl(time.Minute),
-		etagEnabled:  true,
+		route: operationRoute{
+			method:     http.MethodGet,
+			outputType: reflect.TypeOf(struct{}{}),
+		},
+		cache: operationCache{
+			config:      newRouteCacheConfig(time.Minute),
+			control:     defaultCacheControl(time.Minute),
+			etagEnabled: true,
+		},
 	}
-	op.cache.store = store
-	op.cache.maxBodyBytes = 4
+	op.cache.config.store = store
+	op.cache.config.maxBodyBytes = 4
 
 	c, w := newTestContext(http.MethodGet, "/large", "")
 	handler := wrapCache(op, func(c *gin.Context) {

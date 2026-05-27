@@ -192,14 +192,14 @@ func cloneServers(servers []Server) []Server {
 
 // addOperation registers an operation in the spec.
 func (s *openAPISpec) addOperation(op *operation) {
-	if op.excludeFromDocs {
+	if op.spec.excludeFromDocs {
 		return
 	}
-	s.registerTags(op.tags, op.tagDescriptions)
+	s.registerTags(op.spec.tags, op.spec.tagDescriptions)
 
-	// op.path is already the fully-qualified router path, including any global
+	// op.route.path is already the fully-qualified router path, including any global
 	// API prefix applied during router registration.
-	openapiPath := ginPathToOpenAPI(op.path)
+	openapiPath := ginPathToOpenAPI(op.route.path)
 
 	item, ok := s.Paths[openapiPath]
 	if !ok {
@@ -208,7 +208,7 @@ func (s *openAPISpec) addOperation(op *operation) {
 	}
 
 	spec := s.buildOperationSpec(op)
-	switch strings.ToUpper(op.method) {
+	switch strings.ToUpper(op.route.method) {
 	case http.MethodGet:
 		item.Get = spec
 	case http.MethodPost:
@@ -225,20 +225,20 @@ func (s *openAPISpec) addOperation(op *operation) {
 // buildOperationSpec converts an operation into an operationSpec.
 func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	spec := &operationSpec{
-		OperationID: op.operationID,
-		Summary:     op.summary,
-		Description: op.description,
-		Tags:        op.tags,
-		Security:    cloneSecurityRequirements(op.security),
-		Deprecated:  op.deprecated,
+		OperationID: op.spec.operationID,
+		Summary:     op.spec.summary,
+		Description: op.spec.description,
+		Tags:        op.spec.tags,
+		Security:    cloneSecurityRequirements(op.spec.security),
+		Deprecated:  op.spec.deprecated,
 		Responses:   make(map[string]responseSpec),
 	}
 
 	// Parameters (path, query, header) from the input type.
-	if op.inputType != nil {
-		inputType := deref(op.inputType)
+	if op.route.inputType != nil {
+		inputType := deref(op.route.inputType)
 		if inputType.Kind() == reflect.Struct {
-			params, bodySchema, requestContentType := s.extractParams(op.method, inputType)
+			params, bodySchema, requestContentType := s.extractParams(op.route.method, inputType)
 			spec.Parameters = params
 			if bodySchema != nil {
 				if requestContentType == "" {
@@ -255,12 +255,12 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	}
 
 	// Success response.
-	successCode := fmt.Sprintf("%d", op.successStatus)
+	successCode := fmt.Sprintf("%d", op.spec.successStatus)
 	successResponse := responseSpec{
-		Description: http.StatusText(op.successStatus),
+		Description: http.StatusText(op.spec.successStatus),
 	}
-	if op.stream != nil {
-		if op.stream.kind == streamKindSSE {
+	if op.stream.config != nil {
+		if op.stream.config.kind == streamKindSSE {
 			successResponse.Content = map[string]mediaTypeSpec{
 				"text/event-stream": {Schema: &Schema{Type: "string"}},
 			}
@@ -268,23 +268,23 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		} else {
 			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
 		}
-	} else if op.paginatedItemType != nil {
+	} else if op.spec.paginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
-			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
+			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.spec.paginatedItemType))},
 		}
-	} else if op.cursorPaginatedItemType != nil {
+	} else if op.spec.cursorPaginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
-			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(op.cursorPaginatedItemType))},
+			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(op.spec.cursorPaginatedItemType))},
 		}
-	} else if op.outputType != nil {
-		contentType, schema := s.responseSchemaForType(op.outputType)
+	} else if op.route.outputType != nil {
+		contentType, schema := s.responseSchemaForType(op.route.outputType)
 		successResponse.Content = map[string]mediaTypeSpec{
 			contentType: {Schema: schema},
 		}
 	}
 	successResponse.Headers = s.responseHeadersForOperation(op)
 	spec.Responses[successCode] = successResponse
-	if op.stream != nil && op.stream.kind == streamKindWebSocket && successCode != "101" {
+	if op.stream.config != nil && op.stream.config.kind == streamKindWebSocket && successCode != "101" {
 		spec.Responses["101"] = successResponse
 		delete(spec.Responses, successCode)
 	}
@@ -292,14 +292,14 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	// Standard error responses.
 	spec.Responses["422"] = responseSpec{Description: "Validation Error"}
 	spec.Responses["500"] = responseSpec{Description: "Internal Server Error"}
-	if op.timeout > 0 {
+	if op.behavior.timeout > 0 {
 		spec.Responses["408"] = responseSpec{Description: http.StatusText(http.StatusRequestTimeout)}
 	}
-	if op.rateLimit != nil {
+	if op.behavior.rateLimit != nil {
 		spec.Responses["429"] = responseSpec{Description: http.StatusText(http.StatusTooManyRequests)}
 	}
 
-	for _, documented := range op.responses {
+	for _, documented := range op.spec.responses {
 		response := responseSpec{
 			Description: documented.description,
 		}
@@ -328,30 +328,30 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 
 func (s *openAPISpec) responseHeadersForOperation(op *operation) map[string]headerSpec {
 	headers := map[string]headerSpec{}
-	if op.etagEnabled {
+	if op.cache.etagEnabled {
 		headers["ETag"] = headerSpec{
 			Description: "Entity tag for conditional requests",
 			Schema:      &Schema{Type: "string"},
 		}
 	}
-	if op.cache != nil || op.cacheControl != "" {
+	if op.cache.config != nil || op.cache.control != "" {
 		headers["Cache-Control"] = headerSpec{
 			Description: "Cache policy for the response",
 			Schema:      &Schema{Type: "string"},
 		}
 	}
-	if op.versionInfo != nil && op.versionInfo.Deprecated {
+	if op.version.info != nil && op.version.info.Deprecated {
 		headers["Deprecation"] = headerSpec{
 			Description: "Version deprecation signal",
 			Schema:      &Schema{Type: "string"},
 		}
-		if op.versionInfo.normalizedSunsetHeaderValue() != "" {
+		if op.version.info.normalizedSunsetHeaderValue() != "" {
 			headers["Sunset"] = headerSpec{
 				Description: "Version sunset timestamp",
 				Schema:      &Schema{Type: "string"},
 			}
 		}
-		if op.versionInfo.MigrationURL != "" {
+		if op.version.info.MigrationURL != "" {
 			headers["Link"] = headerSpec{
 				Description: "Migration guidance for a deprecated version",
 				Schema:      &Schema{Type: "string"},
