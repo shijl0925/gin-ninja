@@ -3,6 +3,7 @@ package app
 import (
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/pagination"
+	"gorm.io/gorm/clause"
 )
 
 // ---------------------------------------------------------------------------
@@ -44,8 +45,21 @@ type UserOut struct {
 type ListUsersInput struct {
 	pagination.PageInput
 	Sort    string `query:"sort"     order:"id|name|email|age|is_admin|created_at" description:"Sort by id, name, email, age, is_admin, or created_at"`
-	Search  string `query:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
+	Search  string `query:"search"   description:"Filter by name or email (partial match, implemented by FilterExpression)"`
 	IsAdmin *bool  `query:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
+}
+
+// FilterExpression demonstrates custom filter logic for query parameters that
+// cannot be fully described by a single filter tag.
+func (in *ListUsersInput) FilterExpression() clause.Expression {
+	if in == nil || in.Search == "" {
+		return nil
+	}
+	like := "%" + in.Search + "%"
+	return clause.Or(
+		clause.Like{Column: clause.Column{Name: "name"}, Value: like},
+		clause.Like{Column: clause.Column{Name: "email"}, Value: like},
+	)
 }
 
 // GetUserInput holds the path parameter for retrieving a single user.
