@@ -41,6 +41,12 @@ type Clause struct {
 // Set is a collection of declarative filter clauses.
 type Set []Clause
 
+// ExpressionProvider can be implemented by filter input structs to append
+// custom GORM expressions that cannot be represented by filter tags alone.
+type ExpressionProvider interface {
+	FilterExpression() clause.Expression
+}
+
 // Parse extracts filter clauses from struct fields tagged with `filter:"field,op"`
 // or `filter:"field1|field2,op"` for OR-based multi-field filters.
 func Parse(input any) (Set, error) {
@@ -52,7 +58,8 @@ func Parse(input any) (Set, error) {
 }
 
 // Apply resolves the tagged filter clauses and applies them to a gormx query.
-// Multi-field clauses must be applied through BuildOptions and passed to the repo.
+// Multi-field clauses and custom FilterExpression clauses must be applied
+// through BuildOptions and passed to the repo.
 func Apply[T any](query *gormx.Query[T], input any) error {
 	if query == nil {
 		return nil
@@ -76,13 +83,16 @@ func BuildOptions(input any) ([]gormx.DBOption, error) {
 		return nil, err
 	}
 
-	opts := make([]gormx.DBOption, 0, len(clauses))
+	opts := make([]gormx.DBOption, 0, len(clauses)+1)
 	for _, clause := range clauses {
 		opt, err := buildOption(clause)
 		if err != nil {
 			return nil, err
 		}
 		opts = append(opts, opt)
+	}
+	if expr := filterExpression(input); expr != nil {
+		opts = append(opts, gormx.Where(expr))
 	}
 	return opts, nil
 }
@@ -102,7 +112,18 @@ func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
 			return nil, err
 		}
 	}
+	if expr := filterExpression(input); expr != nil {
+		db = db.Where(expr)
+	}
 	return db, nil
+}
+
+func filterExpression(input any) clause.Expression {
+	provider, ok := input.(ExpressionProvider)
+	if !ok {
+		return nil
+	}
+	return provider.FilterExpression()
 }
 
 func parseInto(value reflect.Value, clauses *Set) error {
