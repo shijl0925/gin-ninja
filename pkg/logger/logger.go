@@ -20,13 +20,8 @@ import (
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 	"github.com/shijl0925/gin-ninja/settings"
-)
-
-const (
-	defaultMaxSizeMB  = 100
-	defaultMaxAgeDays = 7
-	defaultMaxBackups = 3
 )
 
 // New creates a new *zap.Logger configured from the supplied LogConfig.
@@ -117,9 +112,9 @@ func buildRollingLogger(cfg settings.LogConfig) (*lumberjack.Logger, error) {
 
 	return &lumberjack.Logger{
 		Filename:   filename,
-		MaxSize:    normalizeRotationValue(cfg.MaxSizeMB, defaultMaxSizeMB),
-		MaxAge:     normalizeRotationValue(cfg.MaxAgeDays, defaultMaxAgeDays),
-		MaxBackups: normalizeRotationValue(cfg.MaxBackups, defaultMaxBackups),
+		MaxSize:    normalizeRotationValue(cfg.MaxSizeMB, defaults.LoggerMaxSizeMB),
+		MaxAge:     normalizeRotationValue(cfg.MaxAgeDays, defaults.LoggerMaxAgeDays),
+		MaxBackups: normalizeRotationValue(cfg.MaxBackups, defaults.LoggerMaxBackups),
 		Compress:   cfg.Compress,
 		LocalTime:  true,
 	}, nil
