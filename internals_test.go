@@ -79,6 +79,14 @@ type multipartBindInput struct {
 	Files []*UploadedFile `file:"files"`
 }
 
+type multipartComplexBindInput struct {
+	Title    string                  `form:"title" binding:"required"`
+	Counts   []int                   `form:"count"`
+	Primary  *multipart.FileHeader   `file:"primary" binding:"required"`
+	RawFiles []*multipart.FileHeader `file:"raw_files"`
+	Uploads  []*UploadedFile         `file:"uploads"`
+}
+
 type bindEdgeQueryInput struct {
 	Search string   `query:"search"`
 	Tags   []string `query:"tag"`
@@ -112,6 +120,24 @@ type formURLEncodedInput struct {
 type embeddedPointerBindInput struct {
 	*BindEmbeddedInput
 	Page int `query:"page" default:"1"`
+}
+
+type nestedJSONAddress struct {
+	City string `json:"city" binding:"required"`
+	Zip  int    `json:"zip"`
+}
+
+type nestedJSONProfile struct {
+	Name    string            `json:"name" binding:"required"`
+	Address nestedJSONAddress `json:"address" binding:"required"`
+	Tags    []string          `json:"tags"`
+}
+
+type nestedJSONBindInput struct {
+	ID      int               `path:"id" json:"id"`
+	Page    int               `query:"page" json:"page"`
+	Trace   string            `header:"X-Trace" json:"trace"`
+	Profile nestedJSONProfile `json:"profile" binding:"required"`
 }
 
 func init() {
@@ -390,6 +416,113 @@ func TestBindInput_MultipartSuccess(t *testing.T) {
 	}
 	if in.Title != "demo" || in.File == nil || in.File.Filename != "single.txt" || len(in.Files) != 2 {
 		t.Fatalf("unexpected multipart input: %+v", in)
+	}
+}
+
+func TestBindInput_NestedJSONPreservesNonBodyFields(t *testing.T) {
+	c, _ := newTestContext(http.MethodPost, "/users/42?page=3", `{
+		"id": 99,
+		"page": 99,
+		"trace": "body-trace",
+		"profile": {
+			"name": "alice",
+			"address": {"city": "Shanghai", "zip": 200000},
+			"tags": ["go", "api"]
+		}
+	}`)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+	c.Request.Header.Set("X-Trace", "header-trace")
+
+	var in nestedJSONBindInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.ID != 42 || in.Page != 3 || in.Trace != "header-trace" {
+		t.Fatalf("expected non-body fields to override JSON values, got %+v", in)
+	}
+	if in.Profile.Name != "alice" || in.Profile.Address.City != "Shanghai" || in.Profile.Address.Zip != 200000 {
+		t.Fatalf("unexpected nested profile: %+v", in.Profile)
+	}
+	if !reflect.DeepEqual(in.Profile.Tags, []string{"go", "api"}) {
+		t.Fatalf("unexpected nested tags: %+v", in.Profile.Tags)
+	}
+}
+
+func TestBindInput_NestedJSONValidationError(t *testing.T) {
+	c, _ := newTestContext(http.MethodPost, "/users/42", `{
+		"profile": {
+			"name": "alice",
+			"address": {"zip": 200000}
+		}
+	}`)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+
+	var in nestedJSONBindInput
+	err := bindInput(c, http.MethodPost, &in)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if len(validationErr.Errors) != 1 || validationErr.Errors[0].Field != "city" {
+		t.Fatalf("unexpected validation errors: %+v", validationErr.Errors)
+	}
+}
+
+func TestBindInput_MultipartComplexMultiFileUpload(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("title", "demo"); err != nil {
+		t.Fatalf("WriteField title: %v", err)
+	}
+	for _, count := range []string{"1", "2", "3"} {
+		if err := writer.WriteField("count", count); err != nil {
+			t.Fatalf("WriteField count: %v", err)
+		}
+	}
+	for _, field := range []struct {
+		name string
+		file string
+		body string
+	}{
+		{name: "primary", file: "primary.txt", body: "primary"},
+		{name: "raw_files", file: "raw-a.txt", body: "raw-a"},
+		{name: "raw_files", file: "raw-b.txt", body: "raw-b"},
+		{name: "uploads", file: "upload-a.txt", body: "upload-a"},
+		{name: "uploads", file: "upload-b.txt", body: "upload-b"},
+	} {
+		part, err := writer.CreateFormFile(field.name, field.file)
+		if err != nil {
+			t.Fatalf("CreateFormFile %s/%s: %v", field.name, field.file, err)
+		}
+		if _, err := part.Write([]byte(field.body)); err != nil {
+			t.Fatalf("part.Write %s/%s: %v", field.name, field.file, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Request = req
+
+	var in multipartComplexBindInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Title != "demo" || !reflect.DeepEqual(in.Counts, []int{1, 2, 3}) {
+		t.Fatalf("unexpected multipart form values: %+v", in)
+	}
+	if in.Primary == nil || in.Primary.Filename != "primary.txt" {
+		t.Fatalf("unexpected primary file: %+v", in.Primary)
+	}
+	if len(in.RawFiles) != 2 || in.RawFiles[0].Filename != "raw-a.txt" || in.RawFiles[1].Filename != "raw-b.txt" {
+		t.Fatalf("unexpected raw files: %+v", in.RawFiles)
+	}
+	if len(in.Uploads) != 2 || in.Uploads[0].Filename != "upload-a.txt" || in.Uploads[1].Filename != "upload-b.txt" {
+		t.Fatalf("unexpected uploaded files: %+v", in.Uploads)
 	}
 }
 

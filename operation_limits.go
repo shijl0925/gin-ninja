@@ -152,6 +152,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			}
 			copyHeader(c.Writer.Header(), recorder.header)
 			c.Status(recorder.status)
+			c.Writer.WriteHeaderNow()
 			if len(recorder.body) > 0 && c.Request.Method != http.MethodHead {
 				_, _ = c.Writer.Write(recorder.body)
 			}

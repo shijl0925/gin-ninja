@@ -49,6 +49,38 @@ func TestRateLimiterAllowCapsTokensAndPrunes(t *testing.T) {
 	}
 }
 
+func TestRateLimiterAllowIsPerClientAndRefills(t *testing.T) {
+	now := time.Now()
+	limiter := newRateLimiter(1, 1)
+
+	if !limiter.allow("192.0.2.1", now) {
+		t.Fatal("expected first client request to be allowed")
+	}
+	if limiter.allow("192.0.2.1", now) {
+		t.Fatal("expected second immediate request from same client to be limited")
+	}
+	if !limiter.allow("192.0.2.2", now) {
+		t.Fatal("expected separate client to have an independent bucket")
+	}
+	if !limiter.allow("192.0.2.1", now.Add(time.Second)) {
+		t.Fatal("expected first client bucket to refill after one second")
+	}
+}
+
+func TestRateLimiterPruneKeepsBoundaryTTLClients(t *testing.T) {
+	now := time.Now()
+	limiter := newRateLimiter(1, 1)
+	limiter.clients["boundary"] = &tokenBucket{tokens: 1, last: now.Add(-rateLimiterClientTTL)}
+
+	limiter.mu.Lock()
+	limiter.pruneLocked(now)
+	limiter.mu.Unlock()
+
+	if _, ok := limiter.clients["boundary"]; !ok {
+		t.Fatal("expected client at exact TTL boundary to remain")
+	}
+}
+
 func TestWrapCooperativeTimeoutWritesTimeoutWhenHandlerCooperates(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -118,6 +150,46 @@ func TestWrapTimeoutPropagatesHandlerPanic(t *testing.T) {
 		panic("boom")
 	})
 	handler(c)
+}
+
+func TestWrapTimeoutCopiesHeadersStatusAndSuppressesHeadBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodHead, "/", nil)
+
+	handler := wrapTimeout(time.Second, func(c *gin.Context) {
+		c.Header("X-Test", "yes")
+		c.Status(http.StatusCreated)
+		_, _ = c.Writer.Write([]byte("created"))
+	})
+	handler(c)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, w.Code)
+	}
+	if got := w.Header().Get("X-Test"); got != "yes" {
+		t.Fatalf("expected copied header, got %q", got)
+	}
+	if w.Body.Len() != 0 {
+		t.Fatalf("expected HEAD response body to be suppressed, got %q", w.Body.String())
+	}
+}
+
+func TestWrapTimeoutRejectsStreamedResponses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+
+	handler := wrapTimeout(time.Second, func(c *gin.Context) {
+		c.Writer.Flush()
+	})
+	handler(c)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected streamed response capture error status %d, got %d", http.StatusInternalServerError, w.Code)
+	}
 }
 
 func TestTimeoutCaptureResponseWriterMethods(t *testing.T) {
