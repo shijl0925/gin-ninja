@@ -88,6 +88,60 @@ func TestPageInputOffsetSaturatesWhenProductWouldOverflow(t *testing.T) {
 	}
 }
 
+func TestCursorPaginationDefaultsAndBounds(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		input  CursorPagination
+		cursor string
+		size   int
+		limit  int
+	}{
+		{
+			name:  "defaults",
+			input: CursorPagination{},
+			size:  DefaultSize,
+			limit: DefaultSize,
+		},
+		{
+			name:   "cursor is preserved",
+			input:  CursorPagination{Cursor: "after:42", Size: 15},
+			cursor: "after:42",
+			size:   15,
+			limit:  15,
+		},
+		{
+			name:  "invalid size uses default",
+			input: CursorPagination{Size: -1},
+			size:  DefaultSize,
+			limit: DefaultSize,
+		},
+		{
+			name:  "oversized page size is capped",
+			input: CursorPagination{Size: MaxSize + 1},
+			size:  MaxSize,
+			limit: MaxSize,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.input.GetCursor(); got != tc.cursor {
+				t.Fatalf("GetCursor() = %q, want %q", got, tc.cursor)
+			}
+			if got := tc.input.GetSize(); got != tc.size {
+				t.Fatalf("GetSize() = %d, want %d", got, tc.size)
+			}
+			if got := tc.input.Limit(); got != tc.limit {
+				t.Fatalf("Limit() = %d, want %d", got, tc.limit)
+			}
+		})
+	}
+}
+
 func TestNewPageZeroTotalHasZeroPages(t *testing.T) {
 	t.Parallel()
 
@@ -116,5 +170,40 @@ func TestNewPageRoundsUpAndNormalizesNilItems(t *testing.T) {
 	}
 	if page.Pages != 2 {
 		t.Fatalf("expected 2 pages, got %d", page.Pages)
+	}
+}
+
+func TestNewCursorPageNormalizesNilItemsAndSetsMetadata(t *testing.T) {
+	t.Parallel()
+
+	page := NewCursorPage[int](nil, CursorPagination{Size: 10}, "next", "prev")
+
+	if page.Items == nil {
+		t.Fatal("expected nil items to be normalized to an empty slice")
+	}
+	if len(page.Items) != 0 {
+		t.Fatalf("expected empty items slice, got %d item(s)", len(page.Items))
+	}
+	if page.Size != 10 {
+		t.Fatalf("expected size 10, got %d", page.Size)
+	}
+	if page.NextCursor != "next" || !page.HasNext {
+		t.Fatalf("expected next cursor metadata, got %+v", page)
+	}
+	if page.PreviousCursor != "prev" || !page.HasPrevious {
+		t.Fatalf("expected previous cursor metadata, got %+v", page)
+	}
+}
+
+func TestNewCursorPageDefaultsSizeAndHasNoPreviousCursor(t *testing.T) {
+	t.Parallel()
+
+	page := NewCursorPage([]int{1, 2}, CursorPagination{}, "")
+
+	if page.Size != DefaultSize {
+		t.Fatalf("expected default size %d, got %d", DefaultSize, page.Size)
+	}
+	if page.HasNext || page.HasPrevious {
+		t.Fatalf("expected no cursor links, got %+v", page)
 	}
 }

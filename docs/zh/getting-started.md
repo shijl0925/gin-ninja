@@ -56,8 +56,17 @@ func main() {
 - Swagger UI：`http://localhost:8080/docs`
 - OpenAPI JSON：`http://localhost:8080/openapi.json`
 
+Swagger UI 是默认文档界面。如果希望同一个 `DocsURL` 使用 ReDoc，可以设置 `Docs: ninja.Redoc()`：
+
+```go
+api := ninja.New(ninja.Config{
+    Title: "Hello API",
+    Docs:  ninja.Redoc(),
+})
+```
+
 如果你希望首页展示后台入口按钮，可以在 `ninja.Config` 中设置 `AdminURL`。
-如果你希望保留 Swagger UI 路由，但在生产环境隐藏首页里的 API Docs 快捷方式，可以设置 `HideDocsShortcut: true`。
+如果你希望保留文档 UI 路由，但在生产环境隐藏首页里的 API Docs 快捷方式，可以设置 `HideDocsShortcut: true`。
 
 ## API Controller
 

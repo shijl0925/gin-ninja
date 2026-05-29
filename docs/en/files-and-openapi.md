@@ -118,6 +118,36 @@ The full example app includes ready-to-run routes:
 
 ## OpenAPI Operation Controls
 
+### Document metadata and servers
+
+Configure standard OpenAPI info fields and server URLs through `ninja.Config`:
+
+```go
+api := ninja.New(ninja.Config{
+    Title:          "My API",
+    Version:        "1.0.0",
+    Description:    "Public API documentation.",
+    TermsOfService: "https://example.com/terms",
+    Contact: &ninja.Contact{
+        Name:  "Support",
+        URL:   "https://example.com/support",
+        Email: "support@example.com",
+    },
+    LicenseInfo: &ninja.LicenseInfo{
+        Name: "MIT",
+        URL:  "https://opensource.org/license/mit",
+    },
+    Servers: []ninja.Server{
+        {URL: "https://api.example.com", Description: "Production"},
+        {URL: "https://staging-api.example.com", Description: "Staging"},
+    },
+})
+```
+
+These values are emitted as standard OpenAPI `info.termsOfService`, `info.contact`, `info.license`, and root-level `servers` fields for Swagger UI and ReDoc.
+
+### Operation controls
+
 ```go
 users := ninja.NewRouter(
     "/users",

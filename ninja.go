@@ -24,13 +24,24 @@ type Config struct {
 	Version string
 	// Description is an optional long description of the API.
 	Description string
-	// DocsURL is the path at which the Swagger UI is served (default: "/docs").
+	// TermsOfService is the URL for the API terms of service in OpenAPI docs.
+	TermsOfService string
+	// Contact describes API support contact information in OpenAPI docs.
+	Contact *Contact
+	// LicenseInfo describes API license information in OpenAPI docs.
+	LicenseInfo *LicenseInfo
+	// Servers describes API server URLs in OpenAPI docs.
+	Servers []Server
+	// DocsURL is the path at which the docs UI is served (default: "/docs").
 	// Set DisableDocs to true to disable the UI.
 	DocsURL string
-	// DisableDocs disables the Swagger UI route.
+	// Docs selects the docs UI renderer (default: Swagger()). Use Redoc() to
+	// serve ReDoc at DocsURL.
+	Docs DocsRenderer
+	// DisableDocs disables the docs UI route.
 	DisableDocs bool
 	// HideDocsShortcut hides the "API Docs" shortcut on the homepage while
-	// leaving the Swagger UI route configured by DocsURL unchanged.
+	// leaving the docs UI route configured by DocsURL unchanged.
 	HideDocsShortcut bool
 	// OpenAPIURL is the path at which the raw OpenAPI JSON is served (default: "/openapi.json").
 	OpenAPIURL string
@@ -73,6 +84,25 @@ type Config struct {
 	// GracefulShutdownTimeout bounds how long Run waits for shutdown hooks and
 	// in-flight requests after receiving SIGINT or SIGTERM. Zero uses 10s.
 	GracefulShutdownTimeout time.Duration
+}
+
+// Contact describes the OpenAPI info.contact object.
+type Contact struct {
+	Name  string `json:"name,omitempty"`
+	URL   string `json:"url,omitempty"`
+	Email string `json:"email,omitempty"`
+}
+
+// LicenseInfo describes the OpenAPI info.license object.
+type LicenseInfo struct {
+	Name string `json:"name"`
+	URL  string `json:"url,omitempty"`
+}
+
+// Server describes an OpenAPI server object.
+type Server struct {
+	URL         string `json:"url"`
+	Description string `json:"description,omitempty"`
 }
 
 // NinjaAPI is the central API instance.  It wraps a *gin.Engine and
@@ -118,6 +148,9 @@ func New(config Config) *NinjaAPI {
 	}
 	if config.OpenAPIURL == "" && !config.DisableOpenAPI {
 		config.OpenAPIURL = "/openapi.json"
+	}
+	if config.Docs == nil {
+		config.Docs = Swagger()
 	}
 	if config.DisableOpenAPI {
 		config.DisableDocs = true
@@ -179,10 +212,9 @@ func (api *NinjaAPI) Handler() http.Handler {
 //	api.UseGin(middleware.Logger(log))
 //	api.UseGin(middleware.JWTAuthWithConfig(cfg.JWT))
 func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
-	api.routesMu.RLock()
-	hasRouters := len(api.routers) > 0
-	api.routesMu.RUnlock()
-	if api.isAccepting() || hasRouters {
+	api.routesMu.Lock()
+	defer api.routesMu.Unlock()
+	if api.isAccepting() || len(api.routers) > 0 {
 		panic("gin-ninja: cannot add global gin middleware after routers are mounted")
 	}
 	api.engine.Use(mw...)
@@ -194,7 +226,7 @@ func (api *NinjaAPI) UseGin(mw ...gin.HandlerFunc) {
 //
 //	api.AddController("/books", &BookController{db: db},
 //	    ninja.WithTags("Books"),
-//	    ninja.WithBearerAuth(),
+//	    ninja.WithBearerAuth(authMiddleware),
 //	)
 func (api *NinjaAPI) AddController(prefix string, c Controller, opts ...RouterOption) {
 	r := NewRouter(prefix, opts...)
@@ -292,7 +324,7 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 		group.Use(func(c *gin.Context) {
 			ctx := newContext(c)
 			if err := mw(ctx); err != nil {
-				writeError(c, err)
+				WriteError(c, err)
 				c.Abort()
 				return
 			}
@@ -303,20 +335,21 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 	for _, op := range router.operations {
 		// Build a copy of the operation with the correct full path for the spec.
 		opForSpec := *op
-		opForSpec.path = prefix + op.path
-		opForSpec.version = currentVersion
-		opForSpec.versionInfo = cloneVersionInfo(currentInfo)
+		opForSpec.route.path = prefix + op.route.path
+		opForSpec.version.name = currentVersion
+		opForSpec.version.info = cloneVersionInfo(currentInfo)
 		if currentInfo != nil && currentInfo.Deprecated {
-			opForSpec.deprecated = true
+			opForSpec.spec.deprecated = true
 		}
 		api.openAPI.addOperation(&opForSpec)
 		if currentVersion != "" {
 			api.versionSpec(currentVersion).addOperation(&opForSpec)
 		}
 
-		group.Handle(op.method, op.path, op.ginHandler)
-		if op.method == http.MethodGet {
-			group.Handle(http.MethodHead, op.path, op.ginHandler)
+		handlers := append(append([]gin.HandlerFunc{}, op.route.ginMiddleware...), op.route.ginHandler)
+		group.Handle(op.route.method, op.route.path, handlers...)
+		if op.route.method == http.MethodGet {
+			group.Handle(http.MethodHead, op.route.path, handlers...)
 		}
 	}
 
@@ -325,7 +358,7 @@ func (api *NinjaAPI) registerRouter(parent *gin.RouterGroup, parentPrefix, inher
 	}
 }
 
-// setupInternalRoutes adds the OpenAPI JSON and Swagger UI routes.
+// setupInternalRoutes adds the OpenAPI JSON and docs UI routes.
 func (api *NinjaAPI) setupInternalRoutes() {
 	if !api.config.DisableHomepage && api.config.HomepageURL != "" {
 		homepageURL := api.config.HomepageURL
@@ -345,7 +378,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		api.engine.GET(api.config.OpenAPIURL, func(c *gin.Context) {
 			data, err := api.openAPIBytes()
 			if err != nil {
-				writeError(c, err)
+				WriteError(c, err)
 				return
 			}
 			c.Data(http.StatusOK, "application/json; charset=utf-8", data)
@@ -358,7 +391,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 		title := api.config.Title
 		api.engine.GET(docsURL, func(c *gin.Context) {
 			c.Data(http.StatusOK, "text/html; charset=utf-8",
-				[]byte(swaggerUIHTML(openAPIURL, title)))
+				[]byte(api.docsHTML(openAPIURL, title)))
 		})
 	}
 
@@ -367,7 +400,7 @@ func (api *NinjaAPI) setupInternalRoutes() {
 			version := requestVersion(c)
 			data, ok, err := api.versionOpenAPIBytes(version)
 			if err != nil {
-				writeError(c, err)
+				WriteError(c, err)
 				return
 			}
 			if !ok {
@@ -388,9 +421,17 @@ func (api *NinjaAPI) setupInternalRoutes() {
 				return
 			}
 			c.Data(http.StatusOK, "text/html; charset=utf-8",
-				[]byte(swaggerUIHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
+				[]byte(api.docsHTML(versionedOpenAPIPath(baseOpenAPIURL, version), title+" ("+version+")")))
 		})
 	}
+}
+
+func (api *NinjaAPI) docsHTML(openapiURL, title string) string {
+	renderer := api.config.Docs
+	if renderer == nil {
+		renderer = Swagger()
+	}
+	return renderer.Render(openapiURL, title)
 }
 
 func (api *NinjaAPI) RegisterErrorMapper(mapper ErrorMapper) {

@@ -41,6 +41,12 @@ type Clause struct {
 // Set is a collection of declarative filter clauses.
 type Set []Clause
 
+// ExpressionProvider can be implemented by filter input structs to append
+// custom GORM expressions that cannot be represented by filter tags alone.
+type ExpressionProvider interface {
+	FilterExpression() clause.Expression
+}
+
 // Parse extracts filter clauses from struct fields tagged with `filter:"field,op"`
 // or `filter:"field1|field2,op"` for OR-based multi-field filters.
 func Parse(input any) (Set, error) {
@@ -52,7 +58,8 @@ func Parse(input any) (Set, error) {
 }
 
 // Apply resolves the tagged filter clauses and applies them to a gormx query.
-// Multi-field clauses must be applied through BuildOptions and passed to the repo.
+// Multi-field clauses and custom FilterExpression clauses must be applied
+// through BuildOptions and passed to the repo.
 func Apply[T any](query *gormx.Query[T], input any) error {
 	if query == nil {
 		return nil
@@ -76,13 +83,16 @@ func BuildOptions(input any) ([]gormx.DBOption, error) {
 		return nil, err
 	}
 
-	opts := make([]gormx.DBOption, 0, len(clauses))
+	opts := make([]gormx.DBOption, 0, len(clauses)+1)
 	for _, clause := range clauses {
 		opt, err := buildOption(clause)
 		if err != nil {
 			return nil, err
 		}
 		opts = append(opts, opt)
+	}
+	if expr := filterExpression(input); expr != nil {
+		opts = append(opts, gormx.Where(expr))
 	}
 	return opts, nil
 }
@@ -102,7 +112,18 @@ func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
 			return nil, err
 		}
 	}
+	if expr := filterExpression(input); expr != nil {
+		db = db.Where(expr)
+	}
 	return db, nil
+}
+
+func filterExpression(input any) clause.Expression {
+	provider, ok := input.(ExpressionProvider)
+	if !ok {
+		return nil
+	}
+	return provider.FilterExpression()
 }
 
 func parseInto(value reflect.Value, clauses *Set) error {
@@ -286,6 +307,9 @@ func parseTag(tag string, field reflect.StructField) ([]string, Operator, Combin
 		if fieldName == "" {
 			return nil, "", "", fmt.Errorf("filter tag on %s contains an empty field name in multi-field specification", field.Name)
 		}
+		if !isSafeFieldName(fieldName) {
+			return nil, "", "", fmt.Errorf("filter tag on %s uses unsafe field name %q", field.Name, fieldName)
+		}
 		fields = append(fields, fieldName)
 	}
 
@@ -341,6 +365,31 @@ func toColumn(field string) clause.Column {
 		column.Name = name
 	}
 	return column
+}
+
+func isSafeFieldName(field string) bool {
+	if field == "" {
+		return false
+	}
+	table, name, ok := strings.Cut(field, ".")
+	if !ok {
+		return isSafeIdentifier(field)
+	}
+	return isSafeIdentifier(table) && isSafeIdentifier(name) && !strings.Contains(name, ".")
+}
+
+func isSafeIdentifier(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+	for i := 0; i < len(identifier); i++ {
+		ch := identifier[i]
+		if ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch == '_' || i > 0 && ch >= '0' && ch <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func toValues(value any) []any {

@@ -53,6 +53,19 @@ func doRequestWithHeaders(api *ninja.NinjaAPI, method, path string, body interfa
 	return w
 }
 
+const authTestPrincipalKey = "auth_test_principal"
+
+func apiKeyTestAuth(name, principal string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader(name) != "supersecret" {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Set(authTestPrincipalKey, principal)
+		c.Next()
+	}
+}
+
 // ---------------------------------------------------------------------------
 // NinjaAPI construction
 // ---------------------------------------------------------------------------
@@ -75,6 +88,29 @@ func TestNew_DocsRouteExists(t *testing.T) {
 	}
 	if ct := w.Header().Get("Content-Type"); ct != "text/html; charset=utf-8" {
 		t.Fatalf("expected HTML content-type, got %s", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "SwaggerUIBundle") || !strings.Contains(body, "/openapi.json") {
+		t.Fatalf("expected default Swagger UI docs body, got %q", body)
+	}
+}
+
+func TestNew_RedocRouteExists(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Redoc Test",
+		Version: "0.0.1",
+		Docs:    ninja.Redoc(),
+	})
+	w := doRequest(api, http.MethodGet, "/docs", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "<redoc") || !strings.Contains(body, `spec-url="/openapi.json"`) || !strings.Contains(body, "redoc.standalone.js") {
+		t.Fatalf("expected ReDoc docs body, got %q", body)
+	}
+	if strings.Contains(body, "SwaggerUIBundle") {
+		t.Fatalf("expected ReDoc to replace Swagger UI, got %q", body)
 	}
 }
 
@@ -196,6 +232,75 @@ func TestNew_OpenAPIRouteExists(t *testing.T) {
 	}
 	if spec["openapi"] != "3.0.3" {
 		t.Errorf("expected openapi 3.0.3 got %v", spec["openapi"])
+	}
+}
+
+func TestNew_OpenAPIMetadata(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:          "Enterprise API",
+		Version:        "2.0.0",
+		Description:    "Public enterprise API",
+		TermsOfService: "https://example.com/terms",
+		Contact: &ninja.Contact{
+			Name:  "Support",
+			URL:   "https://example.com/support",
+			Email: "support@example.com",
+		},
+		LicenseInfo: &ninja.LicenseInfo{
+			Name: "MIT",
+			URL:  "https://opensource.org/license/mit",
+		},
+		Servers: []ninja.Server{
+			{URL: "https://api.example.com", Description: "Production"},
+			{URL: "https://staging-api.example.com", Description: "Staging"},
+		},
+	})
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", w.Code)
+	}
+
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("failed to parse openapi JSON: %v", err)
+	}
+
+	info, ok := spec["info"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected info object in spec")
+	}
+	if info["termsOfService"] != "https://example.com/terms" {
+		t.Fatalf("expected termsOfService in info, got %v", info["termsOfService"])
+	}
+	contact, ok := info["contact"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected contact object in info")
+	}
+	if contact["name"] != "Support" || contact["email"] != "support@example.com" || contact["url"] != "https://example.com/support" {
+		t.Fatalf("unexpected contact object: %+v", contact)
+	}
+	license, ok := info["license"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected license object in info")
+	}
+	if license["name"] != "MIT" || license["url"] != "https://opensource.org/license/mit" {
+		t.Fatalf("unexpected license object: %+v", license)
+	}
+
+	servers, ok := spec["servers"].([]interface{})
+	if !ok {
+		t.Fatalf("expected servers array in spec")
+	}
+	if len(servers) != 2 {
+		t.Fatalf("expected 2 servers, got %d", len(servers))
+	}
+	production, ok := servers[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected server object, got %T", servers[0])
+	}
+	if production["url"] != "https://api.example.com" || production["description"] != "Production" {
+		t.Fatalf("unexpected production server: %+v", production)
 	}
 }
 
@@ -933,7 +1038,9 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 			"bearerAuth": ninja.HTTPBearerSecurityScheme("JWT"),
 		},
 	})
-	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth())
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithBearerAuth(func(c *gin.Context) {
+		c.Next()
+	}))
 
 	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*listOutput, error) {
 		return &listOutput{}, nil
@@ -974,6 +1081,90 @@ func TestOpenAPISpec_BearerSecurity(t *testing.T) {
 	}
 	if len(scopeList) != 0 {
 		t.Fatalf("expected bearerAuth scopes to be empty, got %v", scopeList)
+	}
+}
+
+func TestRouterAuthMiddlewareBindsSecurityAndRuntime(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Test",
+		Version: "0.0.1",
+		SecuritySchemes: map[string]ninja.SecurityScheme{
+			"apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+		},
+	})
+	r := ninja.NewRouter("/internal", ninja.WithAPIKeyAuth("apiKeyAuth", apiKeyTestAuth("X-API-Key", "api-user")))
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*map[string]string, error) {
+		value, _ := ctx.Get(authTestPrincipalKey)
+		principal, _ := value.(string)
+		return &map[string]string{"principal": principal}, nil
+	})
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/internal/", nil)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing API key to be rejected, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequestWithHeaders(api, http.MethodGet, "/internal/", nil, func(req *http.Request) {
+		req.Header.Set("X-API-Key", "supersecret")
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "api-user") {
+		t.Fatalf("expected valid API key to pass, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/internal/"].(map[string]interface{})["get"].(map[string]interface{})
+	security := get["security"].([]interface{})
+	if len(security) != 1 {
+		t.Fatalf("expected one security requirement, got %v", security)
+	}
+	if _, ok := security[0].(map[string]interface{})["apiKeyAuth"]; !ok {
+		t.Fatalf("expected apiKeyAuth security requirement, got %v", security[0])
+	}
+}
+
+func TestOperationAuthMiddlewareBindsSecurityAndRuntime(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Test",
+		Version: "0.0.1",
+		SecuritySchemes: map[string]ninja.SecurityScheme{
+			"apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
+		},
+	})
+	r := ninja.NewRouter("/internal")
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*map[string]string, error) {
+		value, _ := ctx.Get(authTestPrincipalKey)
+		principal, _ := value.(string)
+		return &map[string]string{"principal": principal}, nil
+	}, ninja.APIKeyAuth("apiKeyAuth", apiKeyTestAuth("X-API-Key", "operation-user")))
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/internal/", nil)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing API key to be rejected, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequestWithHeaders(api, http.MethodGet, "/internal/", nil, func(req *http.Request) {
+		req.Header.Set("X-API-Key", "supersecret")
+	})
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "operation-user") {
+		t.Fatalf("expected valid API key to pass, got %d: %s", w.Code, w.Body.String())
+	}
+
+	w = doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+	paths := spec["paths"].(map[string]interface{})
+	get := paths["/internal/"].(map[string]interface{})["get"].(map[string]interface{})
+	security := get["security"].([]interface{})
+	if len(security) != 1 {
+		t.Fatalf("expected one security requirement, got %v", security)
+	}
+	if _, ok := security[0].(map[string]interface{})["apiKeyAuth"]; !ok {
+		t.Fatalf("expected apiKeyAuth security requirement, got %v", security[0])
 	}
 }
 
@@ -1068,6 +1259,72 @@ func TestOpenAPISpec_DefaultsTagDescriptionsAndPaginatedResponse(t *testing.T) {
 	items := respSchema["properties"].(map[string]interface{})["items"].(map[string]interface{})
 	if items["type"] != "array" {
 		t.Fatalf("expected paginated items array, got %v", items)
+	}
+	props := respSchema["properties"].(map[string]interface{})
+	if got := props["total"].(map[string]interface{})["format"]; got != "int64" {
+		t.Fatalf("expected total int64 format, got %v", props["total"])
+	}
+	for _, name := range []string{"page", "size", "pages"} {
+		if got := props[name].(map[string]interface{})["format"]; got != nil {
+			t.Fatalf("expected %s to omit integer format, got %v", name, props[name])
+		}
+	}
+}
+
+func TestOpenAPISpec_CursorPaginatedResponse(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/events")
+
+	type eventInput struct {
+		pagination.CursorPagination
+	}
+	type eventOut struct {
+		ID int `json:"id"`
+	}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *eventInput) (*pagination.CursorPage[eventOut], error) {
+		return pagination.NewCursorPage([]eventOut{{ID: 1}}, in.CursorPagination, "next"), nil
+	}, ninja.CursorPaginated[eventOut]())
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &spec) //nolint:errcheck
+
+	get := spec["paths"].(map[string]interface{})["/events/"].(map[string]interface{})["get"].(map[string]interface{})
+	params := get["parameters"].([]interface{})
+	paramByName := map[string]map[string]interface{}{}
+	for _, raw := range params {
+		param := raw.(map[string]interface{})
+		paramByName[param["name"].(string)] = param
+	}
+	if _, ok := paramByName["cursor"]; !ok {
+		t.Fatalf("expected cursor query parameter, got %v", paramByName)
+	}
+	if _, ok := paramByName["size"]; !ok {
+		t.Fatalf("expected size query parameter, got %v", paramByName)
+	}
+
+	respSchema := get["responses"].(map[string]interface{})["200"].(map[string]interface{})["content"].(map[string]interface{})["application/json"].(map[string]interface{})["schema"].(map[string]interface{})
+	props := respSchema["properties"].(map[string]interface{})
+	items := props["items"].(map[string]interface{})
+	if items["type"] != "array" {
+		t.Fatalf("expected cursor-paginated items array, got %v", items)
+	}
+	if props["next_cursor"].(map[string]interface{})["type"] != "string" {
+		t.Fatalf("expected next_cursor string schema, got %v", props["next_cursor"])
+	}
+	if props["has_next"].(map[string]interface{})["type"] != "boolean" {
+		t.Fatalf("expected has_next boolean schema, got %v", props["has_next"])
+	}
+	if got := props["size"].(map[string]interface{})["format"]; got != nil {
+		t.Fatalf("expected cursor size to omit integer format, got %v", props["size"])
+	}
+
+	tooLongCursor := strings.Repeat("x", 513)
+	resp := doRequest(api, http.MethodGet, "/events/?cursor="+tooLongCursor, nil)
+	if resp.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected oversized cursor to fail validation, got %d: %s", resp.Code, resp.Body.String())
 	}
 }
 
@@ -1357,8 +1614,11 @@ func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	if first.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", first.Code, first.Body.String())
 	}
-	if got := first.Header().Get("Cache-Control"); got != "public, max-age=60" {
+	if got := first.Header().Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
+	}
+	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language" {
+		t.Fatalf("expected Vary header, got %q", got)
 	}
 	etag := first.Header().Get("ETag")
 	if etag == "" {
@@ -1518,6 +1778,57 @@ func TestGet_CacheWithCustomKey(t *testing.T) {
 	}
 }
 
+func TestGet_DefaultCacheKeyVariesByAuthorizationAndLanguage(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-vary")
+	calls := 0
+	store := &externalCacheStore{}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	first := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "en")
+	})
+	second := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "en")
+	})
+	third := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "zh-CN")
+	})
+	fourth := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-b")
+		req.Header.Set("Accept-Language", "en")
+	})
+
+	if first.Code != http.StatusOK || second.Code != http.StatusOK || third.Code != http.StatusOK || fourth.Code != http.StatusOK {
+		t.Fatalf("expected 200 responses, got %d/%d/%d/%d", first.Code, second.Code, third.Code, fourth.Code)
+	}
+	if calls != 3 {
+		t.Fatalf("expected auth/language variants to be cached separately, calls=%d", calls)
+	}
+	if second.Body.String() != first.Body.String() {
+		t.Fatalf("expected matching auth/language variant to reuse response, got %q vs %q", second.Body.String(), first.Body.String())
+	}
+	if third.Body.String() == first.Body.String() || fourth.Body.String() == first.Body.String() {
+		t.Fatalf("expected distinct auth/language variants to bypass cached response")
+	}
+	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language" {
+		t.Fatalf("expected Vary header, got %q", got)
+	}
+	for key := range store.items {
+		if strings.Contains(key, "auth-a") || strings.Contains(key, "auth-b") {
+			t.Fatalf("expected cache key to avoid raw authorization values, got %q", key)
+		}
+	}
+}
+
 func TestMemoryCacheStore_TagInvalidationAndLocking(t *testing.T) {
 	store := ninja.NewMemoryCacheStore()
 	store.Set("users:list", &ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
@@ -1584,8 +1895,6 @@ func TestGet_CacheWithTagsSupportsInvalidation(t *testing.T) {
 	}
 }
 
-
-
 func TestGet_CacheETagWildcardAndMultipleValues(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/cache-etag")
@@ -1643,7 +1952,7 @@ func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
 		if first.Body.Len() != 0 || second.Body.Len() != 0 {
 			t.Fatalf("expected empty HEAD bodies, got %q / %q", first.Body.String(), second.Body.String())
 		}
-		if got := second.Header().Get("Cache-Control"); got != "public, max-age=60" {
+		if got := second.Header().Get("Cache-Control"); got != "private, max-age=60" {
 			t.Fatalf("expected cache-control header, got %q", got)
 		}
 		if atomic.LoadInt32(&calls) != 1 {
@@ -1768,6 +2077,28 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
 	if docsUI.Code != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/openapi/v1.json") {
 		t.Fatalf("expected versioned docs UI to reference versioned spec, got %d %q", docsUI.Code, docsUI.Body.String())
+	}
+}
+
+func TestVersionedRoutersUseSelectedDocsRenderer(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Versioned Redoc",
+		Version: "main",
+		Docs:    ninja.Redoc(),
+		Versions: map[string]ninja.VersionConfig{
+			"v1": {Prefix: "/v1"},
+		},
+	})
+	v1 := ninja.NewRouter("/users", ninja.WithVersion("v1"))
+	ninja.Get(v1, "/", func(ctx *ninja.Context, _ *struct{}) (*versionOutput, error) {
+		return &versionOutput{Version: "v1"}, nil
+	})
+	api.AddRouter(v1)
+
+	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
+	body := docsUI.Body.String()
+	if docsUI.Code != http.StatusOK || !strings.Contains(body, `spec-url="/openapi/v1.json"`) || !strings.Contains(body, "redoc.standalone.js") {
+		t.Fatalf("expected versioned ReDoc UI to reference versioned spec, got %d %q", docsUI.Code, body)
 	}
 }
 

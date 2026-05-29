@@ -336,11 +336,26 @@ func paginatedSchema(itemSchema *Schema) *Schema {
 		Properties: map[string]*Schema{
 			"items": {Type: "array", Items: itemSchema},
 			"total": {Type: "integer", Format: "int64"},
-			"page":  {Type: "integer", Format: "int64"},
-			"size":  {Type: "integer", Format: "int64"},
-			"pages": {Type: "integer", Format: "int64"},
+			"page":  {Type: "integer"},
+			"size":  {Type: "integer"},
+			"pages": {Type: "integer"},
 		},
 		Required: []string{"items", "total", "page", "size", "pages"},
+	}
+}
+
+func cursorPaginatedSchema(itemSchema *Schema) *Schema {
+	return &Schema{
+		Type: "object",
+		Properties: map[string]*Schema{
+			"items":           {Type: "array", Items: itemSchema},
+			"next_cursor":     {Type: "string"},
+			"previous_cursor": {Type: "string"},
+			"size":            {Type: "integer"},
+			"has_next":        {Type: "boolean"},
+			"has_previous":    {Type: "boolean"},
+		},
+		Required: []string{"items", "size", "has_next", "has_previous"},
 	}
 }
 

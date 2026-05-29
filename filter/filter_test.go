@@ -8,6 +8,7 @@ import (
 	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type embeddedFilter struct {
@@ -30,6 +31,34 @@ type invalidMultiFieldInput struct {
 
 type invalidOperatorInput struct {
 	Search string `filter:"name,contains"`
+}
+
+type customExpressionInput struct {
+	embeddedFilter
+	Name  string
+	Email string
+}
+
+func (in customExpressionInput) FilterExpression() clause.Expression {
+	exprs := make([]clause.Expression, 0, 2)
+	if in.Name != "" {
+		exprs = append(exprs, clause.Like{Column: clause.Column{Name: "name"}, Value: "%" + in.Name + "%"})
+	}
+	if in.Email != "" {
+		exprs = append(exprs, clause.Like{Column: clause.Column{Name: "email"}, Value: "%" + in.Email + "%"})
+	}
+	if len(exprs) == 0 {
+		return nil
+	}
+	return clause.Or(exprs...)
+}
+
+type nilExpressionInput struct {
+	embeddedFilter
+}
+
+func (nilExpressionInput) FilterExpression() clause.Expression {
+	return nil
 }
 
 type userRecord struct {
@@ -135,8 +164,13 @@ func TestParseTagBoundaryCases(t *testing.T) {
 		{name: "doc example", tag: "name|email,like", wantFields: []string{"name", "email"}, wantOp: OpLike},
 		{name: "trim whitespace", tag: " name | email , like ", wantFields: []string{"name", "email"}, wantOp: OpLike},
 		{name: "default operator", tag: "status", wantFields: []string{"status"}, wantOp: OpEq},
+		{name: "table column", tag: "users.email,eq", wantFields: []string{"users.email"}, wantOp: OpEq},
 		{name: "empty field", tag: " |email,like", wantErr: "empty field name"},
 		{name: "extra comma", tag: "name,email,like", wantErr: "must be in the form"},
+		{name: "sql fragment", tag: "name;drop,eq", wantErr: "unsafe field name"},
+		{name: "quoted field", tag: "`name`,eq", wantErr: "unsafe field name"},
+		{name: "multiple dots", tag: "users.profile.email,eq", wantErr: "unsafe field name"},
+		{name: "leading digit", tag: "1name,eq", wantErr: "unsafe field name"},
 	}
 
 	for _, tc := range cases {
@@ -166,6 +200,13 @@ func TestParseTagBoundaryCases(t *testing.T) {
 	}
 }
 
+func TestToColumnSupportsSafeTableColumn(t *testing.T) {
+	column := toColumn("users.email")
+	if column.Table != "users" || column.Name != "email" {
+		t.Fatalf("unexpected table column: %+v", column)
+	}
+}
+
 func TestBuildOptionsMultiFieldLikeUsesORSemantics(t *testing.T) {
 	setupFilterTestDB(t)
 
@@ -191,6 +232,36 @@ func TestBuildOptionsMultiFieldLikeUsesORSemantics(t *testing.T) {
 		t.Fatalf("Find: %v", err)
 	}
 	if len(got) != 1 || got[0].Email != "bob@example.com" {
+		t.Fatalf("unexpected filtered users: %+v", got)
+	}
+}
+
+func TestBuildOptionsAppliesCustomFilterExpression(t *testing.T) {
+	setupFilterTestDB(t)
+
+	if err := gormx.GetDb().Create([]userRecord{
+		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
+		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
+		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
+	}).Error; err != nil {
+		t.Fatalf("seed db: %v", err)
+	}
+
+	admin := true
+	opts, err := BuildOptions(customExpressionInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+		Name:           "Alice",
+		Email:          "sample.com",
+	})
+	if err != nil {
+		t.Fatalf("BuildOptions: %v", err)
+	}
+
+	var got []userRecord
+	if err := gormx.GetDb(opts...).Find(&got).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 1 || got[0].Email != "carol@sample.com" {
 		t.Fatalf("unexpected filtered users: %+v", got)
 	}
 }
@@ -264,6 +335,36 @@ func TestApplyDB(t *testing.T) {
 	}
 }
 
+func TestApplyDBAppliesCustomFilterExpression(t *testing.T) {
+	setupFilterTestDB(t)
+
+	if err := gormx.GetDb().Create([]userRecord{
+		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
+		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
+		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
+	}).Error; err != nil {
+		t.Fatalf("seed db: %v", err)
+	}
+
+	admin := true
+	db, err := ApplyDB(gormx.GetDb().Model(&userRecord{}), customExpressionInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+		Name:           "Alice",
+		Email:          "sample.com",
+	})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+
+	var got []userRecord
+	if err := db.Find(&got).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 1 || got[0].Email != "carol@sample.com" {
+		t.Fatalf("unexpected filtered users: %+v", got)
+	}
+}
+
 func TestApplyDBNilQueryReturnsNil(t *testing.T) {
 	db, err := ApplyDB(nil, &embeddedFilter{})
 	if err != nil {
@@ -317,6 +418,17 @@ func TestBuildOptionAndHelperEdges(t *testing.T) {
 		}
 		if isEmptyValue(reflect.ValueOf(false)) {
 			t.Fatal("expected false bool to remain non-empty")
+		}
+	})
+
+	t.Run("nil custom expression is ignored", func(t *testing.T) {
+		admin := true
+		opts, err := BuildOptions(nilExpressionInput{embeddedFilter: embeddedFilter{IsAdmin: &admin}})
+		if err != nil {
+			t.Fatalf("BuildOptions: %v", err)
+		}
+		if len(opts) != 1 {
+			t.Fatalf("expected only tagged filter option, got %d", len(opts))
 		}
 	})
 }

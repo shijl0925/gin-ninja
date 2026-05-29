@@ -1894,10 +1894,7 @@ ninja "github.com/shijl0925/gin-ninja"
 )
 
 func RegisterRoutes(api *ninja.NinjaAPI{{ if .Options.WithAuth }}, jwtCfg settings.JWTConfig{{ end }}) {
-router := ninja.NewRouter("/{{ .RouteBase }}", ninja.WithTags("{{ .RouteTag }}"){{ if .Options.WithAuth }}, ninja.WithBearerAuth(){{ end }})
-{{- if .Options.WithAuth }}
-router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
-{{- end }}
+router := ninja.NewRouter("/{{ .RouteBase }}", ninja.WithTags("{{ .RouteTag }}"){{ if .Options.WithAuth }}, ninja.WithBearerAuth(middleware.JWTAuthWithConfig(jwtCfg)){{ end }})
 ninja.Get(router, "/", List{{ .ModelPlural }}, ninja.Summary("List {{ .RouteTag }}"))
 ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .ModelName }}"))
 ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .ModelName }}"), ninja.WithTransaction())
@@ -1972,10 +1969,7 @@ return site
 }
 
 func RegisterAdminRoutes(api *ninja.NinjaAPI{{ if .Options.WithAuth }}, jwtCfg settings.JWTConfig{{ end }}) {
-router := ninja.NewRouter("/admin", ninja.WithTags("Admin"), ninja.WithVersion("v1"){{ if .Options.WithAuth }}, ninja.WithBearerAuth(){{ end }})
-{{- if .Options.WithAuth }}
-router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
-{{- end }}
+router := ninja.NewRouter("/admin", ninja.WithTags("Admin"), ninja.WithVersion("v1"){{ if .Options.WithAuth }}, ninja.WithBearerAuth(middleware.JWTAuthWithConfig(jwtCfg)){{ end }})
 NewAdminSite().Mount(router)
 api.AddRouter(router)
 {{- if .Options.WithAuth }}

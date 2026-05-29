@@ -42,6 +42,15 @@ var scaffoldTemplateChoices = []helpItem{
 	{name: "admin", usage: "Admin starter with GORM-backed resources"},
 }
 
+var scaffoldTemplatePromptChoices = []string{
+	string(codegen.ScaffoldTemplateCore),
+	string(codegen.ScaffoldTemplateFull),
+	string(codegen.ScaffoldTemplateAdmin),
+	"minimal",
+	"standard",
+	"auth",
+}
+
 func runGenerate(stdout, stderr io.Writer, args []string) int {
 	if len(args) == 0 {
 		printGenerateUsage(stderr)
@@ -312,11 +321,7 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read app package directory: %v\n", err)
 		return 1
 	}
-	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)), []string{
-		string(codegen.ScaffoldTemplateCore),
-		string(codegen.ScaffoldTemplateFull),
-		string(codegen.ScaffoldTemplateAdmin),
-	})
+	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)), scaffoldTemplatePromptChoices)
 	if err != nil {
 		fmt.Fprintf(stderr, "read template preset: %v\n", err)
 		return 1
@@ -378,11 +383,7 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		fmt.Fprintf(stderr, "read model name: %v\n", err)
 		return 1
 	}
-	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)), []string{
-		string(codegen.ScaffoldTemplateCore),
-		string(codegen.ScaffoldTemplateFull),
-		string(codegen.ScaffoldTemplateAdmin),
-	})
+	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)), scaffoldTemplatePromptChoices)
 	if err != nil {
 		fmt.Fprintf(stderr, "read template preset: %v\n", err)
 		return 1

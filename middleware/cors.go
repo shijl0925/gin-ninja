@@ -30,8 +30,7 @@ type CORSConfig struct {
 // Prefer CORSFromConfig with settings.CORSConfig for applications that load
 // settings from config files. If cfg is nil, a permissive default policy
 // (allow all origins) suitable for development is used. Passing nil in
-// production (gin.ReleaseMode) emits a warning to the standard logger; supply
-// an explicit CORSConfig instead.
+// production (gin.ReleaseMode) panics; supply an explicit CORSConfig instead.
 //
 //	api.Engine().Use(middleware.CORSFromConfig(cfg.CORS))
 //	api.Engine().Use(middleware.CORS(&middleware.CORSConfig{
@@ -42,13 +41,12 @@ func CORS(cfg *CORSConfig) gin.HandlerFunc {
 	c := cors.DefaultConfig()
 
 	if cfg == nil {
+		if gin.Mode() == gin.ReleaseMode {
+			panic("middleware.CORS(nil) enables allow-all origins and is not allowed in release mode; provide an explicit CORSConfig or use CORSFromConfig")
+		}
 		c.AllowAllOrigins = true
 		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
-		if gin.Mode() == gin.ReleaseMode {
-			log.Println("[gin-ninja] WARNING: middleware.CORS(nil) enables allow-all origins – " +
-				"provide an explicit CORSConfig in production")
-		}
 		return cors.New(c)
 	}
 

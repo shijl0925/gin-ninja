@@ -287,10 +287,9 @@ func addUsersV1Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 		"/users",
 		ninja.WithTags("Users"),
 		ninja.WithTagDescription("Users", "JWT-protected user CRUD endpoints"),
-		ninja.WithBearerAuth(),
+		ninja.WithBearerAuth(middleware.JWTAuthWithConfig(jwtCfg)),
 		ninja.WithVersion("v1"),
 	)
-	usersRouter.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 
 	ninja.Get(usersRouter, "/", app.ListUsers,
 		ninja.Summary("List users"),
@@ -319,10 +318,9 @@ func addUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cacheStore
 		"/users",
 		ninja.WithTags("Users"),
 		ninja.WithTagDescription("Users", "JWT-protected user CRUD endpoints"),
-		ninja.WithBearerAuth(),
+		ninja.WithBearerAuth(middleware.JWTAuthWithConfig(jwtCfg)),
 		ninja.WithVersion("v2"),
 	)
-	usersV2Router.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 
 	ninja.Get(usersV2Router, "/", app.ListUsersV2,
 		ninja.Summary("List users (cached CRUD demo)"),
@@ -365,10 +363,9 @@ func addAdminRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 		"/admin",
 		ninja.WithTags("Admin"),
 		ninja.WithTagDescription("Admin", "JWT-protected metadata-driven admin resource APIs"),
-		ninja.WithBearerAuth(),
+		ninja.WithBearerAuth(middleware.JWTAuthWithConfig(jwtCfg)),
 		ninja.WithVersion("v1"),
 	)
-	adminRouter.UseGin(middleware.JWTAuthWithConfig(jwtCfg))
 	app.NewAdminSite().Mount(adminRouter)
 	api.AddRouter(adminRouter)
 }

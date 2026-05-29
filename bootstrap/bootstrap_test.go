@@ -67,6 +67,16 @@ func TestBuildDialector(t *testing.T) {
 	}
 }
 
+func TestMustRegisterDialectorPanicsOnInvalidRegistration(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected MustRegisterDialector to panic")
+		}
+	}()
+
+	MustRegisterDialector(nil, "invalid")
+}
+
 func TestSQLiteDialectorRequiresDSN(t *testing.T) {
 	if _, err := internaldialects.SQLite(settings.DatabaseConfig{}); err == nil {
 		t.Fatal("expected sqlite dsn validation error")

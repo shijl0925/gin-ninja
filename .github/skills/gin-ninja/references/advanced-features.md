@@ -37,7 +37,8 @@
 
 - Configure reusable docs/auth schemes on `ninja.Config.SecuritySchemes`.
 - `ninja.HTTPBearerSecurityScheme("JWT")` is the common default for bearer auth.
-- Pair config-level schemes with operation/router security options such as `BearerAuth`, `Security`, `WithBearerAuth`, or `WithSecurity`.
+- API key, Basic, and OAuth2 docs helpers are available through `APIKeyHeaderSecurityScheme`, `APIKeyCookieSecurityScheme`, `APIKeyQuerySecurityScheme`, `HTTPBasicSecurityScheme`, and `OAuth2SecurityScheme`.
+- Pair config-level schemes with operation/router security options such as `BearerAuth`, `APIKeyAuth`, `BasicAuth`, `OAuth2Auth`, `Security`, `WithBearerAuth`, `WithAPIKeyAuth`, `WithBasicAuth`, `WithOAuth2Auth`, or `WithSecurity`.
 - This is what powers Swagger UI's `Authorize` button and keeps security requirements documented in OpenAPI.
 
 ## API version deprecation metadata

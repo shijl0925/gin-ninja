@@ -112,7 +112,7 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		c, _ = newTestContext(http.MethodPost, "/upload", "broken")
 		c.Request.Header.Set("Content-Type", "multipart/form-data; boundary=missing")
 		var upload multipartBindInput
-		err = bindMultipartFields(c, reflect.TypeOf(upload), reflect.ValueOf(&upload).Elem())
+		err = bindInput(c, http.MethodPost, &upload)
 		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_MULTIPART, got %v", err)
 		}
@@ -121,8 +121,10 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			Count int `form:"count"`
 		}
 		form := &multipart.Form{Value: map[string][]string{"count": {"bad"}}}
+		c, _ = newTestContext(http.MethodPost, "/upload", "")
+		c.Request.Header.Set("Content-Type", "multipart/form-data")
 		var badFormValue badForm
-		err = bindMultipartValue(reflect.TypeOf(badFormValue), reflect.ValueOf(&badFormValue).Elem(), form)
+		_, err = bindRequestFields(c, getBindingMetadata(reflect.TypeOf(badFormValue)), reflect.ValueOf(&badFormValue).Elem(), nil, nil, false, form, false)
 		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_FORM_VALUE, got %v", err)
 		}
@@ -132,7 +134,7 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		}
 		form = &multipart.Form{File: map[string][]*multipart.FileHeader{"file": {&multipart.FileHeader{Filename: "a.txt"}}}}
 		var badFileValue badFile
-		err = bindMultipartValue(reflect.TypeOf(badFileValue), reflect.ValueOf(&badFileValue).Elem(), form)
+		_, err = bindRequestFields(c, getBindingMetadata(reflect.TypeOf(badFileValue)), reflect.ValueOf(&badFileValue).Elem(), nil, nil, false, form, false)
 		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_FILE_FIELD, got %v", err)
 		}
@@ -284,20 +286,27 @@ func TestModelSchemaAdditionalCoverage(t *testing.T) {
 	})
 
 	t.Run("struct serialization helpers", func(t *testing.T) {
-		type embedded struct {
+		type ExportedEmbedded struct {
 			Hidden string `json:"hidden"`
 		}
+		type ExportedPointerEmbedded struct {
+			Visible string `json:"visible"`
+		}
 		type sample struct {
-			embedded
-			Name  string    `json:"name"`
-			Empty string    `json:"empty,omitempty"`
-			Text  textValue `json:"text"`
+			ExportedEmbedded
+			*ExportedPointerEmbedded
+			Name    string    `json:"name"`
+			Empty   string    `json:"empty,omitempty"`
+			Text    textValue `json:"text"`
+			private string
 		}
 
 		serialized, err := serializeModelSchemaStruct(reflect.ValueOf(sample{
-			embedded: embedded{Hidden: "secret"},
-			Name:     "alice",
-			Text:     "demo",
+			ExportedEmbedded:        ExportedEmbedded{Hidden: "secret"},
+			ExportedPointerEmbedded: &ExportedPointerEmbedded{Visible: "public"},
+			Name:                    "alice",
+			Text:                    "demo",
+			private:                 "ignored",
 		}), newModelSchemaFilter(nil, []string{"name"}))
 		if err != nil {
 			t.Fatalf("serializeModelSchemaStruct: %v", err)
@@ -308,19 +317,35 @@ func TestModelSchemaAdditionalCoverage(t *testing.T) {
 		if serialized["text"] == nil {
 			t.Fatalf("expected embedded/custom values, got %+v", serialized)
 		}
+		if serialized["hidden"] != "secret" || serialized["visible"] != "public" {
+			t.Fatalf("expected anonymous embedded fields to be flattened, got %+v", serialized)
+		}
+		if _, ok := serialized["private"]; ok {
+			t.Fatalf("expected unexported field to be omitted, got %+v", serialized)
+		}
+		serialized, err = serializeModelSchemaStruct(reflect.ValueOf(sample{
+			ExportedEmbedded: ExportedEmbedded{Hidden: "secret"},
+			Text:             "demo",
+		}), modelSchemaFilter{})
+		if err != nil {
+			t.Fatalf("serializeModelSchemaStruct nil embedded pointer: %v", err)
+		}
+		if _, ok := serialized["visible"]; ok {
+			t.Fatalf("expected nil anonymous pointer fields to be omitted, got %+v", serialized)
+		}
 
 		var anyValue any = pointerMarshaler("value")
 		if preserved, ok := preserveCustomJSONValue(reflect.ValueOf(anyValue)); !ok || preserved == nil {
 			t.Fatalf("expected pointer receiver marshaler to be preserved, got value=%v ok=%v", preserved, ok)
 		}
 
-		field := reflect.TypeOf(sample{}).Field(2)
+		field := reflect.TypeOf(sample{}).Field(3)
 		if !isJSONOmitEmpty(field) {
 			t.Fatal("expected omitempty tag to be detected")
 		}
 
 		filtered := newModelSchemaFilter(nil, []string{"name"})
-		structField := reflect.TypeOf(sample{}).Field(1)
+		structField := reflect.TypeOf(sample{}).Field(2)
 		if filtered.includes(structField, "name") {
 			t.Fatal("expected excluded field to be rejected")
 		}
@@ -484,7 +509,7 @@ func TestCacheAndInternalRouteAdditionalCoverage(t *testing.T) {
 			Status: http.StatusOK,
 			Header: http.Header{"ETag": []string{`"tag"`}},
 			Body:   []byte("payload"),
-		}, "public, max-age=60")
+		}, "private, max-age=60")
 		if w.Code != http.StatusOK || w.Body.Len() != 0 {
 			t.Fatalf("expected HEAD cached response without body, got status=%d body=%q", w.Code, w.Body.String())
 		}
@@ -534,7 +559,7 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 		if key, cacheStore := cacheLookup(&operation{}, nil); key != "" || cacheStore != nil {
 			t.Fatalf("expected empty cache lookup, got key=%q store=%v", key, cacheStore)
 		}
-		op := &operation{cache: &routeCacheConfig{ttl: time.Minute, keyFn: func(*Context) string { return "k" }, store: store}}
+		op := &operation{cache: operationCache{config: &routeCacheConfig{ttl: time.Minute, keyFn: func(*Context) string { return "k" }, store: store}}}
 		if key, cacheStore := cacheLookup(op, nil); key != "k" || cacheStore != store {
 			t.Fatalf("unexpected cache lookup result key=%q store=%v", key, cacheStore)
 		}
@@ -584,7 +609,7 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 
 		op := &operation{}
 		RateLimit(0)(op)
-		if op.rateLimit != nil {
+		if op.behavior.rateLimit != nil {
 			t.Fatal("expected RateLimit(0) to disable limiter")
 		}
 	})

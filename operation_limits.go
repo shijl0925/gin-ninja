@@ -11,15 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-)
-
-const (
-	// Keep timeout captures large enough for typical JSON responses while
-	// bounding memory held by handlers that keep writing after a timeout.
-	defaultTimeoutMaxBodyBytes = 32 << 20
-	// Avoid creating an extra permanent drain goroutine for handlers that never
-	// finish; panics after this window cannot be observed by the timeout wrapper.
-	defaultTimeoutDrainDuration = time.Minute
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 // tokenBucket is a single token-bucket entry keyed by client IP.
@@ -27,11 +19,6 @@ type tokenBucket struct {
 	tokens float64
 	last   time.Time
 }
-
-const (
-	rateLimiterPruneInterval = 5 * time.Minute
-	rateLimiterClientTTL     = 5 * time.Minute
-)
 
 // rateLimiter manages per-client-IP token buckets so that a single client
 // cannot exhaust the rate limit for all other callers.
@@ -78,7 +65,7 @@ func (l *rateLimiter) allow(clientIP string, now time.Time) bool {
 		bucket.tokens--
 	}
 
-	if now.Sub(l.lastPrune) > rateLimiterPruneInterval {
+	if now.Sub(l.lastPrune) > defaults.RateLimiterPruneInterval {
 		l.pruneLocked(now)
 	}
 
@@ -86,10 +73,10 @@ func (l *rateLimiter) allow(clientIP string, now time.Time) bool {
 }
 
 // pruneLocked removes client entries that have been idle longer than
-// rateLimiterClientTTL.  Must be called with l.mu held.
+// defaults.RateLimiterClientTTL. Must be called with l.mu held.
 func (l *rateLimiter) pruneLocked(now time.Time) {
 	for ip, bucket := range l.clients {
-		if now.Sub(bucket.last) > rateLimiterClientTTL {
+		if now.Sub(bucket.last) > defaults.RateLimiterClientTTL {
 			delete(l.clients, ip)
 		}
 	}
@@ -99,7 +86,7 @@ func (l *rateLimiter) pruneLocked(now time.Time) {
 func wrapRateLimit(limiter *rateLimiter, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !limiter.allow(c.ClientIP(), time.Now()) {
-			writeError(c, &Error{
+			WriteError(c, &Error{
 				Code:    http.StatusTooManyRequests,
 				Message: "rate limit exceeded",
 			})
@@ -115,7 +102,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 		reqCtx, cancel := context.WithTimeout(c.Request.Context(), timeout)
 		defer cancel()
 
-		recorder := newTimeoutCaptureResponseWriter(c.Writer, defaultTimeoutMaxBodyBytes)
+		recorder := newTimeoutCaptureResponseWriter(c.Writer, defaults.TimeoutMaxBodyBytes)
 		copied := c.Copy()
 		copied.Request = copied.Request.WithContext(reqCtx)
 		copied.Writer = recorder
@@ -137,14 +124,14 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 				recorder.status = http.StatusOK
 			}
 			if recorder.overflowed {
-				writeError(c, &Error{
+				WriteError(c, &Error{
 					Code:    http.StatusInternalServerError,
 					Message: "response exceeded timeout capture limit",
 				})
 				return
 			}
 			if recorder.streamed {
-				writeError(c, &Error{
+				WriteError(c, &Error{
 					Code:    http.StatusInternalServerError,
 					Message: "response could not be captured by timeout wrapper",
 				})
@@ -152,6 +139,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			}
 			copyHeader(c.Writer.Header(), recorder.header)
 			c.Status(recorder.status)
+			c.Writer.WriteHeaderNow()
 			if len(recorder.body) > 0 && c.Request.Method != http.MethodHead {
 				_, _ = c.Writer.Write(recorder.body)
 			}
@@ -164,7 +152,7 @@ func wrapTimeout(timeout time.Duration, next gin.HandlerFunc) gin.HandlerFunc {
 			// forceful goroutine termination.
 			cancel()
 			if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
-				writeError(c, &Error{
+				WriteError(c, &Error{
 					Code:    http.StatusRequestTimeout,
 					Message: "request timed out",
 				})
@@ -184,7 +172,7 @@ func wrapCooperativeTimeout(timeout time.Duration, next gin.HandlerFunc) gin.Han
 		next(c)
 
 		if errors.Is(reqCtx.Err(), context.DeadlineExceeded) && !c.Writer.Written() {
-			writeError(c, &Error{
+			WriteError(c, &Error{
 				Code:    http.StatusRequestTimeout,
 				Message: "request timed out",
 			})
@@ -194,7 +182,7 @@ func wrapCooperativeTimeout(timeout time.Duration, next gin.HandlerFunc) gin.Han
 }
 
 func drainTimeoutResult(resultCh <-chan any) {
-	timer := time.NewTimer(defaultTimeoutDrainDuration)
+	timer := time.NewTimer(defaults.TimeoutDrainDuration)
 	defer timer.Stop()
 
 	select {

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -252,6 +253,133 @@ func TestWarnIfDDLMayAutocommit(t *testing.T) {
 	warnIfDDLMayAutocommit(&stderr, "sqlite")
 	if stderr.Len() != 0 {
 		t.Fatalf("expected no sqlite warning, got %q", stderr.String())
+	}
+}
+
+func TestMigrationCommandValidationBranches(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "makemigrations help", args: []string{"makemigrations", "-h"}, want: "Generate a timestamped SQL migration"},
+		{name: "migrate help", args: []string{"migrate", "-h"}, want: "Apply pending migrations"},
+		{name: "showmigrations help", args: []string{"showmigrations", "-h"}, want: "List migration files"},
+		{name: "sqlmigrate help", args: []string{"sqlmigrate", "-h"}, want: "Print SQL"},
+		{name: "makemigrations positional", args: []string{"makemigrations", "extra"}, want: "does not accept positional"},
+		{name: "migrate too many", args: []string{"migrate", "one", "two"}, want: "accepts at most one target"},
+		{name: "showmigrations positional", args: []string{"showmigrations", "extra"}, want: "does not accept positional"},
+		{name: "sqlmigrate missing", args: []string{"sqlmigrate"}, want: "requires exactly one migration"},
+		{name: "sqlmigrate too many", args: []string{"sqlmigrate", "one", "two"}, want: "accepts only one migration"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := run(&stdout, &stderr, tc.args)
+			if code == 0 && !strings.Contains(tc.name, "help") {
+				t.Fatalf("run(%v) code = 0, want error", tc.args)
+			}
+			combined := stdout.String() + stderr.String()
+			if !strings.Contains(combined, tc.want) {
+				t.Fatalf("missing %q in stdout=%q stderr=%q", tc.want, stdout.String(), stderr.String())
+			}
+		})
+	}
+}
+
+func TestMigrationCommandsNoFilesAndSQLMigrateDirections(t *testing.T) {
+	root, configPath := writeMigrationTestProject(t, sqliteMigrationTestBackend())
+	if err := os.MkdirAll(filepath.Join(root, defaultMigrationsDir), 0o700); err != nil {
+		t.Fatalf("mkdir migrations: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := run(&stdout, &stderr, []string{"showmigrations", "-config", configPath}); code != 0 {
+		t.Fatalf("showmigrations no files code = %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "(no migrations)") {
+		t.Fatalf("expected no migrations output, got %q", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(&stdout, &stderr, []string{"migrate", "-config", configPath}); code != 0 {
+		t.Fatalf("migrate no files code = %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "No migration files found") {
+		t.Fatalf("expected no files output, got %q", stdout.String())
+	}
+
+	migrationPath := filepath.Join(root, defaultMigrationsDir, "20260522010000_create_widgets.sql")
+	content := buildMigrationFile("20260522010000_create_widgets.sql", "CREATE TABLE widgets (id INTEGER PRIMARY KEY);\n", "DROP TABLE widgets;\n")
+	if err := os.WriteFile(migrationPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write migration: %v", err)
+	}
+	for _, tc := range []struct {
+		direction string
+		want      string
+	}{
+		{direction: "up", want: "CREATE TABLE widgets"},
+		{direction: "down", want: "DROP TABLE widgets"},
+		{direction: "all", want: "CREATE TABLE widgets"},
+	} {
+		stdout.Reset()
+		stderr.Reset()
+		if code := run(&stdout, &stderr, []string{"sqlmigrate", "create_widgets", "-config", configPath, "-direction", tc.direction}); code != 0 {
+			t.Fatalf("sqlmigrate %s code = %d stderr=%q", tc.direction, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), tc.want) {
+			t.Fatalf("sqlmigrate %s missing %q in %q", tc.direction, tc.want, stdout.String())
+		}
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(&stdout, &stderr, []string{"sqlmigrate", "create_widgets", "-config", configPath, "-direction", "sideways"}); code != 2 {
+		t.Fatalf("sqlmigrate bad direction code = %d stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "-direction must be one of") {
+		t.Fatalf("expected direction error, got %q", stderr.String())
+	}
+}
+
+func TestMigrationApplyRollbackSuccessAndErrors(t *testing.T) {
+	db, err := sql.Open("sqlite3", filepath.Join(t.TempDir(), "migrate.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	defer db.Close()
+	if err := ensureMigrationTable(db); err != nil {
+		t.Fatalf("ensure migration table: %v", err)
+	}
+
+	file := migrationFile{
+		Version:  "20260522010101",
+		Name:     "widgets",
+		FileName: "20260522010101_widgets.sql",
+		RawUp:    "CREATE TABLE widgets (id INTEGER PRIMARY KEY);",
+		RawDown:  "DROP TABLE widgets;",
+	}
+	if err := applyMigration(db, "sqlite", file); err != nil {
+		t.Fatalf("apply migration: %v", err)
+	}
+	if _, err := db.Exec("SELECT 1 FROM widgets LIMIT 1"); err != nil {
+		t.Fatalf("expected widgets table: %v", err)
+	}
+	if err := rollbackMigration(db, "sqlite", file); err != nil {
+		t.Fatalf("rollback migration: %v", err)
+	}
+	if _, err := db.Exec("SELECT 1 FROM widgets LIMIT 1"); err == nil {
+		t.Fatal("expected widgets table to be dropped")
+	}
+
+	if err := rollbackMigration(db, "sqlite", migrationFile{FileName: "empty.sql"}); err == nil {
+		t.Fatal("expected missing down statements error")
+	}
+	if err := rollbackMigration(db, "sqlite", migrationFile{FileName: "irreversible.sql", Irreversible: true}); !errors.Is(err, errIrreversibleMigration) {
+		t.Fatalf("expected irreversible error, got %v", err)
+	}
+	if _, err := findMigration([]migrationFile{{Version: "1", FileName: "1_demo.sql", Name: "demo"}}, "missing"); err == nil {
+		t.Fatal("expected missing migration error")
 	}
 }
 

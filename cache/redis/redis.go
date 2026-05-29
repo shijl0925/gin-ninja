@@ -11,9 +11,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
-
-const defaultRedisCachePrefix = "gin-ninja:"
 
 // RedisCacheConfig configures the built-in Redis-backed response cache store.
 type RedisCacheConfig struct {
@@ -38,7 +37,7 @@ func NewRedisCacheStore(cfg RedisCacheConfig) (*RedisCacheStore, error) {
 	}
 	prefix := strings.TrimSpace(cfg.Prefix)
 	if prefix == "" {
-		prefix = defaultRedisCachePrefix
+		prefix = defaults.RedisCachePrefix
 	}
 	return NewRedisCacheStoreWithClient(redis.NewClient(&redis.Options{
 		Addr:     addr,
@@ -51,7 +50,7 @@ func NewRedisCacheStore(cfg RedisCacheConfig) (*RedisCacheStore, error) {
 // NewRedisCacheStoreWithClient wraps an existing Redis client.
 func NewRedisCacheStoreWithClient(client *redis.Client, prefix string) *RedisCacheStore {
 	if strings.TrimSpace(prefix) == "" {
-		prefix = defaultRedisCachePrefix
+		prefix = defaults.RedisCachePrefix
 	}
 	return &RedisCacheStore{
 		client: client,
@@ -161,6 +160,10 @@ func (s *RedisCacheStore) AddTags(key string, tags ...string) {
 		return
 	}
 	ctx := context.Background()
+	ttl, err := s.client.PTTL(ctx, s.cacheKey(key)).Result()
+	if err != nil || ttl == -2 {
+		return
+	}
 	keyTagsKey := s.keyTagsKey(key)
 	pipe := s.client.TxPipeline()
 	for _, tag := range normalized {
@@ -168,6 +171,10 @@ func (s *RedisCacheStore) AddTags(key string, tags ...string) {
 		pipe.SAdd(ctx, keyTagsKey, tag)
 	}
 	_, _ = pipe.Exec(ctx)
+	s.expireKeyTags(ctx, keyTagsKey, ttl)
+	for _, tag := range normalized {
+		s.refreshTagTTL(ctx, tag)
+	}
 }
 
 func (s *RedisCacheStore) InvalidateTags(tags ...string) int {
@@ -182,6 +189,9 @@ func (s *RedisCacheStore) InvalidateTags(tags ...string) int {
 			continue
 		}
 		for _, key := range members {
+			if exists, err := s.client.Exists(ctx, s.cacheKey(key)).Result(); err != nil || exists == 0 {
+				continue
+			}
 			keys[key] = struct{}{}
 		}
 		_ = s.client.Del(ctx, s.tagKey(tag)).Err()
@@ -232,6 +242,49 @@ func (s *RedisCacheStore) deleteOne(ctx context.Context, key string) {
 		return
 	}
 	_ = s.client.Del(ctx, s.keyTagsKey(key), s.cacheKey(key)).Err()
+}
+
+func (s *RedisCacheStore) expireKeyTags(ctx context.Context, keyTagsKey string, ttl time.Duration) {
+	if ttl > 0 {
+		_ = s.client.PExpire(ctx, keyTagsKey, ttl).Err()
+		return
+	}
+	if ttl == -1 {
+		_ = s.client.Persist(ctx, keyTagsKey).Err()
+	}
+}
+
+func (s *RedisCacheStore) refreshTagTTL(ctx context.Context, tag string) {
+	tagKey := s.tagKey(tag)
+	members, err := s.client.SMembers(ctx, tagKey).Result()
+	if err != nil || len(members) == 0 {
+		return
+	}
+	var maxTTL time.Duration
+	hasPersistent := false
+	for _, member := range members {
+		ttl, err := s.client.PTTL(ctx, s.cacheKey(member)).Result()
+		if err != nil {
+			continue
+		}
+		switch {
+		case ttl == -2:
+			_ = s.client.SRem(ctx, tagKey, member).Err()
+		case ttl == -1:
+			hasPersistent = true
+		case ttl > maxTTL:
+			maxTTL = ttl
+		}
+	}
+	if hasPersistent {
+		_ = s.client.Persist(ctx, tagKey).Err()
+		return
+	}
+	if maxTTL > 0 {
+		_ = s.client.PExpire(ctx, tagKey, maxTTL).Err()
+		return
+	}
+	_ = s.client.Del(ctx, tagKey).Err()
 }
 
 func (s *RedisCacheStore) cacheKey(key string) string {

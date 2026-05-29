@@ -38,8 +38,8 @@ jobs:
 
       - name: Test with coverage
         run: |
-          GOWORK=off go test ./... -coverprofile=coverage.out
-          for module in settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples cmd/gin-ninja-cli examples/full/browsertests; do
+          GOWORK=off go test ./... -coverprofile=coverage-root.out
+          for module in settings pkg/logger middleware orm admin bootstrap cache/redis filter order examples examples/full/browsertests; do
             (
               cd "$module"
               GOWORK=off go test ./...
@@ -51,15 +51,17 @@ jobs:
           )
           {
             echo 'mode: set'
-            tail -n +2 coverage.out
+            tail -n +2 coverage-root.out
             tail -n +2 cmd/gin-ninja-cli/coverage-cli.out
-          } > coverage-all.out
+          } > coverage.out
 
       - name: Install DeepSource CLI
+        if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
         run: curl -fsSL https://cli.deepsource.com/install | BINDIR=./bin sh
 
       - name: Upload coverage to DeepSource
-        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage-all.out
+        if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
+        run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage.out
         env:
           DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
 

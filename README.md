@@ -64,6 +64,8 @@ func main() {
 }
 ```
 
+Use `middleware.CORSFromConfig(...)` or an explicit `middleware.CORSConfig` in production. `middleware.CORS(nil)` is development-only; it allows all origins and panics in Gin release mode.
+
 Visit `http://localhost:8080/docs` for Swagger UI and `http://localhost:8080/openapi.json` for the generated OpenAPI document.
 
 ## Documentation
@@ -78,6 +80,7 @@ Detailed documentation has been split by feature area. Start with the [English d
 - [Data, Binding, and Responses](./docs/en/data-and-responses.md)
 - [File Transfer and OpenAPI Controls](./docs/en/files-and-openapi.md)
 - [Advanced Features](./docs/en/advanced-features.md)
+- [Testing APIs with TestClient](./docs/en/testing.md)
 - [Admin and Full Example](./docs/en/admin-and-examples.md)
 
 Chinese documentation starts at [README-zh.md](./README-zh.md) or the [中文文档索引](./docs/zh/README.md).

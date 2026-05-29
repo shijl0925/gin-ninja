@@ -124,6 +124,7 @@ Behavior notes:
 - zero values are ignored, so omitted query params do not add conditions
 - `like` is suitable for contains-style fuzzy matching
 - `filter:"name|email,like"` means `(name LIKE ? OR email LIKE ?)`; multi-field declarative filters use OR semantics
+- for logic that cannot be represented by tags, the input may implement `FilterExpression() clause.Expression`; the returned expression is applied with `AND` alongside tagged filters by `filter.BuildOptions(...)` and `filter.ApplyDB(...)`
 - invalid filter declarations return a 400 error when you surface `filter.BuildOptions(...)` or `filter.Apply(...)` errors
 
 ### Safe sorting
@@ -158,6 +159,45 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
+```
+
+### Cursor pagination
+
+Use `pagination.CursorPagination` when list endpoints need stable pagination over
+large or frequently changing datasets. The cursor is opaque to gin-ninja; encode
+the ordered field values your storage layer needs, then return the next cursor
+in `pagination.CursorPage[T]`:
+
+```go
+type ListEventsInput struct {
+    pagination.CursorPagination
+}
+
+func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[EventOut], error) {
+    items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
+    if err != nil {
+        return nil, err
+    }
+    return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
+}
+```
+
+Document the response envelope with `ninja.CursorPaginated[EventOut]()`.
+
+For simple single-column keyset pagination with GORM, use `orm.SelectCursorPage`:
+
+```go
+items, nextCursor, err := orm.SelectCursorPage(
+    db,
+    in.CursorPagination,
+    "id",
+    strconv.Atoi,
+    func(item Event) string { return strconv.Itoa(item.ID) },
+)
+if err != nil {
+    return nil, err
+}
+return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
 ```
 
 If you need a public alias that maps to a different database column, use `alias:column` or `alias=column`:

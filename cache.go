@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 type CacheOption func(*routeCacheConfig)
@@ -55,6 +56,8 @@ type ResponseCacheLockStore interface {
 type CacheKeyFunc func(*Context) string
 type CacheTagFunc func(*Context) []string
 
+var defaultCacheVaryHeaders = []string{"Authorization", "Accept-Language"}
+
 type CacheInvalidator struct {
 	store ResponseCacheStore
 }
@@ -90,9 +93,6 @@ type MemoryCacheStore struct {
 	lockSeq    uint64
 }
 
-const defaultMemoryCacheMaxEntries = 1024
-const defaultCacheMaxBodyBytes int64 = 1 << 20
-
 type memoryCacheEntry struct {
 	key string
 }
@@ -107,7 +107,7 @@ func newRouteCacheConfig(ttl time.Duration) *routeCacheConfig {
 		ttl:          ttl,
 		store:        NewMemoryCacheStore(),
 		keyFn:        defaultCacheKey,
-		maxBodyBytes: defaultCacheMaxBodyBytes,
+		maxBodyBytes: defaults.CacheMaxBodyBytes,
 	}
 }
 
@@ -209,13 +209,13 @@ func (i *CacheInvalidator) AcquireLock(key string, ttl time.Duration) (func(), b
 
 // NewMemoryCacheStore creates an in-memory route cache store.
 func NewMemoryCacheStore() *MemoryCacheStore {
-	return NewMemoryCacheStoreWithLimit(defaultMemoryCacheMaxEntries)
+	return NewMemoryCacheStoreWithLimit(defaults.MemoryCacheMaxEntries)
 }
 
 // NewMemoryCacheStoreWithLimit creates an in-memory route cache store with a bounded size.
 func NewMemoryCacheStoreWithLimit(maxEntries int) *MemoryCacheStore {
 	if maxEntries <= 0 {
-		maxEntries = defaultMemoryCacheMaxEntries
+		maxEntries = defaults.MemoryCacheMaxEntries
 	}
 	return &MemoryCacheStore{
 		items:      map[string]*CachedResponse{},
@@ -429,7 +429,7 @@ func (s *MemoryCacheStore) deleteKeyTagsLocked(key string) {
 
 func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !isCacheableMethod(c.Request.Method) || op.stream != nil {
+		if !isCacheableMethod(c.Request.Method) || op.stream.config != nil {
 			next(c)
 			return
 		}
@@ -439,22 +439,22 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		if cacheStore != nil && cacheKey != "" {
 			if cached, ok := cacheStoreGet(ctx, cacheStore, cacheKey); ok {
 				if !isExpiredCachedResponse(cached, time.Now()) {
-					writeCachedResponse(c, cached, op.cacheControl)
+					writeCachedResponse(c, cached, op.cache.control, defaultCacheVaryHeaders...)
 					return
 				}
 			}
 		}
 
-		if isDownloadType(op.outputType) {
+		if isDownloadType(op.route.outputType) {
 			next(c)
 			return
 		}
 
-		originalWriter := c.Writer
-		maxBodyBytes := defaultCacheMaxBodyBytes
-		if op.cache != nil {
-			maxBodyBytes = op.cache.maxBodyBytes
+		maxBodyBytes := defaults.CacheMaxBodyBytes
+		if op.cache.config != nil {
+			maxBodyBytes = op.cache.config.maxBodyBytes
 		}
+		originalWriter := c.Writer
 		recorder := newCaptureResponseWriter(originalWriter, maxBodyBytes)
 		c.Writer = recorder
 		next(c)
@@ -466,12 +466,15 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		if recorder.status == 0 {
 			recorder.status = http.StatusOK
 		}
-		if op.cacheControl != "" && recorder.status >= 200 && recorder.status < 400 && recorder.header.Get("Cache-Control") == "" {
-			recorder.header.Set("Cache-Control", op.cacheControl)
+		if op.cache.control != "" && recorder.status >= 200 && recorder.status < 400 && recorder.header.Get("Cache-Control") == "" {
+			recorder.header.Set("Cache-Control", op.cache.control)
+		}
+		if op.cache.config != nil && recorder.status >= 200 && recorder.status < 400 {
+			addVary(recorder.header, defaultCacheVaryHeaders...)
 		}
 
 		etag := recorder.header.Get("ETag")
-		if op.etagEnabled && etag == "" && recorder.status >= 200 && recorder.status < 400 && len(recorder.body) > 0 {
+		if op.cache.etagEnabled && etag == "" && recorder.status >= 200 && recorder.status < 400 && len(recorder.body) > 0 {
 			etag = generateETag(recorder.body)
 			recorder.header.Set("ETag", etag)
 		}
@@ -488,30 +491,30 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 			_, _ = originalWriter.Write(recorder.body)
 		}
 
-		if cacheStore != nil && cacheKey != "" && op.cache != nil && recorder.status >= 200 && recorder.status < 300 {
+		if cacheStore != nil && cacheKey != "" && op.cache.config != nil && recorder.status >= 200 && recorder.status < 300 {
 			cacheStoreSet(ctx, cacheStore, cacheKey, &CachedResponse{
 				Status:  recorder.status,
 				Header:  cloneHeader(recorder.header),
 				Body:    append([]byte(nil), recorder.body...),
-				Expires: time.Now().Add(op.cache.ttl),
+				Expires: time.Now().Add(op.cache.config.ttl),
 				ETag:    etag,
 			})
-			if tagStore, ok := cacheStore.(ResponseCacheTagStore); ok && op.cache.tagFn != nil {
-				tagStore.AddTags(cacheKey, op.cache.tagFn(ctx)...)
+			if tagStore, ok := cacheStore.(ResponseCacheTagStore); ok && op.cache.config.tagFn != nil {
+				tagStore.AddTags(cacheKey, op.cache.config.tagFn(ctx)...)
 			}
 		}
 	}
 }
 
 func cacheLookup(op *operation, ctx *Context) (string, ResponseCacheStore) {
-	if op.cache == nil || op.cache.ttl <= 0 {
+	if op.cache.config == nil || op.cache.config.ttl <= 0 {
 		return "", nil
 	}
-	keyFn := op.cache.keyFn
+	keyFn := op.cache.config.keyFn
 	if keyFn == nil {
 		keyFn = defaultCacheKey
 	}
-	return keyFn(ctx), op.cache.store
+	return keyFn(ctx), op.cache.config.store
 }
 
 func cacheStoreGet(ctx *Context, store ResponseCacheStore, key string) (*CachedResponse, bool) {
@@ -543,7 +546,7 @@ func cacheStoreSet(ctx *Context, store ResponseCacheStore, key string, value *Ca
 	store.Set(key, value)
 }
 
-func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl string) {
+func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl string, vary ...string) {
 	if cached == nil {
 		c.Status(http.StatusNoContent)
 		return
@@ -552,6 +555,7 @@ func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl st
 	if cacheControl != "" && header.Get("Cache-Control") == "" {
 		header.Set("Cache-Control", cacheControl)
 	}
+	addVary(header, vary...)
 	if etag := header.Get("ETag"); etag != "" && matchesETag(c.GetHeader("If-None-Match"), etag) {
 		copyHeader(c.Writer.Header(), header)
 		c.Status(http.StatusNotModified)
@@ -569,14 +573,55 @@ func defaultCacheControl(ttl time.Duration) string {
 	if seconds < 0 {
 		seconds = 0
 	}
-	return fmt.Sprintf("public, max-age=%d", seconds)
+	return fmt.Sprintf("private, max-age=%d", seconds)
 }
 
 func defaultCacheKey(ctx *Context) string {
 	if ctx == nil || ctx.Request == nil || ctx.Request.URL == nil {
 		return ""
 	}
-	return ctx.Request.Method + ":" + ctx.Request.URL.RequestURI()
+	key := ctx.Request.Method + ":" + ctx.Request.URL.RequestURI()
+	for _, header := range defaultCacheVaryHeaders {
+		if value := ctx.Request.Header.Get(header); value != "" {
+			key += "|" + http.CanonicalHeaderKey(header) + "=" + hashCacheKeyValue(value)
+		}
+	}
+	return key
+}
+
+func hashCacheKeyValue(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
+func addVary(header http.Header, fields ...string) {
+	if header == nil {
+		return
+	}
+	values := splitCommaValues(header.Get("Vary"))
+	for _, value := range values {
+		if value == "*" {
+			return
+		}
+	}
+	for _, field := range fields {
+		if field == "" {
+			continue
+		}
+		exists := false
+		for _, value := range values {
+			if strings.EqualFold(value, field) {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			values = append(values, http.CanonicalHeaderKey(field))
+		}
+	}
+	if len(values) > 0 {
+		header.Set("Vary", strings.Join(values, ", "))
+	}
 }
 
 func generateETag(body []byte) string {

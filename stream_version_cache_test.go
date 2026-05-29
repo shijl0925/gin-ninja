@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 )
 
 type sseStringer string
@@ -466,8 +467,8 @@ func TestMemoryCacheStoreDefaultsAndUpdatesExistingKeys(t *testing.T) {
 	t.Parallel()
 
 	store := NewMemoryCacheStoreWithLimit(0)
-	if store.maxEntries != defaultMemoryCacheMaxEntries {
-		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaultMemoryCacheMaxEntries)
+	if store.maxEntries != defaults.MemoryCacheMaxEntries {
+		t.Fatalf("maxEntries = %d, want %d", store.maxEntries, defaults.MemoryCacheMaxEntries)
 	}
 
 	store.Set("ignored", nil)
@@ -522,14 +523,18 @@ func TestWrapCacheStreamsAndSkipsOversizedResponses(t *testing.T) {
 
 	store := NewMemoryCacheStore()
 	op := &operation{
-		method:       http.MethodGet,
-		outputType:   reflect.TypeOf(struct{}{}),
-		cache:        newRouteCacheConfig(time.Minute),
-		cacheControl: defaultCacheControl(time.Minute),
-		etagEnabled:  true,
+		route: operationRoute{
+			method:     http.MethodGet,
+			outputType: reflect.TypeOf(struct{}{}),
+		},
+		cache: operationCache{
+			config:      newRouteCacheConfig(time.Minute),
+			control:     defaultCacheControl(time.Minute),
+			etagEnabled: true,
+		},
 	}
-	op.cache.store = store
-	op.cache.maxBodyBytes = 4
+	op.cache.config.store = store
+	op.cache.config.maxBodyBytes = 4
 
 	c, w := newTestContext(http.MethodGet, "/large", "")
 	handler := wrapCache(op, func(c *gin.Context) {

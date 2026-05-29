@@ -164,3 +164,43 @@ func TestRedisCacheStoreGetTagInvalidateAndLock(t *testing.T) {
 		t.Fatal("expected redis lock acquisition to succeed after unlock")
 	}
 }
+
+func TestRedisCacheStoreTagMetadataFollowsCacheTTL(t *testing.T) {
+	redisServer := miniredis.RunT(t)
+	store, err := NewRedisCacheStore(RedisCacheConfig{Addr: redisServer.Addr(), Prefix: "ttl:"})
+	if err != nil {
+		t.Fatalf("NewRedisCacheStore: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	store.AddTags("missing", "users")
+	if redisServer.Exists(store.tagKey("users")) || redisServer.Exists(store.keyTagsKey("missing")) {
+		t.Fatal("expected missing cache key to avoid creating tag metadata")
+	}
+
+	store.Set("long", &ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
+	store.AddTags("long", "users")
+	store.Set("short", &ninja.CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Second)})
+	store.AddTags("short", "users")
+
+	if ttl := redisServer.TTL(store.keyTagsKey("short")); ttl <= 0 || ttl > time.Second {
+		t.Fatalf("short key tag TTL = %v, want bounded by cache TTL", ttl)
+	}
+	if ttl := redisServer.TTL(store.tagKey("users")); ttl <= 30*time.Second {
+		t.Fatalf("shared tag TTL = %v, want to preserve longer cache TTL", ttl)
+	}
+
+	redisServer.FastForward(2 * time.Second)
+	if redisServer.Exists(store.cacheKey("short")) || redisServer.Exists(store.keyTagsKey("short")) {
+		t.Fatal("expected short cache entry and key tag metadata to expire together")
+	}
+	if !redisServer.Exists(store.tagKey("users")) {
+		t.Fatal("expected shared tag metadata to remain for longer-lived cache entry")
+	}
+	if removed := store.InvalidateTags("users"); removed != 1 {
+		t.Fatalf("InvalidateTags() = %d, want only the live tagged key", removed)
+	}
+	if redisServer.Exists(store.cacheKey("long")) {
+		t.Fatal("expected live tagged cache entry to be invalidated")
+	}
+}

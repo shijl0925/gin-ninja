@@ -56,8 +56,17 @@ After startup you can visit:
 - `http://localhost:8080/docs` for the Swagger UI
 - `http://localhost:8080/openapi.json` for the raw OpenAPI document
 
+Swagger UI is the default documentation interface. To serve ReDoc at the same `DocsURL`, configure `Docs: ninja.Redoc()`:
+
+```go
+api := ninja.New(ninja.Config{
+    Title: "Hello API",
+    Docs:  ninja.Redoc(),
+})
+```
+
 If you want the homepage to include a shortcut to your admin backend, set `AdminURL` in `ninja.Config`.
-If you want to keep Swagger UI enabled but hide the homepage shortcut in production, set `HideDocsShortcut: true`.
+If you want to keep the docs UI enabled but hide the homepage shortcut in production, set `HideDocsShortcut: true`.
 
 ---
 

@@ -18,6 +18,7 @@ import (
 type openAPISpec struct {
 	OpenAPI    string               `json:"openapi"`
 	Info       openAPIInfo          `json:"info"`
+	Servers    []Server             `json:"servers,omitempty"`
 	Paths      map[string]*pathItem `json:"paths"`
 	Components openAPIComponents    `json:"components"`
 	Tags       []openAPITag         `json:"tags,omitempty"`
@@ -29,9 +30,12 @@ type openAPISpec struct {
 }
 
 type openAPIInfo struct {
-	Title       string `json:"title"`
-	Version     string `json:"version"`
-	Description string `json:"description,omitempty"`
+	Title          string       `json:"title"`
+	Version        string       `json:"version"`
+	Description    string       `json:"description,omitempty"`
+	TermsOfService string       `json:"termsOfService,omitempty"`
+	Contact        *Contact     `json:"contact,omitempty"`
+	License        *LicenseInfo `json:"license,omitempty"`
 }
 
 type openAPIComponents struct {
@@ -103,11 +107,15 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 	return &openAPISpec{
 		OpenAPI: "3.0.3",
 		Info: openAPIInfo{
-			Title:       cfg.Title,
-			Version:     cfg.Version,
-			Description: cfg.Description,
+			Title:          cfg.Title,
+			Version:        cfg.Version,
+			Description:    cfg.Description,
+			TermsOfService: cfg.TermsOfService,
+			Contact:        cloneContact(cfg.Contact),
+			License:        cloneLicenseInfo(cfg.LicenseInfo),
 		},
-		Paths: make(map[string]*pathItem),
+		Servers: cloneServers(cfg.Servers),
+		Paths:   make(map[string]*pathItem),
 		Components: openAPIComponents{
 			Schemas:         make(map[string]*Schema),
 			SecuritySchemes: cloneSecuritySchemes(cfg.SecuritySchemes),
@@ -121,6 +129,8 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 // build returns the final spec ready for JSON serialisation.
 func (s *openAPISpec) build() *openAPISpec {
 	built := *s
+	built.Info = cloneOpenAPIInfo(s.Info)
+	built.Servers = cloneServers(s.Servers)
 	built.Paths = make(map[string]*pathItem, len(s.Paths))
 	for path, item := range s.Paths {
 		built.Paths[path] = item
@@ -149,16 +159,47 @@ func (s *openAPISpec) build() *openAPISpec {
 	return &built
 }
 
+func cloneOpenAPIInfo(info openAPIInfo) openAPIInfo {
+	info.Contact = cloneContact(info.Contact)
+	info.License = cloneLicenseInfo(info.License)
+	return info
+}
+
+func cloneContact(contact *Contact) *Contact {
+	if contact == nil {
+		return nil
+	}
+	cloned := *contact
+	return &cloned
+}
+
+func cloneLicenseInfo(license *LicenseInfo) *LicenseInfo {
+	if license == nil {
+		return nil
+	}
+	cloned := *license
+	return &cloned
+}
+
+func cloneServers(servers []Server) []Server {
+	if len(servers) == 0 {
+		return nil
+	}
+	cloned := make([]Server, len(servers))
+	copy(cloned, servers)
+	return cloned
+}
+
 // addOperation registers an operation in the spec.
 func (s *openAPISpec) addOperation(op *operation) {
-	if op.excludeFromDocs {
+	if op.spec.excludeFromDocs {
 		return
 	}
-	s.registerTags(op.tags, op.tagDescriptions)
+	s.registerTags(op.spec.tags, op.spec.tagDescriptions)
 
-	// op.path is already the fully-qualified router path, including any global
+	// op.route.path is already the fully-qualified router path, including any global
 	// API prefix applied during router registration.
-	openapiPath := ginPathToOpenAPI(op.path)
+	openapiPath := ginPathToOpenAPI(op.route.path)
 
 	item, ok := s.Paths[openapiPath]
 	if !ok {
@@ -167,7 +208,7 @@ func (s *openAPISpec) addOperation(op *operation) {
 	}
 
 	spec := s.buildOperationSpec(op)
-	switch strings.ToUpper(op.method) {
+	switch strings.ToUpper(op.route.method) {
 	case http.MethodGet:
 		item.Get = spec
 	case http.MethodPost:
@@ -184,20 +225,20 @@ func (s *openAPISpec) addOperation(op *operation) {
 // buildOperationSpec converts an operation into an operationSpec.
 func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	spec := &operationSpec{
-		OperationID: op.operationID,
-		Summary:     op.summary,
-		Description: op.description,
-		Tags:        op.tags,
-		Security:    cloneSecurityRequirements(op.security),
-		Deprecated:  op.deprecated,
+		OperationID: op.spec.operationID,
+		Summary:     op.spec.summary,
+		Description: op.spec.description,
+		Tags:        op.spec.tags,
+		Security:    cloneSecurityRequirements(op.spec.security),
+		Deprecated:  op.spec.deprecated,
 		Responses:   make(map[string]responseSpec),
 	}
 
 	// Parameters (path, query, header) from the input type.
-	if op.inputType != nil {
-		inputType := deref(op.inputType)
+	if op.route.inputType != nil {
+		inputType := deref(op.route.inputType)
 		if inputType.Kind() == reflect.Struct {
-			params, bodySchema, requestContentType := s.extractParams(op.method, inputType)
+			params, bodySchema, requestContentType := s.extractParams(op.route.method, inputType)
 			spec.Parameters = params
 			if bodySchema != nil {
 				if requestContentType == "" {
@@ -214,12 +255,12 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	}
 
 	// Success response.
-	successCode := fmt.Sprintf("%d", op.successStatus)
+	successCode := fmt.Sprintf("%d", op.spec.successStatus)
 	successResponse := responseSpec{
-		Description: http.StatusText(op.successStatus),
+		Description: http.StatusText(op.spec.successStatus),
 	}
-	if op.stream != nil {
-		if op.stream.kind == streamKindSSE {
+	if op.stream.config != nil {
+		if op.stream.config.kind == streamKindSSE {
 			successResponse.Content = map[string]mediaTypeSpec{
 				"text/event-stream": {Schema: &Schema{Type: "string"}},
 			}
@@ -227,19 +268,23 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		} else {
 			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
 		}
-	} else if op.paginatedItemType != nil {
+	} else if op.spec.paginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
-			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.paginatedItemType))},
+			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.spec.paginatedItemType))},
 		}
-	} else if op.outputType != nil {
-		contentType, schema := s.responseSchemaForType(op.outputType)
+	} else if op.spec.cursorPaginatedItemType != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(op.spec.cursorPaginatedItemType))},
+		}
+	} else if op.route.outputType != nil {
+		contentType, schema := s.responseSchemaForType(op.route.outputType)
 		successResponse.Content = map[string]mediaTypeSpec{
 			contentType: {Schema: schema},
 		}
 	}
 	successResponse.Headers = s.responseHeadersForOperation(op)
 	spec.Responses[successCode] = successResponse
-	if op.stream != nil && op.stream.kind == streamKindWebSocket && successCode != "101" {
+	if op.stream.config != nil && op.stream.config.kind == streamKindWebSocket && successCode != "101" {
 		spec.Responses["101"] = successResponse
 		delete(spec.Responses, successCode)
 	}
@@ -247,14 +292,14 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	// Standard error responses.
 	spec.Responses["422"] = responseSpec{Description: "Validation Error"}
 	spec.Responses["500"] = responseSpec{Description: "Internal Server Error"}
-	if op.timeout > 0 {
+	if op.behavior.timeout > 0 {
 		spec.Responses["408"] = responseSpec{Description: http.StatusText(http.StatusRequestTimeout)}
 	}
-	if op.rateLimit != nil {
+	if op.behavior.rateLimit != nil {
 		spec.Responses["429"] = responseSpec{Description: http.StatusText(http.StatusTooManyRequests)}
 	}
 
-	for _, documented := range op.responses {
+	for _, documented := range op.spec.responses {
 		response := responseSpec{
 			Description: documented.description,
 		}
@@ -264,6 +309,10 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		if documented.paginatedItemType != nil {
 			response.Content = map[string]mediaTypeSpec{
 				"application/json": {Schema: paginatedSchema(s.registry.schemaForType(documented.paginatedItemType))},
+			}
+		} else if documented.cursorPaginatedItemType != nil {
+			response.Content = map[string]mediaTypeSpec{
+				"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(documented.cursorPaginatedItemType))},
 			}
 		} else if documented.responseType != nil {
 			contentType, schema := s.responseSchemaForType(documented.responseType)
@@ -279,30 +328,30 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 
 func (s *openAPISpec) responseHeadersForOperation(op *operation) map[string]headerSpec {
 	headers := map[string]headerSpec{}
-	if op.etagEnabled {
+	if op.cache.etagEnabled {
 		headers["ETag"] = headerSpec{
 			Description: "Entity tag for conditional requests",
 			Schema:      &Schema{Type: "string"},
 		}
 	}
-	if op.cache != nil || op.cacheControl != "" {
+	if op.cache.config != nil || op.cache.control != "" {
 		headers["Cache-Control"] = headerSpec{
 			Description: "Cache policy for the response",
 			Schema:      &Schema{Type: "string"},
 		}
 	}
-	if op.versionInfo != nil && op.versionInfo.Deprecated {
+	if op.version.info != nil && op.version.info.Deprecated {
 		headers["Deprecation"] = headerSpec{
 			Description: "Version deprecation signal",
 			Schema:      &Schema{Type: "string"},
 		}
-		if op.versionInfo.normalizedSunsetHeaderValue() != "" {
+		if op.version.info.normalizedSunsetHeaderValue() != "" {
 			headers["Sunset"] = headerSpec{
 				Description: "Version sunset timestamp",
 				Schema:      &Schema{Type: "string"},
 			}
 		}
-		if op.versionInfo.MigrationURL != "" {
+		if op.version.info.MigrationURL != "" {
 			headers["Link"] = headerSpec{
 				Description: "Migration guidance for a deprecated version",
 				Schema:      &Schema{Type: "string"},
@@ -489,8 +538,34 @@ func (s *openAPISpec) registerTags(tags []string, descriptions map[string]string
 }
 
 // ---------------------------------------------------------------------------
-// Swagger UI HTML
+// Docs UI HTML
 // ---------------------------------------------------------------------------
+
+// DocsRenderer renders an HTML documentation UI for an OpenAPI URL.
+type DocsRenderer interface {
+	Render(openapiURL, title string) string
+}
+
+type docsRendererFunc func(openapiURL, title string) string
+
+func (f docsRendererFunc) Render(openapiURL, title string) string {
+	return f(openapiURL, title)
+}
+
+// Swagger returns the default Swagger UI docs renderer.
+func Swagger() DocsRenderer {
+	return docsRendererFunc(swaggerUIHTML)
+}
+
+// Redoc returns a ReDoc docs renderer.
+func Redoc() DocsRenderer {
+	return docsRendererFunc(redocHTML)
+}
+
+// ReDoc returns a ReDoc docs renderer.
+func ReDoc() DocsRenderer {
+	return Redoc()
+}
 
 func swaggerUIHTML(openapiURL, title string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
@@ -518,6 +593,21 @@ window.onload = function() {
 </script>
 </body>
 </html>`, html.EscapeString(title), htmltemplate.JSEscapeString(openapiURL))
+}
+
+func redocHTML(openapiURL, title string) string {
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+  <title>%s - API Docs</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<redoc spec-url="%s"></redoc>
+<script src="https://unpkg.com/redoc@2/bundles/redoc.standalone.js"></script>
+</body>
+</html>`, html.EscapeString(title), html.EscapeString(openapiURL))
 }
 
 // homepageHTML returns the HTML for the Gin Ninja welcome homepage.
@@ -934,7 +1024,32 @@ func cloneSecuritySchemes(in map[string]SecurityScheme) map[string]SecuritySchem
 	}
 	out := make(map[string]SecurityScheme, len(in))
 	for name, scheme := range in {
+		scheme.Flows = cloneOAuthFlows(scheme.Flows)
 		out[name] = scheme
 	}
 	return out
+}
+
+func cloneOAuthFlows(in *OAuthFlows) *OAuthFlows {
+	if in == nil {
+		return nil
+	}
+	return &OAuthFlows{
+		Implicit:          cloneOAuthFlow(in.Implicit),
+		Password:          cloneOAuthFlow(in.Password),
+		ClientCredentials: cloneOAuthFlow(in.ClientCredentials),
+		AuthorizationCode: cloneOAuthFlow(in.AuthorizationCode),
+	}
+}
+
+func cloneOAuthFlow(in *OAuthFlow) *OAuthFlow {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Scopes = cloneStringMap(in.Scopes)
+	if out.Scopes == nil {
+		out.Scopes = map[string]string{}
+	}
+	return &out
 }

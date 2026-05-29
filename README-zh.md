@@ -61,6 +61,8 @@ func main() {
 }
 ```
 
+生产环境必须使用 `middleware.CORSFromConfig(...)` 或显式的 `middleware.CORSConfig`。`middleware.CORS(nil)` 仅适合本地开发；它会允许所有来源，并且在 Gin release mode 下会直接 panic。
+
 启动后可访问 `http://localhost:8080/docs` 查看 Swagger UI，访问 `http://localhost:8080/openapi.json` 获取 OpenAPI 文档。
 
 ## 文档导航
@@ -70,11 +72,12 @@ func main() {
 - [概览](./docs/zh/overview.md)
 - [快速开始](./docs/zh/getting-started.md)
 - [项目与 CRUD 脚手架](./docs/zh/scaffolding.md)
-- [核心 API、绑定与响应](./docs/zh/core-api.md)
-- [配置、Bootstrap 与 ORM](./docs/zh/configuration.md)
+- [数据、绑定与响应](./docs/zh/data-and-responses.md)
+- [配置、Bootstrap 与生命周期](./docs/zh/configuration.md)
 - [中间件与安全](./docs/zh/middleware-security.md)
 - [文件传输与 OpenAPI 控制](./docs/zh/files-and-openapi.md)
 - [高级功能](./docs/zh/advanced-features.md)
+- [使用 TestClient 测试 API](./docs/zh/testing.md)
 - [Admin 与完整示例](./docs/zh/admin-and-examples.md)
 
 英文文档从 [README.md](./README.md) 或 [English documentation index](./docs/en/README.md) 开始。

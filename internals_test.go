@@ -79,6 +79,14 @@ type multipartBindInput struct {
 	Files []*UploadedFile `file:"files"`
 }
 
+type multipartComplexBindInput struct {
+	Title    string                  `form:"title" binding:"required"`
+	Counts   []int                   `form:"count"`
+	Primary  *multipart.FileHeader   `file:"primary" binding:"required"`
+	RawFiles []*multipart.FileHeader `file:"raw_files"`
+	Uploads  []*UploadedFile         `file:"uploads"`
+}
+
 type bindEdgeQueryInput struct {
 	Search string   `query:"search"`
 	Tags   []string `query:"tag"`
@@ -112,6 +120,24 @@ type formURLEncodedInput struct {
 type embeddedPointerBindInput struct {
 	*BindEmbeddedInput
 	Page int `query:"page" default:"1"`
+}
+
+type nestedJSONAddress struct {
+	City string `json:"city" binding:"required"`
+	Zip  int    `json:"zip"`
+}
+
+type nestedJSONProfile struct {
+	Name    string            `json:"name" binding:"required"`
+	Address nestedJSONAddress `json:"address" binding:"required"`
+	Tags    []string          `json:"tags"`
+}
+
+type nestedJSONBindInput struct {
+	ID      int               `path:"id" json:"id"`
+	Page    int               `query:"page" json:"page"`
+	Trace   string            `header:"X-Trace" json:"trace"`
+	Profile nestedJSONProfile `json:"profile" binding:"required"`
 }
 
 func init() {
@@ -393,6 +419,113 @@ func TestBindInput_MultipartSuccess(t *testing.T) {
 	}
 }
 
+func TestBindInput_NestedJSONPreservesNonBodyFields(t *testing.T) {
+	c, _ := newTestContext(http.MethodPost, "/users/42?page=3", `{
+		"id": 99,
+		"page": 99,
+		"trace": "body-trace",
+		"profile": {
+			"name": "alice",
+			"address": {"city": "Shanghai", "zip": 200000},
+			"tags": ["go", "api"]
+		}
+	}`)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+	c.Request.Header.Set("X-Trace", "header-trace")
+
+	var in nestedJSONBindInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.ID != 42 || in.Page != 3 || in.Trace != "header-trace" {
+		t.Fatalf("expected non-body fields to override JSON values, got %+v", in)
+	}
+	if in.Profile.Name != "alice" || in.Profile.Address.City != "Shanghai" || in.Profile.Address.Zip != 200000 {
+		t.Fatalf("unexpected nested profile: %+v", in.Profile)
+	}
+	if !reflect.DeepEqual(in.Profile.Tags, []string{"go", "api"}) {
+		t.Fatalf("unexpected nested tags: %+v", in.Profile.Tags)
+	}
+}
+
+func TestBindInput_NestedJSONValidationError(t *testing.T) {
+	c, _ := newTestContext(http.MethodPost, "/users/42", `{
+		"profile": {
+			"name": "alice",
+			"address": {"zip": 200000}
+		}
+	}`)
+	c.Params = gin.Params{{Key: "id", Value: "42"}}
+
+	var in nestedJSONBindInput
+	err := bindInput(c, http.MethodPost, &in)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T", err)
+	}
+	if len(validationErr.Errors) != 1 || validationErr.Errors[0].Field != "city" {
+		t.Fatalf("unexpected validation errors: %+v", validationErr.Errors)
+	}
+}
+
+func TestBindInput_MultipartComplexMultiFileUpload(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("title", "demo"); err != nil {
+		t.Fatalf("WriteField title: %v", err)
+	}
+	for _, count := range []string{"1", "2", "3"} {
+		if err := writer.WriteField("count", count); err != nil {
+			t.Fatalf("WriteField count: %v", err)
+		}
+	}
+	for _, field := range []struct {
+		name string
+		file string
+		body string
+	}{
+		{name: "primary", file: "primary.txt", body: "primary"},
+		{name: "raw_files", file: "raw-a.txt", body: "raw-a"},
+		{name: "raw_files", file: "raw-b.txt", body: "raw-b"},
+		{name: "uploads", file: "upload-a.txt", body: "upload-a"},
+		{name: "uploads", file: "upload-b.txt", body: "upload-b"},
+	} {
+		part, err := writer.CreateFormFile(field.name, field.file)
+		if err != nil {
+			t.Fatalf("CreateFormFile %s/%s: %v", field.name, field.file, err)
+		}
+		if _, err := part.Write([]byte(field.body)); err != nil {
+			t.Fatalf("part.Write %s/%s: %v", field.name, field.file, err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close: %v", err)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	c.Request = req
+
+	var in multipartComplexBindInput
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Title != "demo" || !reflect.DeepEqual(in.Counts, []int{1, 2, 3}) {
+		t.Fatalf("unexpected multipart form values: %+v", in)
+	}
+	if in.Primary == nil || in.Primary.Filename != "primary.txt" {
+		t.Fatalf("unexpected primary file: %+v", in.Primary)
+	}
+	if len(in.RawFiles) != 2 || in.RawFiles[0].Filename != "raw-a.txt" || in.RawFiles[1].Filename != "raw-b.txt" {
+		t.Fatalf("unexpected raw files: %+v", in.RawFiles)
+	}
+	if len(in.Uploads) != 2 || in.Uploads[0].Filename != "upload-a.txt" || in.Uploads[1].Filename != "upload-b.txt" {
+		t.Fatalf("unexpected uploaded files: %+v", in.Uploads)
+	}
+}
+
 func TestBindInput_QueryBoundaryValues(t *testing.T) {
 	c, _ := newTestContext(http.MethodGet, "/search?search=a%2Bb+%E4%B8%AD%E6%96%87&tag=first&tag=second", "")
 
@@ -441,14 +574,16 @@ func TestSetFieldFromString(t *testing.T) {
 	}
 }
 
-func TestBindSpecialFields_AnonymousStruct(t *testing.T) {
+func TestBindInput_AnonymousStructHeader(t *testing.T) {
 	c, _ := newTestContext(http.MethodGet, "/", "")
 	c.Request.Header.Set("X-Trace", "trace-1")
 
-	var in bindComplexInput
-	v := reflect.ValueOf(&in).Elem()
-	if err := bindSpecialFields(c, v.Type(), v); err != nil {
-		t.Fatalf("bindSpecialFields: %v", err)
+	type input struct {
+		BindEmbeddedInput
+	}
+	var in input
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
 	}
 	if in.Trace != "trace-1" {
 		t.Fatalf("expected anonymous embedded header binding, got %+v", in)
@@ -536,7 +671,7 @@ func TestContextResponseHelpers(t *testing.T) {
 func TestWriteError(t *testing.T) {
 	t.Run("api error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, &Error{Code: http.StatusTeapot, Message: "short and stout"})
+		WriteError(c, &Error{Code: http.StatusTeapot, Message: "short and stout"})
 		body := w.Body.String()
 		if w.Code != http.StatusTeapot || !strings.Contains(body, `"code":418`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -545,7 +680,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("validation error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
+		WriteError(c, &ValidationError{Errors: []FieldError{{Field: "name", Message: "field is required"}}})
 		body := w.Body.String()
 		if w.Code != http.StatusUnprocessableEntity || !strings.Contains(body, `"code":422`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -554,7 +689,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("generic error", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, errors.New("boom"))
+		WriteError(c, errors.New("boom"))
 		body := w.Body.String()
 		if w.Code != http.StatusInternalServerError || !strings.Contains(body, `"code":500`) || strings.Contains(body, `"error"`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, body)
@@ -576,7 +711,7 @@ func TestWriteError(t *testing.T) {
 
 		c, w := newTestContext(http.MethodGet, "/", "")
 		c.Set(ninjaAPIContextKey, api)
-		writeError(c, sentinel)
+		WriteError(c, sentinel)
 		if w.Code != http.StatusTeapot || !strings.Contains(w.Body.String(), `"code":418`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
@@ -584,7 +719,7 @@ func TestWriteError(t *testing.T) {
 
 	t.Run("default mapper fallback without api", func(t *testing.T) {
 		c, w := newTestContext(http.MethodGet, "/", "")
-		writeError(c, context.DeadlineExceeded)
+		WriteError(c, context.DeadlineExceeded)
 		if w.Code != http.StatusRequestTimeout || !strings.Contains(w.Body.String(), `"code":408`) {
 			t.Fatalf("unexpected response: %d %s", w.Code, w.Body.String())
 		}
@@ -798,13 +933,30 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 		t.Fatalf("expected security requirements clone to be independent: %+v", clonedRequirements)
 	}
 
-	schemes := map[string]SecurityScheme{"bearerAuth": HTTPBearerSecurityScheme("JWT")}
+	schemes := map[string]SecurityScheme{
+		"bearerAuth": HTTPBearerSecurityScheme("JWT"),
+		"basicAuth":  HTTPBasicSecurityScheme(),
+		"apiKey":     APIKeyHeaderSecurityScheme("X-API-Key"),
+		"oauth2": OAuth2SecurityScheme(OAuthFlows{
+			ClientCredentials: &OAuthFlow{
+				TokenURL: "https://example.com/token",
+				Scopes:   map[string]string{"read": "read data"},
+			},
+		}),
+	}
 	clonedSchemes := cloneSecuritySchemes(schemes)
 	scheme := clonedSchemes["bearerAuth"]
 	scheme.BearerFormat = "opaque"
 	clonedSchemes["bearerAuth"] = scheme
+	clonedSchemes["oauth2"].Flows.ClientCredentials.Scopes["read"] = "changed"
 	if schemes["bearerAuth"].BearerFormat != "JWT" {
 		t.Fatalf("expected security schemes clone to be independent: %+v", schemes)
+	}
+	if schemes["oauth2"].Flows.ClientCredentials.Scopes["read"] != "read data" {
+		t.Fatalf("expected oauth2 scopes clone to be independent: %+v", schemes["oauth2"].Flows.ClientCredentials.Scopes)
+	}
+	if schemes["basicAuth"].Scheme != "basic" || schemes["apiKey"].In != "header" {
+		t.Fatalf("unexpected security scheme helpers: %+v", schemes)
 	}
 
 	if err := NewError(http.StatusBadRequest, "bad"); err.Code != http.StatusBadRequest || err.Message != "bad" {
@@ -819,9 +971,21 @@ func TestSecurityAndErrorHelpers(t *testing.T) {
 }
 
 func TestOptionHelpers(t *testing.T) {
-	router := NewRouter("/users", WithTags("Users", "Admin"), WithSecurity("oauth2", "read"), WithBearerAuth(), WithVersion("v1"))
+	noopAuth := func(c *gin.Context) {
+		c.Next()
+	}
+	router := NewRouter(
+		"/users",
+		WithTags("Users", "Admin"),
+		WithSecurity("oauth2", "read"),
+		WithBearerAuth(noopAuth),
+		WithBasicAuth(noopAuth),
+		WithAPIKeyAuth("apiKey", noopAuth),
+		WithOAuth2Auth("write"),
+		WithVersion("v1"),
+	)
 	WithTagDescription("Users", "user operations")(router)
-	if len(router.tags) != 2 || len(router.security) != 2 || router.version != "v1" {
+	if len(router.tags) != 2 || len(router.security) != 5 || router.version != "v1" {
 		t.Fatalf("unexpected router options: %+v", router)
 	}
 	if router.tagDescriptions["Users"] != "user operations" {
@@ -835,7 +999,10 @@ func TestOptionHelpers(t *testing.T) {
 	Tags("Users")(op)
 	TagDescription("Users", "user operations")(op)
 	Security("oauth2", "read")(op)
-	BearerAuth()(op)
+	BearerAuth(noopAuth)(op)
+	BasicAuth(noopAuth)(op)
+	APIKeyAuth("apiKey", noopAuth)(op)
+	OAuth2Auth("write")(op)
 	Deprecated()(op)
 	Cache(time.Minute)(op)
 	CacheControl("private, max-age=60")(op)
@@ -846,25 +1013,46 @@ func TestOptionHelpers(t *testing.T) {
 	Response(http.StatusNotFound, "not found", nil)(op)
 	Paginated[schemaSample]()(op)
 	PaginatedResponse[schemaSample](http.StatusPartialContent, "partial")(op)
+	CursorPaginated[schemaSample]()(op)
+	CursorPaginatedResponse[schemaSample](http.StatusMultiStatus, "cursor partial")(op)
 	Timeout(time.Second)(op)
 	RateLimit(2, 3)(op)
 	WithTransaction()(op)
 
-	if op.summary != "list users" || op.description != "full description" || op.operationID != "listUsers" {
+	if op.spec.summary != "list users" || op.spec.description != "full description" || op.spec.operationID != "listUsers" {
 		t.Fatalf("unexpected operation metadata: %+v", op)
 	}
-	if !op.deprecated || !op.excludeFromDocs || op.successStatus != http.StatusAccepted || len(op.security) != 2 {
+	if !op.spec.deprecated || !op.spec.excludeFromDocs || op.spec.successStatus != http.StatusAccepted || len(op.spec.security) != 5 {
 		t.Fatalf("unexpected operation options: %+v", op)
 	}
-	if op.tagDescriptions["Users"] != "user operations" || op.paginatedItemType == nil || op.timeout != time.Second || op.rateLimit == nil || op.cache == nil || !op.etagEnabled {
+	if op.spec.tagDescriptions["Users"] != "user operations" || op.spec.paginatedItemType == nil || op.spec.cursorPaginatedItemType == nil || op.behavior.timeout != time.Second || op.behavior.rateLimit == nil || op.cache.config == nil || !op.cache.etagEnabled {
 		t.Fatalf("unexpected extended operation options: %+v", op)
 	}
-	if len(op.responses) != 3 || op.responses[0].responseType == nil || op.responses[1].responseType != nil || op.responses[2].paginatedItemType == nil {
-		t.Fatalf("unexpected documented responses: %+v", op.responses)
+	if len(op.spec.responses) != 4 || op.spec.responses[0].responseType == nil || op.spec.responses[1].responseType != nil || op.spec.responses[2].paginatedItemType == nil || op.spec.responses[3].cursorPaginatedItemType == nil {
+		t.Fatalf("unexpected documented responses: %+v", op.spec.responses)
 	}
-	if !op.withTransaction {
+	if !op.behavior.withTransaction {
 		t.Fatalf("expected WithTransaction to enable transaction wrapping: %+v", op)
 	}
+}
+
+func TestAuthHelpersRequireMiddleware(t *testing.T) {
+	assertPanics := func(name string, fn func()) {
+		t.Helper()
+		defer func() {
+			if recover() == nil {
+				t.Fatalf("expected %s to panic without middleware", name)
+			}
+		}()
+		fn()
+	}
+
+	assertPanics("WithBearerAuth", func() { WithBearerAuth()(NewRouter("/")) })
+	assertPanics("WithBasicAuth", func() { WithBasicAuth()(NewRouter("/")) })
+	assertPanics("WithAPIKeyAuth", func() { WithAPIKeyAuth("apiKey")(NewRouter("/")) })
+	assertPanics("BearerAuth", func() { BearerAuth()(&operation{}) })
+	assertPanics("BasicAuth", func() { BasicAuth()(&operation{}) })
+	assertPanics("APIKeyAuth", func() { APIKeyAuth("apiKey")(&operation{}) })
 }
 
 func TestRouterRegistrationHelpers(t *testing.T) {
@@ -887,19 +1075,19 @@ func TestRouterRegistrationHelpers(t *testing.T) {
 
 	putOp := router.operations[0]
 	patchOp := router.operations[1]
-	if putOp.method != http.MethodPut || patchOp.method != http.MethodPatch {
-		t.Fatalf("unexpected methods: %s %s", putOp.method, patchOp.method)
+	if putOp.route.method != http.MethodPut || patchOp.route.method != http.MethodPatch {
+		t.Fatalf("unexpected methods: %s %s", putOp.route.method, patchOp.route.method)
 	}
-	if putOp.successStatus != http.StatusOK || patchOp.successStatus != http.StatusOK {
-		t.Fatalf("unexpected success statuses: %d %d", putOp.successStatus, patchOp.successStatus)
+	if putOp.spec.successStatus != http.StatusOK || patchOp.spec.successStatus != http.StatusOK {
+		t.Fatalf("unexpected success statuses: %d %d", putOp.spec.successStatus, patchOp.spec.successStatus)
 	}
-	if putOp.tagDescriptions["Items"] != "item operations" || patchOp.tagDescriptions["Admin"] != "admin operations" {
-		t.Fatalf("expected tag descriptions to be copied into operations: %+v %+v", putOp.tagDescriptions, patchOp.tagDescriptions)
+	if putOp.spec.tagDescriptions["Items"] != "item operations" || patchOp.spec.tagDescriptions["Admin"] != "admin operations" {
+		t.Fatalf("expected tag descriptions to be copied into operations: %+v %+v", putOp.spec.tagDescriptions, patchOp.spec.tagDescriptions)
 	}
 
 	router.tagDescriptions["Items"] = "mutated"
-	if putOp.tagDescriptions["Items"] != "item operations" || patchOp.tagDescriptions["Items"] != "item operations" {
-		t.Fatalf("expected operation tag descriptions to be cloned, got %+v %+v", putOp.tagDescriptions, patchOp.tagDescriptions)
+	if putOp.spec.tagDescriptions["Items"] != "item operations" || patchOp.spec.tagDescriptions["Items"] != "item operations" {
+		t.Fatalf("expected operation tag descriptions to be cloned, got %+v %+v", putOp.spec.tagDescriptions, patchOp.spec.tagDescriptions)
 	}
 }
 
@@ -909,7 +1097,7 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 	}, nil)
 
 	c, _ := newTestContext(http.MethodGet, "/", "")
-	op.ginHandler(c)
+	op.route.ginHandler(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for nil output, got %d", c.Writer.Status())
 	}
@@ -918,7 +1106,7 @@ func TestNewOperationNilOutputAndVoidOperation(t *testing.T) {
 		return nil
 	}, nil)
 	c, _ = newTestContext(http.MethodDelete, "/1", "")
-	voidOp.ginHandler(c)
+	voidOp.route.ginHandler(c)
 	if c.Writer.Status() != http.StatusNoContent {
 		t.Fatalf("expected 204 for void operation, got %d", c.Writer.Status())
 	}
@@ -962,7 +1150,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 
 	c, w := newTestContext(http.MethodGet, "/", "")
 	c.Set(ninjaAPIContextKey, api)
-	op.ginHandler(c)
+	op.route.ginHandler(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for transaction-wrapped operation, got %d", w.Code)
 	}
@@ -982,7 +1170,7 @@ func TestOperationsWithTransactionHandlers(t *testing.T) {
 
 	c, w = newTestContext(http.MethodDelete, "/1", "")
 	c.Set(ninjaAPIContextKey, api)
-	voidOp.ginHandler(c)
+	voidOp.route.ginHandler(c)
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for transaction-wrapped void operation error, got %d", w.Code)
 	}
@@ -1020,7 +1208,7 @@ func TestOperationWithTransactionRollsBackWhenTimeoutContextExpires(t *testing.T
 	router := gin.New()
 	router.GET("/", func(c *gin.Context) {
 		c.Set(ninjaAPIContextKey, api)
-		op.ginHandler(c)
+		op.route.ginHandler(c)
 	})
 
 	w := httptest.NewRecorder()
