@@ -509,7 +509,7 @@ func TestCacheAndInternalRouteAdditionalCoverage(t *testing.T) {
 			Status: http.StatusOK,
 			Header: http.Header{"ETag": []string{`"tag"`}},
 			Body:   []byte("payload"),
-		}, "public, max-age=60")
+		}, "private, max-age=60")
 		if w.Code != http.StatusOK || w.Body.Len() != 0 {
 			t.Fatalf("expected HEAD cached response without body, got status=%d body=%q", w.Code, w.Body.String())
 		}

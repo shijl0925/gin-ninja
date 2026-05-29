@@ -278,7 +278,7 @@ func benchmarkNativeCacheMiddleware(ttl time.Duration, store ResponseCacheStore,
 
 		cacheKey := c.Request.Method + ":" + c.Request.URL.RequestURI()
 		if cached, ok := store.Get(cacheKey); ok && !isExpiredCachedResponse(cached, time.Now()) {
-			writeCachedResponse(c, cached, cacheControl)
+			writeCachedResponse(c, cached, cacheControl, defaultCacheVaryHeaders...)
 			c.Abort()
 			return
 		}

@@ -161,7 +161,7 @@ func TestDemoEndpoints_PaginatedCacheRateLimitedAndTimeout(t *testing.T) {
 	if cacheFirst.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", cacheFirst.Code, cacheFirst.Body.String())
 	}
-	if got := cacheFirst.Header().Get("Cache-Control"); got != "public, max-age=60" {
+	if got := cacheFirst.Header().Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
 	}
 	etag := cacheFirst.Header().Get("ETag")

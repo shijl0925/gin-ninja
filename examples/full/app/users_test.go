@@ -492,7 +492,7 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 	if listFirst.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", listFirst.Code, listFirst.Body.String())
 	}
-	if got := listFirst.Header().Get("Cache-Control"); got != "public, max-age=60" {
+	if got := listFirst.Header().Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
 	}
 	var listPage map[string]any

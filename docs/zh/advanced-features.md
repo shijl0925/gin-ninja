@@ -37,7 +37,8 @@ ninja.Get(articles, "/:slug", getArticle,
 
 - `Cache(ttl)` 使用默认内存后端启用路由缓存
 - 成功的 GET/HEAD 响应会自动包含 `ETag`
-- 未显式设置 `CacheControl(...)` 时，`Cache(ttl)` 会输出 `Cache-Control: public, max-age=<ttl>`
+- 未显式设置 `CacheControl(...)` 时，`Cache(ttl)` 会输出 `Cache-Control: private, max-age=<ttl>`
+- 默认缓存键与 `Vary` 响应头包含 `Authorization` 和 `Accept-Language`；如需加入更多请求维度，请使用 `CacheWithKey(...)`
 - 当缓存实体标签匹配时，携带 `If-None-Match` 的请求会返回 `304 Not Modified`
 - 可通过传入 `CacheWithStore(...)` 让同一套 API 使用 Redis
 
@@ -79,6 +80,7 @@ invalidator.InvalidateTags("article:welcome")
 说明：
 
 - 缓存支持面向安全的只读端点
+- 只有确认响应可被共享代理/CDN 缓存时，才显式使用 `CacheControl("public, ...")`
 - SSE / WebSocket 路由不会被缓存
 - `NewCacheInvalidator(store)` 提供统一的删除 / 标签失效 / 锁入口
 - OpenAPI 会自动记录 `ETag` 和 `Cache-Control` 响应头
