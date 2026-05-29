@@ -16,9 +16,10 @@ import (
 type ScaffoldTemplate string
 
 const (
-	ScaffoldTemplateCore  ScaffoldTemplate = "core"
-	ScaffoldTemplateFull  ScaffoldTemplate = "full"
-	ScaffoldTemplateAdmin ScaffoldTemplate = "admin"
+	ScaffoldTemplateMinimal  ScaffoldTemplate = "minimal"
+	ScaffoldTemplateStandard ScaffoldTemplate = "standard"
+	ScaffoldTemplateAuth     ScaffoldTemplate = "auth"
+	ScaffoldTemplateAdmin    ScaffoldTemplate = "admin"
 )
 
 type ScaffoldDatabase string
@@ -201,21 +202,12 @@ type appTemplateData struct {
 func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin bool, withGormx *bool) (scaffoldOptions, error) {
 	templateName = strings.ToLower(strings.TrimSpace(templateName))
 	if templateName == "" {
-		templateName = string(ScaffoldTemplateCore)
+		templateName = string(ScaffoldTemplateMinimal)
 	}
 
-	forceAuth := false
 	templateKind := ScaffoldTemplate(templateName)
 	switch templateKind {
-	case ScaffoldTemplateCore, ScaffoldTemplateFull, ScaffoldTemplateAdmin:
-		forceAuth = templateKind == ScaffoldTemplateFull
-	case "minimal":
-		templateKind = ScaffoldTemplateCore
-	case "standard":
-		templateKind = ScaffoldTemplateFull
-	case "auth":
-		templateKind = ScaffoldTemplateFull
-		forceAuth = true
+	case ScaffoldTemplateMinimal, ScaffoldTemplateStandard, ScaffoldTemplateAuth, ScaffoldTemplateAdmin:
 	default:
 		return scaffoldOptions{}, fmt.Errorf("unknown scaffold template %q", templateName)
 	}
@@ -227,14 +219,14 @@ func resolveScaffoldOptions(templateName string, withTests, withAuth, withAdmin 
 		WithAdmin: withAdmin,
 		WithGormx: boolValueOrDefault(withGormx, true),
 	}
-	if forceAuth {
+	if templateKind == ScaffoldTemplateAuth {
 		opts.WithAuth = true
 	}
 	if templateKind == ScaffoldTemplateAdmin {
 		opts.WithAuth = true
 		opts.WithAdmin = true
 	}
-	opts.Standard = templateKind != ScaffoldTemplateCore || opts.WithTests || opts.WithAuth || opts.WithAdmin
+	opts.Standard = templateKind != ScaffoldTemplateMinimal || opts.WithTests || opts.WithAuth || opts.WithAdmin
 	return opts, nil
 }
 

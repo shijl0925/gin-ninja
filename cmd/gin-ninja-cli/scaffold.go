@@ -37,18 +37,10 @@ const (
 )
 
 var scaffoldTemplateChoices = []helpItem{
-	{name: "core", usage: "Lightweight Binding/OpenAPI starter"},
-	{name: "full", usage: "Full-stack starter with settings, bootstrap, ORM, and auth"},
-	{name: "admin", usage: "Admin starter with GORM-backed resources"},
-}
-
-var scaffoldTemplatePromptChoices = []string{
-	string(codegen.ScaffoldTemplateCore),
-	string(codegen.ScaffoldTemplateFull),
-	string(codegen.ScaffoldTemplateAdmin),
-	"minimal",
-	"standard",
-	"auth",
+	{name: "minimal", usage: "Basic CRUD structure"},
+	{name: "standard", usage: "Broader starter structure for everyday development"},
+	{name: "auth", usage: "Adds auth-oriented scaffold files"},
+	{name: "admin", usage: "Adds admin-oriented scaffold files"},
 }
 
 func runGenerate(stdout, stderr io.Writer, args []string) int {
@@ -127,7 +119,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	appDir := fs.String("app-dir", "", "Relative app package directory inside the generated project")
 	database := fs.String("database", "", "Database driver scaffold: sqlite, mysql, postgres, or none")
 	configPath := fs.String("config", "", "Load scaffold preset from YAML or JSON")
-	templateName := fs.String("template", "", "Scaffold template: core, full, admin")
+	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
@@ -171,7 +163,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		Module:    mod,
 		AppDir:    mergeStringFlag(strings.TrimSpace(*appDir), set["app-dir"], strings.TrimSpace(preset.AppDir), ""),
 		Database:  mergeStringFlag(strings.TrimSpace(*database), set["database"], strings.TrimSpace(preset.Database), defaultProjectScaffoldDatabase),
-		Template:  mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)),
+		Template:  mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
 		WithTests: mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:  mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
 		WithAdmin: mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
@@ -198,7 +190,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	modelName := fs.String("model", "", "Override the generated model name")
 	database := fs.String("database", "", "Database driver import to add: sqlite, mysql, postgres, or none")
 	configPath := fs.String("config", "", "Load scaffold preset from YAML or JSON")
-	templateName := fs.String("template", "", "Scaffold template: core, full, admin")
+	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
@@ -240,7 +232,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		PackageName: mergeStringFlag(strings.TrimSpace(*packageName), set["package"], strings.TrimSpace(preset.PackageName), ""),
 		ModelName:   mergeStringFlag(strings.TrimSpace(*modelName), set["model"], strings.TrimSpace(preset.ModelName), ""),
 		Database:    mergeStringFlag(strings.TrimSpace(*database), set["database"], strings.TrimSpace(preset.Database), defaultAppScaffoldDatabase),
-		Template:    mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)),
+		Template:    mergeStringFlag(strings.TrimSpace(*templateName), set["template"], strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)),
 		WithTests:   mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:    mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
 		WithAdmin:   mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
@@ -321,7 +313,12 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read app package directory: %v\n", err)
 		return 1
 	}
-	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)), scaffoldTemplatePromptChoices)
+	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)), []string{
+		string(codegen.ScaffoldTemplateMinimal),
+		string(codegen.ScaffoldTemplateStandard),
+		string(codegen.ScaffoldTemplateAuth),
+		string(codegen.ScaffoldTemplateAdmin),
+	})
 	if err != nil {
 		fmt.Fprintf(stderr, "read template preset: %v\n", err)
 		return 1
@@ -383,7 +380,12 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		fmt.Fprintf(stderr, "read model name: %v\n", err)
 		return 1
 	}
-	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateCore)), scaffoldTemplatePromptChoices)
+	templateName, err := promptChoice(stdout, reader, "Template preset", mergeStringFlag("", false, strings.TrimSpace(preset.Template), string(codegen.ScaffoldTemplateMinimal)), []string{
+		string(codegen.ScaffoldTemplateMinimal),
+		string(codegen.ScaffoldTemplateStandard),
+		string(codegen.ScaffoldTemplateAuth),
+		string(codegen.ScaffoldTemplateAdmin),
+	})
 	if err != nil {
 		fmt.Fprintf(stderr, "read template preset: %v\n", err)
 		return 1
@@ -430,15 +432,15 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w, "Create a new gin-ninja project scaffold.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Best for"))
-	fmt.Fprintln(w, "  Bootstrapping a brand-new service; the core template is the recommended default.")
+	fmt.Fprintln(w, "  Bootstrapping a brand-new service; the minimal template is the recommended default.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Usage"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-config <path>] [-template <core|full|admin>] [-database <sqlite|mysql|postgres|none>]"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject <name> [-module <module>] [-output <path>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Recommended flow"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -module github.com/acme/mysite"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template full"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template full"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template standard"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template auth"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template admin"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
@@ -455,7 +457,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template options"))
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose core, full, or admin (default: core)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
@@ -479,15 +481,15 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w, "Create a new gin-ninja app scaffold.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Best for"))
-	fmt.Fprintln(w, "  Existing projects that need a new domain package; the core template is the recommended default.")
+	fmt.Fprintln(w, "  Existing projects that need a new domain package; the minimal template is the recommended default.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Usage"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-config <path>] [-template <core|full|admin>] [-database <sqlite|mysql|postgres|none>]"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp <name> [-output <path>] [-package <name>] [-model <name>] [-config <path>] [-template <minimal|standard|auth|admin>] [-database <sqlite|mysql|postgres|none>]"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Recommended flow"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp blog"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template full"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template full"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template standard"))
+	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template auth"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template admin"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
@@ -505,7 +507,7 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template options"))
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose core, full, or admin (default: core)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
