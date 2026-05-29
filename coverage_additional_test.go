@@ -112,7 +112,7 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		c, _ = newTestContext(http.MethodPost, "/upload", "broken")
 		c.Request.Header.Set("Content-Type", "multipart/form-data; boundary=missing")
 		var upload multipartBindInput
-		err = bindMultipartFields(c, reflect.TypeOf(upload), reflect.ValueOf(&upload).Elem())
+		err = bindInput(c, http.MethodPost, &upload)
 		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected INVALID_MULTIPART, got %v", err)
 		}
@@ -121,8 +121,10 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			Count int `form:"count"`
 		}
 		form := &multipart.Form{Value: map[string][]string{"count": {"bad"}}}
+		c, _ = newTestContext(http.MethodPost, "/upload", "")
+		c.Request.Header.Set("Content-Type", "multipart/form-data")
 		var badFormValue badForm
-		err = bindMultipartValue(reflect.TypeOf(badFormValue), reflect.ValueOf(&badFormValue).Elem(), form)
+		_, err = bindRequestFields(c, getBindingMetadata(reflect.TypeOf(badFormValue)), reflect.ValueOf(&badFormValue).Elem(), nil, nil, false, form, false)
 		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_FORM_VALUE, got %v", err)
 		}
@@ -132,7 +134,7 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 		}
 		form = &multipart.Form{File: map[string][]*multipart.FileHeader{"file": {&multipart.FileHeader{Filename: "a.txt"}}}}
 		var badFileValue badFile
-		err = bindMultipartValue(reflect.TypeOf(badFileValue), reflect.ValueOf(&badFileValue).Elem(), form)
+		_, err = bindRequestFields(c, getBindingMetadata(reflect.TypeOf(badFileValue)), reflect.ValueOf(&badFileValue).Elem(), nil, nil, false, form, false)
 		if !errors.As(err, &apiErr) || apiErr.Code != http.StatusBadRequest {
 			t.Fatalf("expected BAD_FILE_FIELD, got %v", err)
 		}
