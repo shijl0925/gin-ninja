@@ -1605,8 +1605,11 @@ func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	if first.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", first.Code, first.Body.String())
 	}
-	if got := first.Header().Get("Cache-Control"); got != "public, max-age=60" {
+	if got := first.Header().Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
+	}
+	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language" {
+		t.Fatalf("expected Vary header, got %q", got)
 	}
 	etag := first.Header().Get("ETag")
 	if etag == "" {
@@ -1763,6 +1766,57 @@ func TestGet_CacheWithCustomKey(t *testing.T) {
 	}
 	if third.Body.String() == first.Body.String() {
 		t.Fatalf("expected distinct cache key to bypass cached response, got %q", third.Body.String())
+	}
+}
+
+func TestGet_DefaultCacheKeyVariesByAuthorizationAndLanguage(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-vary")
+	calls := 0
+	store := &externalCacheStore{}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	first := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "en")
+	})
+	second := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "en")
+	})
+	third := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "zh-CN")
+	})
+	fourth := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-b")
+		req.Header.Set("Accept-Language", "en")
+	})
+
+	if first.Code != http.StatusOK || second.Code != http.StatusOK || third.Code != http.StatusOK || fourth.Code != http.StatusOK {
+		t.Fatalf("expected 200 responses, got %d/%d/%d/%d", first.Code, second.Code, third.Code, fourth.Code)
+	}
+	if calls != 3 {
+		t.Fatalf("expected auth/language variants to be cached separately, calls=%d", calls)
+	}
+	if second.Body.String() != first.Body.String() {
+		t.Fatalf("expected matching auth/language variant to reuse response, got %q vs %q", second.Body.String(), first.Body.String())
+	}
+	if third.Body.String() == first.Body.String() || fourth.Body.String() == first.Body.String() {
+		t.Fatalf("expected distinct auth/language variants to bypass cached response")
+	}
+	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language" {
+		t.Fatalf("expected Vary header, got %q", got)
+	}
+	for key := range store.items {
+		if strings.Contains(key, "auth-a") || strings.Contains(key, "auth-b") {
+			t.Fatalf("expected cache key to avoid raw authorization values, got %q", key)
+		}
 	}
 }
 
@@ -1932,7 +1986,7 @@ func TestGet_CacheHeadAndErrorBoundaries(t *testing.T) {
 		if first.Body.Len() != 0 || second.Body.Len() != 0 {
 			t.Fatalf("expected empty HEAD bodies, got %q / %q", first.Body.String(), second.Body.String())
 		}
-		if got := second.Header().Get("Cache-Control"); got != "public, max-age=60" {
+		if got := second.Header().Get("Cache-Control"); got != "private, max-age=60" {
 			t.Fatalf("expected cache-control header, got %q", got)
 		}
 		if atomic.LoadInt32(&calls) != 1 {

@@ -37,7 +37,8 @@ Behavior:
 
 - `Cache(ttl)` enables route caching with the default in-memory backend
 - successful GET/HEAD responses automatically include `ETag`
-- when `CacheControl(...)` is not set explicitly, `Cache(ttl)` emits `Cache-Control: public, max-age=<ttl>`
+- when `CacheControl(...)` is not set explicitly, `Cache(ttl)` emits `Cache-Control: private, max-age=<ttl>`
+- default cache keys and `Vary` headers include `Authorization` and `Accept-Language`; use `CacheWithKey(...)` for additional request-specific dimensions
 - requests with `If-None-Match` return `304 Not Modified` when the cached entity tag matches
 - the same API can target Redis by passing `CacheWithStore(...)`
 
@@ -79,6 +80,7 @@ invalidator.InvalidateTags("article:welcome")
 Notes:
 
 - cache support is intended for safe read endpoints
+- use explicit `CacheControl("public, ...")` only for responses that are safe for shared proxies/CDNs
 - SSE / WebSocket routes are not cached
 - `NewCacheInvalidator(store)` provides a unified delete / tag-invalidation / lock entry point
 - OpenAPI automatically documents `ETag` and `Cache-Control` response headers

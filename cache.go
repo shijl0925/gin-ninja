@@ -56,6 +56,8 @@ type ResponseCacheLockStore interface {
 type CacheKeyFunc func(*Context) string
 type CacheTagFunc func(*Context) []string
 
+var defaultCacheVaryHeaders = []string{"Authorization", "Accept-Language"}
+
 type CacheInvalidator struct {
 	store ResponseCacheStore
 }
@@ -437,7 +439,7 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		if cacheStore != nil && cacheKey != "" {
 			if cached, ok := cacheStoreGet(ctx, cacheStore, cacheKey); ok {
 				if !isExpiredCachedResponse(cached, time.Now()) {
-					writeCachedResponse(c, cached, op.cache.control)
+					writeCachedResponse(c, cached, op.cache.control, defaultCacheVaryHeaders...)
 					return
 				}
 			}
@@ -466,6 +468,9 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		}
 		if op.cache.control != "" && recorder.status >= 200 && recorder.status < 400 && recorder.header.Get("Cache-Control") == "" {
 			recorder.header.Set("Cache-Control", op.cache.control)
+		}
+		if op.cache.config != nil && recorder.status >= 200 && recorder.status < 400 {
+			addVary(recorder.header, defaultCacheVaryHeaders...)
 		}
 
 		etag := recorder.header.Get("ETag")
@@ -541,7 +546,7 @@ func cacheStoreSet(ctx *Context, store ResponseCacheStore, key string, value *Ca
 	store.Set(key, value)
 }
 
-func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl string) {
+func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl string, vary ...string) {
 	if cached == nil {
 		c.Status(http.StatusNoContent)
 		return
@@ -550,6 +555,7 @@ func writeCachedResponse(c *gin.Context, cached *CachedResponse, cacheControl st
 	if cacheControl != "" && header.Get("Cache-Control") == "" {
 		header.Set("Cache-Control", cacheControl)
 	}
+	addVary(header, vary...)
 	if etag := header.Get("ETag"); etag != "" && matchesETag(c.GetHeader("If-None-Match"), etag) {
 		copyHeader(c.Writer.Header(), header)
 		c.Status(http.StatusNotModified)
@@ -567,14 +573,55 @@ func defaultCacheControl(ttl time.Duration) string {
 	if seconds < 0 {
 		seconds = 0
 	}
-	return fmt.Sprintf("public, max-age=%d", seconds)
+	return fmt.Sprintf("private, max-age=%d", seconds)
 }
 
 func defaultCacheKey(ctx *Context) string {
 	if ctx == nil || ctx.Request == nil || ctx.Request.URL == nil {
 		return ""
 	}
-	return ctx.Request.Method + ":" + ctx.Request.URL.RequestURI()
+	key := ctx.Request.Method + ":" + ctx.Request.URL.RequestURI()
+	for _, header := range defaultCacheVaryHeaders {
+		if value := ctx.Request.Header.Get(header); value != "" {
+			key += "|" + http.CanonicalHeaderKey(header) + "=" + hashCacheKeyValue(value)
+		}
+	}
+	return key
+}
+
+func hashCacheKeyValue(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
+func addVary(header http.Header, fields ...string) {
+	if header == nil {
+		return
+	}
+	values := splitCommaValues(header.Get("Vary"))
+	for _, value := range values {
+		if value == "*" {
+			return
+		}
+	}
+	for _, field := range fields {
+		if field == "" {
+			continue
+		}
+		exists := false
+		for _, value := range values {
+			if strings.EqualFold(value, field) {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			values = append(values, http.CanonicalHeaderKey(field))
+		}
+	}
+	if len(values) > 0 {
+		header.Set("Vary", strings.Join(values, ", "))
+	}
 }
 
 func generateETag(body []byte) string {
