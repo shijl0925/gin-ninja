@@ -574,14 +574,16 @@ func TestSetFieldFromString(t *testing.T) {
 	}
 }
 
-func TestBindSpecialFields_AnonymousStruct(t *testing.T) {
+func TestBindInput_AnonymousStructHeader(t *testing.T) {
 	c, _ := newTestContext(http.MethodGet, "/", "")
 	c.Request.Header.Set("X-Trace", "trace-1")
 
-	var in bindComplexInput
-	v := reflect.ValueOf(&in).Elem()
-	if err := bindSpecialFields(c, v.Type(), v); err != nil {
-		t.Fatalf("bindSpecialFields: %v", err)
+	type input struct {
+		BindEmbeddedInput
+	}
+	var in input
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
 	}
 	if in.Trace != "trace-1" {
 		t.Fatalf("expected anonymous embedded header binding, got %+v", in)
