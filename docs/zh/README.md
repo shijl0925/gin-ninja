@@ -13,6 +13,7 @@
 5. [中间件与安全](./middleware-security.md)：接入认证、Session、CSRF、安全头、日志、i18n 和上传限制。
 6. [高级功能](./advanced-features.md)：使用缓存、API 版本、SSE 和 WebSocket。
 7. [使用 TestClient 测试 API](./testing.md)：无需手动组装 `httptest` 即可测试路由和 API。
+8. [性能与稳定性报告](./performance.md)：查看基准测试基线、复现命令和后续覆盖计划。
 
 ## 功能索引
 
@@ -27,4 +28,5 @@
 | 上传下载、OpenAPI 操作选项 | [文件传输与 OpenAPI 控制](./files-and-openapi.md) |
 | 缓存、API 版本、SSE、WebSocket | [高级功能](./advanced-features.md) |
 | TestClient 与 API 测试 | [使用 TestClient 测试 API](./testing.md) |
+| 性能、基准测试基线、稳定性报告 | [性能与稳定性报告](./performance.md) |
 | Admin 后台与完整示例 | [Admin 与完整示例](./admin-and-examples.md) |
