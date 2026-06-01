@@ -124,3 +124,23 @@ func TestMountUIEscapesExtractorExpressionsAsData(t *testing.T) {
 		t.Fatal("expected extractor expression to be JSON string data")
 	}
 }
+
+func TestServeDefaultUI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin", nil)
+
+	ServeDefaultUI(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if got := w.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+	if body := w.Body.String(); !strings.Contains(body, "Gin Ninja Admin") || !strings.Contains(body, `const apiBase = "/api/v1/admin";`) {
+		t.Fatalf("default UI body missing expected content: %s", body)
+	}
+}

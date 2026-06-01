@@ -60,3 +60,36 @@ func TestInternalDialectorsDSNHelpers(t *testing.T) {
 		t.Fatal("expected implicit sqlite DSN to be ignored for structured mysql config")
 	}
 }
+
+func TestInternalDialectorsConstructors(t *testing.T) {
+	if _, err := MySQL(settings.DatabaseConfig{}); err == nil {
+		t.Fatal("expected empty mysql config error")
+	}
+	if _, err := MySQL(settings.DatabaseConfig{DSN: "%zz@tcp(localhost:3306)/app"}); err == nil {
+		t.Fatal("expected malformed raw mysql DSN error")
+	}
+	if dialector, err := MySQL(settings.DatabaseConfig{DSN: "user%3Apass@tcp(localhost:3306)/app"}); err != nil || dialector == nil {
+		t.Fatalf("MySQL raw DSN = (%v, %v), want dialector", dialector, err)
+	}
+	if dialector, err := MySQL(settings.DatabaseConfig{MySQL: settings.MySQLConfig{
+		Host: "127.0.0.1",
+		Name: "app",
+		User: "root",
+	}}); err != nil || dialector == nil {
+		t.Fatalf("MySQL structured config = (%v, %v), want dialector", dialector, err)
+	}
+
+	if _, err := Postgres(settings.DatabaseConfig{}); err == nil {
+		t.Fatal("expected empty postgres config error")
+	}
+	if dialector, err := Postgres(settings.DatabaseConfig{DSN: "host=localhost dbname=app"}); err != nil || dialector == nil {
+		t.Fatalf("Postgres raw DSN = (%v, %v), want dialector", dialector, err)
+	}
+	if dialector, err := Postgres(settings.DatabaseConfig{Postgres: settings.PostgresConfig{
+		Host: "127.0.0.1",
+		Name: "app",
+		User: "postgres",
+	}}); err != nil || dialector == nil {
+		t.Fatalf("Postgres structured config = (%v, %v), want dialector", dialector, err)
+	}
+}
