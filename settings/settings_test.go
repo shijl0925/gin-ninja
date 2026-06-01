@@ -247,6 +247,35 @@ func TestJWTConfig_ExpireDuration(t *testing.T) {
 	}
 }
 
+func TestCORSConfigWithDefaults(t *testing.T) {
+	defaulted := (settings.CORSConfig{}).WithDefaults()
+	if !slices.Equal(defaulted.AllowOrigins, []string{"http://localhost:3000", "http://localhost:5173"}) {
+		t.Fatalf("default origins = %#v", defaulted.AllowOrigins)
+	}
+	if !slices.Equal(defaulted.AllowMethods, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}) {
+		t.Fatalf("default methods = %#v", defaulted.AllowMethods)
+	}
+	if !slices.Equal(defaulted.AllowHeaders, []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}) {
+		t.Fatalf("default headers = %#v", defaulted.AllowHeaders)
+	}
+	if defaulted.MaxAgeSecs != 43200 {
+		t.Fatalf("default max age = %d, want 43200", defaulted.MaxAgeSecs)
+	}
+
+	custom := (settings.CORSConfig{
+		AllowOrigins: []string{"https://example.com"},
+		AllowMethods: []string{"GET"},
+		AllowHeaders: []string{"X-Custom"},
+		MaxAgeSecs:   30,
+	}).WithDefaults()
+	if !slices.Equal(custom.AllowOrigins, []string{"https://example.com"}) ||
+		!slices.Equal(custom.AllowMethods, []string{"GET"}) ||
+		!slices.Equal(custom.AllowHeaders, []string{"X-Custom"}) ||
+		custom.MaxAgeSecs != 30 {
+		t.Fatalf("custom CORS values were not preserved: %+v", custom)
+	}
+}
+
 func TestLoad_EnvironmentOverride(t *testing.T) {
 	t.Setenv("SERVER__PORT", "7070")
 	t.Setenv("DATABASE__MYSQL__PASSWORD", "env:p@ss+word")

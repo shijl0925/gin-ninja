@@ -679,3 +679,43 @@ func TestCaptureResponseWriterHijackFallbackAndDelegate(t *testing.T) {
 	}
 	_ = conn.Close()
 }
+
+func TestConvenienceOptionsAndRendererAliases(t *testing.T) {
+	t.Parallel()
+
+	cfg := newRouteCacheConfig(time.Minute)
+	CacheWithMaxBodyBytes(123)(cfg)
+	if cfg.maxBodyBytes != 123 {
+		t.Fatalf("maxBodyBytes = %d, want 123", cfg.maxBodyBytes)
+	}
+
+	if got := ReDoc().Render("/spec.json", "Alias API"); !strings.Contains(got, "/spec.json") || !strings.Contains(got, "Alias API") {
+		t.Fatalf("ReDoc renderer output missing expected values: %s", got)
+	}
+
+	if got := APIKeyCookieSecurityScheme("session"); got.Type != "apiKey" || got.Name != "session" || got.In != "cookie" {
+		t.Fatalf("APIKeyCookieSecurityScheme() = %+v", got)
+	}
+	if got := APIKeyQuerySecurityScheme("api_key"); got.Type != "apiKey" || got.Name != "api_key" || got.In != "query" {
+		t.Fatalf("APIKeyQuerySecurityScheme() = %+v", got)
+	}
+
+	handler := func(c *gin.Context) { c.Status(http.StatusNoContent) }
+	op := &operation{}
+	SecurityMiddleware("apiKey", handler, "read")(op)
+	OAuth2AuthMiddleware(handler, "write")(op)
+	if len(op.spec.security) != 2 || len(op.route.ginMiddleware) != 2 {
+		t.Fatalf("operation security/middleware = (%+v, %d), want 2 each", op.spec.security, len(op.route.ginMiddleware))
+	}
+	if scopes := op.spec.security[1]["oauth2"]; len(scopes) != 1 || scopes[0] != "write" {
+		t.Fatalf("oauth2 scopes = %+v, want [write]", scopes)
+	}
+
+	router := NewRouter("/secure", WithSecurityMiddleware("apiKey", handler, "read"), WithOAuth2AuthMiddleware(handler, "write"))
+	if len(router.security) != 2 || len(router.ginMiddleware) != 2 {
+		t.Fatalf("router security/middleware = (%+v, %d), want 2 each", router.security, len(router.ginMiddleware))
+	}
+	if scopes := router.security[1]["oauth2"]; len(scopes) != 1 || scopes[0] != "write" {
+		t.Fatalf("router oauth2 scopes = %+v, want [write]", scopes)
+	}
+}
