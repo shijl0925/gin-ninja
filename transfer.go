@@ -78,12 +78,6 @@ func NewDownloadReader(filename, contentType string, size int64, reader io.Reade
 }
 
 func (d *Download) writeTo(c *gin.Context, status int) {
-	if d == nil {
-		c.Status(http.StatusNoContent)
-		c.Writer.WriteHeaderNow()
-		return
-	}
-
 	contentType := d.ContentType
 	if contentType == "" {
 		switch {
