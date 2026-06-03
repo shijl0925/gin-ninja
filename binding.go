@@ -385,19 +385,19 @@ func applyDefaults(c *gin.Context, meta *bindingMetadata, v reflect.Value) error
 		}
 
 		switch {
-		case field.headerTag != "":
+		case isActiveBindingTag(field.headerTag):
 			if c.GetHeader(field.headerTag) != "" {
 				continue
 			}
-		case field.cookieTag != "":
+		case isActiveBindingTag(field.cookieTag):
 			if _, err := c.Cookie(field.cookieTag); err == nil {
 				continue
 			}
-		case field.queryTag != "":
+		case isActiveBindingTag(field.queryTag):
 			if hasQueryValue(c, field.queryTag) {
 				continue
 			}
-		case field.formTag != "":
+		case isActiveBindingTag(field.formTag):
 			if hasFormBodyValue(c, field.formTag) {
 				continue
 			}

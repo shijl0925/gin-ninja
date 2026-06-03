@@ -236,6 +236,24 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			t.Fatalf("unexpected bound input: %+v", in)
 		}
 	})
+
+	t.Run("ignored binding tags do not trigger defaults", func(t *testing.T) {
+		type input struct {
+			QueryOnly  string `query:"-" default:"from-query"`
+			HeaderOnly string `header:"-" default:"from-header"`
+			CookieOnly string `cookie:"-" default:"from-cookie"`
+			FormOnly   string `form:"-" default:"from-form"`
+		}
+		c, _ := newTestContext(http.MethodGet, "/", "")
+
+		var in input
+		if err := bindInput(c, http.MethodGet, &in); err != nil {
+			t.Fatalf("bindInput: %v", err)
+		}
+		if in != (input{}) {
+			t.Fatalf("expected ignored tags not to apply defaults, got %+v", in)
+		}
+	})
 }
 
 func TestModelSchemaAdditionalCoverage(t *testing.T) {
