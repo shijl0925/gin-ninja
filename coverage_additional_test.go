@@ -218,6 +218,24 @@ func TestBindingAdditionalCoverage(t *testing.T) {
 			t.Fatalf("unexpected bound input: %+v", in)
 		}
 	})
+
+	t.Run("ignored non-body tags preserve json body fields", func(t *testing.T) {
+		type input struct {
+			Name  string `json:"name" query:"-"`
+			Email string `json:"email" header:"-"`
+			Role  string `json:"role" form:"-"`
+		}
+		c, _ := newTestContext(http.MethodPost, "/", `{"name":"alice","email":"a@example.test","role":"admin"}`)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		var in input
+		if err := bindInput(c, http.MethodPost, &in); err != nil {
+			t.Fatalf("bindInput: %v", err)
+		}
+		if in.Name != "alice" || in.Email != "a@example.test" || in.Role != "admin" {
+			t.Fatalf("unexpected bound input: %+v", in)
+		}
+	})
 }
 
 func TestModelSchemaAdditionalCoverage(t *testing.T) {
@@ -781,8 +799,25 @@ func TestTimeoutCaptureResponseWriterBoundsBody(t *testing.T) {
 	}
 }
 
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.b.String()
+}
+
 func TestWrapTimeoutLogsPanicAfterTimeout(t *testing.T) {
-	var logged bytes.Buffer
+	var logged lockedBuffer
 	oldDefaultErrorWriter := gin.DefaultErrorWriter
 	gin.DefaultErrorWriter = &logged
 	defer func() {
