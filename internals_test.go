@@ -191,6 +191,25 @@ func TestBindInput_JSONDoesNotOverrideNonBodyFields(t *testing.T) {
 	}
 }
 
+func TestBindInput_IgnoredNonBodyTagsDoNotOverrideJSONFields(t *testing.T) {
+	type input struct {
+		Name  string `json:"name" query:"-"`
+		Trace string `json:"trace" header:"-"`
+		Token string `json:"token" cookie:"-"`
+		Note  string `json:"note" form:"-"`
+	}
+
+	c, _ := newTestContext(http.MethodPost, "/", `{"name":"alice","trace":"body","token":"json-token","note":"json-note"}`)
+
+	var in input
+	if err := bindInput(c, http.MethodPost, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.Name != "alice" || in.Trace != "body" || in.Token != "json-token" || in.Note != "json-note" {
+		t.Fatalf("unexpected ignored tag bind: %+v", in)
+	}
+}
+
 func TestBindInput_FormURLEncodedAndCommonTypes(t *testing.T) {
 	body := "name=alice&tag=go&tag=api&when=2026-04-26&ip=127.0.0.1&mode=fast"
 	c, _ := newTestContext(http.MethodPost, "/submit", body)
