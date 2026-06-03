@@ -214,12 +214,12 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 			fileTag:      field.Tag.Get("file"),
 			defaultValue: field.Tag.Get("default"),
 		}
-		bf.isNonBody = bf.pathTag != "" ||
-			bf.queryTag != "" ||
-			bf.formTag != "" ||
-			bf.headerTag != "" ||
-			bf.cookieTag != "" ||
-			bf.fileTag != ""
+		bf.isNonBody = isActiveBindingTag(bf.pathTag) ||
+			isActiveBindingTag(bf.queryTag) ||
+			isActiveBindingTag(bf.formTag) ||
+			isActiveBindingTag(bf.headerTag) ||
+			isActiveBindingTag(bf.cookieTag) ||
+			isActiveBindingTag(bf.fileTag)
 		if bf.queryTag != "" && bf.queryTag != "-" {
 			meta.hasQuery = true
 		}
@@ -228,6 +228,10 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 		}
 		meta.fields = append(meta.fields, bf)
 	}
+}
+
+func isActiveBindingTag(value string) bool {
+	return value != "" && value != "-"
 }
 
 func hasFormFields(t reflect.Type) bool {
