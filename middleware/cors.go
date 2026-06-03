@@ -45,13 +45,20 @@ func CORS(cfg *CORSConfig) gin.HandlerFunc {
 			panic("middleware.CORS(nil) enables allow-all origins and is not allowed in release mode; provide an explicit CORSConfig or use CORSFromConfig")
 		}
 		c.AllowAllOrigins = true
-		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
+		defaults := settings.CORSConfig{}.WithDefaults()
+		c.AllowMethods = defaults.AllowMethods
+		c.AllowHeaders = defaults.AllowHeaders
 		return cors.New(c)
 	}
 
+	defaults := settings.CORSConfig{
+		AllowOrigins:     cfg.AllowOrigins,
+		AllowMethods:     cfg.AllowMethods,
+		AllowHeaders:     cfg.AllowHeaders,
+		AllowCredentials: cfg.AllowCredentials,
+		MaxAgeSecs:       cfg.MaxAgeSecs,
+	}.WithDefaults()
 	if len(cfg.AllowOrigins) == 0 {
-		defaults := settings.CORSConfig{}.WithDefaults()
 		c.AllowOrigins = defaults.AllowOrigins
 	} else if len(cfg.AllowOrigins) == 1 && cfg.AllowOrigins[0] == "*" {
 		c.AllowAllOrigins = true
@@ -59,23 +66,12 @@ func CORS(cfg *CORSConfig) gin.HandlerFunc {
 		c.AllowOrigins = cfg.AllowOrigins
 	}
 
-	if len(cfg.AllowMethods) > 0 {
-		c.AllowMethods = cfg.AllowMethods
-	} else {
-		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-	}
-
-	if len(cfg.AllowHeaders) > 0 {
-		c.AllowHeaders = cfg.AllowHeaders
-	} else {
-		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
-	}
+	c.AllowMethods = defaults.AllowMethods
+	c.AllowHeaders = defaults.AllowHeaders
 
 	c.AllowCredentials = cfg.AllowCredentials
 
-	if cfg.MaxAgeSecs > 0 {
-		c.MaxAge = time.Duration(cfg.MaxAgeSecs) * time.Second
-	}
+	c.MaxAge = time.Duration(defaults.MaxAgeSecs) * time.Second
 	if gin.Mode() == gin.ReleaseMode && c.AllowAllOrigins {
 		log.Println("[gin-ninja] WARNING: middleware.CORS allows all origins in release mode")
 	}

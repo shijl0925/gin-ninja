@@ -480,10 +480,6 @@ func newVoidOperation[TIn any](
 }
 
 func (op *operation) finalize() {
-	if op.route.ginHandler == nil {
-		return
-	}
-
 	handler := op.route.ginHandler
 	if op.behavior.timeout > 0 {
 		if op.usesDirectResponseWriter() {

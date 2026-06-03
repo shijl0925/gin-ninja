@@ -82,6 +82,7 @@ import (
 	"time"
 
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 	"github.com/spf13/viper"
 )
 
@@ -239,16 +240,16 @@ type CORSConfig struct {
 // WithDefaults returns cfg with safe, explicit defaults filled in.
 func (c CORSConfig) WithDefaults() CORSConfig {
 	if len(c.AllowOrigins) == 0 {
-		c.AllowOrigins = []string{"http://localhost:3000", "http://localhost:5173"}
+		c.AllowOrigins = defaults.CORSAllowOrigins()
 	}
 	if len(c.AllowMethods) == 0 {
-		c.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+		c.AllowMethods = defaults.CORSAllowMethods()
 	}
 	if len(c.AllowHeaders) == 0 {
-		c.AllowHeaders = []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}
+		c.AllowHeaders = defaults.CORSAllowHeaders()
 	}
 	if c.MaxAgeSecs <= 0 {
-		c.MaxAgeSecs = 43200
+		c.MaxAgeSecs = defaults.CORSMaxAgeSecs
 	}
 	return c
 }
@@ -531,11 +532,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("jwt.expire_hours", 24)
 	v.SetDefault("jwt.issuer", "gin-ninja")
 
-	v.SetDefault("cors.allow_origins", []string{"http://localhost:3000", "http://localhost:5173"})
-	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
-	v.SetDefault("cors.allow_headers", []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"})
+	v.SetDefault("cors.allow_origins", defaults.CORSAllowOrigins())
+	v.SetDefault("cors.allow_methods", defaults.CORSAllowMethods())
+	v.SetDefault("cors.allow_headers", defaults.CORSAllowHeaders())
 	v.SetDefault("cors.allow_credentials", false)
-	v.SetDefault("cors.max_age_secs", 43200)
+	v.SetDefault("cors.max_age_secs", defaults.CORSMaxAgeSecs)
 
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "json")
@@ -547,9 +548,6 @@ func setDefaults(v *viper.Viper) {
 }
 
 func normalizeDatabaseConfig(cfg *DatabaseConfig) {
-	if cfg == nil {
-		return
-	}
 	if !isDefaultDatabaseDSN(cfg.DSN) {
 		return
 	}

@@ -143,10 +143,6 @@ func TestLoadAndLoadConfigReturnInstanceConfig(t *testing.T) {
 func TestNormalizeDatabaseConfig(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil config", func(t *testing.T) {
-		normalizeDatabaseConfig(nil)
-	})
-
 	t.Run("custom dsn unchanged", func(t *testing.T) {
 		cfg := &DatabaseConfig{
 			Driver: "mysql",

@@ -1284,9 +1284,16 @@ func New{{ .RepoName }}() I{{ .RepoName }} {
 return &{{ .RepoName }}Impl{}
 }
 
-func (r *{{ .RepoName }}Impl) SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error) {
+func requireDB(db *gorm.DB) error {
 if db == nil {
-return nil, 0, gorm.ErrInvalidDB
+return gorm.ErrInvalidDB
+}
+return nil
+}
+
+func (r *{{ .RepoName }}Impl) SelectPage(page, size int, search string, db *gorm.DB) ([]{{ .ModelName }}, int64, error) {
+if err := requireDB(db); err != nil {
+return nil, 0, err
 }
 query := db.Model(&{{ .ModelName }}{})
 if search != "" {
@@ -1306,8 +1313,8 @@ return items, total, nil
 }
 
 func (r *{{ .RepoName }}Impl) SelectOneByID(id uint, db *gorm.DB) ({{ .ModelName }}, error) {
-if db == nil {
-return {{ .ModelName }}{}, gorm.ErrInvalidDB
+if err := requireDB(db); err != nil {
+return {{ .ModelName }}{}, err
 }
 var item {{ .ModelName }}
 if err := db.First(&item, id).Error; err != nil {
@@ -1317,15 +1324,15 @@ return item, nil
 }
 
 func (r *{{ .RepoName }}Impl) Insert(item *{{ .ModelName }}, db *gorm.DB) error {
-if db == nil {
-return gorm.ErrInvalidDB
+if err := requireDB(db); err != nil {
+return err
 }
 return db.Create(item).Error
 }
 
 func (r *{{ .RepoName }}Impl) UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error {
-if db == nil {
-return gorm.ErrInvalidDB
+if err := requireDB(db); err != nil {
+return err
 }
 tx := db.Model(&{{ .ModelName }}{}).Where("id = ?", id).Updates(updates)
 if tx.Error != nil {
@@ -1338,8 +1345,8 @@ return nil
 }
 
 func (r *{{ .RepoName }}Impl) DeleteByID(id uint, db *gorm.DB) error {
-if db == nil {
-return gorm.ErrInvalidDB
+if err := requireDB(db); err != nil {
+return err
 }
 tx := db.Delete(&{{ .ModelName }}{}, id)
 if tx.Error != nil {
