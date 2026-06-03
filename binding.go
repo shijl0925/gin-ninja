@@ -214,12 +214,12 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 			fileTag:      field.Tag.Get("file"),
 			defaultValue: field.Tag.Get("default"),
 		}
-		bf.isNonBody = bf.pathTag != "" ||
-			bf.queryTag != "" ||
-			bf.formTag != "" ||
-			bf.headerTag != "" ||
-			bf.cookieTag != "" ||
-			bf.fileTag != ""
+		bf.isNonBody = isActiveBindingTag(bf.pathTag) ||
+			isActiveBindingTag(bf.queryTag) ||
+			isActiveBindingTag(bf.formTag) ||
+			isActiveBindingTag(bf.headerTag) ||
+			isActiveBindingTag(bf.cookieTag) ||
+			isActiveBindingTag(bf.fileTag)
 		if bf.queryTag != "" && bf.queryTag != "-" {
 			meta.hasQuery = true
 		}
@@ -228,6 +228,10 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 		}
 		meta.fields = append(meta.fields, bf)
 	}
+}
+
+func isActiveBindingTag(value string) bool {
+	return value != "" && value != "-"
 }
 
 func hasFormFields(t reflect.Type) bool {
@@ -381,19 +385,19 @@ func applyDefaults(c *gin.Context, meta *bindingMetadata, v reflect.Value) error
 		}
 
 		switch {
-		case field.headerTag != "":
+		case isActiveBindingTag(field.headerTag):
 			if c.GetHeader(field.headerTag) != "" {
 				continue
 			}
-		case field.cookieTag != "":
+		case isActiveBindingTag(field.cookieTag):
 			if _, err := c.Cookie(field.cookieTag); err == nil {
 				continue
 			}
-		case field.queryTag != "":
+		case isActiveBindingTag(field.queryTag):
 			if hasQueryValue(c, field.queryTag) {
 				continue
 			}
-		case field.formTag != "":
+		case isActiveBindingTag(field.formTag):
 			if hasFormBodyValue(c, field.formTag) {
 				continue
 			}
