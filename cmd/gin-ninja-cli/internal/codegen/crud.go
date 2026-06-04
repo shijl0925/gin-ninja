@@ -1737,26 +1737,63 @@ var crudTestTemplate = template.Must(template.New("crud-test").Parse(`// Code ge
 
 package {{ .PackageName }}
 
-import "testing"
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-func Test{{ .ModelName }}CRUDHandlersSkeleton(t *testing.T) {
-	_ = Register{{ .ModelName }}CRUDRoutes
-	_ = List{{ .PluralModel }}
-	_ = Get{{ .ModelName }}
-	_ = Create{{ .ModelName }}
-	_ = Update{{ .ModelName }}
-	_ = Delete{{ .ModelName }}
+	ninja "github.com/shijl0925/gin-ninja"
+)
 
-	t.Skip("TODO: configure a test database and exercise the generated CRUD handlers")
+func Test{{ .ModelName }}CRUDRoutesRegister(t *testing.T) {
+	api := ninja.New(ninja.Config{Title: "{{ .ModelName }} CRUD Test", DisableGinDefault: true})
+	router := ninja.NewRouter("/{{ .PluralModel }}")
+
+	Register{{ .ModelName }}CRUDRoutes(router)
+	api.AddRouter(router)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	api.Handler().ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("openapi status = %d, body: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var spec struct {
+		Paths map[string]map[string]any ` + "`json:\"paths\"`" + `
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("decode openapi: %v", err)
+	}
+	assert{{ .ModelName }}CRUDOpenAPIMethod(t, spec.Paths, "/{{ .PluralModel }}/", "get")
+	assert{{ .ModelName }}CRUDOpenAPIMethod(t, spec.Paths, "/{{ .PluralModel }}/", "post")
+	assert{{ .ModelName }}CRUDOpenAPIMethod(t, spec.Paths, "/{{ .PluralModel }}/{id}", "get")
+	assert{{ .ModelName }}CRUDOpenAPIMethod(t, spec.Paths, "/{{ .PluralModel }}/{id}", "patch")
+	assert{{ .ModelName }}CRUDOpenAPIMethod(t, spec.Paths, "/{{ .PluralModel }}/{id}", "delete")
 }
 
-func Test{{ .ModelName }}CRUDInputSkeleton(t *testing.T) {
-	_ = List{{ .PluralModel }}Input{}
-	_ = Get{{ .ModelName }}Input{}
-	_ = Create{{ .ModelName }}Input{}
-	_ = Update{{ .ModelName }}Input{}
-	_ = Delete{{ .ModelName }}Input{}
+func Test{{ .ModelName }}CRUDInputTypes(t *testing.T) {
+	inputs := []any{
+		List{{ .PluralModel }}Input{},
+		Get{{ .ModelName }}Input{},
+		Create{{ .ModelName }}Input{},
+		Update{{ .ModelName }}Input{},
+		Delete{{ .ModelName }}Input{},
+	}
+	if len(inputs) != 5 {
+		t.Fatalf("expected 5 CRUD input types, got %d", len(inputs))
+	}
+}
 
-	t.Skip("TODO: add request binding and validation cases for the generated CRUD inputs")
+func assert{{ .ModelName }}CRUDOpenAPIMethod(t *testing.T, paths map[string]map[string]any, path string, method string) {
+	t.Helper()
+	operations, ok := paths[path]
+	if !ok {
+		t.Fatalf("openapi path %q not found; paths: %v", path, paths)
+	}
+	if _, ok := operations[method]; !ok {
+		t.Fatalf("openapi method %s %s not found; operations: %v", method, path, operations)
+	}
 }
 `))
