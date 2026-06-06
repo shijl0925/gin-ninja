@@ -180,7 +180,7 @@ The combined [examples/full](../../examples/full/) application includes:
 - Multipart single-file and multi-file upload demos
 - Binary download and reader-backed download demos
 
-### Admin console prototype in `examples/full`
+### Admin console in `examples/full`
 
 The full example also includes a metadata-driven admin experience built on top of the JWT-protected admin resource APIs.
 

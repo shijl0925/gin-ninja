@@ -402,7 +402,7 @@ func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	// Navigate to admin prototype and sign in via the login form
+	// Navigate to the admin console and sign in via the login form
 	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
