@@ -85,7 +85,7 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_PATH__", jsonString(cfg.AuthLoginPath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH__", jsonString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_LOGIN_PATH__", jsonString(cfg.LoginPath),
-		"__GIN_NINJA_ADMIN_PROTOTYPE_PATH__", jsonString(cfg.AdminPath),
+		"__GIN_NINJA_ADMIN_PROTOTYPE_PATH__", "null",
 		"__GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__", jsonString(cfg.TokenExtractExpr),
 		"__GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__", jsonString(cfg.UserNameExtractExpr),
 		"__GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__", jsonString(cfg.UserIDExtractExpr),
