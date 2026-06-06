@@ -1314,8 +1314,8 @@ func TestOpenAPISpec_CursorPaginatedResponse(t *testing.T) {
 
 	tooLongCursor := strings.Repeat("x", 513)
 	resp := doRequest(api, http.MethodGet, "/events/?cursor="+tooLongCursor, nil)
-	if resp.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected oversized cursor to fail validation, got %d: %s", resp.Code, resp.Body.String())
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("expected oversized cursor to fail validation, got %d: %s", resp.StatusCode, resp.Body.String())
 	}
 }
 
@@ -1721,8 +1721,8 @@ func TestGet_CacheWithExternalStoreSkipsExpiredEntries(t *testing.T) {
 	api.AddRouter(r)
 
 	resp := doRequest(api, http.MethodGet, "/cache-expired/", nil)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, resp.Body.String())
 	}
 	if calls != 1 {
 		t.Fatalf("expected expired external cache entry to be bypassed, calls=%d", calls)
@@ -2027,8 +2027,8 @@ func TestGetRoutesAnswerHeadRequests(t *testing.T) {
 	api.AddRouter(r)
 
 	resp := doRequest(api, http.MethodHead, "/head/", nil)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("expected HEAD 200, got %d", resp.Code)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected HEAD 200, got %d", resp.StatusCode)
 	}
 	if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
 		t.Fatalf("expected JSON content type header, got %q", got)
@@ -2052,7 +2052,7 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 				Prefix:       "/v1",
 				Description:  "Legacy API",
 				Deprecated:   true,
-				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+				SunsetTime:   time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
 				MigrationURL: "https://example.com/migrate",
 			},
 			"v2": {Prefix: "/v2"},
@@ -2109,8 +2109,8 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 	}
 
 	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
-	if docsUI.Code != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/openapi/v1.json") {
-		t.Fatalf("expected versioned docs UI to reference versioned spec, got %d %q", docsUI.Code, docsUI.Body.String())
+	if docsUI.StatusCode != http.StatusOK || !strings.Contains(docsUI.Body.String(), "/openapi/v1.json") {
+		t.Fatalf("expected versioned docs UI to reference versioned spec, got %d %q", docsUI.StatusCode, docsUI.Body.String())
 	}
 }
 
@@ -2131,8 +2131,8 @@ func TestVersionedRoutersUseSelectedDocsRenderer(t *testing.T) {
 
 	docsUI := doRequest(api, http.MethodGet, "/docs/v1", nil)
 	body := docsUI.Body.String()
-	if docsUI.Code != http.StatusOK || !strings.Contains(body, `spec-url="/openapi/v1.json"`) || !strings.Contains(body, "redoc.standalone.js") {
-		t.Fatalf("expected versioned ReDoc UI to reference versioned spec, got %d %q", docsUI.Code, body)
+	if docsUI.StatusCode != http.StatusOK || !strings.Contains(body, `spec-url="/openapi/v1.json"`) || !strings.Contains(body, "redoc.standalone.js") {
+		t.Fatalf("expected versioned ReDoc UI to reference versioned spec, got %d %q", docsUI.StatusCode, body)
 	}
 }
 
@@ -2223,8 +2223,8 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		api.AddRouter(r)
 
 		resp := doRequest(api, http.MethodGet, "/stream-boundary/before?name=bot", nil)
-		if resp.Code != http.StatusBadRequest {
-			t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body.String())
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", resp.StatusCode, resp.Body.String())
 		}
 		if got := resp.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
 			t.Fatalf("expected JSON error content type, got %q", got)
@@ -2247,8 +2247,8 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		api.AddRouter(r)
 
 		resp := doRequest(api, http.MethodGet, "/stream-boundary/after?name=bot", nil)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", resp.StatusCode, resp.Body.String())
 		}
 		body := resp.Body.String()
 		if !strings.Contains(body, "event: hello") || !strings.Contains(body, "data: bot") {
@@ -2273,8 +2273,8 @@ func TestSSEAndWebSocketBoundaryCases(t *testing.T) {
 		api.AddRouter(r)
 
 		resp := doRequest(api, http.MethodGet, "/stream-boundary/ws?count=bad", nil)
-		if resp.Code != http.StatusBadRequest {
-			t.Fatalf("expected 400, got %d: %s", resp.Code, resp.Body.String())
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d: %s", resp.StatusCode, resp.Body.String())
 		}
 		if got := resp.Header().Get("Upgrade"); got != "" {
 			t.Fatalf("did not expect websocket upgrade header, got %q", got)

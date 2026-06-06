@@ -228,7 +228,6 @@ api.UseGin(middleware.SecureHeadersStrict())
 api.UseGin(middleware.SecureHeaders(&middleware.SecurityConfig{
     ContentTypeNoSniff:    true,
     FrameOption:           "SAMEORIGIN",
-    XSSProtection:         true,
     ReferrerPolicy:        "strict-origin-when-cross-origin",
     HSTSMaxAge:            31536000,       // 1 year
     HSTSIncludeSubDomains: true,
@@ -285,7 +284,6 @@ api := ninja.New(ninja.Config{
             // 可选：输出 Sunset 头：
             SunsetTime:      time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC),
             // 或使用预格式化字符串：
-            // Sunset: "Tue, 01 Jul 2025 00:00:00 GMT",
             // 可选：输出指向迁移文档的 Link 头：
             MigrationURL: "https://example.com/migrate-to-v2",
         },

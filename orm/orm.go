@@ -45,13 +45,6 @@ func Middleware(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-func baseDB(c *gin.Context) *gorm.DB {
-	if db, ok := RequestBaseDB(c); ok {
-		return db
-	}
-	return gormx.GetDb()
-}
-
 // RequestBaseDB retrieves the non-transactional request database without
 // falling back to the global gormx instance.
 func RequestBaseDB(c *gin.Context) (*gorm.DB, bool) {
@@ -80,19 +73,21 @@ func RequestDB(c *gin.Context) (*gorm.DB, bool) {
 	return RequestBaseDB(c)
 }
 
-// GetDB retrieves the *gorm.DB stored in the gin context by Middleware.
-// If none was stored (e.g. the middleware was not registered), it falls back
-// to the global gormx instance.
+// GetDB retrieves the request transaction or request database stored in the
+// gin context by Middleware.
 func GetDB(c *gin.Context) *gorm.DB {
 	if db, ok := RequestDB(c); ok {
 		return db
 	}
-	return baseDB(c)
+	return nil
 }
 
 // GetBaseDB retrieves the non-transactional request database.
 func GetBaseDB(c *gin.Context) *gorm.DB {
-	return baseDB(c)
+	if db, ok := RequestBaseDB(c); ok {
+		return db
+	}
+	return nil
 }
 
 // WithContext returns a *gorm.DB scoped to the request context, enabling
@@ -101,7 +96,11 @@ func GetBaseDB(c *gin.Context) *gorm.DB {
 //	db := orm.WithContext(c)
 //	db.Find(&users)
 func WithContext(c *gin.Context) *gorm.DB {
-	return GetDB(c).WithContext(c.Request.Context())
+	db := GetDB(c)
+	if db == nil || c == nil || c.Request == nil {
+		return db
+	}
+	return db.WithContext(c.Request.Context())
 }
 
 // RequestWithContext returns the request-scoped database with the request

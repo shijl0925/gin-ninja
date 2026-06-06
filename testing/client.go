@@ -189,7 +189,6 @@ func (c *TestClient) Do(req *http.Request) *Response {
 	}
 	return &Response{
 		StatusCode: result.StatusCode,
-		Code:       result.StatusCode,
 		Header:     result.Header.Clone(),
 		Body:       body,
 		Cookies:    result.Cookies(),
@@ -229,11 +228,9 @@ func (c *TestClient) Delete(path string, opts ...RequestOption) *Response {
 // Response is the simplified response returned by TestClient.
 type Response struct {
 	StatusCode int
-	// Deprecated: use StatusCode.
-	Code    int
-	Header  http.Header
-	Body    []byte
-	Cookies []*http.Cookie
+	Header     http.Header
+	Body       []byte
+	Cookies    []*http.Cookie
 }
 
 // String returns the response body as a string.
@@ -250,11 +247,6 @@ func (r *Response) DecodeJSON(out any) error {
 		return fmt.Errorf("ninjatest: nil response")
 	}
 	return json.Unmarshal(r.Body, out)
-}
-
-// JSON is an alias for DecodeJSON.
-func (r *Response) JSON(out any) error {
-	return r.DecodeJSON(out)
 }
 
 // MultipartBody describes a multipart/form-data request body.

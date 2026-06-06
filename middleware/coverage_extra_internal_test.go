@@ -383,7 +383,6 @@ func TestSecureHeadersAdditionalBranches(t *testing.T) {
 	r := gin.New()
 	r.Use(SecureHeaders(&SecurityConfig{
 		FrameOption:           "SAMEORIGIN",
-		XSSProtection:         true,
 		HSTSMaxAge:            10,
 		HSTSIncludeSubDomains: true,
 		HSTSPreload:           true,

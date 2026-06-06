@@ -288,18 +288,7 @@ func unmarshalConfig(v *viper.Viper, cfg *Config) error {
 //
 // If cfgFile is empty, Load searches for a file named "config" in the
 // current working directory and common config directories.
-//
-// Load is retained for backwards compatibility with earlier releases where it
-// also updated package-level configuration state. It now only returns the
-// loaded config.
 func Load(cfgFile string) (*Config, error) {
-	return LoadConfig(cfgFile)
-}
-
-// LoadConfig is a backwards-compatible alias for Load's implementation. It is
-// kept for callers that prefer the explicit Config suffix now that loading no
-// longer mutates package-level state.
-func LoadConfig(cfgFile string) (*Config, error) {
 	v := viper.New()
 
 	// Set defaults.
@@ -356,11 +345,6 @@ func MustLoad(cfgFile string) *Config {
 //
 //	settings.LoadWithOverrides("config.yaml", "config.local.yaml")
 func LoadWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
-	return LoadConfigWithOverrides(baseFile, overrideFiles...)
-}
-
-// LoadConfigWithOverrides reads configuration like LoadWithOverrides.
-func LoadConfigWithOverrides(baseFile string, overrideFiles ...string) (*Config, error) {
 	v := viper.New()
 	setDefaults(v)
 
@@ -437,11 +421,6 @@ func MustLoadWithOverrides(baseFile string, overrideFiles ...string) *Config {
 //	// Loads config.yaml, then merges config.development.yaml (if present).
 //	settings.LoadForEnv("config.yaml")
 func LoadForEnv(baseFile string) (*Config, error) {
-	return LoadConfigForEnv(baseFile)
-}
-
-// LoadConfigForEnv loads configuration like LoadForEnv.
-func LoadConfigForEnv(baseFile string) (*Config, error) {
 	// Peek at app.env without a full unmarshal.
 	v := viper.New()
 	setDefaults(v)
@@ -461,7 +440,7 @@ func LoadConfigForEnv(baseFile string) (*Config, error) {
 	}
 
 	overridePath := envOverridePath(baseFile, env)
-	return LoadConfigWithOverrides(baseFile, overridePath)
+	return LoadWithOverrides(baseFile, overridePath)
 }
 
 // MustLoadForEnv calls LoadForEnv and panics on error.

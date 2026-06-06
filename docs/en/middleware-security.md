@@ -237,7 +237,6 @@ api.UseGin(middleware.SecureHeadersStrict())
 api.UseGin(middleware.SecureHeaders(&middleware.SecurityConfig{
     ContentTypeNoSniff:    true,
     FrameOption:           "SAMEORIGIN",
-    XSSProtection:         true,
     ReferrerPolicy:        "strict-origin-when-cross-origin",
     HSTSMaxAge:            31536000,       // 1 year
     HSTSIncludeSubDomains: true,
@@ -296,7 +295,6 @@ api := ninja.New(ninja.Config{
             // Optional: emit a Sunset header:
             SunsetTime:      time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC),
             // Or use a pre-formatted string:
-            // Sunset: "Tue, 01 Jul 2025 00:00:00 GMT",
             // Optional: emit a Link header pointing to migration docs:
             MigrationURL: "https://example.com/migrate-to-v2",
         },

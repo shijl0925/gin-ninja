@@ -5,7 +5,7 @@ import (
 	admin "github.com/shijl0925/gin-ninja/admin"
 )
 
-// ServeAdminPrototype returns the standalone admin demo shell used by /admin, /admin/login, and /admin-prototype.
+// ServeAdminPrototype returns the standalone admin demo shell used by /admin, /admin/login,.
 func ServeAdminPrototype(c *gin.Context) {
 	admin.ServeDefaultUI(c)
 }

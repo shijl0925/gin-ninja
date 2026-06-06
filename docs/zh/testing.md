@@ -52,7 +52,7 @@ func TestUsers(t *testing.T) {
 - `io.Reader`、`[]byte` 和 `string` 请求体会原样发送；需要时可用 `ninjatest.Header(...)` 设置请求头。
 - `ninjatest.WithHeader(...)` 会设置默认请求头；同名 header 的多次调用会覆盖前值。
 - `NewRequest` 配合 `Do` 可自定义原始 `*http.Request`。
-- 响应对象提供 `StatusCode`、`Header`、`Body`、`Cookies`、`String()` 和 `DecodeJSON(...)`。`Code` 保留为 `StatusCode` 的废弃兼容别名。
+- 响应对象提供 `StatusCode`、`Header`、`Body`、`Cookies`、`String()` 和 `DecodeJSON(...)`。
 
 ```go
 resp := client.Post("/users/",
