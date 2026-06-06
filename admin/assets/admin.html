@@ -2743,7 +2743,9 @@
     }
 
     function isLegacyPrototypePage() {
-      return currentPagePath() === prototypePagePath;
+      return currentPagePath() === prototypePagePath &&
+        prototypePagePath !== adminPagePath &&
+        prototypePagePath !== adminLoginPath;
     }
 
     function rememberFlashMessage(value) {
