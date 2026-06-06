@@ -576,6 +576,9 @@ func (f *fieldMeta) parseString(raw string) (any, error) {
 			return nil, err
 		}
 		out := reflect.New(f.fieldType).Elem()
+		if out.OverflowInt(value) {
+			return nil, fmt.Errorf("value %d overflows %s", value, f.fieldType)
+		}
 		out.SetInt(value)
 		return out.Interface(), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -584,6 +587,9 @@ func (f *fieldMeta) parseString(raw string) (any, error) {
 			return nil, err
 		}
 		out := reflect.New(f.fieldType).Elem()
+		if out.OverflowUint(value) {
+			return nil, fmt.Errorf("value %d overflows %s", value, f.fieldType)
+		}
 		out.SetUint(value)
 		return out.Interface(), nil
 	case reflect.Float32, reflect.Float64:
@@ -592,6 +598,9 @@ func (f *fieldMeta) parseString(raw string) (any, error) {
 			return nil, err
 		}
 		out := reflect.New(f.fieldType).Elem()
+		if out.OverflowFloat(value) {
+			return nil, fmt.Errorf("value %g overflows %s", value, f.fieldType)
+		}
 		out.SetFloat(value)
 		return out.Interface(), nil
 	default:
