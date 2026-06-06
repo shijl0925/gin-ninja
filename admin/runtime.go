@@ -389,7 +389,14 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("relation fields %q/%q are not available", fieldMeta.Relation.ValueField, fieldMeta.Relation.LabelField))
 		}
 
-		db := target.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context)).Model(target.newModel())
+		if ctx == nil || ctx.Context == nil {
+			return nil, ninja.InternalError()
+		}
+		baseDB := orm.WithContext(ctx.Context)
+		if baseDB == nil {
+			return nil, ninja.InternalError()
+		}
+		db := target.scopedDB(ctx, ActionList, baseDB).Model(target.newModel())
 		if term := strings.TrimSpace(in.Search); term != "" {
 			names := cloneSlice(fieldMeta.Relation.SearchFields)
 			if len(names) == 0 {

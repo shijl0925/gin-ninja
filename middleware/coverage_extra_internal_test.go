@@ -397,8 +397,8 @@ func TestSecureHeadersAdditionalBranches(t *testing.T) {
 	if got := w.Header().Get("X-Frame-Options"); got != "SAMEORIGIN" {
 		t.Fatalf("expected SAMEORIGIN, got %q", got)
 	}
-	if got := w.Header().Get("X-XSS-Protection"); got != "1; mode=block" {
-		t.Fatalf("expected XSS protection header, got %q", got)
+	if got := w.Header().Get("X-XSS-Protection"); got != "" {
+		t.Fatalf("expected no XSS protection header, got %q", got)
 	}
 	if got := w.Header().Get("Strict-Transport-Security"); !strings.Contains(got, "includeSubDomains") || !strings.Contains(got, "preload") {
 		t.Fatalf("expected full HSTS header, got %q", got)

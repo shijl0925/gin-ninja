@@ -410,6 +410,7 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(recorder)
 		ginCtx.Request = httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(nil))
+		orm.Middleware(db)(ginCtx)
 		ctx := &ninja.Context{Context: ginCtx}
 
 		conflictErr := adminResource.normalizeWriteError(ctx, ActionCreate, reflect.ValueOf(adminUser{
@@ -439,6 +440,7 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ginCtx, _ := gin.CreateTestContext(recorder)
 			ginCtx.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			orm.Middleware(db)(ginCtx)
 			return &ninja.Context{Context: ginCtx}
 		}
 
@@ -670,6 +672,7 @@ func TestAdminMetadataEdgeHelpers(t *testing.T) {
 		ctxRecorder := httptest.NewRecorder()
 		ginCtx, _ := gin.CreateTestContext(ctxRecorder)
 		ginCtx.Request = httptest.NewRequest(http.MethodDelete, "/", nil)
+		orm.Middleware(db)(ginCtx)
 		ctx := &ninja.Context{Context: ginCtx}
 
 		if deleted, err := resource.deleteModelWithHooks(ctx, db, nil); err != nil || deleted {
