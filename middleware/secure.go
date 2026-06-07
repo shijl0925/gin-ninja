@@ -17,12 +17,6 @@ type SecurityConfig struct {
 	//   "SAMEORIGIN"  – allow framing from the same origin
 	//   ""            – header is not emitted
 	FrameOption string
-	// XSSProtection sets `X-XSS-Protection: 1; mode=block`.
-	// Deprecated: X-XSS-Protection is no longer supported by modern browsers
-	// and has been removed from Chrome, Firefox, and Edge.  It can introduce
-	// security vulnerabilities in older browsers.  Use ContentSecurityPolicy
-	// instead.  This field defaults to false in DefaultSecurityConfig.
-	XSSProtection bool
 	// ReferrerPolicy sets the `Referrer-Policy` header.
 	// Common values: "no-referrer", "strict-origin-when-cross-origin".
 	// If empty the header is not emitted.
@@ -55,7 +49,6 @@ func DefaultSecurityConfig() *SecurityConfig {
 	return &SecurityConfig{
 		ContentTypeNoSniff:    true,
 		FrameOption:           "DENY",
-		XSSProtection:         false, // deprecated; use ContentSecurityPolicy instead
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 		HSTSMaxAge:            0, // disabled by default; set to 31536000 for production HTTPS
 		HSTSIncludeSubDomains: false,
@@ -104,10 +97,6 @@ func SecureHeaders(cfg *SecurityConfig) gin.HandlerFunc {
 			w.Header().Set("X-Frame-Options", fo)
 		}
 
-		if cfg.XSSProtection {
-			w.Header().Set("X-XSS-Protection", "1; mode=block")
-		}
-
 		if cfg.ReferrerPolicy != "" {
 			w.Header().Set("Referrer-Policy", cfg.ReferrerPolicy)
 		}
@@ -154,7 +143,6 @@ func SecureHeadersStrict() gin.HandlerFunc {
 	return SecureHeaders(&SecurityConfig{
 		ContentTypeNoSniff:    true,
 		FrameOption:           "DENY",
-		XSSProtection:         false,
 		ReferrerPolicy:        "strict-origin-when-cross-origin",
 		HSTSMaxAge:            31536000,
 		HSTSIncludeSubDomains: true,

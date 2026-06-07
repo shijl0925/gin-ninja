@@ -15,7 +15,7 @@
 //   - http://localhost:8080/openapi/v0.json
 //   - http://localhost:8080/admin/login
 //   - http://localhost:8080/admin
-//   - http://localhost:8080/admin-prototype
+//   - http://localhost:8080/admin
 package main
 
 import (

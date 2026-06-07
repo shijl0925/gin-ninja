@@ -102,10 +102,10 @@ api.AddRouter(adminRouter)
 
 ### 4. 挂载内置 Admin UI Shell
 
-`admin.MountUI` 将独立登录页、Admin 工作台和旧版沙盒入口作为普通 HTML 路由注册到任意 `gin.IRoutes`（包括 `api.Engine()`，以便使用 API 前缀之外的顶级路径）。
+`admin.MountUI` 将独立登录页和 Admin 工作台作为普通 HTML 路由注册到任意 `gin.IRoutes`（包括 `api.Engine()`，以便使用 API 前缀之外的顶级路径）。
 
 ```go
-// 使用全部默认值：/admin/login、/admin、/admin-prototype
+// 使用全部默认值：/admin/login、/admin
 admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 
 // 或自定义路径和标题：
@@ -115,7 +115,6 @@ admin.MountUI(api.Engine(), admin.UIConfig{
     AuthLoginPath: "/api/v1/auth/login",
     AdminPath:     "/admin",
     LoginPath:     "/admin/login",
-    PrototypePath: "/admin-prototype",
 })
 ```
 
@@ -128,7 +127,6 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | `AuthLoginPath` | `"/api/v1/auth/login"` | 登录表单调用的接口路径 |
 | `AdminPath` | `"/admin"` | Admin 工作台页面路径 |
 | `LoginPath` | `"/admin/login"` | 独立登录页路径 |
-| `PrototypePath` | `"/admin-prototype"` | 旧版沙盒入口路径 |
 | `TokenExtractExpr` | `"payload.token"` | 从登录响应中提取 token 的 JS 表达式 |
 | `UserNameExtractExpr` | `"payload.name"` | 从登录响应中提取展示名的 JS 表达式 |
 | `UserIDExtractExpr` | `"payload.user_id \|\| payload.userID"` | 从登录响应中提取用户 ID 的 JS 表达式 |
@@ -189,7 +187,6 @@ admin.MountUI(router, admin.UIConfig{
 
 - 独立登录页：`/admin/login`
 - 独立后台工作台：`/admin`
-- 保留旧版沙盒入口：`/admin-prototype`
 - 由 `/api/v1/admin/resources` 驱动的资源导航
 - 支持搜索、元数据过滤、排序、分页大小和翻页的记录列表
 - 详情、创建、更新、删除与批量删除流程
@@ -218,7 +215,6 @@ admin.MountUI(router, admin.UIConfig{
 
 - `/admin/login` — 独立登录页
 - `/admin` — 独立后台工作台
-- `/admin-prototype` — 旧版原型入口
 - `/api/v1/admin/resources` — admin 元数据与 CRUD API 根路径
 
 运行：

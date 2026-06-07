@@ -101,7 +101,7 @@ api := ninja.New(ninja.Config{
             Prefix:       "/v1",
             Description:  "Legacy API",
             Deprecated:   true,
-            Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+            SunsetTime:   time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
             MigrationURL: "https://example.com/migrate-to-v2",
         },
         "v2": {

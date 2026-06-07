@@ -33,7 +33,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		t.Fatalf("expected login form in /admin/login html")
 	}
 
-	for _, path := range []string{"/admin", "/admin-prototype"} {
+	for _, path := range []string{"/admin", "/admin"} {
 		html := fetchHTML(path)
 		for _, marker := range []string{
 			`id="loginForm"`,

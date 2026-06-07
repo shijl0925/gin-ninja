@@ -25,7 +25,7 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
@@ -152,7 +152,7 @@ func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#darkModeToggle")
 
 	// By default the page should NOT be in dark mode
@@ -219,7 +219,7 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
@@ -323,7 +323,7 @@ func TestFullExampleAdminPrototypeTextareaResizeDirection(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
@@ -355,7 +355,7 @@ func TestFullExampleAdminPrototypeActionMenuPortal(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
@@ -402,8 +402,8 @@ func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	// Navigate to admin prototype and sign in via the login form
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	// Navigate to the admin console and sign in via the login form
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
@@ -444,7 +444,7 @@ func TestFullExampleAdminPrototypeSortableColumns(t *testing.T) {
 	ctx, cancel := newFullBrowserContext(t)
 	defer cancel()
 
-	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin-prototype"))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
 	waitForBrowserVisible(t, ctx, "#loginEmail")
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")

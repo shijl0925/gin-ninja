@@ -117,15 +117,15 @@ func TestEnvOverridePath(t *testing.T) {
 	}
 }
 
-func TestLoadAndLoadConfigReturnInstanceConfig(t *testing.T) {
+func TestLoadReturnsInstanceConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	if err := os.WriteFile(path, []byte("app:\n  name: local\njwt:\n  secret: local-secret\n"), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
-	cfg, err := LoadConfig(path)
+	cfg, err := Load(path)
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if cfg.App.Name != "local" || cfg.JWT.Secret != "local-secret" {
 		t.Fatalf("unexpected local config: %+v", cfg)

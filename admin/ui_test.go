@@ -19,10 +19,9 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 		AuthLoginPath: "/custom/api/auth/login",
 		AdminPath:     "/console",
 		LoginPath:     "/console/login",
-		PrototypePath: "/console/prototype",
 	})
 
-	for _, path := range []string{"/console", "/console/login", "/console/prototype"} {
+	for _, path := range []string{"/console", "/console/login"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -35,7 +34,6 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 			`const apiBase = "/custom/api/admin";`,
 			`const adminPagePath = "/console";`,
 			`const adminLoginPath = "/console/login";`,
-			`const prototypePagePath = "/console/prototype";`,
 			`await request("/custom/api/auth/login", {`,
 			`Paste a token from /custom/api/auth/login`,
 			// default extract expressions
@@ -57,7 +55,6 @@ func TestMountUICustomTokenExtract(t *testing.T) {
 	MountUI(router, UIConfig{
 		AdminPath:           "/admin",
 		LoginPath:           "/admin/login",
-		PrototypePath:       "/admin-prototype",
 		TokenExtractExpr:    "payload.data && payload.data.accessToken",
 		UserNameExtractExpr: "payload.data && payload.data.userName",
 		UserIDExtractExpr:   "payload.data && payload.data.id",
@@ -86,9 +83,8 @@ func TestMountUIDeduplicatesPaths(t *testing.T) {
 
 	router := gin.New()
 	MountUI(router, UIConfig{
-		AdminPath:     "/admin",
-		LoginPath:     "/admin",
-		PrototypePath: "/admin",
+		AdminPath: "/admin",
+		LoginPath: "/admin",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
@@ -106,7 +102,6 @@ func TestMountUIEscapesExtractorExpressionsAsData(t *testing.T) {
 	MountUI(router, UIConfig{
 		AdminPath:        "/admin",
 		LoginPath:        "/admin/login",
-		PrototypePath:    "/admin-prototype",
 		TokenExtractExpr: `payload.token"; window.evil = true; "`,
 	})
 

@@ -17,7 +17,6 @@ type UIConfig struct {
 	AuthLoginPath string
 	AdminPath     string
 	LoginPath     string
-	PrototypePath string
 
 	// TokenExtractExpr is a restricted JavaScript-like payload path expression
 	// used by the UI to read the token from a login response. It is serialized as
@@ -45,7 +44,6 @@ func DefaultUIConfig() UIConfig {
 		AuthLoginPath: "/api/v1/auth/login",
 		AdminPath:     "/admin",
 		LoginPath:     "/admin/login",
-		PrototypePath: "/admin-prototype",
 	}
 }
 
@@ -65,9 +63,6 @@ func normalizeUIConfig(cfg UIConfig) UIConfig {
 	}
 	if strings.TrimSpace(cfg.LoginPath) == "" {
 		cfg.LoginPath = defaults.LoginPath
-	}
-	if strings.TrimSpace(cfg.PrototypePath) == "" {
-		cfg.PrototypePath = defaults.PrototypePath
 	}
 	if strings.TrimSpace(cfg.TokenExtractExpr) == "" {
 		cfg.TokenExtractExpr = "payload.token"
@@ -90,12 +85,11 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_PATH__", jsonString(cfg.AuthLoginPath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH__", jsonString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_LOGIN_PATH__", jsonString(cfg.LoginPath),
-		"__GIN_NINJA_ADMIN_PROTOTYPE_PATH__", jsonString(cfg.PrototypePath),
 		"__GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__", jsonString(cfg.TokenExtractExpr),
 		"__GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__", jsonString(cfg.UserNameExtractExpr),
 		"__GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__", jsonString(cfg.UserIDExtractExpr),
 	)
-	return replacer.Replace(adminPrototypeHTML)
+	return replacer.Replace(adminHTML)
 }
 
 func jsonString(value string) string {
@@ -124,7 +118,7 @@ func MountUI(routes gin.IRoutes, cfg UIConfig) {
 	cfg = normalizeUIConfig(cfg)
 	handler := NewUIHandler(cfg)
 	registered := map[string]struct{}{}
-	for _, path := range []string{cfg.LoginPath, cfg.AdminPath, cfg.PrototypePath} {
+	for _, path := range []string{cfg.LoginPath, cfg.AdminPath} {
 		if _, exists := registered[path]; exists || strings.TrimSpace(path) == "" {
 			continue
 		}
@@ -136,7 +130,7 @@ func MountUI(routes gin.IRoutes, cfg UIConfig) {
 //go:embed assets/admin.html
 var adminAssetFS embed.FS
 
-var adminPrototypeHTML = mustReadAdminAsset("assets/admin.html")
+var adminHTML = mustReadAdminAsset("assets/admin.html")
 
 func mustReadAdminAsset(name string) string {
 	data, err := adminAssetFS.ReadFile(name)

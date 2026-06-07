@@ -689,8 +689,8 @@ func TestConvenienceOptionsAndRendererAliases(t *testing.T) {
 		t.Fatalf("maxBodyBytes = %d, want 123", cfg.maxBodyBytes)
 	}
 
-	if got := ReDoc().Render("/spec.json", "Alias API"); !strings.Contains(got, "/spec.json") || !strings.Contains(got, "Alias API") {
-		t.Fatalf("ReDoc renderer output missing expected values: %s", got)
+	if got := Redoc().Render("/spec.json", "Alias API"); !strings.Contains(got, "/spec.json") || !strings.Contains(got, "Alias API") {
+		t.Fatalf("Redoc renderer output missing expected values: %s", got)
 	}
 
 	if got := APIKeyCookieSecurityScheme("session"); got.Type != "apiKey" || got.Name != "session" || got.In != "cookie" {

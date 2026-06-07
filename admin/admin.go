@@ -846,6 +846,13 @@ func (r *Resource) softDeletedConflictFields(ctx *ninja.Context, action Action, 
 	if softDeleteField == nil || !desired.IsValid() {
 		return nil
 	}
+	if ctx == nil || ctx.Context == nil {
+		return nil
+	}
+	db := orm.WithContext(ctx.Context)
+	if db == nil {
+		return nil
+	}
 
 	var matches []*fieldMeta
 	for _, field := range r.fields {
@@ -856,7 +863,7 @@ func (r *Resource) softDeletedConflictFields(ctx *ninja.Context, action Action, 
 		if !ok {
 			continue
 		}
-		query := r.scopedDB(ctx, action, orm.WithContext(ctx.Context)).
+		query := r.scopedDB(ctx, action, db).
 			Model(r.newModel()).
 			Unscoped().
 			Where(clause.Eq{Column: clause.Column{Name: field.Meta.Column}, Value: value})
