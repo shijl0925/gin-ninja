@@ -475,17 +475,26 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 		if err != nil {
 			return err
 		}
+		if fv.OverflowInt(n) {
+			return fmt.Errorf("value %d overflows %s", n, fv.Type())
+		}
 		fv.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		n, err := strconv.ParseUint(raw, 10, 64)
 		if err != nil {
 			return err
 		}
+		if fv.OverflowUint(n) {
+			return fmt.Errorf("value %d overflows %s", n, fv.Type())
+		}
 		fv.SetUint(n)
 	case reflect.Float32, reflect.Float64:
 		n, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			return err
+		}
+		if fv.OverflowFloat(n) {
+			return fmt.Errorf("value %g overflows %s", n, fv.Type())
 		}
 		fv.SetFloat(n)
 	default:
