@@ -11,14 +11,6 @@ type taggedSortInput struct {
 	Sort string `query:"sort" order:"name|created:created_at|score"`
 }
 
-type legacySortInput struct {
-	Sort string
-}
-
-type embeddedTaggedSortInput struct {
-	legacySortInput `order:"id|name|email|age|created_at"`
-}
-
 type equalsTaggedSortInput struct {
 	Sort string `order:"display_name = users.name | created = users.created_at"`
 }
@@ -102,11 +94,6 @@ func TestResolveOrder(t *testing.T) {
 			name:  "standalone sort field with alias",
 			input: &taggedSortInput{Sort: "name,-created"},
 			want:  []SortField{{Name: "name"}, {Name: "created_at", Desc: true}},
-		},
-		{
-			name:  "embedded legacy sort field",
-			input: &embeddedTaggedSortInput{legacySortInput: legacySortInput{Sort: "-age,+created_at"}},
-			want:  []SortField{{Name: "age", Desc: true}, {Name: "created_at"}},
 		},
 		{
 			name:  "equals separator with explicit columns",

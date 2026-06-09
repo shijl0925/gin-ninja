@@ -33,13 +33,14 @@ func newRegisterTestAPI(t *testing.T) *ninja.NinjaAPI {
 	orm.Init(db)
 
 	api := ninja.New(ninja.Config{Title: "Test", Version: "0.0.1"})
+	api.UseGin(orm.Middleware(db))
 	authRouter := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
 	ninja.Post(authRouter, "/register", Register)
 	api.AddRouter(authRouter)
 	return api
 }
 
-func setupAppTestDB(t *testing.T) {
+func setupAppTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -52,6 +53,7 @@ func setupAppTestDB(t *testing.T) {
 		t.Fatalf("auto migrate: %v", err)
 	}
 	orm.Init(db)
+	return db
 }
 
 func registerRequest(t *testing.T, api *ninja.NinjaAPI, body interface{}) *httptest.ResponseRecorder {
@@ -95,7 +97,7 @@ func userRequest(t *testing.T, api *ninja.NinjaAPI, method, path string, body in
 func newUsersV2CacheTestAPI(t *testing.T) *ninja.NinjaAPI {
 	t.Helper()
 
-	setupAppTestDB(t)
+	db := setupAppTestDB(t)
 	store := ninja.NewMemoryCacheStore()
 	ConfigureUsersV2Cache(store)
 
@@ -107,6 +109,7 @@ func newUsersV2CacheTestAPI(t *testing.T) *ninja.NinjaAPI {
 			"v2": {Prefix: "/v2"},
 		},
 	})
+	api.UseGin(orm.Middleware(db))
 	router := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithVersion("v2"))
 	ninja.Get(router, "/", ListUsersV2,
 		ninja.Paginated[UserOut](),

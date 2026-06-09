@@ -138,7 +138,7 @@ func TestFullappBuildAPIAndRunCoverage(t *testing.T) {
 		{path: "/health", want: http.StatusOK},
 		{path: "/admin", want: http.StatusOK},
 		{path: "/admin/login", want: http.StatusOK},
-		{path: "/admin-prototype", want: http.StatusOK},
+		{path: "/admin", want: http.StatusOK},
 		{path: "/openapi/v0.json", want: http.StatusOK},
 		{path: "/openapi/v1.json", want: http.StatusOK},
 		{path: "/openapi/v2.json", want: http.StatusOK},

@@ -101,6 +101,47 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 	}
 }
 
+func TestWriteCRUDTestFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	modelFile := filepath.Join(dir, "models.go")
+	if err := os.WriteFile(modelFile, []byte(`package demo
+
+type User struct {
+	ID    uint   `+"`json:\"id\"`"+`
+	Name  string `+"`json:\"name\" binding:\"required\"`"+`
+	Email string `+"`json:\"email\"`"+`
+}
+`), 0o644); err != nil {
+		t.Fatalf("write model file: %v", err)
+	}
+
+	outputPath := filepath.Join(dir, "nested", "users_crud_test.go")
+	if err := WriteCRUDTestFile(CRUDConfig{ModelFile: modelFile, Model: "User"}, outputPath); err != nil {
+		t.Fatalf("WriteCRUDTestFile: %v", err)
+	}
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("read generated test file: %v", err)
+	}
+	generated := string(content)
+	for _, want := range []string{
+		"package demo",
+		"func TestUserCRUDHandlersSkeleton",
+		"func TestUserCRUDInputSkeleton",
+		"_ = RegisterUserCRUDRoutes",
+	} {
+		if !strings.Contains(generated, want) {
+			t.Fatalf("generated test file missing %q\n%s", want, generated)
+		}
+	}
+
+	if err := WriteCRUDTestFile(CRUDConfig{ModelFile: filepath.Join(dir, "missing.go"), Model: "User"}, filepath.Join(dir, "bad", "out_test.go")); err == nil {
+		t.Fatal("expected missing model error")
+	}
+}
+
 func TestGenerateCRUDWithNativeGORM(t *testing.T) {
 	t.Parallel()
 

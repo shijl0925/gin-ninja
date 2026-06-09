@@ -102,10 +102,10 @@ This registers the following endpoints under `/api/v1/admin` (given `Prefix: "/a
 
 ### 4. Mount the Built-in Admin UI Shell
 
-`admin.MountUI` registers the standalone login page, admin workspace, and legacy prototype page as plain HTML routes on any `gin.IRoutes` (including `api.Engine()` for top-level paths outside the API prefix).
+`admin.MountUI` registers the standalone login page and admin workspace as plain HTML routes on any `gin.IRoutes` (including `api.Engine()` for top-level paths outside the API prefix).
 
 ```go
-// Use all defaults: /admin/login, /admin, /admin-prototype
+// Use all defaults: /admin/login, /admin
 admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 
 // Or customise paths and title:
@@ -115,7 +115,6 @@ admin.MountUI(api.Engine(), admin.UIConfig{
     AuthLoginPath: "/api/v1/auth/login",
     AdminPath:     "/admin",
     LoginPath:     "/admin/login",
-    PrototypePath: "/admin-prototype",
 })
 ```
 
@@ -128,7 +127,6 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | `AuthLoginPath` | `"/api/v1/auth/login"` | Login endpoint called by the sign-in form |
 | `AdminPath` | `"/admin"` | Admin workspace page path |
 | `LoginPath` | `"/admin/login"` | Standalone login page path |
-| `PrototypePath` | `"/admin-prototype"` | Legacy sandbox entry path |
 | `TokenExtractExpr` | `"payload.token"` | JS expression to extract the token from the login response |
 | `UserNameExtractExpr` | `"payload.name"` | JS expression to extract the display name |
 | `UserIDExtractExpr` | `"payload.user_id \|\| payload.userID"` | JS expression to extract the user ID |
@@ -182,7 +180,7 @@ The combined [examples/full](../../examples/full/) application includes:
 - Multipart single-file and multi-file upload demos
 - Binary download and reader-backed download demos
 
-### Admin console prototype in `examples/full`
+### Admin console in `examples/full`
 
 The full example also includes a metadata-driven admin experience built on top of the JWT-protected admin resource APIs.
 
@@ -190,7 +188,6 @@ It includes:
 
 - a standalone login page at `/admin/login`
 - a standalone admin workspace at `/admin`
-- the legacy sandbox entry at `/admin-prototype`
 - resource navigation backed by `/api/v1/admin/resources`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
 - detail, create, update, delete, and bulk delete flows
@@ -219,7 +216,6 @@ Useful routes:
 
 - `/admin/login` — standalone login shell
 - `/admin` — standalone admin workspace
-- `/admin-prototype` — legacy prototype entry
 - `/api/v1/admin/resources` — admin metadata and CRUD API root
 
 ```bash

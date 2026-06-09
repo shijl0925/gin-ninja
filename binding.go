@@ -214,12 +214,12 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 			fileTag:      field.Tag.Get("file"),
 			defaultValue: field.Tag.Get("default"),
 		}
-		bf.isNonBody = bf.pathTag != "" ||
-			bf.queryTag != "" ||
-			bf.formTag != "" ||
-			bf.headerTag != "" ||
-			bf.cookieTag != "" ||
-			bf.fileTag != ""
+		bf.isNonBody = isActiveBindingTag(bf.pathTag) ||
+			isActiveBindingTag(bf.queryTag) ||
+			isActiveBindingTag(bf.formTag) ||
+			isActiveBindingTag(bf.headerTag) ||
+			isActiveBindingTag(bf.cookieTag) ||
+			isActiveBindingTag(bf.fileTag)
 		if bf.queryTag != "" && bf.queryTag != "-" {
 			meta.hasQuery = true
 		}
@@ -228,6 +228,10 @@ func buildBindingMetadataInto(t reflect.Type, prefix []int, meta *bindingMetadat
 		}
 		meta.fields = append(meta.fields, bf)
 	}
+}
+
+func isActiveBindingTag(value string) bool {
+	return value != "" && value != "-"
 }
 
 func hasFormFields(t reflect.Type) bool {
@@ -381,19 +385,19 @@ func applyDefaults(c *gin.Context, meta *bindingMetadata, v reflect.Value) error
 		}
 
 		switch {
-		case field.headerTag != "":
+		case isActiveBindingTag(field.headerTag):
 			if c.GetHeader(field.headerTag) != "" {
 				continue
 			}
-		case field.cookieTag != "":
+		case isActiveBindingTag(field.cookieTag):
 			if _, err := c.Cookie(field.cookieTag); err == nil {
 				continue
 			}
-		case field.queryTag != "":
+		case isActiveBindingTag(field.queryTag):
 			if hasQueryValue(c, field.queryTag) {
 				continue
 			}
-		case field.formTag != "":
+		case isActiveBindingTag(field.formTag):
 			if hasFormBodyValue(c, field.formTag) {
 				continue
 			}
@@ -471,17 +475,26 @@ func setFieldFromString(fv reflect.Value, raw string) error {
 		if err != nil {
 			return err
 		}
+		if fv.OverflowInt(n) {
+			return fmt.Errorf("value %d overflows %s", n, fv.Type())
+		}
 		fv.SetInt(n)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		n, err := strconv.ParseUint(raw, 10, 64)
 		if err != nil {
 			return err
 		}
+		if fv.OverflowUint(n) {
+			return fmt.Errorf("value %d overflows %s", n, fv.Type())
+		}
 		fv.SetUint(n)
 	case reflect.Float32, reflect.Float64:
 		n, err := strconv.ParseFloat(raw, 64)
 		if err != nil {
 			return err
+		}
+		if fv.OverflowFloat(n) {
+			return fmt.Errorf("value %g overflows %s", n, fv.Type())
 		}
 		fv.SetFloat(n)
 	default:

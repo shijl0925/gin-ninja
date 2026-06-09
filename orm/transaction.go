@@ -11,7 +11,14 @@ func Begin(c *gin.Context) (*gorm.DB, error) {
 		return tx.WithContext(c.Request.Context()), nil
 	}
 
-	tx := GetBaseDB(c).WithContext(c.Request.Context()).Begin()
+	db := GetBaseDB(c)
+	if db == nil {
+		return nil, gorm.ErrInvalidDB
+	}
+	if c != nil && c.Request != nil {
+		db = db.WithContext(c.Request.Context())
+	}
+	tx := db.Begin()
 	if tx.Error != nil {
 		return nil, tx.Error
 	}

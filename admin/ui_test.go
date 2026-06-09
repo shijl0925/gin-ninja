@@ -19,10 +19,9 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 		AuthLoginPath: "/custom/api/auth/login",
 		AdminPath:     "/console",
 		LoginPath:     "/console/login",
-		PrototypePath: "/console/prototype",
 	})
 
-	for _, path := range []string{"/console", "/console/login", "/console/prototype"} {
+	for _, path := range []string{"/console", "/console/login"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -35,7 +34,6 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 			`const apiBase = "/custom/api/admin";`,
 			`const adminPagePath = "/console";`,
 			`const adminLoginPath = "/console/login";`,
-			`const prototypePagePath = "/console/prototype";`,
 			`await request("/custom/api/auth/login", {`,
 			`Paste a token from /custom/api/auth/login`,
 			// default extract expressions
@@ -57,7 +55,6 @@ func TestMountUICustomTokenExtract(t *testing.T) {
 	MountUI(router, UIConfig{
 		AdminPath:           "/admin",
 		LoginPath:           "/admin/login",
-		PrototypePath:       "/admin-prototype",
 		TokenExtractExpr:    "payload.data && payload.data.accessToken",
 		UserNameExtractExpr: "payload.data && payload.data.userName",
 		UserIDExtractExpr:   "payload.data && payload.data.id",
@@ -86,9 +83,8 @@ func TestMountUIDeduplicatesPaths(t *testing.T) {
 
 	router := gin.New()
 	MountUI(router, UIConfig{
-		AdminPath:     "/admin",
-		LoginPath:     "/admin",
-		PrototypePath: "/admin",
+		AdminPath: "/admin",
+		LoginPath: "/admin",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
@@ -106,7 +102,6 @@ func TestMountUIEscapesExtractorExpressionsAsData(t *testing.T) {
 	MountUI(router, UIConfig{
 		AdminPath:        "/admin",
 		LoginPath:        "/admin/login",
-		PrototypePath:    "/admin-prototype",
 		TokenExtractExpr: `payload.token"; window.evil = true; "`,
 	})
 
@@ -122,5 +117,25 @@ func TestMountUIEscapesExtractorExpressionsAsData(t *testing.T) {
 	}
 	if !strings.Contains(body, `const loginTokenExtractExpr = "payload.token\"; window.evil = true; \"";`) {
 		t.Fatal("expected extractor expression to be JSON string data")
+	}
+}
+
+func TestServeDefaultUI(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin", nil)
+
+	ServeDefaultUI(c)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if got := w.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("Content-Type = %q, want text/html", got)
+	}
+	if body := w.Body.String(); !strings.Contains(body, "Gin Ninja Admin") || !strings.Contains(body, `const apiBase = "/api/v1/admin";`) {
+		t.Fatalf("default UI body missing expected content: %s", body)
 	}
 }

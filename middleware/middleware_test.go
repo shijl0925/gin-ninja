@@ -1145,7 +1145,6 @@ func TestSecureHeaders_InvalidFrameOptionAndPermissions(t *testing.T) {
 		FrameOption:           "ALLOWALL",
 		PermissionsPolicy:     "geolocation=()",
 		ContentTypeNoSniff:    false,
-		XSSProtection:         false,
 		ReferrerPolicy:        "",
 		HSTSMaxAge:            31536000,
 		HSTSPreload:           true,

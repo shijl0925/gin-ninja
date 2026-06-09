@@ -57,12 +57,11 @@ func TestRequestVersionPrefersVersionAndVersionJSON(t *testing.T) {
 func TestVersionDeprecationMiddleware_Headers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	t.Run("deprecated version emits headers and sunset time wins", func(t *testing.T) {
+	t.Run("deprecated version emits headers", func(t *testing.T) {
 		sunsetTime := time.Date(2027, time.January, 2, 3, 4, 5, 0, time.UTC)
 		router := gin.New()
 		router.Use(versionDeprecationMiddleware(VersionConfig{
 			Deprecated:   true,
-			Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
 			SunsetTime:   sunsetTime,
 			MigrationURL: "https://example.com/migrate",
 		}))
@@ -85,11 +84,11 @@ func TestVersionDeprecationMiddleware_Headers(t *testing.T) {
 		}
 	})
 
-	t.Run("deprecated version emits sunset header from compatibility string", func(t *testing.T) {
+	t.Run("deprecated version emits sunset header from sunset time", func(t *testing.T) {
 		router := gin.New()
 		router.Use(versionDeprecationMiddleware(VersionConfig{
 			Deprecated: true,
-			Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
+			SunsetTime: time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
 		}))
 		router.GET("/", func(c *gin.Context) {
 			c.Status(http.StatusNoContent)
@@ -99,8 +98,8 @@ func TestVersionDeprecationMiddleware_Headers(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		router.ServeHTTP(w, req)
 
-		if got := w.Header().Get("Sunset"); got != "Wed, 31 Dec 2026 23:59:59 GMT" {
-			t.Fatalf("expected Sunset header from Sunset string, got %q", got)
+		if got := w.Header().Get("Sunset"); got != "Thu, 31 Dec 2026 23:59:59 GMT" {
+			t.Fatalf("expected Sunset header from SunsetTime, got %q", got)
 		}
 	})
 
@@ -108,7 +107,7 @@ func TestVersionDeprecationMiddleware_Headers(t *testing.T) {
 		router := gin.New()
 		router.Use(versionDeprecationMiddleware(VersionConfig{
 			Deprecated:   false,
-			Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+			SunsetTime:   time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
 			MigrationURL: "https://example.com/migrate",
 		}))
 		router.GET("/", func(c *gin.Context) {
@@ -154,11 +153,11 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 		}
 	})
 
-	t.Run("deprecated version documents sunset header from compatibility string", func(t *testing.T) {
+	t.Run("deprecated version documents sunset header from sunset time", func(t *testing.T) {
 		headers := spec.responseHeadersForOperation(&operation{
 			version: operationVersion{info: &VersionConfig{
 				Deprecated: true,
-				Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
+				SunsetTime: time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
 			}},
 		})
 
@@ -171,7 +170,7 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 		headers := spec.responseHeadersForOperation(&operation{
 			version: operationVersion{info: &VersionConfig{
 				Deprecated:   false,
-				Sunset:       "Wed, 31 Dec 2026 23:59:59 GMT",
+				SunsetTime:   time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
 				MigrationURL: "https://example.com/migrate",
 			}},
 		})
@@ -182,23 +181,22 @@ func TestResponseHeadersForOperation_DeprecatedVersion(t *testing.T) {
 	})
 }
 
-func TestNormalizeVersionConfig_NormalizesSunsetCompatibilityField(t *testing.T) {
+func TestNormalizeVersionConfig_NormalizesSunsetTime(t *testing.T) {
 	cfg := normalizeVersionConfig("v1", VersionConfig{
-		Sunset: "Wed, 31 Dec 2026 23:59:59 GMT",
+		SunsetTime: time.Date(2026, time.December, 31, 23, 59, 59, 0, time.FixedZone("UTC+8", 8*60*60)),
 	})
 
 	if cfg.SunsetTime.IsZero() {
-		t.Fatal("expected SunsetTime to be populated from Sunset")
+		t.Fatal("expected SunsetTime to be set")
 	}
-	if got := cfg.normalizedSunsetHeaderValue(); got != cfg.Sunset {
-		t.Fatalf("expected normalized sunset header %q, got %q", cfg.Sunset, got)
+	if got := cfg.normalizedSunsetHeaderValue(); got != "Thu, 31 Dec 2026 15:59:59 GMT" {
+		t.Fatalf("expected normalized sunset header, got %q", got)
 	}
 }
 
-func TestNormalizeVersionConfig_PrefersSunsetTime(t *testing.T) {
+func TestNormalizeVersionConfig_FormatsSunsetTime(t *testing.T) {
 	sunsetTime := time.Date(2027, time.January, 2, 3, 4, 5, 0, time.UTC)
 	cfg := normalizeVersionConfig("v1", VersionConfig{
-		Sunset:     "Wed, 31 Dec 2026 23:59:59 GMT",
 		SunsetTime: sunsetTime,
 	})
 

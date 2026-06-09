@@ -165,8 +165,7 @@
     [data-theme="dark"] .badge { background: #1a2a3e; color: #93b4ff; }
     [data-theme="dark"] .eyebrow.subtle { background: #22253a; color: var(--admin-muted); }
     [data-theme="dark"] .login-feedback { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.35); color: #fecaca; }
-    [data-theme="dark"] body.standalone-admin-page .topbar,
-    [data-theme="dark"] body.legacy-prototype-page .topbar { background: var(--admin-topbar); }
+    [data-theme="dark"] body.standalone-admin-page .topbar { background: var(--admin-topbar); }
     [data-theme="dark"] button:hover:not(:disabled) { filter: brightness(1.15); }
     [data-theme="dark"] .search-result-item mark { background: #4a4200; }
     [hidden] { display:none !important; }
@@ -1852,13 +1851,11 @@
     [data-theme="dark"] .btn-sidebar { background:#22253a; color:var(--admin-muted); border-color:var(--admin-border); }
     body.sidebar-collapsed .sidebar-shell { display:none !important; }
     @media (min-width: 1121px) {
-      body.standalone-admin-page.sidebar-collapsed .topbar,
-      body.legacy-prototype-page.sidebar-collapsed .topbar {
+      body.standalone-admin-page.sidebar-collapsed .topbar {
         width:100%;
         margin-left:0;
       }
-      body.standalone-admin-page.sidebar-collapsed .app-main,
-      body.legacy-prototype-page.sidebar-collapsed .app-main {
+      body.standalone-admin-page.sidebar-collapsed .app-main {
         margin-left:0;
       }
     }
@@ -1925,26 +1922,21 @@
       border-color:var(--admin-border);
       box-shadow:0 24px 52px rgba(0,0,0,0.34);
     }
-    body.standalone-admin-page .topbar,
-    body.legacy-prototype-page .topbar {
+    body.standalone-admin-page .topbar {
       background:#fff;
     }
     @media (min-width: 1121px) {
-      body.standalone-admin-page .topbar,
-      body.legacy-prototype-page .topbar {
+      body.standalone-admin-page .topbar {
         width:calc(100% - var(--admin-sidebar-width));
         margin-left:var(--admin-sidebar-width);
       }
-      body.standalone-admin-page .app-main,
-      body.legacy-prototype-page .app-main {
+      body.standalone-admin-page .app-main {
         margin-left:var(--admin-sidebar-width);
       }
-      body.standalone-admin-page .admin-shell,
-      body.legacy-prototype-page .admin-shell {
+      body.standalone-admin-page .admin-shell {
         grid-template-columns:minmax(0, 1fr);
       }
-      body.standalone-admin-page .sidebar-shell,
-      body.legacy-prototype-page .sidebar-shell {
+      body.standalone-admin-page .sidebar-shell {
         position:fixed;
         top:0;
         left:0;
@@ -1955,8 +1947,7 @@
         z-index:35;
       }
     }
-    body.standalone-admin-page .topbar-brand,
-    body.legacy-prototype-page .topbar-brand {
+    body.standalone-admin-page .topbar-brand {
       display:none;
     }
     @media (min-width: 1180px) {
@@ -2347,7 +2338,6 @@
     const formControlTagNames = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
     const adminPagePath = __GIN_NINJA_ADMIN_PAGE_PATH__;
     const adminLoginPath = __GIN_NINJA_ADMIN_LOGIN_PATH__;
-    const prototypePagePath = __GIN_NINJA_ADMIN_PROTOTYPE_PATH__;
     const loginTokenExtractExpr = __GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__;
     const loginNameExtractExpr = __GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__;
     const loginUserIDExtractExpr = __GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__;
@@ -2742,10 +2732,6 @@
       return currentPagePath() === adminPagePath;
     }
 
-    function isLegacyPrototypePage() {
-      return currentPagePath() === prototypePagePath;
-    }
-
     function rememberFlashMessage(value) {
       if (!value) return;
       sessionStorage.setItem(flashStorageKey, value);
@@ -2761,8 +2747,7 @@
 
     function updatePageChrome() {
       document.body.classList.toggle('standalone-login-page', isStandaloneLoginPage());
-      document.body.classList.toggle('standalone-admin-page', isStandaloneAdminPage());
-      document.body.classList.toggle('legacy-prototype-page', isLegacyPrototypePage());
+      document.body.classList.toggle('standalone-admin-page', !isStandaloneLoginPage());
       document.body.classList.toggle('login-page', isStandaloneLoginPage());
       if (isStandaloneLoginPage()) {
         document.title = 'Gin Ninja Admin Login';
@@ -2771,24 +2756,13 @@
         els.pageIntro.textContent = 'Sign in to enter the example admin console.';
         return;
       }
-      if (isStandaloneAdminPage()) {
-        document.title = 'Gin Ninja Admin';
-        els.shellEyebrow.textContent = 'Admin Console';
-        els.pageTitle.textContent = 'Gin Ninja Admin';
-        els.pageIntro.textContent = 'An operations workspace for the example back-office experience.';
-        return;
-      }
-      document.title = 'Gin Ninja Admin Prototype';
-      els.shellEyebrow.textContent = 'Prototype Demo';
-      els.pageTitle.textContent = 'Gin Ninja Admin Prototype';
-      els.pageIntro.textContent = 'A sandboxed version of the metadata-driven admin workspace.';
+      document.title = 'Gin Ninja Admin';
+      els.shellEyebrow.textContent = 'Admin Console';
+      els.pageTitle.textContent = 'Gin Ninja Admin';
+      els.pageIntro.textContent = 'An operations workspace for the example back-office experience.';
     }
 
     function redirectToLogin(message) {
-      if (isLegacyPrototypePage()) {
-        if (message) setStatus(message);
-        return;
-      }
       rememberFlashMessage(message);
       if (!isStandaloneLoginPage()) {
         window.location.replace(adminLoginPath);
@@ -2796,10 +2770,6 @@
     }
 
     function redirectToAdmin(message) {
-      if (isLegacyPrototypePage()) {
-        if (message) setStatus(message);
-        return;
-      }
       rememberFlashMessage(message);
       if (!isStandaloneAdminPage()) {
         window.location.replace(adminPagePath);
@@ -3497,10 +3467,6 @@
     function renderResourceSummary() {
       if (!state.current || !state.meta) {
         els.resourcePath.textContent = 'Sign in to open a resource workspace.';
-        return;
-      }
-      if (isLegacyPrototypePage()) {
-        els.resourcePath.textContent = currentBasePath();
         return;
       }
       els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';
@@ -4473,7 +4439,7 @@
       }
     };
     els.clearToken.onclick = () => {
-      logout(isStandaloneAdminPage() ? 'Signed out of the admin console.' : 'Signed out of the admin prototype.');
+      logout('Signed out of the admin console.');
     };
 
     // User dropdown toggle

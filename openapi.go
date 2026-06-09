@@ -562,11 +562,6 @@ func Redoc() DocsRenderer {
 	return docsRendererFunc(redocHTML)
 }
 
-// ReDoc returns a ReDoc docs renderer.
-func ReDoc() DocsRenderer {
-	return Redoc()
-}
-
 func swaggerUIHTML(openapiURL, title string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>

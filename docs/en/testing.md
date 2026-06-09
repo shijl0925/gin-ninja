@@ -52,7 +52,7 @@ When testing a router and you need API config such as a prefix or custom docs se
 - `io.Reader`, `[]byte`, and `string` bodies are sent as-is; set headers with `ninjatest.Header(...)` when needed.
 - `ninjatest.WithHeader(...)` sets a default header; repeated calls with the same name overwrite the previous value.
 - `NewRequest` plus `Do` lets tests customize a raw `*http.Request`.
-- Responses expose `StatusCode`, `Header`, `Body`, `Cookies`, `String()`, and `DecodeJSON(...)`. `Code` remains as a deprecated alias of `StatusCode`.
+- Responses expose `StatusCode`, `Header`, `Body`, `Cookies`, `String()`, and `DecodeJSON(...)`.
 
 ```go
 resp := client.Post("/users/",

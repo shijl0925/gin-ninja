@@ -572,6 +572,20 @@ func TestSetFieldFromString(t *testing.T) {
 	if err := setFieldFromString(reflect.ValueOf(&unsupported).Elem(), "x"); err == nil {
 		t.Fatal("expected unsupported kind error")
 	}
+
+	// Overflow checks: values outside the target type's range must return an error.
+	var i8 int8
+	if err := setFieldFromString(reflect.ValueOf(&i8).Elem(), "128"); err == nil {
+		t.Fatal("expected overflow error for int8 value 128")
+	}
+	var u8 uint8
+	if err := setFieldFromString(reflect.ValueOf(&u8).Elem(), "256"); err == nil {
+		t.Fatal("expected overflow error for uint8 value 256")
+	}
+	var f32 float32
+	if err := setFieldFromString(reflect.ValueOf(&f32).Elem(), "3.4028236e+38"); err == nil {
+		t.Fatal("expected overflow error for float32 value 3.4028236e+38")
+	}
 }
 
 func TestBindInput_AnonymousStructHeader(t *testing.T) {

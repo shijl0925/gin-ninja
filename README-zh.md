@@ -78,6 +78,7 @@ func main() {
 - [文件传输与 OpenAPI 控制](./docs/zh/files-and-openapi.md)
 - [高级功能](./docs/zh/advanced-features.md)
 - [使用 TestClient 测试 API](./docs/zh/testing.md)
+- [性能与稳定性报告](./docs/zh/performance.md)
 - [Admin 与完整示例](./docs/zh/admin-and-examples.md)
 
 英文文档从 [README.md](./README.md) 或 [English documentation index](./docs/en/README.md) 开始。

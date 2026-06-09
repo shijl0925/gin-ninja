@@ -69,12 +69,12 @@ func TestClientJSONHeadersAndCookies(t *testing.T) {
 		ninjatest.Header("X-Trace-ID", "request"),
 		ninjatest.Cookie(&http.Cookie{Name: "mode", Value: "test"}),
 	)
-	if resp.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", resp.Code, resp.String())
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", resp.StatusCode, resp.String())
 	}
 
 	var out testCreateOutput
-	if err := resp.JSON(&out); err != nil {
+	if err := resp.DecodeJSON(&out); err != nil {
 		t.Fatalf("JSON: %v", err)
 	}
 	if out.Name != "alice" || out.Trace != "request" || out.Mode != "test" {
