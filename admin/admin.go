@@ -1069,10 +1069,12 @@ func applyFilter(db *gorm.DB, query url.Values, field *fieldMeta, meta FieldMeta
 		if raw == "" {
 			continue
 		}
-		column := queryColumnFor(field, meta)
+		column, err := safeQueryColumnFor(field, meta)
+		if err != nil {
+			return nil, err
+		}
 		var (
 			value any
-			err   error
 		)
 		switch candidate.Op {
 		case "in":

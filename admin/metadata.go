@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/jinzhu/inflection"
+	"github.com/shijl0925/gin-ninja/internal/sqlident"
 	"gorm.io/gorm"
 )
 
@@ -68,6 +69,9 @@ func (r *Resource) prepare() error {
 	r.fields = collectFields(r.modelType, nil, r.FieldOptions)
 	if len(r.fields) == 0 {
 		return fmt.Errorf("admin resource %q has no exported fields", r.Name)
+	}
+	if err := r.validateFieldColumns(); err != nil {
+		return err
 	}
 	r.fieldByName = map[string]*fieldMeta{}
 	for _, field := range r.fields {
@@ -128,6 +132,18 @@ func (r *Resource) prepare() error {
 		fieldByName: r.fieldByName,
 		metadata:    r.metadata,
 		primaryKey:  r.primaryKey,
+	}
+	return nil
+}
+
+func (r *Resource) validateFieldColumns() error {
+	for _, field := range r.fields {
+		if field == nil {
+			continue
+		}
+		if !sqlident.IsSafeFieldName(field.Meta.Column) {
+			return fmt.Errorf("admin resource %q field %q uses unsafe column %q", r.Name, field.Meta.Name, field.Meta.Column)
+		}
 	}
 	return nil
 }
