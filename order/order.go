@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/shijl0925/gin-ninja/internal/sqlident"
 	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/gorm"
 )
@@ -18,12 +19,17 @@ type SortField struct {
 
 // SortSchema defines the allowlist of accepted sort aliases.
 type SortSchema struct {
-	allowed map[string]string
+	allowed map[string]sortTarget
+	err     error
+}
+
+type sortTarget struct {
+	value string
 }
 
 // NewSortSchema creates a sort schema and allows each field as its own alias.
 func NewSortSchema(fields ...string) *SortSchema {
-	schema := &SortSchema{allowed: map[string]string{}}
+	schema := &SortSchema{allowed: map[string]sortTarget{}}
 	for _, field := range fields {
 		schema.Allow(field)
 	}
@@ -36,7 +42,7 @@ func (s *SortSchema) Allow(alias string, column ...string) *SortSchema {
 		return nil
 	}
 	if s.allowed == nil {
-		s.allowed = map[string]string{}
+		s.allowed = map[string]sortTarget{}
 	}
 	target := alias
 	if len(column) > 0 {
@@ -45,8 +51,34 @@ func (s *SortSchema) Allow(alias string, column ...string) *SortSchema {
 			target = trimmed
 		}
 	}
-	s.allowed[strings.TrimSpace(alias)] = target
+	s.addTarget(alias, target, true)
 	return s
+}
+
+// AllowExpression adds a sort alias for a trusted SQL expression.
+func (s *SortSchema) AllowExpression(alias, expression string) *SortSchema {
+	if s == nil {
+		return nil
+	}
+	if s.allowed == nil {
+		s.allowed = map[string]sortTarget{}
+	}
+	s.addTarget(alias, expression, false)
+	return s
+}
+
+func (s *SortSchema) addTarget(alias, target string, validateIdentifier bool) {
+	alias = strings.TrimSpace(alias)
+	target = strings.TrimSpace(target)
+	if alias == "" || target == "" {
+		s.err = fmt.Errorf("sort schema contains an empty field name")
+		return
+	}
+	if validateIdentifier && !sqlident.IsSafeFieldName(target) {
+		s.err = fmt.Errorf("sort schema uses unsafe field name %q", target)
+		return
+	}
+	s.allowed[alias] = sortTarget{value: target}
 }
 
 // ParseSort parses a raw comma-separated sort string.
@@ -86,18 +118,24 @@ func ResolveSort(raw string, schema *SortSchema) ([]SortField, error) {
 	if len(fields) == 0 {
 		return nil, nil
 	}
-	if schema == nil || len(schema.allowed) == 0 {
+	if schema == nil {
+		return nil, fmt.Errorf("sort schema is required when sort is provided")
+	}
+	if schema.err != nil {
+		return nil, schema.err
+	}
+	if len(schema.allowed) == 0 {
 		return nil, fmt.Errorf("sort schema is required when sort is provided")
 	}
 
 	resolved := make([]SortField, 0, len(fields))
 	for _, field := range fields {
-		column, ok := schema.allowed[field.Name]
+		target, ok := schema.allowed[field.Name]
 		if !ok {
 			return nil, fmt.Errorf("unsupported sort field %q", field.Name)
 		}
 		resolved = append(resolved, SortField{
-			Name: column,
+			Name: target.value,
 			Desc: field.Desc,
 		})
 	}
@@ -227,12 +265,12 @@ func resolveTaggedOrder(field reflect.StructField, value reflect.Value, tag stri
 
 	resolved := make([]SortField, 0, len(parsed))
 	for _, sortField := range parsed {
-		column, exists := schema.allowed[sortField.Name]
+		target, exists := schema.allowed[sortField.Name]
 		if !exists {
 			return nil, false, fmt.Errorf("unsupported sort field %q", sortField.Name)
 		}
 		resolved = append(resolved, SortField{
-			Name: column,
+			Name: target.value,
 			Desc: sortField.Desc,
 		})
 	}
@@ -260,7 +298,7 @@ func extractOrderRawValue(field reflect.StructField, value reflect.Value) (strin
 }
 
 func parseOrderTagSchema(tag string, field reflect.StructField) (*SortSchema, error) {
-	schema := &SortSchema{allowed: map[string]string{}}
+	schema := &SortSchema{allowed: map[string]sortTarget{}}
 	parts := strings.Split(tag, "|")
 	for _, part := range parts {
 		spec := strings.TrimSpace(part)
@@ -272,7 +310,10 @@ func parseOrderTagSchema(tag string, field reflect.StructField) (*SortSchema, er
 		if alias == "" || column == "" {
 			return nil, fmt.Errorf("order tag on %s contains an empty field name", field.Name)
 		}
-		schema.allowed[alias] = column
+		if !sqlident.IsSafeFieldName(column) {
+			return nil, fmt.Errorf("order tag on %s uses unsafe field name %q", field.Name, column)
+		}
+		schema.allowed[alias] = sortTarget{value: column}
 	}
 	return schema, nil
 }

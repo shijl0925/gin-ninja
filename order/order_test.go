@@ -1,6 +1,7 @@
 package order
 
 import (
+	"strings"
 	"testing"
 
 	"gorm.io/driver/sqlite"
@@ -83,6 +84,26 @@ func TestResolveSort(t *testing.T) {
 	}
 }
 
+func TestResolveSortRejectsUnsafeSchemaColumn(t *testing.T) {
+	schema := NewSortSchema().Allow("name", "name desc")
+
+	if _, err := ResolveSort("name", schema); err == nil || !strings.Contains(err.Error(), "unsafe field name") {
+		t.Fatalf("expected unsafe schema column error, got %v", err)
+	}
+}
+
+func TestResolveSortAllowsExplicitExpression(t *testing.T) {
+	schema := NewSortSchema().AllowExpression("lower_name", "LOWER(name)")
+
+	fields, err := ResolveSort("lower_name", schema)
+	if err != nil {
+		t.Fatalf("ResolveSort: %v", err)
+	}
+	if len(fields) != 1 || fields[0].Name != "LOWER(name)" {
+		t.Fatalf("unexpected fields: %+v", fields)
+	}
+}
+
 func TestResolveOrder(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -142,6 +163,17 @@ func TestResolveOrderRejectsInvalidOrderTagTarget(t *testing.T) {
 
 	if _, err := ResolveOrder(input); err == nil {
 		t.Fatal("expected invalid order tag target error")
+	}
+
+}
+
+func TestResolveOrderRejectsUnsafeOrderTagColumn(t *testing.T) {
+	input := &struct {
+		Sort string `order:"name:name desc"`
+	}{Sort: "name"}
+
+	if _, err := ResolveOrder(input); err == nil || !strings.Contains(err.Error(), "unsafe field name") {
+		t.Fatalf("expected unsafe order tag error, got %v", err)
 	}
 }
 
