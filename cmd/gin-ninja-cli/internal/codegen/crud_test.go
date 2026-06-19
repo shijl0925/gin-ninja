@@ -71,6 +71,7 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.WithTransaction())`,
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
+		"out, err := ninja.BindModelSchemas[UserOut](items)",
 		"return toUserOut(item)",
 		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
@@ -98,6 +99,9 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 	}
 	if strings.Contains(generated, "Roles []string") {
 		t.Fatalf("expected gorm ignored fields to be excluded\n%s", generated)
+	}
+	if strings.Contains(generated, "for i, item := range items") {
+		t.Fatalf("expected relation-free list handler to use BindModelSchemas\n%s", generated)
 	}
 }
 
@@ -690,6 +694,8 @@ type Project struct {
 		`query.Preload("Owner")`,
 		`query.Preload("Tasks")`,
 		`query.Preload("Tags")`,
+		`for i, item := range items`,
+		`bound, err := toProjectOut(item)`,
 		`filterOpts, err := filter.BuildOptions(in)`,
 		`if err := order.ApplyOrder(query, in); err != nil {`,
 		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,

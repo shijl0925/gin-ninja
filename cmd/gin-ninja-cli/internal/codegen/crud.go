@@ -1473,6 +1473,7 @@ return nil, err
 		return nil, err
 	}
 {{- end }}
+{{- if .Relations }}
 out := make([]{{ .ModelName }}Out, len(items))
 for i, item := range items {
 bound, err := {{ .ToOutFuncName }}(item)
@@ -1481,6 +1482,12 @@ return nil, err
 }
 out[i] = *bound
 }
+{{- else }}
+out, err := ninja.BindModelSchemas[{{ .ModelName }}Out](items)
+if err != nil {
+return nil, err
+}
+{{- end }}
 return pagination.NewPage(out, total, in.PageInput), nil
 }
 
