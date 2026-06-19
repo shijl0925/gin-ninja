@@ -83,6 +83,61 @@ func BindModelSchema[TSchema any](model any) (*TSchema, error) {
 	return out, nil
 }
 
+func bindModelSchemaForType(schemaType reflect.Type, model any) (any, bool, error) {
+	t := deref(schemaType)
+	if t.Kind() != reflect.Struct {
+		return nil, false, nil
+	}
+
+	value := reflect.New(t).Elem()
+	field, filter, ok := modelSchemaBindingField(value, t)
+	if !ok {
+		return nil, false, nil
+	}
+	if field.Kind() == reflect.Ptr {
+		field.Set(reflect.New(field.Type().Elem()))
+		field = field.Elem()
+	}
+
+	if err := assignModelSchemaModel(field.FieldByName("Model"), reflect.ValueOf(model)); err != nil {
+		return nil, true, err
+	}
+	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), filter.fields...)))
+	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), filter.exclude...)))
+	return value.Addr().Interface(), true, nil
+}
+
+func modelSchemaBindingField(value reflect.Value, t reflect.Type) (reflect.Value, modelSchemaFilter, bool) {
+	if hasDirectModelSchemaFields(t) {
+		return value, modelSchemaFilter{}, true
+	}
+
+	embedded, ok := findEmbeddedModelSchemaField(t)
+	if !ok {
+		return reflect.Value{}, modelSchemaFilter{}, false
+	}
+	return value.FieldByIndex(embedded.index), embedded.filter, true
+}
+
+func hasDirectModelSchemaFields(t reflect.Type) bool {
+	fields := map[string]bool{
+		"Model":   false,
+		"Fields":  false,
+		"Exclude": false,
+	}
+	for i := 0; i < t.NumField(); i++ {
+		if _, ok := fields[t.Field(i).Name]; ok {
+			fields[t.Field(i).Name] = true
+		}
+	}
+	for _, ok := range fields {
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (m ModelSchema[T]) MarshalJSON() ([]byte, error) {
 	filter := newModelSchemaFilter(m.Fields, m.Exclude)
 	filtered, err := serializeModelSchemaValue(reflect.ValueOf(m.Model), filter)

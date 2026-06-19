@@ -276,8 +276,8 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		successResponse.Content = map[string]mediaTypeSpec{
 			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(op.spec.cursorPaginatedItemType))},
 		}
-	} else if op.route.outputType != nil {
-		contentType, schema := s.responseSchemaForType(op.route.outputType)
+	} else if responseType := op.successResponseType(); responseType != nil {
+		contentType, schema := s.responseSchemaForType(responseType)
 		successResponse.Content = map[string]mediaTypeSpec{
 			contentType: {Schema: schema},
 		}

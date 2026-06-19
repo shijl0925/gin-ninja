@@ -1,6 +1,7 @@
 package ninja
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 	"time"
@@ -172,6 +173,15 @@ func Response(status int, description string, model any) OperationOption {
 	}
 }
 
+// ResponseModel declares the runtime and OpenAPI schema for the successful
+// JSON response. When T embeds ModelSchema, returned model values are bound to
+// T before being written so fields/exclude tags are enforced at runtime.
+func ResponseModel[T any]() OperationOption {
+	return func(op *operation) {
+		op.spec.responseType = reflect.TypeOf((*T)(nil)).Elem()
+	}
+}
+
 // Paginated declares a standard paginated success response schema.
 func Paginated[T any]() OperationOption {
 	return func(op *operation) {
@@ -261,6 +271,7 @@ type operationDocSpec struct {
 	security                []SecurityRequirement
 	deprecated              bool
 	successStatus           int
+	responseType            reflect.Type
 	responses               []documentedResponse
 	paginatedItemType       reflect.Type
 	cursorPaginatedItemType reflect.Type
@@ -400,21 +411,7 @@ func newOperation[TIn any, TOut any](
 			return
 		}
 
-		// Write the response.
-		if output == nil {
-			c.Status(http.StatusNoContent)
-			return
-		}
-		if writer, ok := any(output).(responseWriter); ok {
-			writer.writeTo(c, op.spec.successStatus)
-			return
-		}
-		if c.Request.Method == http.MethodHead {
-			c.Header("Content-Type", "application/json; charset=utf-8")
-			c.Status(op.spec.successStatus)
-			return
-		}
-		c.JSON(op.spec.successStatus, output)
+		op.writeSuccessResponse(c, output)
 	}
 
 	return op
@@ -513,6 +510,109 @@ func (op *operation) usesDirectResponseWriter() bool {
 		return true
 	}
 	return op.route.outputType.Implements(responseWriterType)
+}
+
+func (op *operation) successResponseType() reflect.Type {
+	if op.spec.responseType != nil {
+		return op.spec.responseType
+	}
+	return op.route.outputType
+}
+
+func (op *operation) writeSuccessResponse(c *gin.Context, output any) {
+	if output == nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	if writer, ok := output.(responseWriter); ok {
+		writer.writeTo(c, op.spec.successStatus)
+		return
+	}
+	if c.Request.Method == http.MethodHead {
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.Status(op.spec.successStatus)
+		return
+	}
+
+	body, err := op.serializeResponse(output)
+	if err != nil {
+		WriteError(c, err)
+		return
+	}
+	c.JSON(op.spec.successStatus, body)
+}
+
+func (op *operation) serializeResponse(output any) (any, error) {
+	if op.spec.responseType == nil {
+		return output, nil
+	}
+	body, err := bindResponseModel(op.spec.responseType, output)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateResponseModel(body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func bindResponseModel(schemaType reflect.Type, output any) (any, error) {
+	schemaType = deref(schemaType)
+	if schemaType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("response model must be a struct, got %s", schemaType.Kind())
+	}
+	if value, ok := coerceResponseValue(schemaType, output); ok {
+		return value, nil
+	}
+	if value, ok, err := bindModelSchemaForType(schemaType, output); ok || err != nil {
+		return value, err
+	}
+
+	source := reflect.ValueOf(output)
+	if !source.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	return nil, fmt.Errorf("cannot serialize response type %s as %s", source.Type(), schemaType)
+}
+
+func coerceResponseValue(schemaType reflect.Type, output any) (any, bool) {
+	source := reflect.ValueOf(output)
+	if !source.IsValid() {
+		return nil, false
+	}
+	if source.Type().AssignableTo(schemaType) {
+		return source.Interface(), true
+	}
+	if source.Type().ConvertibleTo(schemaType) {
+		return source.Convert(schemaType).Interface(), true
+	}
+	if source.Kind() == reflect.Ptr && !source.IsNil() {
+		elem := source.Elem()
+		if elem.Type().AssignableTo(schemaType) {
+			return elem.Interface(), true
+		}
+		if elem.Type().ConvertibleTo(schemaType) {
+			return elem.Convert(schemaType).Interface(), true
+		}
+	}
+	return nil, false
+}
+
+func validateResponseModel(value any) error {
+	if value == nil {
+		return nil
+	}
+	t := reflect.TypeOf(value)
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return nil
+	}
+	if err := validate.Struct(value); err != nil {
+		return fmt.Errorf("response schema validation failed: %w", err)
+	}
+	return nil
 }
 
 func invokeWithContextGuard(c *gin.Context, invoke func() error) error {

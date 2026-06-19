@@ -885,6 +885,107 @@ func TestModelSchemaSerializationAndBinding(t *testing.T) {
 	}
 }
 
+func TestResponseModelBindsModelSchemaAtRuntime(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/user", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{
+			ID:       7,
+			Name:     "alice",
+			Email:    "alice@example.com",
+			Password: "secret",
+		}, nil
+	}, ResponseModel[publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/user", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if _, ok := data["password"]; ok {
+		t.Fatalf("expected response model to prune password, got %+v", data)
+	}
+	if data["email"] != "alice@example.com" || data["id"] != float64(7) {
+		t.Fatalf("expected public response fields, got %+v", data)
+	}
+}
+
+func TestResponseModelAcceptsAlreadyBoundSchema(t *testing.T) {
+	typed, err := BindModelSchema[publicSchema](schemaModel{
+		ID:       9,
+		Name:     "bob",
+		Email:    "bob@example.com",
+		Password: "secret",
+	})
+	if err != nil {
+		t.Fatalf("BindModelSchema: %v", err)
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/bound", func(ctx *Context, in *struct{}) (*publicSchema, error) {
+		return typed, nil
+	}, ResponseModel[publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/bound", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "password") {
+		t.Fatalf("expected already-bound schema to preserve filtering, got %s", w.Body.String())
+	}
+}
+
+func TestResponseModelOverridesOpenAPISuccessSchema(t *testing.T) {
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/user", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{}, nil
+	}, nil)
+	ResponseModel[publicSchema]()(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	response := built.Paths["/user"].Get.Responses["200"]
+	schema := response.Content["application/json"].Schema
+	if schema == nil || !strings.Contains(schema.Ref, "publicSchema") {
+		t.Fatalf("expected publicSchema response ref, got %+v", schema)
+	}
+	component := built.Components.Schemas["publicSchema"]
+	if component == nil {
+		t.Fatalf("expected publicSchema component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := component.Properties["password"]; ok {
+		t.Fatalf("expected password to be omitted from response schema, got %+v", component.Properties)
+	}
+}
+
+func TestResponseModelValidatesPlainResponseSchema(t *testing.T) {
+	type requiredOutput struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/invalid", func(ctx *Context, in *struct{}) (*requiredOutput, error) {
+		return &requiredOutput{}, nil
+	}, ResponseModel[requiredOutput]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected response validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
 	type EmbeddedBody struct {
 		Name string `json:"name" binding:"required"`
