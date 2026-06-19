@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +13,7 @@ import (
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/gin-ninja/settings"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -56,42 +56,16 @@ func setupAppTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func registerRequest(t *testing.T, api *ninja.NinjaAPI, body interface{}) *httptest.ResponseRecorder {
+func registerRequest(t *testing.T, api *ninja.NinjaAPI, body interface{}) *ninjatest.Response {
 	t.Helper()
 
-	data, err := json.Marshal(body)
-	if err != nil {
-		t.Fatalf("marshal body: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(data))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	return w
+	return ninjatest.NewWithT(t, api).Post("/auth/register", body)
 }
 
-func userRequest(t *testing.T, api *ninja.NinjaAPI, method, path string, body interface{}) *httptest.ResponseRecorder {
+func userRequest(t *testing.T, api *ninja.NinjaAPI, method, path string, body interface{}) *ninjatest.Response {
 	t.Helper()
 
-	var reader *bytes.Reader
-	if body == nil {
-		reader = bytes.NewReader(nil)
-	} else {
-		data, err := json.Marshal(body)
-		if err != nil {
-			t.Fatalf("marshal body: %v", err)
-		}
-		reader = bytes.NewReader(data)
-	}
-
-	req := httptest.NewRequest(method, path, reader)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	return w
+	return ninjatest.NewWithT(t, api).Request(method, path, body)
 }
 
 func newUsersV2CacheTestAPI(t *testing.T) *ninja.NinjaAPI {
@@ -142,12 +116,12 @@ func TestRegister_SucceedsWithoutAuth(t *testing.T) {
 		Age:      18,
 	})
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	if w.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.StatusCode, w.String())
 	}
 
 	var out map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+	if err := json.Unmarshal(w.Body, &out); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if out["email"] != "alice@example.com" {
@@ -173,13 +147,13 @@ func TestRegister_DuplicateEmailReturnsConflict(t *testing.T) {
 		Password: "password123",
 		Age:      18,
 	}
-	if w := registerRequest(t, api, first); w.Code != http.StatusCreated {
-		t.Fatalf("expected first register to succeed, got %d: %s", w.Code, w.Body.String())
+	if w := registerRequest(t, api, first); w.StatusCode != http.StatusCreated {
+		t.Fatalf("expected first register to succeed, got %d: %s", w.StatusCode, w.String())
 	}
 
 	w := registerRequest(t, api, first)
-	if w.Code != http.StatusConflict {
-		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
+	if w.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", w.StatusCode, w.String())
 	}
 }
 
@@ -487,19 +461,19 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 		Password: "password123",
 		Age:      18,
 	})
-	if created.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", created.Code, created.Body.String())
+	if created.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", created.StatusCode, created.String())
 	}
 
 	listFirst := userRequest(t, api, http.MethodGet, "/api/v2/users/", nil)
-	if listFirst.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", listFirst.Code, listFirst.Body.String())
+	if listFirst.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", listFirst.StatusCode, listFirst.String())
 	}
-	if got := listFirst.Header().Get("Cache-Control"); got != "private, max-age=60" {
+	if got := listFirst.Header.Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
 	}
 	var listPage map[string]any
-	if err := json.Unmarshal(listFirst.Body.Bytes(), &listPage); err != nil {
+	if err := json.Unmarshal(listFirst.Body, &listPage); err != nil {
 		t.Fatalf("unmarshal list response: %v", err)
 	}
 	if got := listPage["total"]; got != float64(1) {
@@ -507,11 +481,11 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 	}
 
 	listCached := userRequest(t, api, http.MethodGet, "/api/v2/users/", nil)
-	if listCached.Code != http.StatusOK {
-		t.Fatalf("expected cached 200, got %d: %s", listCached.Code, listCached.Body.String())
+	if listCached.StatusCode != http.StatusOK {
+		t.Fatalf("expected cached 200, got %d: %s", listCached.StatusCode, listCached.String())
 	}
-	if listCached.Body.String() != listFirst.Body.String() {
-		t.Fatalf("expected cached list body, got %q vs %q", listCached.Body.String(), listFirst.Body.String())
+	if listCached.String() != listFirst.String() {
+		t.Fatalf("expected cached list body, got %q vs %q", listCached.String(), listFirst.String())
 	}
 
 	created = userRequest(t, api, http.MethodPost, "/api/v2/users/", CreateUserInput{
@@ -520,12 +494,12 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 		Password: "password123",
 		Age:      20,
 	})
-	if created.Code != http.StatusCreated {
-		t.Fatalf("expected second create 201, got %d: %s", created.Code, created.Body.String())
+	if created.StatusCode != http.StatusCreated {
+		t.Fatalf("expected second create 201, got %d: %s", created.StatusCode, created.String())
 	}
 
 	listAfterCreate := userRequest(t, api, http.MethodGet, "/api/v2/users/", nil)
-	if err := json.Unmarshal(listAfterCreate.Body.Bytes(), &listPage); err != nil {
+	if err := json.Unmarshal(listAfterCreate.Body, &listPage); err != nil {
 		t.Fatalf("unmarshal list after create: %v", err)
 	}
 	if got := listPage["total"]; got != float64(2) {
@@ -533,10 +507,10 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 	}
 
 	detailFirst := userRequest(t, api, http.MethodGet, "/api/v2/users/1", nil)
-	if detailFirst.Code != http.StatusOK {
-		t.Fatalf("expected detail 200, got %d: %s", detailFirst.Code, detailFirst.Body.String())
+	if detailFirst.StatusCode != http.StatusOK {
+		t.Fatalf("expected detail 200, got %d: %s", detailFirst.StatusCode, detailFirst.String())
 	}
-	etag := detailFirst.Header().Get("ETag")
+	etag := detailFirst.Header.Get("ETag")
 	if etag == "" {
 		t.Fatal("expected detail ETag")
 	}
@@ -554,16 +528,16 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 		Email: "alice.updated@example.com",
 		Age:   19,
 	})
-	if updated.Code != http.StatusOK {
-		t.Fatalf("expected update 200, got %d: %s", updated.Code, updated.Body.String())
+	if updated.StatusCode != http.StatusOK {
+		t.Fatalf("expected update 200, got %d: %s", updated.StatusCode, updated.String())
 	}
 
 	detailAfterUpdate := userRequest(t, api, http.MethodGet, "/api/v2/users/1", nil)
-	if detailAfterUpdate.Code != http.StatusOK {
-		t.Fatalf("expected updated detail 200, got %d: %s", detailAfterUpdate.Code, detailAfterUpdate.Body.String())
+	if detailAfterUpdate.StatusCode != http.StatusOK {
+		t.Fatalf("expected updated detail 200, got %d: %s", detailAfterUpdate.StatusCode, detailAfterUpdate.String())
 	}
 	var detail map[string]any
-	if err := json.Unmarshal(detailAfterUpdate.Body.Bytes(), &detail); err != nil {
+	if err := json.Unmarshal(detailAfterUpdate.Body, &detail); err != nil {
 		t.Fatalf("unmarshal detail after update: %v", err)
 	}
 	if detail["email"] != "alice.updated@example.com" || detail["name"] != "Alice Updated" {
@@ -571,21 +545,21 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 	}
 
 	deleted := userRequest(t, api, http.MethodDelete, "/api/v2/users/1", nil)
-	if deleted.Code != http.StatusNoContent {
-		t.Fatalf("expected delete 204, got %d: %s", deleted.Code, deleted.Body.String())
+	if deleted.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected delete 204, got %d: %s", deleted.StatusCode, deleted.String())
 	}
 
 	detailAfterDelete := userRequest(t, api, http.MethodGet, "/api/v2/users/1", nil)
-	if detailAfterDelete.Code != http.StatusNotFound {
-		t.Fatalf("expected 404 after delete, got %d: %s", detailAfterDelete.Code, detailAfterDelete.Body.String())
+	if detailAfterDelete.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 after delete, got %d: %s", detailAfterDelete.StatusCode, detailAfterDelete.String())
 	}
 
 	openapi := userRequest(t, api, http.MethodGet, "/openapi/v2.json", nil)
-	if openapi.Code != http.StatusOK {
-		t.Fatalf("expected openapi 200, got %d: %s", openapi.Code, openapi.Body.String())
+	if openapi.StatusCode != http.StatusOK {
+		t.Fatalf("expected openapi 200, got %d: %s", openapi.StatusCode, openapi.String())
 	}
 	var spec map[string]any
-	if err := json.Unmarshal(openapi.Body.Bytes(), &spec); err != nil {
+	if err := json.Unmarshal(openapi.Body, &spec); err != nil {
 		t.Fatalf("unmarshal openapi: %v", err)
 	}
 	paths := spec["paths"].(map[string]any)
