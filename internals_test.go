@@ -1567,6 +1567,80 @@ func TestModelSchemaConvenienceConstructors(t *testing.T) {
 	}
 }
 
+func TestModelSchemaDescriptorBindInputUsesCreateRules(t *testing.T) {
+	type createInput struct {
+		ID        uint      `json:"id"`
+		Name      string    `json:"name"`
+		Password  string    `json:"password"`
+		Invite    string    `json:"invite_code"`
+		Status    string    `json:"status_note"`
+		CreatedAt time.Time `json:"created_at"`
+		Computed  string    `json:"computed"`
+	}
+
+	model, err := ModelCreateSchemaOf[schemaModeModel]().BindInput(createInput{
+		ID:        99,
+		Name:      "helen",
+		Password:  "secret",
+		Invite:    "invite-3",
+		Status:    "ignored",
+		CreatedAt: time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC),
+		Computed:  "ignored",
+	})
+	if err != nil {
+		t.Fatalf("BindInput: %v", err)
+	}
+	if model.ID != 0 || !model.CreatedAt.IsZero() || model.Status != "" || model.Computed != "" {
+		t.Fatalf("expected create input to skip read/update-only fields, got %+v", model)
+	}
+	if model.Name != "helen" || model.Password != "secret" || model.Invite != "invite-3" {
+		t.Fatalf("expected create input to copy writable fields, got %+v", model)
+	}
+}
+
+func TestModelSchemaDescriptorApplyInputUsesUpdateRules(t *testing.T) {
+	type updateInput struct {
+		ID       *uint   `json:"id"`
+		Name     *string `json:"name"`
+		Password *string `json:"password"`
+		Invite   *string `json:"invite_code"`
+		Status   *string `json:"status_note"`
+		Computed *string `json:"computed"`
+	}
+
+	id := uint(99)
+	password := "changed-secret"
+	invite := "ignored"
+	status := "approved"
+	computed := "ignored"
+	model := schemaModeModel{
+		ID:       1,
+		Name:     "old-name",
+		Password: "old-secret",
+		Invite:   "old-invite",
+		Status:   "pending",
+		Computed: "old-computed",
+	}
+
+	err := ModelUpdateSchemaOf[schemaModeModel]().ApplyInput(&model, updateInput{
+		ID:       &id,
+		Name:     nil,
+		Password: &password,
+		Invite:   &invite,
+		Status:   &status,
+		Computed: &computed,
+	})
+	if err != nil {
+		t.Fatalf("ApplyInput: %v", err)
+	}
+	if model.ID != 1 || model.Name != "old-name" || model.Invite != "old-invite" || model.Computed != "old-computed" {
+		t.Fatalf("expected update input to skip nil/read/create-only fields, got %+v", model)
+	}
+	if model.Password != "changed-secret" || model.Status != "approved" {
+		t.Fatalf("expected update input to copy writable fields, got %+v", model)
+	}
+}
+
 func TestModelSchemaModeAffectsOpenAPIComponents(t *testing.T) {
 	type createSchema struct {
 		ModelSchema[schemaModeModel] `mode:"create"`

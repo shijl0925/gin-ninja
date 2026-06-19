@@ -181,6 +181,28 @@ func (d ModelSchemaDescriptor[T]) Wrap(model T) *ModelSchema[T] {
 	}
 }
 
+// BindInput creates a model value from an already-bound input struct, copying
+// only fields allowed by the descriptor.
+func (d ModelSchemaDescriptor[T]) BindInput(input any) (*T, error) {
+	var model T
+	if err := d.ApplyInput(&model, input); err != nil {
+		return nil, err
+	}
+	return &model, nil
+}
+
+// ApplyInput copies an already-bound input struct onto model using the
+// descriptor's field-selection rules. Nil pointer input fields are skipped,
+// which makes update inputs with optional pointer fields behave as partial
+// updates.
+func (d ModelSchemaDescriptor[T]) ApplyInput(model *T, input any) error {
+	if model == nil {
+		return fmt.Errorf("model input target is nil")
+	}
+	descriptor := d.schemaDescriptor()
+	return applyModelSchemaInput(reflect.ValueOf(model), reflect.ValueOf(input), descriptor.filter)
+}
+
 func (d ModelSchemaDescriptor[T]) schemaDescriptor() modelSchemaDescriptor {
 	return modelSchemaDescriptor{
 		target:        reflect.TypeOf((*T)(nil)).Elem(),
@@ -266,6 +288,122 @@ func BindModelSchemas[TSchema any, TModel any](models []TModel) ([]TSchema, erro
 		out[i] = *bound
 	}
 	return out, nil
+}
+
+func applyModelSchemaInput(model, input reflect.Value, filter modelSchemaFilter) error {
+	if !input.IsValid() {
+		return fmt.Errorf("model input value is invalid")
+	}
+	for input.Kind() == reflect.Ptr {
+		if input.IsNil() {
+			return fmt.Errorf("model input value is nil")
+		}
+		input = input.Elem()
+	}
+	if input.Kind() != reflect.Struct {
+		return fmt.Errorf("model input must be a struct, got %s", input.Kind())
+	}
+	for model.Kind() == reflect.Ptr {
+		if model.IsNil() {
+			return fmt.Errorf("model input target is nil")
+		}
+		model = model.Elem()
+	}
+	if model.Kind() != reflect.Struct {
+		return fmt.Errorf("model input target must be a struct, got %s", model.Kind())
+	}
+
+	fields := map[string]reflect.Value{}
+	collectModelSchemaInputFields(input, fields)
+	return applyModelSchemaInputFields(model, filter.normalized(), fields)
+}
+
+func collectModelSchemaInputFields(input reflect.Value, fields map[string]reflect.Value) {
+	t := input.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		value := input.Field(i)
+		if field.Anonymous {
+			embedded := value
+			for embedded.Kind() == reflect.Ptr {
+				if embedded.IsNil() {
+					break
+				}
+				embedded = embedded.Elem()
+			}
+			if embedded.Kind() == reflect.Struct {
+				collectModelSchemaInputFields(embedded, fields)
+			}
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" {
+			continue
+		}
+		fields[field.Name] = value
+		fields[name] = value
+	}
+}
+
+func applyModelSchemaInputFields(model reflect.Value, filter modelSchemaFilter, fields map[string]reflect.Value) error {
+	t := model.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		value := model.Field(i)
+		if field.Anonymous {
+			if value.Kind() == reflect.Ptr {
+				if value.IsNil() {
+					value.Set(reflect.New(value.Type().Elem()))
+				}
+				value = value.Elem()
+			}
+			if value.Kind() == reflect.Struct {
+				if err := applyModelSchemaInputFields(value, filter, fields); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" || !filter.includes(field, name) {
+			continue
+		}
+		inputValue, ok := modelSchemaInputFieldValue(fields, field.Name, name)
+		if !ok || !modelSchemaInputValuePresent(inputValue) {
+			continue
+		}
+		if !value.CanSet() {
+			return fmt.Errorf("model input field %s cannot be set", field.Name)
+		}
+		if err := assignModelSchemaModel(value, inputValue); err != nil {
+			return fmt.Errorf("model input field %s: %w", field.Name, err)
+		}
+	}
+	return nil
+}
+
+func modelSchemaInputFieldValue(fields map[string]reflect.Value, names ...string) (reflect.Value, bool) {
+	for _, name := range names {
+		if value, ok := fields[name]; ok {
+			return value, true
+		}
+	}
+	return reflect.Value{}, false
+}
+
+func modelSchemaInputValuePresent(value reflect.Value) bool {
+	if !value.IsValid() {
+		return false
+	}
+	return value.Kind() != reflect.Ptr || !value.IsNil()
 }
 
 func bindModelSchemaForType(schemaType reflect.Type, model any) (any, bool, error) {
