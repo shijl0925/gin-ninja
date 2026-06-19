@@ -65,13 +65,13 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"LegacySecret *string `json:\"legacySecret\"`",
 		"Created *time.Time `json:\"created\"`",
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
-		"func ListUsers(ctx *ninja.Context, in *ListUsersInput)",
+		"func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error)",
 		"func GetUser(ctx *ninja.Context, in *GetUserInput)",
 		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.WithTransaction())`,
 		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.WithTransaction())`,
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
-		"out, err := ninja.BindModelSchemas[UserOut](items)",
+		"return pagination.NewPage(items, total, in.PageInput), nil",
 		"return toUserOut(item)",
 		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
@@ -101,7 +101,10 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		t.Fatalf("expected gorm ignored fields to be excluded\n%s", generated)
 	}
 	if strings.Contains(generated, "for i, item := range items") {
-		t.Fatalf("expected relation-free list handler to use BindModelSchemas\n%s", generated)
+		t.Fatalf("expected relation-free list handler to return models for runtime schema binding\n%s", generated)
+	}
+	if strings.Contains(generated, "ninja.BindModelSchemas[UserOut](items)") {
+		t.Fatalf("expected relation-free list handler to use runtime paginated schema binding\n%s", generated)
 	}
 }
 

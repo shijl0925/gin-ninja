@@ -1413,7 +1413,7 @@ ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .S
 }
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
-func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}Out], error) {
+func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ if .Relations }}{{ .ModelName }}Out{{ else }}{{ .ModelName }}{{ end }}], error) {
 	db := orm.WithContext(ctx.Context)
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
@@ -1479,12 +1479,11 @@ return nil, err
 out[i] = *bound
 }
 {{- else }}
-out, err := ninja.BindModelSchemas[{{ .ModelName }}Out](items)
-if err != nil {
-return nil, err
-}
+return pagination.NewPage(items, total, in.PageInput), nil
 {{- end }}
+{{- if .Relations }}
 return pagination.NewPage(out, total, in.PageInput), nil
+{{- end }}
 }
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
