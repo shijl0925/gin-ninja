@@ -242,6 +242,22 @@ func BindModelSchema[TSchema any](model any) (*TSchema, error) {
 	return out, nil
 }
 
+// BindModelSchemas creates user-defined schema values from model values.
+func BindModelSchemas[TSchema any, TModel any](models []TModel) ([]TSchema, error) {
+	if models == nil {
+		return nil, nil
+	}
+	out := make([]TSchema, len(models))
+	for i, model := range models {
+		bound, err := BindModelSchema[TSchema](model)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = *bound
+	}
+	return out, nil
+}
+
 func bindModelSchemaForType(schemaType reflect.Type, model any) (any, bool, error) {
 	t := deref(schemaType)
 	if t.Kind() != reflect.Struct {

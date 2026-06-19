@@ -929,6 +929,44 @@ func TestModelSchemaSerializationAndBinding(t *testing.T) {
 	}
 }
 
+func TestBindModelSchemas(t *testing.T) {
+	items, err := BindModelSchemas[publicSchema]([]schemaModel{
+		{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"},
+		{ID: 2, Name: "bob", Email: "bob@example.com", Password: "hidden"},
+	})
+	if err != nil {
+		t.Fatalf("BindModelSchemas: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected two bound schemas, got %d", len(items))
+	}
+	if items[0].Model.Email != "alice@example.com" || items[1].Model.Password != "hidden" {
+		t.Fatalf("expected models to be assigned, got %+v", items)
+	}
+	if got := items[0].Fields; len(got) != 3 || got[0] != "email" || got[1] != "id" || got[2] != "name" {
+		t.Fatalf("expected fields from tags, got %v", got)
+	}
+
+	empty, err := BindModelSchemas[publicSchema]([]schemaModel{})
+	if err != nil {
+		t.Fatalf("BindModelSchemas empty: %v", err)
+	}
+	if empty == nil || len(empty) != 0 {
+		t.Fatalf("expected empty non-nil result for empty input, got %#v", empty)
+	}
+	nilItems, err := BindModelSchemas[publicSchema, schemaModel](nil)
+	if err != nil {
+		t.Fatalf("BindModelSchemas nil: %v", err)
+	}
+	if nilItems != nil {
+		t.Fatalf("expected nil result for nil input, got %#v", nilItems)
+	}
+
+	if _, err := BindModelSchemas[struct{}]([]schemaModel{{ID: 3}}); err == nil {
+		t.Fatalf("expected BindModelSchemas to return binding errors")
+	}
+}
+
 func TestResponseModelBindsModelSchemaAtRuntime(t *testing.T) {
 	api := New(Config{DisableDocs: true, DisableHomepage: true})
 	router := NewRouter("/runtime")
