@@ -563,7 +563,7 @@ func (op *operation) successResponseType() reflect.Type {
 }
 
 func (op *operation) writeSuccessResponse(c *gin.Context, output any) {
-	if output == nil {
+	if isNilResponse(output) {
 		c.Status(http.StatusNoContent)
 		return
 	}
@@ -583,6 +583,19 @@ func (op *operation) writeSuccessResponse(c *gin.Context, output any) {
 		return
 	}
 	c.JSON(op.spec.successStatus, body)
+}
+
+func isNilResponse(output any) bool {
+	if output == nil {
+		return true
+	}
+	value := reflect.ValueOf(output)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func (op *operation) serializeResponse(output any) (any, error) {
