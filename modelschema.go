@@ -74,6 +74,31 @@ func ModelSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
 	return descriptor
 }
 
+// ModelReadSchemaOf creates a descriptor for general response serialization.
+func ModelReadSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Read()
+}
+
+// ModelListSchemaOf creates a descriptor for list response serialization.
+func ModelListSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).List()
+}
+
+// ModelDetailSchemaOf creates a descriptor for detail response serialization.
+func ModelDetailSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Detail()
+}
+
+// ModelCreateSchemaOf creates a descriptor for create input-like field selection.
+func ModelCreateSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Create()
+}
+
+// ModelUpdateSchemaOf creates a descriptor for update input-like field selection.
+func ModelUpdateSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Update()
+}
+
 // Fields returns a copy of the descriptor limited to the provided field names.
 func (d ModelSchemaDescriptor[T]) Fields(fields ...string) ModelSchemaDescriptor[T] {
 	d.filter.fields = normalizeModelSchemaNames(fields)

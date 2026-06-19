@@ -1343,6 +1343,65 @@ func TestModelSchemaDescriptorModesUseAccessAndGORMConventions(t *testing.T) {
 	}
 }
 
+func TestModelSchemaConvenienceConstructors(t *testing.T) {
+	model := schemaModeModel{
+		ID:       22,
+		Name:     "gina",
+		Password: "secret",
+		Invite:   "invite-2",
+		Status:   "approved",
+		Profile:  schemaModel{Name: "nested"},
+		Tags:     []string{"ops"},
+		Computed: "derived",
+	}
+
+	createPayload, err := json.Marshal(ModelCreateSchemaOf[schemaModeModel]().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal create schema: %v", err)
+	}
+	var createData map[string]any
+	if err := json.Unmarshal(createPayload, &createData); err != nil {
+		t.Fatalf("Unmarshal create schema: %v", err)
+	}
+	if _, ok := createData["id"]; ok {
+		t.Fatalf("expected create constructor to omit id, got %s", string(createPayload))
+	}
+	if _, ok := createData["invite_code"]; !ok {
+		t.Fatalf("expected create constructor to keep create-only field, got %s", string(createPayload))
+	}
+	if _, ok := createData["status_note"]; ok {
+		t.Fatalf("expected create constructor to omit update-only field, got %s", string(createPayload))
+	}
+
+	updatePayload, err := json.Marshal(ModelUpdateSchemaOf[schemaModeModel]().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal update schema: %v", err)
+	}
+	var updateData map[string]any
+	if err := json.Unmarshal(updatePayload, &updateData); err != nil {
+		t.Fatalf("Unmarshal update schema: %v", err)
+	}
+	if _, ok := updateData["invite_code"]; ok {
+		t.Fatalf("expected update constructor to omit create-only field, got %s", string(updatePayload))
+	}
+	if _, ok := updateData["status_note"]; !ok {
+		t.Fatalf("expected update constructor to keep update-only field, got %s", string(updatePayload))
+	}
+
+	listPayload, err := json.Marshal(ModelListSchemaOf[schemaModeModel]().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal list schema: %v", err)
+	}
+	if strings.Contains(string(listPayload), "profile") || strings.Contains(string(listPayload), "tags") {
+		t.Fatalf("expected list constructor to omit relation fields, got %s", string(listPayload))
+	}
+
+	detailPreloads := ModelDetailSchemaOf[schemaDepthModel](Depth(1)).Preloads()
+	if !reflect.DeepEqual(detailPreloads, []string{"Owner", "Members"}) {
+		t.Fatalf("expected detail constructor to support depth preloads, got %v", detailPreloads)
+	}
+}
+
 func TestModelSchemaModeAffectsOpenAPIComponents(t *testing.T) {
 	type createSchema struct {
 		ModelSchema[schemaModeModel] `mode:"create"`
