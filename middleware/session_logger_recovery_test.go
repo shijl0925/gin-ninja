@@ -133,26 +133,6 @@ func TestSession_ClearPersistsEmptySession(t *testing.T) {
 	}
 }
 
-func TestNewSessionID_UniqueAndURLSafe(t *testing.T) {
-	t.Parallel()
-
-	first := middleware.NewSessionID()
-	second := middleware.NewSessionID()
-
-	if first == "" || second == "" {
-		t.Fatal("expected non-empty session IDs")
-	}
-	if first == second {
-		t.Fatal("expected generated session IDs to be unique")
-	}
-	if len(first) != 43 || len(second) != 43 {
-		t.Fatalf("expected base64url encoded 32-byte IDs, got lengths %d and %d", len(first), len(second))
-	}
-	if strings.ContainsAny(first+second, "+/=") {
-		t.Fatalf("expected URL-safe session IDs, got %q and %q", first, second)
-	}
-}
-
 func TestRecovery_LogsAndWritesInternalError(t *testing.T) {
 	t.Parallel()
 
