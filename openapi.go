@@ -268,9 +268,17 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		} else {
 			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
 		}
+	} else if op.spec.paginatedResponseSchema != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: paginatedSchema(s.registry.schemaForDescriptor(*op.spec.paginatedResponseSchema))},
+		}
 	} else if op.spec.paginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
 			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.spec.paginatedItemType))},
+		}
+	} else if op.spec.cursorPaginatedResponseSchema != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForDescriptor(*op.spec.cursorPaginatedResponseSchema))},
 		}
 	} else if op.spec.cursorPaginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{

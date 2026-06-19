@@ -180,6 +180,8 @@ func ResponseModel[T any]() OperationOption {
 	return func(op *operation) {
 		op.spec.responseType = reflect.TypeOf((*T)(nil)).Elem()
 		op.spec.responseSchema = nil
+		op.spec.paginatedResponseSchema = nil
+		op.spec.cursorPaginatedResponseSchema = nil
 	}
 }
 
@@ -191,6 +193,8 @@ func ResponseSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption 
 		schema := descriptor.schemaDescriptor()
 		op.spec.responseSchema = &schema
 		op.spec.responseType = nil
+		op.spec.paginatedResponseSchema = nil
+		op.spec.cursorPaginatedResponseSchema = nil
 	}
 }
 
@@ -199,6 +203,17 @@ func Paginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
 		op.spec.paginatedItemType = reflect.TypeOf(item)
+		op.spec.paginatedResponseSchema = nil
+	}
+}
+
+// PaginatedSchema declares a paginated success response whose items are
+// serialized through the provided model schema descriptor at runtime.
+func PaginatedSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption {
+	return func(op *operation) {
+		schema := descriptor.schemaDescriptor()
+		op.spec.paginatedResponseSchema = &schema
+		op.spec.paginatedItemType = nil
 	}
 }
 
@@ -207,6 +222,17 @@ func CursorPaginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
 		op.spec.cursorPaginatedItemType = reflect.TypeOf(item)
+		op.spec.cursorPaginatedResponseSchema = nil
+	}
+}
+
+// CursorPaginatedSchema declares a cursor-paginated success response whose
+// items are serialized through the provided model schema descriptor at runtime.
+func CursorPaginatedSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption {
+	return func(op *operation) {
+		schema := descriptor.schemaDescriptor()
+		op.spec.cursorPaginatedResponseSchema = &schema
+		op.spec.cursorPaginatedItemType = nil
 	}
 }
 
@@ -275,20 +301,22 @@ type operationRoute struct {
 }
 
 type operationDocSpec struct {
-	summary                 string
-	description             string
-	operationID             string
-	tags                    []string
-	tagDescriptions         map[string]string
-	security                []SecurityRequirement
-	deprecated              bool
-	successStatus           int
-	responseType            reflect.Type
-	responseSchema          *modelSchemaDescriptor
-	responses               []documentedResponse
-	paginatedItemType       reflect.Type
-	cursorPaginatedItemType reflect.Type
-	excludeFromDocs         bool
+	summary                       string
+	description                   string
+	operationID                   string
+	tags                          []string
+	tagDescriptions               map[string]string
+	security                      []SecurityRequirement
+	deprecated                    bool
+	successStatus                 int
+	responseType                  reflect.Type
+	responseSchema                *modelSchemaDescriptor
+	paginatedResponseSchema       *modelSchemaDescriptor
+	cursorPaginatedResponseSchema *modelSchemaDescriptor
+	responses                     []documentedResponse
+	paginatedItemType             reflect.Type
+	cursorPaginatedItemType       reflect.Type
+	excludeFromDocs               bool
 }
 
 type operationBehavior struct {
@@ -556,6 +584,12 @@ func (op *operation) writeSuccessResponse(c *gin.Context, output any) {
 }
 
 func (op *operation) serializeResponse(output any) (any, error) {
+	if op.spec.paginatedResponseSchema != nil {
+		return serializePaginatedModelSchemaResponse(*op.spec.paginatedResponseSchema, output)
+	}
+	if op.spec.cursorPaginatedResponseSchema != nil {
+		return serializePaginatedModelSchemaResponse(*op.spec.cursorPaginatedResponseSchema, output)
+	}
 	if op.spec.responseSchema != nil {
 		return serializeModelSchemaResponse(*op.spec.responseSchema, output)
 	}
@@ -570,6 +604,71 @@ func (op *operation) serializeResponse(output any) (any, error) {
 		return nil, err
 	}
 	return body, nil
+}
+
+func serializePaginatedModelSchemaResponse(descriptor modelSchemaDescriptor, output any) (any, error) {
+	value := reflect.ValueOf(output)
+	if !value.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil, fmt.Errorf("response value is nil")
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("paginated response must be a struct, got %s", value.Kind())
+	}
+
+	items := value.FieldByName("Items")
+	if !items.IsValid() {
+		return nil, fmt.Errorf("paginated response must have an Items field")
+	}
+	if !items.CanInterface() {
+		return nil, fmt.Errorf("paginated response Items field is not accessible")
+	}
+	if err := validateModelSchemaResponseType(descriptor.target, items.Interface()); err != nil {
+		return nil, err
+	}
+	serializedItems, err := serializeModelSchemaValue(items, descriptor.filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return serializePaginatedResponseEnvelope(value, serializedItems)
+}
+
+func serializePaginatedResponseEnvelope(value reflect.Value, serializedItems any) (map[string]any, error) {
+	out := make(map[string]any)
+	t := value.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name := jsonFieldName(field)
+		if name == "-" {
+			continue
+		}
+		fieldValue := value.Field(i)
+		if isJSONOmitEmpty(field) && fieldValue.IsZero() {
+			continue
+		}
+		if field.Name == "Items" {
+			out[name] = serializedItems
+			continue
+		}
+		if marshaled, ok := preserveCustomJSONValue(fieldValue); ok {
+			out[name] = marshaled
+			continue
+		}
+		if !fieldValue.CanInterface() {
+			continue
+		}
+		out[name] = fieldValue.Interface()
+	}
+	return out, nil
 }
 
 func serializeModelSchemaResponse(descriptor modelSchemaDescriptor, output any) (any, error) {

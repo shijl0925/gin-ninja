@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
+	"github.com/shijl0925/gin-ninja/pagination"
 )
 
 type BindEmbeddedInput struct {
@@ -1085,6 +1086,103 @@ func TestResponseSchemaDescriptorOverridesOpenAPI(t *testing.T) {
 	}
 	if _, ok := component.Properties["email"]; !ok {
 		t.Fatalf("expected email field, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["password"]; ok {
+		t.Fatalf("expected password to be omitted, got %+v", component.Properties)
+	}
+}
+
+func TestPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUserPageItem")
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/page", func(ctx *Context, in *struct{}) (*pagination.Page[schemaModel], error) {
+		return pagination.NewPage([]schemaModel{{
+			ID:       13,
+			Name:     "eve",
+			Email:    "eve@example.com",
+			Password: "secret",
+		}}, 1, pagination.PageInput{Page: 1, Size: 10}), nil
+	}, PaginatedSchema(userSchema))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/page", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	items, ok := data["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one paginated item, got %+v", data["items"])
+	}
+	item := items[0].(map[string]any)
+	if _, ok := item["password"]; ok {
+		t.Fatalf("expected paginated schema to prune password, got %+v", item)
+	}
+	if _, ok := item["name"]; ok {
+		t.Fatalf("expected paginated schema fields to omit name, got %+v", item)
+	}
+	if item["email"] != "eve@example.com" || data["total"] != float64(1) {
+		t.Fatalf("expected serialized page item and metadata, got %+v", data)
+	}
+}
+
+func TestCursorPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().Fields("id", "email")
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/cursor-page", func(ctx *Context, in *struct{}) (*pagination.CursorPage[schemaModel], error) {
+		return pagination.NewCursorPage([]schemaModel{{
+			ID:       14,
+			Name:     "frank",
+			Email:    "frank@example.com",
+			Password: "secret",
+		}}, pagination.CursorPagination{Size: 5}, "next"), nil
+	}, CursorPaginatedSchema(userSchema))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/cursor-page", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "password") || strings.Contains(w.Body.String(), "frank\"") {
+		t.Fatalf("expected cursor paginated schema to prune fields, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "next_cursor") {
+		t.Fatalf("expected cursor metadata to remain, got %s", w.Body.String())
+	}
+}
+
+func TestPaginatedSchemaOverridesOpenAPI(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUserPageItem")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/page", func(ctx *Context, in *struct{}) (*pagination.Page[schemaModel], error) {
+		return pagination.NewPage([]schemaModel{}, 0, pagination.PageInput{}), nil
+	}, nil)
+	PaginatedSchema(userSchema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	items := built.Paths["/page"].Get.Responses["200"].Content["application/json"].Schema.Properties["items"]
+	if items == nil || items.Items == nil || items.Items.Ref != "#/components/schemas/PublicUserPageItem" {
+		t.Fatalf("expected paginated item schema ref, got %+v", items)
+	}
+	component := built.Components.Schemas["PublicUserPageItem"]
+	if component == nil {
+		t.Fatalf("expected PublicUserPageItem component, got %+v", built.Components.Schemas)
 	}
 	if _, ok := component.Properties["password"]; ok {
 		t.Fatalf("expected password to be omitted, got %+v", component.Properties)
