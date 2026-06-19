@@ -631,6 +631,9 @@ func serializePaginatedModelSchemaResponse(descriptor modelSchemaDescriptor, out
 	if err := validateModelSchemaResponseType(descriptor.target, items.Interface()); err != nil {
 		return nil, err
 	}
+	if err := validateModelSchemaRequiredFields(items, descriptor.filter); err != nil {
+		return nil, err
+	}
 	serializedItems, err := serializeModelSchemaValue(items, descriptor.filter)
 	if err != nil {
 		return nil, err
@@ -675,7 +678,80 @@ func serializeModelSchemaResponse(descriptor modelSchemaDescriptor, output any) 
 	if err := validateModelSchemaResponseType(descriptor.target, output); err != nil {
 		return nil, err
 	}
+	if err := validateModelSchemaRequiredFields(reflect.ValueOf(output), descriptor.filter); err != nil {
+		return nil, err
+	}
 	return serializeModelSchemaValue(reflect.ValueOf(output), descriptor.filter)
+}
+
+func validateModelSchemaRequiredFields(value reflect.Value, filter modelSchemaFilter) error {
+	return validateModelSchemaRequiredFieldsAt(value, filter.normalized(), "")
+}
+
+func validateModelSchemaRequiredFieldsAt(value reflect.Value, filter modelSchemaFilter, path string) error {
+	if !value.IsValid() {
+		return nil
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil
+		}
+		value = value.Elem()
+	}
+	if marshaled, ok := preserveCustomJSONValue(value); ok && marshaled != nil {
+		return nil
+	}
+
+	switch value.Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < value.Len(); i++ {
+			if err := validateModelSchemaRequiredFieldsAt(value.Index(i), filter, path); err != nil {
+				return err
+			}
+		}
+	case reflect.Struct:
+		return validateModelSchemaStructRequiredFields(value, filter, path)
+	}
+	return nil
+}
+
+func validateModelSchemaStructRequiredFields(value reflect.Value, filter modelSchemaFilter, path string) error {
+	t := value.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		fieldValue := value.Field(i)
+		if field.Anonymous {
+			if err := validateModelSchemaRequiredFieldsAt(fieldValue, filter, path); err != nil {
+				return err
+			}
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" || !filter.includes(field, name) {
+			continue
+		}
+		fieldPath := modelSchemaFieldPath(path, name)
+		if isRequired(field) && fieldValue.IsZero() {
+			return fmt.Errorf("response schema validation failed: %s is required", fieldPath)
+		}
+		if filter.depth > 0 && modelSchemaNestedField(fieldValue.Type()) {
+			if err := validateModelSchemaRequiredFieldsAt(fieldValue, filter.child(), fieldPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func modelSchemaFieldPath(prefix, name string) string {
+	if prefix == "" {
+		return name
+	}
+	return prefix + "." + name
 }
 
 func validateModelSchemaResponseType(target reflect.Type, output any) error {

@@ -60,6 +60,12 @@ type schemaModel struct {
 	Password string `json:"password"`
 }
 
+type requiredSchemaModel struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name" binding:"required"`
+	Email string `json:"email"`
+}
+
 type schemaModeModel struct {
 	ID        uint        `json:"id" gorm:"primaryKey"`
 	Name      string      `json:"name"`
@@ -1063,6 +1069,36 @@ func TestResponseSchemaDescriptorSerializesModelAtRuntime(t *testing.T) {
 	}
 }
 
+func TestResponseSchemaDescriptorValidatesRequiredFields(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/descriptor-invalid", func(ctx *Context, in *struct{}) (*requiredSchemaModel, error) {
+		return &requiredSchemaModel{ID: 15, Email: "missing-name@example.com"}, nil
+	}, ResponseSchema(ModelSchemaOf[requiredSchemaModel]().Fields("id", "name", "email")))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/descriptor-invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected response schema validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResponseSchemaDescriptorSkipsExcludedRequiredFields(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/descriptor-excluded-required", func(ctx *Context, in *struct{}) (*requiredSchemaModel, error) {
+		return &requiredSchemaModel{ID: 16, Email: "missing-name@example.com"}, nil
+	}, ResponseSchema(ModelSchemaOf[requiredSchemaModel]().Fields("id", "email")))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/descriptor-excluded-required", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected excluded required field to be ignored, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestResponseSchemaDescriptorOverridesOpenAPI(t *testing.T) {
 	userSchema := ModelSchemaOf[schemaModel]().
 		Fields("id", "email").
@@ -1089,6 +1125,24 @@ func TestResponseSchemaDescriptorOverridesOpenAPI(t *testing.T) {
 	}
 	if _, ok := component.Properties["password"]; ok {
 		t.Fatalf("expected password to be omitted, got %+v", component.Properties)
+	}
+}
+
+func TestPaginatedSchemaValidatesRequiredItemFields(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/page-invalid", func(ctx *Context, in *struct{}) (*pagination.Page[requiredSchemaModel], error) {
+		return pagination.NewPage([]requiredSchemaModel{{
+			ID:    17,
+			Email: "missing-name@example.com",
+		}}, 1, pagination.PageInput{Page: 1, Size: 10}), nil
+	}, PaginatedSchema(ModelSchemaOf[requiredSchemaModel]().Fields("id", "name", "email")))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/page-invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected paginated item validation to fail with 500, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
