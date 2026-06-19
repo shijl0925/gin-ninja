@@ -613,12 +613,16 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 			return nil, err
 		}
 
+		scopedDB := r.scopedDB(ctx, ActionCreate, orm.WithContext(ctx.Context))
 		model := r.newModel()
 		if err := r.applyValuesFor(view, reflect.ValueOf(model).Elem(), values); err != nil {
 			return nil, err
 		}
-		if err := orm.WithContext(ctx.Context).Create(model).Error; err != nil {
+		if err := scopedDB.Create(model).Error; err != nil {
 			return nil, r.normalizeWriteError(ctx, ActionCreate, reflect.ValueOf(model).Elem(), nil, err)
+		}
+		if err := r.ensureScopedWriteVisible(scopedDB, model); err != nil {
+			return nil, err
 		}
 		if r.AfterCreate != nil {
 			if err := r.AfterCreate(ctx, model); err != nil {
@@ -675,14 +679,16 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 				}
 				return nil, err
 			}
-			saveErr := orm.WithContext(ctx.Context).Model(model).Select(columns).Updates(model).Error
+			currentID := r.primaryKeyValue(reflect.ValueOf(model).Elem())
+			saveErr := orm.WithContext(ctx.Context).
+				Model(model).
+				Where(queryColumn(r.primaryKey)+" IN (?)", r.scopedPrimaryKeySubquery(scopedDB, currentID)).
+				Select(columns).
+				Updates(model).Error
 			if saveErr != nil {
-				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, r.primaryKeyValue(reflect.ValueOf(model).Elem()), saveErr)
+				return nil, r.normalizeWriteError(ctx, ActionUpdate, desired, currentID, saveErr)
 			}
-			if err := scopedDB.First(model, r.primaryKeyValue(reflect.ValueOf(model).Elem())).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil, ninja.NotFoundError()
-				}
+			if err := r.ensureScopedWriteVisible(scopedDB, model); err != nil {
 				return nil, err
 			}
 		}
@@ -712,10 +718,9 @@ func (r *Resource) deleteModelWithHooks(ctx *ninja.Context, scopedDB *gorm.DB, m
 		}
 		return false, err
 	}
-	result := orm.WithContext(ctx.Context).Where(clause.Eq{
-		Column: clause.Column{Name: queryColumn(r.primaryKey)},
-		Value:  currentID,
-	}).Delete(model)
+	result := orm.WithContext(ctx.Context).
+		Where(queryColumn(r.primaryKey)+" IN (?)", r.scopedPrimaryKeySubquery(scopedDB, currentID)).
+		Delete(model)
 	if result.Error != nil {
 		return false, result.Error
 	}
@@ -728,6 +733,41 @@ func (r *Resource) deleteModelWithHooks(ctx *ninja.Context, scopedDB *gorm.DB, m
 		}
 	}
 	return true, nil
+}
+
+func (r *Resource) ensureScopedWriteVisible(scopedDB *gorm.DB, model any) error {
+	if err := r.reloadScopedWrite(scopedDB, model); err != nil {
+		if errors.Is(err, ninja.NotFoundError()) {
+			return ninja.ForbiddenError()
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *Resource) reloadScopedWrite(scopedDB *gorm.DB, model any) error {
+	if scopedDB == nil || model == nil {
+		return ninja.InternalError()
+	}
+	value := reflect.ValueOf(model)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return ninja.InternalError()
+	}
+	currentID := r.primaryKeyValue(value.Elem())
+	if err := scopedDB.First(model, currentID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ninja.NotFoundError()
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *Resource) scopedPrimaryKeySubquery(scopedDB *gorm.DB, currentID any) *gorm.DB {
+	return scopedDB.Session(&gorm.Session{}).
+		Model(r.newModel()).
+		Select(queryColumn(r.primaryKey)).
+		Where(clause.Eq{Column: clause.Column{Name: queryColumn(r.primaryKey)}, Value: currentID})
 }
 
 func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) error {

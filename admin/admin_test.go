@@ -909,6 +909,45 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 		t.Fatalf("unexpected row-scoped list payload: %+v", page)
 	}
 
+	createForeignResp := performJSON(t, api, http.MethodPost, "/admin/resources/projects", map[string]any{
+		"title":    "Foreign Project",
+		"owner_id": 2,
+		"secret":   "should rollback",
+	}, headers)
+	if createForeignResp.Code != http.StatusForbidden {
+		t.Fatalf("expected row-scoped create to reject foreign owner, got %d body=%s", createForeignResp.Code, createForeignResp.Body.String())
+	}
+	var foreignCount int64
+	if err := db.Model(&adminProject{}).Where("title = ?", "Foreign Project").Count(&foreignCount).Error; err != nil {
+		t.Fatalf("count foreign project: %v", err)
+	}
+	if foreignCount != 0 {
+		t.Fatalf("expected rejected foreign project to roll back, found %d row(s)", foreignCount)
+	}
+
+	createOwnedResp := performJSON(t, api, http.MethodPost, "/admin/resources/projects", map[string]any{
+		"title":    "Alice New Project",
+		"owner_id": 1,
+		"secret":   "allowed",
+	}, headers)
+	if createOwnedResp.Code != http.StatusCreated {
+		t.Fatalf("expected row-scoped create to allow current owner, got %d body=%s", createOwnedResp.Code, createOwnedResp.Body.String())
+	}
+
+	transferResp := performJSON(t, api, http.MethodPut, "/admin/resources/projects/1", map[string]any{
+		"owner_id": 2,
+	}, headers)
+	if transferResp.Code != http.StatusForbidden {
+		t.Fatalf("expected row-scoped update to reject scope escape, got %d body=%s", transferResp.Code, transferResp.Body.String())
+	}
+	var project adminProject
+	if err := db.First(&project, 1).Error; err != nil {
+		t.Fatalf("load project after rejected transfer: %v", err)
+	}
+	if project.OwnerID != 1 {
+		t.Fatalf("expected rejected transfer to roll back owner_id, got %d", project.OwnerID)
+	}
+
 	detailResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/2", nil, headers)
 	if detailResp.Code != http.StatusNotFound {
 		t.Fatalf("expected row-scoped detail to hide Bob's project, got %d body=%s", detailResp.Code, detailResp.Body.String())
