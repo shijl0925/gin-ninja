@@ -1325,13 +1325,9 @@ func {{ .ToOutFuncName }}(item {{ .ModelName }}) (*{{ .ModelName }}Out, error) {
 {{- range .Relations }}
 {{- if .Collection }}
 	if len(item.{{ .FieldName }}) > 0 {
-		out.{{ .FieldName }} = make([]{{ .TargetOutType }}, 0, len(item.{{ .FieldName }}))
-		for _, related := range item.{{ .FieldName }} {
-			bound, err := ninja.BindModelSchema[{{ .TargetOutType }}](related)
-			if err != nil {
-				return nil, err
-			}
-			out.{{ .FieldName }} = append(out.{{ .FieldName }}, *bound)
+		out.{{ .FieldName }}, err = ninja.BindModelSchemas[{{ .TargetOutType }}](item.{{ .FieldName }})
+		if err != nil {
+			return nil, err
 		}
 	}
 {{- else if .Pointer }}

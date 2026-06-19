@@ -696,6 +696,8 @@ type Project struct {
 		`query.Preload("Tags")`,
 		`for i, item := range items`,
 		`bound, err := toProjectOut(item)`,
+		`out.Tasks, err = ninja.BindModelSchemas[ProjectTasksOut](item.Tasks)`,
+		`out.Tags, err = ninja.BindModelSchemas[ProjectTagsOut](item.Tags)`,
 		`filterOpts, err := filter.BuildOptions(in)`,
 		`if err := order.ApplyOrder(query, in); err != nil {`,
 		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,
