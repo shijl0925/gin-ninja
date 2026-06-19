@@ -791,11 +791,15 @@ func isModelSchemaResponseType(target, source reflect.Type) bool {
 
 func bindResponseModel(schemaType reflect.Type, output any) (any, error) {
 	schemaType = deref(schemaType)
-	if schemaType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("response model must be a struct, got %s", schemaType.Kind())
-	}
 	if value, ok := coerceResponseValue(schemaType, output); ok {
 		return value, nil
+	}
+
+	if schemaType.Kind() == reflect.Slice || schemaType.Kind() == reflect.Array {
+		return bindResponseModelItems(schemaType, output)
+	}
+	if schemaType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("response model must be a struct, got %s", schemaType.Kind())
 	}
 	if value, ok, err := bindModelSchemaForType(schemaType, output); ok || err != nil {
 		return value, err
@@ -831,19 +835,102 @@ func coerceResponseValue(schemaType reflect.Type, output any) (any, bool) {
 	return nil, false
 }
 
+func bindResponseModelItems(schemaType reflect.Type, output any) (any, error) {
+	source := reflect.ValueOf(output)
+	if !source.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	for source.Kind() == reflect.Ptr {
+		if source.IsNil() {
+			return nil, fmt.Errorf("response value is nil")
+		}
+		source = source.Elem()
+	}
+	if source.Kind() != reflect.Slice && source.Kind() != reflect.Array {
+		return nil, fmt.Errorf("cannot serialize response type %s as %s", source.Type(), schemaType)
+	}
+	if schemaType.Kind() == reflect.Array && source.Len() != schemaType.Len() {
+		return nil, fmt.Errorf("cannot serialize response length %d as %s", source.Len(), schemaType)
+	}
+
+	out := reflect.MakeSlice(reflect.SliceOf(schemaType.Elem()), source.Len(), source.Len())
+	for i := 0; i < source.Len(); i++ {
+		item, err := bindResponseModel(schemaType.Elem(), source.Index(i).Interface())
+		if err != nil {
+			return nil, fmt.Errorf("response item %d: %w", i, err)
+		}
+		itemValue, err := responseModelValueForType(schemaType.Elem(), item)
+		if err != nil {
+			return nil, fmt.Errorf("response item %d: %w", i, err)
+		}
+		out.Index(i).Set(itemValue)
+	}
+	if schemaType.Kind() == reflect.Slice {
+		return out.Interface(), nil
+	}
+
+	array := reflect.New(schemaType).Elem()
+	reflect.Copy(array, out)
+	return array.Interface(), nil
+}
+
+func responseModelValueForType(target reflect.Type, value any) (reflect.Value, error) {
+	source := reflect.ValueOf(value)
+	if !source.IsValid() {
+		return reflect.Value{}, fmt.Errorf("response value is invalid")
+	}
+	if source.Type().AssignableTo(target) {
+		return source, nil
+	}
+	if source.Type().ConvertibleTo(target) {
+		return source.Convert(target), nil
+	}
+	if source.Kind() == reflect.Ptr && !source.IsNil() {
+		elem := source.Elem()
+		if elem.Type().AssignableTo(target) {
+			return elem, nil
+		}
+		if elem.Type().ConvertibleTo(target) {
+			return elem.Convert(target), nil
+		}
+	}
+	return reflect.Value{}, fmt.Errorf("cannot serialize response type %s as %s", source.Type(), target)
+}
+
 func validateResponseModel(value any) error {
 	if value == nil {
 		return nil
 	}
-	t := reflect.TypeOf(value)
-	for t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	if t.Kind() != reflect.Struct {
+	return validateResponseModelValue(reflect.ValueOf(value))
+}
+
+func validateResponseModelValue(value reflect.Value) error {
+	if !value.IsValid() {
 		return nil
 	}
-	if err := validate.Struct(value); err != nil {
-		return fmt.Errorf("response schema validation failed: %w", err)
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil
+		}
+		value = value.Elem()
+	}
+
+	switch value.Kind() {
+	case reflect.Struct:
+		if !value.CanInterface() {
+			return nil
+		}
+		if err := validate.Struct(value.Interface()); err != nil {
+			return fmt.Errorf("response schema validation failed: %w", err)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < value.Len(); i++ {
+			if err := validateResponseModelValue(value.Index(i)); err != nil {
+				return err
+			}
+		}
+	default:
+		return nil
 	}
 	return nil
 }

@@ -998,6 +998,40 @@ func TestResponseModelBindsModelSchemaAtRuntime(t *testing.T) {
 	}
 }
 
+func TestResponseModelBindsModelSchemaSliceAtRuntime(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/users", func(ctx *Context, in *struct{}) (*[]schemaModel, error) {
+		return &[]schemaModel{{
+			ID:       8,
+			Name:     "alice",
+			Email:    "alice@example.com",
+			Password: "secret",
+		}}, nil
+	}, ResponseModel[[]publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/users", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if len(data) != 1 {
+		t.Fatalf("expected one item, got %+v", data)
+	}
+	if _, ok := data[0]["password"]; ok {
+		t.Fatalf("expected response model to prune password, got %+v", data[0])
+	}
+	if data[0]["email"] != "alice@example.com" || data[0]["id"] != float64(8) {
+		t.Fatalf("expected public response fields, got %+v", data[0])
+	}
+}
+
 func TestResponseModelAcceptsAlreadyBoundSchema(t *testing.T) {
 	typed, err := BindModelSchema[publicSchema](schemaModel{
 		ID:       9,
@@ -1063,6 +1097,25 @@ func TestResponseModelValidatesPlainResponseSchema(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected response validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResponseModelValidatesPlainResponseSchemaSlice(t *testing.T) {
+	type requiredOutput struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/invalid-list", func(ctx *Context, in *struct{}) (*[]requiredOutput, error) {
+		return &[]requiredOutput{{}}, nil
+	}, ResponseModel[[]requiredOutput]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/invalid-list", nil))
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("expected response validation to fail with 500, got %d: %s", w.Code, w.Body.String())
 	}
