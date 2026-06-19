@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -47,6 +48,13 @@ func Exclude(fields ...string) ModelSchemaOption {
 func SchemaMode(mode ModelSchemaMode) ModelSchemaOption {
 	return func(filter *modelSchemaFilter) {
 		filter.mode = normalizeModelSchemaMode(mode)
+	}
+}
+
+// Depth controls how many nested model levels are serialized through the same schema mode.
+func Depth(depth int) ModelSchemaOption {
+	return func(filter *modelSchemaFilter) {
+		filter.depth = normalizeModelSchemaDepth(depth)
 	}
 }
 
@@ -109,6 +117,12 @@ func (d ModelSchemaDescriptor[T]) Update() ModelSchemaDescriptor[T] {
 	return d.Mode(ModelSchemaModeUpdate)
 }
 
+// Depth returns a copy of the descriptor with nested model serialization depth.
+func (d ModelSchemaDescriptor[T]) Depth(depth int) ModelSchemaDescriptor[T] {
+	d.filter.depth = normalizeModelSchemaDepth(depth)
+	return d
+}
+
 // ComponentName returns a copy of the descriptor with a fixed OpenAPI component name.
 func (d ModelSchemaDescriptor[T]) ComponentName(name string) ModelSchemaDescriptor[T] {
 	d.componentName = sanitizeComponentName(name)
@@ -122,6 +136,7 @@ func (d ModelSchemaDescriptor[T]) Wrap(model T) *ModelSchema[T] {
 		Fields:  append([]string(nil), d.filter.fields...),
 		Exclude: append([]string(nil), d.filter.exclude...),
 		Mode:    d.filter.mode,
+		Depth:   d.filter.depth,
 	}
 }
 
@@ -139,6 +154,7 @@ type ModelSchema[T any] struct {
 	Fields  []string        `json:"-"`
 	Exclude []string        `json:"-"`
 	Mode    ModelSchemaMode `json:"-"`
+	Depth   int             `json:"-"`
 }
 
 // NewModelSchema wraps a model with optional field filters.
@@ -152,6 +168,7 @@ func NewModelSchema[T any](model T, opts ...ModelSchemaOption) *ModelSchema[T] {
 		Fields:  append([]string(nil), filter.fields...),
 		Exclude: append([]string(nil), filter.exclude...),
 		Mode:    filter.mode,
+		Depth:   filter.depth,
 	}
 }
 
@@ -188,6 +205,7 @@ func BindModelSchema[TSchema any](model any) (*TSchema, error) {
 	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), fieldInfo.filter.fields...)))
 	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), fieldInfo.filter.exclude...)))
 	field.FieldByName("Mode").Set(reflect.ValueOf(fieldInfo.filter.mode))
+	field.FieldByName("Depth").Set(reflect.ValueOf(fieldInfo.filter.depth))
 
 	out := value.Addr().Interface().(*TSchema)
 	return out, nil
@@ -215,6 +233,7 @@ func bindModelSchemaForType(schemaType reflect.Type, model any) (any, bool, erro
 	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), filter.fields...)))
 	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), filter.exclude...)))
 	field.FieldByName("Mode").Set(reflect.ValueOf(filter.mode))
+	field.FieldByName("Depth").Set(reflect.ValueOf(filter.depth))
 	return value.Addr().Interface(), true, nil
 }
 
@@ -236,6 +255,7 @@ func hasDirectModelSchemaFields(t reflect.Type) bool {
 		"Fields":  false,
 		"Exclude": false,
 		"Mode":    false,
+		"Depth":   false,
 	}
 	for i := 0; i < t.NumField(); i++ {
 		if _, ok := fields[t.Field(i).Name]; ok {
@@ -253,6 +273,7 @@ func hasDirectModelSchemaFields(t reflect.Type) bool {
 func (m ModelSchema[T]) MarshalJSON() ([]byte, error) {
 	filter := newModelSchemaFilter(m.Fields, m.Exclude)
 	filter.mode = normalizeModelSchemaMode(m.Mode)
+	filter.depth = normalizeModelSchemaDepth(m.Depth)
 	filtered, err := serializeModelSchemaValue(reflect.ValueOf(m.Model), filter)
 	if err != nil {
 		return nil, err
@@ -264,6 +285,7 @@ type modelSchemaFilter struct {
 	fields  []string
 	exclude []string
 	mode    ModelSchemaMode
+	depth   int
 }
 
 type modelSchemaDescriptor struct {
@@ -283,9 +305,12 @@ type modelSchemaCarrier interface {
 
 func (m ModelSchema[T]) modelSchemaDescriptor() modelSchemaDescriptor {
 	var zero T
+	filter := newModelSchemaFilter(m.Fields, m.Exclude)
+	filter.mode = normalizeModelSchemaMode(m.Mode)
+	filter.depth = normalizeModelSchemaDepth(m.Depth)
 	return modelSchemaDescriptor{
 		target:        reflect.TypeOf(zero),
-		filter:        newModelSchemaFilter(m.Fields, m.Exclude),
+		filter:        filter,
 		componentName: sanitizeComponentName(typeName(reflect.TypeOf(m))),
 	}
 }
@@ -302,11 +327,12 @@ func (f modelSchemaFilter) normalized() modelSchemaFilter {
 		fields:  normalizeModelSchemaNames(f.fields),
 		exclude: normalizeModelSchemaNames(f.exclude),
 		mode:    normalizeModelSchemaMode(f.mode),
+		depth:   normalizeModelSchemaDepth(f.depth),
 	}
 }
 
 func (f modelSchemaFilter) isZero() bool {
-	return len(f.fields) == 0 && len(f.exclude) == 0 && f.mode == ""
+	return len(f.fields) == 0 && len(f.exclude) == 0 && f.mode == "" && f.depth == 0
 }
 
 func (f modelSchemaFilter) includes(field reflect.StructField, jsonName string) bool {
@@ -374,7 +400,8 @@ func findEmbeddedModelSchemaField(t reflect.Type) (embeddedModelSchemaField, boo
 				filter: newModelSchemaFilter(
 					parseModelSchemaTag(field.Tag.Get("fields")),
 					parseModelSchemaTag(field.Tag.Get("exclude")),
-				).withMode(parseModelSchemaModeTag(field.Tag.Get("mode"))),
+				).withMode(parseModelSchemaModeTag(field.Tag.Get("mode"))).
+					withDepth(parseModelSchemaDepthTag(field.Tag.Get("depth"))),
 			}, true
 		}
 	}
@@ -429,6 +456,18 @@ func parseModelSchemaModeTag(raw string) ModelSchemaMode {
 	return normalizeModelSchemaMode(ModelSchemaMode(raw))
 }
 
+func parseModelSchemaDepthTag(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	depth, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return normalizeModelSchemaDepth(depth)
+}
+
 func normalizeModelSchemaMode(mode ModelSchemaMode) ModelSchemaMode {
 	value := strings.TrimSpace(strings.ToLower(string(mode)))
 	value = strings.ReplaceAll(value, "_", "-")
@@ -450,9 +489,31 @@ func normalizeModelSchemaMode(mode ModelSchemaMode) ModelSchemaMode {
 	}
 }
 
+func normalizeModelSchemaDepth(depth int) int {
+	if depth < 0 {
+		return 0
+	}
+	return depth
+}
+
 func (f modelSchemaFilter) withMode(mode ModelSchemaMode) modelSchemaFilter {
 	f.mode = normalizeModelSchemaMode(mode)
 	return f
+}
+
+func (f modelSchemaFilter) withDepth(depth int) modelSchemaFilter {
+	f.depth = normalizeModelSchemaDepth(depth)
+	return f
+}
+
+func (f modelSchemaFilter) child() modelSchemaFilter {
+	if f.depth <= 0 {
+		return modelSchemaFilter{}
+	}
+	return modelSchemaFilter{
+		mode:  normalizeModelSchemaMode(f.mode),
+		depth: f.depth - 1,
+	}
 }
 
 func modelSchemaModeIncludes(mode ModelSchemaMode, field reflect.StructField, jsonName string) bool {
@@ -735,9 +796,31 @@ func serializeModelSchemaStruct(v reflect.Value, filter modelSchemaFilter) (map[
 			out[name] = marshaled
 			continue
 		}
+		if filter.depth > 0 && modelSchemaNestedField(value.Type()) {
+			nested, err := serializeModelSchemaValue(value, filter.child())
+			if err != nil {
+				return nil, err
+			}
+			out[name] = nested
+			continue
+		}
 		out[name] = value.Interface()
 	}
 	return out, nil
+}
+
+func modelSchemaNestedField(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		return !modelSchemaImplementsMarshaler(t)
+	case reflect.Slice, reflect.Array:
+		return modelSchemaNestedField(t.Elem())
+	default:
+		return false
+	}
 }
 
 func isJSONOmitEmpty(field reflect.StructField) bool {

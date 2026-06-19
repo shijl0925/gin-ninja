@@ -71,6 +71,20 @@ type schemaModeModel struct {
 	Computed  string      `json:"computed" gorm:"-"`
 }
 
+type schemaRelationModel struct {
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Secret string `json:"secret" ninja:"write_only"`
+}
+
+type schemaDepthModel struct {
+	ID       uint                  `json:"id"`
+	Name     string                `json:"name"`
+	Owner    schemaRelationModel   `json:"owner"`
+	Members  []schemaRelationModel `json:"members"`
+	Internal string                `json:"internal" ninja:"write_only"`
+}
+
 type pointerMarshaler string
 
 func (p *pointerMarshaler) MarshalJSON() ([]byte, error) {
@@ -1188,6 +1202,84 @@ func TestModelSchemaModeAffectsOpenAPIComponents(t *testing.T) {
 	}
 	if _, ok := component.Properties["password"]; !ok {
 		t.Fatalf("expected create mode to keep write-only password input, got %+v", component.Properties)
+	}
+}
+
+func TestModelSchemaDescriptorDepthSerializesNestedModels(t *testing.T) {
+	model := schemaDepthModel{
+		ID:   31,
+		Name: "team",
+		Owner: schemaRelationModel{
+			ID:     1,
+			Name:   "owner",
+			Secret: "owner-secret",
+		},
+		Members: []schemaRelationModel{{
+			ID:     2,
+			Name:   "member",
+			Secret: "member-secret",
+		}},
+		Internal: "hidden",
+	}
+
+	shallowPayload, err := json.Marshal(ModelSchemaOf[schemaDepthModel]().Read().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal shallow schema: %v", err)
+	}
+	if !strings.Contains(string(shallowPayload), "owner-secret") {
+		t.Fatalf("expected depth 0 to preserve existing nested serialization, got %s", string(shallowPayload))
+	}
+
+	deepPayload, err := json.Marshal(ModelSchemaOf[schemaDepthModel]().Read().Depth(1).Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal depth schema: %v", err)
+	}
+	if strings.Contains(string(deepPayload), "owner-secret") || strings.Contains(string(deepPayload), "member-secret") {
+		t.Fatalf("expected depth 1 to prune nested write-only fields, got %s", string(deepPayload))
+	}
+	if strings.Contains(string(deepPayload), "internal") {
+		t.Fatalf("expected read mode to prune top-level write-only fields, got %s", string(deepPayload))
+	}
+	if !strings.Contains(string(deepPayload), `"owner"`) || !strings.Contains(string(deepPayload), `"members"`) {
+		t.Fatalf("expected depth schema to keep nested relation fields, got %s", string(deepPayload))
+	}
+}
+
+func TestModelSchemaDepthAffectsOpenAPIComponents(t *testing.T) {
+	schema := ModelSchemaOf[schemaDepthModel]().
+		Read().
+		Depth(1).
+		ComponentName("DepthParent")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/depth", func(ctx *Context, in *struct{}) (*schemaDepthModel, error) {
+		return &schemaDepthModel{}, nil
+	}, nil)
+	ResponseSchema(schema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	parent := built.Components.Schemas["DepthParent"]
+	if parent == nil {
+		t.Fatalf("expected DepthParent component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := parent.Properties["internal"]; ok {
+		t.Fatalf("expected read mode to omit parent write-only field, got %+v", parent.Properties)
+	}
+	owner := parent.Properties["owner"]
+	if owner == nil || owner.Ref == "" {
+		t.Fatalf("expected owner relation ref, got %+v", owner)
+	}
+	childName := strings.TrimPrefix(owner.Ref, "#/components/schemas/")
+	child := built.Components.Schemas[childName]
+	if child == nil {
+		t.Fatalf("expected child component %q, got %+v", childName, built.Components.Schemas)
+	}
+	if _, ok := child.Properties["secret"]; ok {
+		t.Fatalf("expected depth schema to omit child write-only field, got %+v", child.Properties)
+	}
+	if _, ok := child.Properties["name"]; !ok {
+		t.Fatalf("expected depth schema to keep child public field, got %+v", child.Properties)
 	}
 }
 
