@@ -72,6 +72,56 @@ ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
 
 With descriptor-style schemas, inspect preload paths with `descriptor.Preloads()` or apply them directly to GORM with `orm.ApplyModelSchemaPreloads(db, descriptor)`.
 
+### Binding Inputs to Models
+
+Request input is still handled by ordinary structs and `binding:"..."` tags. Once an input struct has been bound, you can reuse ModelSchema field rules to apply it to a GORM model and reduce repetitive assignment code:
+
+```go
+type CreateUserInput struct {
+    Name     string `json:"name" binding:"required"`
+    Email    string `json:"email" binding:"required,email"`
+    Password string `json:"password" binding:"required,min=8"`
+}
+
+func createUser(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
+    user, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)
+    if err != nil {
+        return nil, err
+    }
+    if err := orm.WithContext(ctx.Context).Create(user).Error; err != nil {
+        return nil, err
+    }
+    return user, nil
+}
+```
+
+For PATCH-style partial updates, use pointer fields to represent omitted values, then apply the input to an existing model:
+
+```go
+type UpdateUserInput struct {
+    ID    uint    `path:"id" json:"-"`
+    Name  *string `json:"name"`
+    Email *string `json:"email" binding:"omitempty,email"`
+}
+
+func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
+    var user User
+    db := orm.WithContext(ctx.Context)
+    if err := db.First(&user, in.ID).Error; err != nil {
+        return nil, err
+    }
+    if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&user, in); err != nil {
+        return nil, err
+    }
+    if err := db.Save(&user).Error; err != nil {
+        return nil, err
+    }
+    return &user, nil
+}
+```
+
+`BindInput` / `ApplyInput` reuse `fields`, `exclude`, `mode`, GORM tags, and `ninja:"create_only"` / `ninja:"update_only"` / `ninja:"write_only"` field rules; nil pointer fields in update inputs are skipped.
+
 ---
 
 ## Standard Response Envelope
