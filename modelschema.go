@@ -123,6 +123,12 @@ func (d ModelSchemaDescriptor[T]) Depth(depth int) ModelSchemaDescriptor[T] {
 	return d
 }
 
+// Preloads returns GORM association preload paths implied by the descriptor depth.
+func (d ModelSchemaDescriptor[T]) Preloads() []string {
+	descriptor := d.schemaDescriptor()
+	return modelSchemaPreloads(descriptor.target, descriptor.filter)
+}
+
 // ComponentName returns a copy of the descriptor with a fixed OpenAPI component name.
 func (d ModelSchemaDescriptor[T]) ComponentName(name string) ModelSchemaDescriptor[T] {
 	d.componentName = sanitizeComponentName(name)
@@ -631,6 +637,17 @@ func modelSchemaHasGORMToken(raw, token string) bool {
 	return false
 }
 
+func modelSchemaHasGORMSetting(raw, key string) bool {
+	key = modelSchemaNormalizeGORMToken(key)
+	for _, part := range strings.Split(raw, ";") {
+		name, _, _ := strings.Cut(part, ":")
+		if modelSchemaNormalizeGORMToken(name) == key {
+			return true
+		}
+	}
+	return false
+}
+
 func modelSchemaNormalizeGORMToken(token string) string {
 	token = strings.TrimSpace(strings.ToLower(token))
 	token = strings.ReplaceAll(token, "_", "")
@@ -821,6 +838,81 @@ func modelSchemaNestedField(t reflect.Type) bool {
 	default:
 		return false
 	}
+}
+
+func modelSchemaPreloads(t reflect.Type, filter modelSchemaFilter) []string {
+	filter = filter.normalized()
+	if filter.depth <= 0 {
+		return nil
+	}
+	var paths []string
+	collectModelSchemaPreloads(deref(t), filter, "", &paths)
+	if len(paths) == 0 {
+		return nil
+	}
+	return paths
+}
+
+func collectModelSchemaPreloads(t reflect.Type, filter modelSchemaFilter, prefix string, paths *[]string) {
+	t = modelSchemaRelationType(t)
+	if t.Kind() != reflect.Struct {
+		return
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Anonymous {
+			collectModelSchemaPreloads(field.Type, filter, prefix, paths)
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" || !filter.includes(field, name) || !modelSchemaPreloadField(field) {
+			continue
+		}
+
+		path := field.Name
+		if prefix != "" {
+			path = prefix + "." + path
+		}
+		*paths = appendModelSchemaPreloadPath(*paths, path)
+
+		child := filter.child()
+		if child.depth > 0 {
+			collectModelSchemaPreloads(field.Type, child, path, paths)
+		}
+	}
+}
+
+func modelSchemaPreloadField(field reflect.StructField) bool {
+	if !modelSchemaNestedField(field.Type) {
+		return false
+	}
+	gormTag := field.Tag.Get("gorm")
+	return !modelSchemaHasGORMToken(gormTag, "-") &&
+		!modelSchemaHasGORMSetting(gormTag, "embedded") &&
+		!modelSchemaHasGORMSetting(gormTag, "embeddedprefix")
+}
+
+func modelSchemaRelationType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
+		t = t.Elem()
+	}
+	return t
+}
+
+func appendModelSchemaPreloadPath(paths []string, path string) []string {
+	if path == "" {
+		return paths
+	}
+	for _, existing := range paths {
+		if existing == path {
+			return paths
+		}
+	}
+	return append(paths, path)
 }
 
 func isJSONOmitEmpty(field reflect.StructField) bool {

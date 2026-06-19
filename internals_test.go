@@ -82,7 +82,18 @@ type schemaDepthModel struct {
 	Name     string                `json:"name"`
 	Owner    schemaRelationModel   `json:"owner"`
 	Members  []schemaRelationModel `json:"members"`
+	Ignored  schemaRelationModel   `json:"ignored" gorm:"-"`
 	Internal string                `json:"internal" ninja:"write_only"`
+}
+
+type schemaDeepRelationModel struct {
+	ID    uint                `json:"id"`
+	Owner schemaRelationModel `json:"owner"`
+}
+
+type schemaDeepModel struct {
+	ID     uint                    `json:"id"`
+	Parent schemaDeepRelationModel `json:"parent"`
 }
 
 type pointerMarshaler string
@@ -1280,6 +1291,38 @@ func TestModelSchemaDepthAffectsOpenAPIComponents(t *testing.T) {
 	}
 	if _, ok := child.Properties["name"]; !ok {
 		t.Fatalf("expected depth schema to keep child public field, got %+v", child.Properties)
+	}
+}
+
+func TestModelSchemaDescriptorPreloadsFollowDepthAndFieldFilters(t *testing.T) {
+	all := ModelSchemaOf[schemaDepthModel]().Read().Depth(1).Preloads()
+	if !reflect.DeepEqual(all, []string{"Owner", "Members"}) {
+		t.Fatalf("expected top-level relation preloads, got %v", all)
+	}
+
+	filtered := ModelSchemaOf[schemaDepthModel]().
+		Read().
+		Depth(1).
+		Fields("id", "owner", "members").
+		Exclude("members").
+		Preloads()
+	if !reflect.DeepEqual(filtered, []string{"Owner"}) {
+		t.Fatalf("expected filtered relation preloads, got %v", filtered)
+	}
+
+	if got := ModelSchemaOf[schemaDepthModel]().Read().Preloads(); got != nil {
+		t.Fatalf("expected depth 0 to have no preloads, got %v", got)
+	}
+	if got := ModelSchemaOf[schemaDepthModel]().List().Depth(1).Preloads(); got != nil {
+		t.Fatalf("expected list mode to omit relation preloads, got %v", got)
+	}
+}
+
+func TestModelSchemaDescriptorPreloadsIncludeNestedPaths(t *testing.T) {
+	preloads := ModelSchemaOf[schemaDeepModel]().Read().Depth(2).Preloads()
+	want := []string{"Parent", "Parent.Owner"}
+	if !reflect.DeepEqual(preloads, want) {
+		t.Fatalf("Preloads() = %v, want %v", preloads, want)
 	}
 }
 
