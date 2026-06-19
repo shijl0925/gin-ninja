@@ -198,7 +198,8 @@ func ResponseSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption 
 	}
 }
 
-// Paginated declares a standard paginated success response schema.
+// Paginated declares a standard paginated success response schema. Items are
+// bound and validated with the same runtime rules as ResponseModel.
 func Paginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
@@ -218,6 +219,7 @@ func PaginatedSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption
 }
 
 // CursorPaginated declares a standard cursor-paginated success response schema.
+// Items are bound and validated with the same runtime rules as ResponseModel.
 func CursorPaginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
@@ -590,6 +592,12 @@ func (op *operation) serializeResponse(output any) (any, error) {
 	if op.spec.cursorPaginatedResponseSchema != nil {
 		return serializePaginatedModelSchemaResponse(*op.spec.cursorPaginatedResponseSchema, output)
 	}
+	if op.spec.paginatedItemType != nil {
+		return serializePaginatedResponseModel(op.spec.paginatedItemType, output)
+	}
+	if op.spec.cursorPaginatedItemType != nil {
+		return serializePaginatedResponseModel(op.spec.cursorPaginatedItemType, output)
+	}
 	if op.spec.responseSchema != nil {
 		return serializeModelSchemaResponse(*op.spec.responseSchema, output)
 	}
@@ -639,6 +647,39 @@ func serializePaginatedModelSchemaResponse(descriptor modelSchemaDescriptor, out
 		return nil, err
 	}
 
+	return serializePaginatedResponseEnvelope(value, serializedItems)
+}
+
+func serializePaginatedResponseModel(itemType reflect.Type, output any) (any, error) {
+	value := reflect.ValueOf(output)
+	if !value.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil, fmt.Errorf("response value is nil")
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("paginated response must be a struct, got %s", value.Kind())
+	}
+
+	items := value.FieldByName("Items")
+	if !items.IsValid() {
+		return nil, fmt.Errorf("paginated response must have an Items field")
+	}
+	if !items.CanInterface() {
+		return nil, fmt.Errorf("paginated response Items field is not accessible")
+	}
+
+	serializedItems, err := bindResponseModelItems(reflect.SliceOf(itemType), items.Interface())
+	if err != nil {
+		return nil, err
+	}
+	if err := validateResponseModel(serializedItems); err != nil {
+		return nil, err
+	}
 	return serializePaginatedResponseEnvelope(value, serializedItems)
 }
 

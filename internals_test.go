@@ -1299,6 +1299,42 @@ func TestPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
 	}
 }
 
+func TestPaginatedResponseModelBindsItemsAtRuntime(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/page-model", func(ctx *Context, in *struct{}) (*pagination.Page[schemaModel], error) {
+		return pagination.NewPage([]schemaModel{{
+			ID:       18,
+			Name:     "grace",
+			Email:    "grace@example.com",
+			Password: "secret",
+		}}, 1, pagination.PageInput{Page: 1, Size: 10}), nil
+	}, Paginated[publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/page-model", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	items, ok := data["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one paginated item, got %+v", data["items"])
+	}
+	item := items[0].(map[string]any)
+	if _, ok := item["password"]; ok {
+		t.Fatalf("expected paginated response model to prune password, got %+v", item)
+	}
+	if item["email"] != "grace@example.com" || item["id"] != float64(18) {
+		t.Fatalf("expected paginated response model fields, got %+v", item)
+	}
+}
+
 func TestCursorPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
 	userSchema := ModelSchemaOf[schemaModel]().Fields("id", "email")
 
@@ -1324,6 +1360,25 @@ func TestCursorPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "next_cursor") {
 		t.Fatalf("expected cursor metadata to remain, got %s", w.Body.String())
+	}
+}
+
+func TestCursorPaginatedResponseModelValidatesItemsAtRuntime(t *testing.T) {
+	type requiredOutput struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/cursor-page-invalid", func(ctx *Context, in *struct{}) (*pagination.CursorPage[requiredOutput], error) {
+		return pagination.NewCursorPage([]requiredOutput{{}}, pagination.CursorPagination{Size: 5}, "next"), nil
+	}, CursorPaginated[requiredOutput]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/cursor-page-invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected cursor paginated item validation to fail with 500, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
