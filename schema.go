@@ -169,6 +169,9 @@ func modelSchemaComponentName(t reflect.Type, filter modelSchemaFilter) string {
 		return name
 	}
 	parts := []string{name}
+	if filter.mode != "" {
+		parts = append(parts, "mode", string(filter.mode))
+	}
 	if len(filter.fields) > 0 {
 		parts = append(parts, "fields", strings.Join(filter.fields, "_"))
 	}

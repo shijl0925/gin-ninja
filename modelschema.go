@@ -7,10 +7,27 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // ModelSchemaOption customizes how a model is serialized.
 type ModelSchemaOption func(*modelSchemaFilter)
+
+// ModelSchemaMode controls which model fields are selected by convention.
+type ModelSchemaMode string
+
+const (
+	// ModelSchemaModeRead includes fields that are safe to return in JSON.
+	ModelSchemaModeRead ModelSchemaMode = "read"
+	// ModelSchemaModeList includes readable scalar fields for list responses.
+	ModelSchemaModeList ModelSchemaMode = "list"
+	// ModelSchemaModeDetail includes readable fields for detail responses.
+	ModelSchemaModeDetail ModelSchemaMode = "detail"
+	// ModelSchemaModeCreate includes fields writable during create operations.
+	ModelSchemaModeCreate ModelSchemaMode = "create"
+	// ModelSchemaModeUpdate includes fields writable during update operations.
+	ModelSchemaModeUpdate ModelSchemaMode = "update"
+)
 
 // Fields limits serialization to the provided field names.
 func Fields(fields ...string) ModelSchemaOption {
@@ -26,6 +43,13 @@ func Exclude(fields ...string) ModelSchemaOption {
 	}
 }
 
+// SchemaMode applies a conventional field-selection mode.
+func SchemaMode(mode ModelSchemaMode) ModelSchemaOption {
+	return func(filter *modelSchemaFilter) {
+		filter.mode = normalizeModelSchemaMode(mode)
+	}
+}
+
 // ModelSchemaDescriptor describes how a model type should be serialized.
 type ModelSchemaDescriptor[T any] struct {
 	filter        modelSchemaFilter
@@ -38,7 +62,7 @@ func ModelSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
 	for _, opt := range opts {
 		opt(&descriptor.filter)
 	}
-	descriptor.filter = newModelSchemaFilter(descriptor.filter.fields, descriptor.filter.exclude)
+	descriptor.filter = descriptor.filter.normalized()
 	return descriptor
 }
 
@@ -54,6 +78,37 @@ func (d ModelSchemaDescriptor[T]) Exclude(fields ...string) ModelSchemaDescripto
 	return d
 }
 
+// Mode returns a copy of the descriptor with a conventional field-selection mode.
+func (d ModelSchemaDescriptor[T]) Mode(mode ModelSchemaMode) ModelSchemaDescriptor[T] {
+	d.filter.mode = normalizeModelSchemaMode(mode)
+	return d
+}
+
+// Read returns a copy of the descriptor using read-mode field selection.
+func (d ModelSchemaDescriptor[T]) Read() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeRead)
+}
+
+// List returns a copy of the descriptor using list-mode field selection.
+func (d ModelSchemaDescriptor[T]) List() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeList)
+}
+
+// Detail returns a copy of the descriptor using detail-mode field selection.
+func (d ModelSchemaDescriptor[T]) Detail() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeDetail)
+}
+
+// Create returns a copy of the descriptor using create-mode field selection.
+func (d ModelSchemaDescriptor[T]) Create() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeCreate)
+}
+
+// Update returns a copy of the descriptor using update-mode field selection.
+func (d ModelSchemaDescriptor[T]) Update() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeUpdate)
+}
+
 // ComponentName returns a copy of the descriptor with a fixed OpenAPI component name.
 func (d ModelSchemaDescriptor[T]) ComponentName(name string) ModelSchemaDescriptor[T] {
 	d.componentName = sanitizeComponentName(name)
@@ -66,22 +121,24 @@ func (d ModelSchemaDescriptor[T]) Wrap(model T) *ModelSchema[T] {
 		Model:   model,
 		Fields:  append([]string(nil), d.filter.fields...),
 		Exclude: append([]string(nil), d.filter.exclude...),
+		Mode:    d.filter.mode,
 	}
 }
 
 func (d ModelSchemaDescriptor[T]) schemaDescriptor() modelSchemaDescriptor {
 	return modelSchemaDescriptor{
 		target:        reflect.TypeOf((*T)(nil)).Elem(),
-		filter:        newModelSchemaFilter(d.filter.fields, d.filter.exclude),
+		filter:        d.filter.normalized(),
 		componentName: d.componentName,
 	}
 }
 
 // ModelSchema wraps a model value and serializes only the allowed fields.
 type ModelSchema[T any] struct {
-	Model   T        `json:"-"`
-	Fields  []string `json:"-"`
-	Exclude []string `json:"-"`
+	Model   T               `json:"-"`
+	Fields  []string        `json:"-"`
+	Exclude []string        `json:"-"`
+	Mode    ModelSchemaMode `json:"-"`
 }
 
 // NewModelSchema wraps a model with optional field filters.
@@ -94,6 +151,7 @@ func NewModelSchema[T any](model T, opts ...ModelSchemaOption) *ModelSchema[T] {
 		Model:   model,
 		Fields:  append([]string(nil), filter.fields...),
 		Exclude: append([]string(nil), filter.exclude...),
+		Mode:    filter.mode,
 	}
 }
 
@@ -129,6 +187,7 @@ func BindModelSchema[TSchema any](model any) (*TSchema, error) {
 	}
 	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), fieldInfo.filter.fields...)))
 	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), fieldInfo.filter.exclude...)))
+	field.FieldByName("Mode").Set(reflect.ValueOf(fieldInfo.filter.mode))
 
 	out := value.Addr().Interface().(*TSchema)
 	return out, nil
@@ -155,6 +214,7 @@ func bindModelSchemaForType(schemaType reflect.Type, model any) (any, bool, erro
 	}
 	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), filter.fields...)))
 	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), filter.exclude...)))
+	field.FieldByName("Mode").Set(reflect.ValueOf(filter.mode))
 	return value.Addr().Interface(), true, nil
 }
 
@@ -175,6 +235,7 @@ func hasDirectModelSchemaFields(t reflect.Type) bool {
 		"Model":   false,
 		"Fields":  false,
 		"Exclude": false,
+		"Mode":    false,
 	}
 	for i := 0; i < t.NumField(); i++ {
 		if _, ok := fields[t.Field(i).Name]; ok {
@@ -191,6 +252,7 @@ func hasDirectModelSchemaFields(t reflect.Type) bool {
 
 func (m ModelSchema[T]) MarshalJSON() ([]byte, error) {
 	filter := newModelSchemaFilter(m.Fields, m.Exclude)
+	filter.mode = normalizeModelSchemaMode(m.Mode)
 	filtered, err := serializeModelSchemaValue(reflect.ValueOf(m.Model), filter)
 	if err != nil {
 		return nil, err
@@ -201,6 +263,7 @@ func (m ModelSchema[T]) MarshalJSON() ([]byte, error) {
 type modelSchemaFilter struct {
 	fields  []string
 	exclude []string
+	mode    ModelSchemaMode
 }
 
 type modelSchemaDescriptor struct {
@@ -234,20 +297,26 @@ func newModelSchemaFilter(fields, exclude []string) modelSchemaFilter {
 	}
 }
 
+func (f modelSchemaFilter) normalized() modelSchemaFilter {
+	return modelSchemaFilter{
+		fields:  normalizeModelSchemaNames(f.fields),
+		exclude: normalizeModelSchemaNames(f.exclude),
+		mode:    normalizeModelSchemaMode(f.mode),
+	}
+}
+
 func (f modelSchemaFilter) isZero() bool {
-	return len(f.fields) == 0 && len(f.exclude) == 0
+	return len(f.fields) == 0 && len(f.exclude) == 0 && f.mode == ""
 }
 
 func (f modelSchemaFilter) includes(field reflect.StructField, jsonName string) bool {
-	if !f.isZero() {
-		if len(f.fields) > 0 && !containsModelSchemaName(f.fields, field.Name, jsonName) {
-			return false
-		}
-		if containsModelSchemaName(f.exclude, field.Name, jsonName) {
-			return false
-		}
+	if len(f.fields) > 0 && !containsModelSchemaName(f.fields, field.Name, jsonName) {
+		return false
 	}
-	return true
+	if containsModelSchemaName(f.exclude, field.Name, jsonName) {
+		return false
+	}
+	return modelSchemaModeIncludes(f.mode, field, jsonName)
 }
 
 func resolveModelSchemaDescriptor(t reflect.Type) (modelSchemaDescriptor, bool) {
@@ -301,8 +370,11 @@ func findEmbeddedModelSchemaField(t reflect.Type) (embeddedModelSchemaField, boo
 		}
 		if _, ok := directModelSchemaDescriptor(field.Type); ok {
 			return embeddedModelSchemaField{
-				index:  field.Index,
-				filter: newModelSchemaFilter(parseModelSchemaTag(field.Tag.Get("fields")), parseModelSchemaTag(field.Tag.Get("exclude"))),
+				index: field.Index,
+				filter: newModelSchemaFilter(
+					parseModelSchemaTag(field.Tag.Get("fields")),
+					parseModelSchemaTag(field.Tag.Get("exclude")),
+				).withMode(parseModelSchemaModeTag(field.Tag.Get("mode"))),
 			}, true
 		}
 	}
@@ -349,6 +421,187 @@ func containsModelSchemaName(names []string, candidates ...string) bool {
 		if index < len(names) && names[index] == candidate {
 			return true
 		}
+	}
+	return false
+}
+
+func parseModelSchemaModeTag(raw string) ModelSchemaMode {
+	return normalizeModelSchemaMode(ModelSchemaMode(raw))
+}
+
+func normalizeModelSchemaMode(mode ModelSchemaMode) ModelSchemaMode {
+	value := strings.TrimSpace(strings.ToLower(string(mode)))
+	value = strings.ReplaceAll(value, "_", "-")
+	switch value {
+	case "", "none":
+		return ""
+	case "read", "output":
+		return ModelSchemaModeRead
+	case "list":
+		return ModelSchemaModeList
+	case "detail", "details":
+		return ModelSchemaModeDetail
+	case "create", "creation", "insert":
+		return ModelSchemaModeCreate
+	case "update", "patch":
+		return ModelSchemaModeUpdate
+	default:
+		return ModelSchemaMode(value)
+	}
+}
+
+func (f modelSchemaFilter) withMode(mode ModelSchemaMode) modelSchemaFilter {
+	f.mode = normalizeModelSchemaMode(mode)
+	return f
+}
+
+func modelSchemaModeIncludes(mode ModelSchemaMode, field reflect.StructField, jsonName string) bool {
+	switch normalizeModelSchemaMode(mode) {
+	case "":
+		return true
+	case ModelSchemaModeRead, ModelSchemaModeDetail:
+		return modelSchemaReadableField(field)
+	case ModelSchemaModeList:
+		return modelSchemaReadableField(field) && modelSchemaListField(field.Type)
+	case ModelSchemaModeCreate:
+		return modelSchemaWritableField(field, jsonName, ModelSchemaModeCreate)
+	case ModelSchemaModeUpdate:
+		return modelSchemaWritableField(field, jsonName, ModelSchemaModeUpdate)
+	default:
+		return true
+	}
+}
+
+type modelSchemaFieldAccess struct {
+	writeOnly  bool
+	createOnly bool
+	updateOnly bool
+}
+
+func modelSchemaReadableField(field reflect.StructField) bool {
+	access := modelSchemaResolveFieldAccess(field.Tag)
+	return !access.writeOnly
+}
+
+func modelSchemaWritableField(field reflect.StructField, jsonName string, mode ModelSchemaMode) bool {
+	if modelSchemaReadOnlyField(field, jsonName) {
+		return false
+	}
+	gormTag := field.Tag.Get("gorm")
+	if mode == ModelSchemaModeCreate && modelSchemaHasGORMToken(gormTag, "<-:update") {
+		return false
+	}
+	if mode == ModelSchemaModeUpdate && modelSchemaHasGORMToken(gormTag, "<-:create") {
+		return false
+	}
+	access := modelSchemaResolveFieldAccess(field.Tag)
+	switch normalizeModelSchemaMode(mode) {
+	case ModelSchemaModeCreate:
+		return !modelSchemaHasWriteModeOverride(access) || access.createOnly
+	case ModelSchemaModeUpdate:
+		return !modelSchemaHasWriteModeOverride(access) || access.updateOnly
+	default:
+		return true
+	}
+}
+
+func modelSchemaHasWriteModeOverride(access modelSchemaFieldAccess) bool {
+	return access.createOnly || access.updateOnly
+}
+
+func modelSchemaResolveFieldAccess(tag reflect.StructTag) modelSchemaFieldAccess {
+	var access modelSchemaFieldAccess
+	modelSchemaApplyFieldAccessTag(&access, tag.Get("ninja"))
+	modelSchemaApplyFieldAccessTag(&access, tag.Get("crud"))
+	return access
+}
+
+func modelSchemaApplyFieldAccessTag(access *modelSchemaFieldAccess, raw string) {
+	for _, token := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || unicode.IsSpace(r)
+	}) {
+		switch modelSchemaNormalizeAccessToken(token) {
+		case "writeonly":
+			access.writeOnly = true
+		case "createonly":
+			access.createOnly = true
+		case "updateonly":
+			access.updateOnly = true
+		}
+	}
+}
+
+func modelSchemaNormalizeAccessToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	token = strings.ReplaceAll(token, "-", "")
+	return token
+}
+
+func modelSchemaReadOnlyField(field reflect.StructField, jsonName string) bool {
+	gormTag := field.Tag.Get("gorm")
+	if modelSchemaHasGORMToken(gormTag, "-") ||
+		modelSchemaHasGORMToken(gormTag, "primarykey") ||
+		modelSchemaHasGORMToken(gormTag, "primary_key") ||
+		modelSchemaHasGORMToken(gormTag, "->") ||
+		modelSchemaHasGORMToken(gormTag, "<-:false") ||
+		modelSchemaHasGORMToken(gormTag, "autocreatetime") ||
+		modelSchemaHasGORMToken(gormTag, "autoupdatetime") {
+		return true
+	}
+	if field.Name == "ID" || jsonName == "id" {
+		return true
+	}
+	switch field.Name {
+	case "CreatedAt", "UpdatedAt", "DeletedAt":
+		return true
+	default:
+		return false
+	}
+}
+
+func modelSchemaHasGORMToken(raw, token string) bool {
+	token = modelSchemaNormalizeGORMToken(token)
+	for _, part := range strings.Split(raw, ";") {
+		if modelSchemaNormalizeGORMToken(part) == token {
+			return true
+		}
+	}
+	return false
+}
+
+func modelSchemaNormalizeGORMToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	return token
+}
+
+func modelSchemaListField(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if modelSchemaImplementsMarshaler(t) {
+		return true
+	}
+	switch t.Kind() {
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64, reflect.String:
+		return true
+	default:
+		return false
+	}
+}
+
+func modelSchemaImplementsMarshaler(t reflect.Type) bool {
+	jsonMarshalerType := reflect.TypeOf((*json.Marshaler)(nil)).Elem()
+	textMarshalerType := reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+	if t.Implements(jsonMarshalerType) || t.Implements(textMarshalerType) {
+		return true
+	}
+	if t.Kind() != reflect.Ptr {
+		ptr := reflect.PointerTo(t)
+		return ptr.Implements(jsonMarshalerType) || ptr.Implements(textMarshalerType)
 	}
 	return false
 }

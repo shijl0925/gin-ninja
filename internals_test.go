@@ -59,6 +59,18 @@ type schemaModel struct {
 	Password string `json:"password"`
 }
 
+type schemaModeModel struct {
+	ID        uint        `json:"id" gorm:"primaryKey"`
+	Name      string      `json:"name"`
+	Password  string      `json:"password" ninja:"write_only"`
+	Invite    string      `json:"invite_code" ninja:"write_only,create_only"`
+	Status    string      `json:"status_note" ninja:"update_only"`
+	CreatedAt time.Time   `json:"created_at"`
+	Profile   schemaModel `json:"profile"`
+	Tags      []string    `json:"tags"`
+	Computed  string      `json:"computed" gorm:"-"`
+}
+
 type pointerMarshaler string
 
 func (p *pointerMarshaler) MarshalJSON() ([]byte, error) {
@@ -1068,6 +1080,114 @@ func TestModelSchemaDescriptorWrap(t *testing.T) {
 	}
 	if !strings.Contains(string(payload), `"name":"dave"`) {
 		t.Fatalf("expected descriptor wrapped schema to include name, got %s", string(payload))
+	}
+}
+
+func TestModelSchemaDescriptorModesUseAccessAndGORMConventions(t *testing.T) {
+	model := schemaModeModel{
+		ID:        21,
+		Name:      "erin",
+		Password:  "secret",
+		Invite:    "invite-1",
+		Status:    "pending",
+		CreatedAt: time.Date(2026, 6, 19, 9, 0, 0, 0, time.UTC),
+		Profile:   schemaModel{Name: "nested"},
+		Tags:      []string{"admin"},
+		Computed:  "derived",
+	}
+
+	readPayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().Read().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal read schema: %v", err)
+	}
+	var readData map[string]any
+	if err := json.Unmarshal(readPayload, &readData); err != nil {
+		t.Fatalf("Unmarshal read schema: %v", err)
+	}
+	if _, ok := readData["password"]; ok {
+		t.Fatalf("expected read mode to omit top-level password, got %s", string(readPayload))
+	}
+	if _, ok := readData["invite_code"]; ok {
+		t.Fatalf("expected read mode to omit top-level invite_code, got %s", string(readPayload))
+	}
+	if _, ok := readData["profile"]; !ok {
+		t.Fatalf("expected read mode to keep detail fields, got %s", string(readPayload))
+	}
+
+	listPayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().List().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal list schema: %v", err)
+	}
+	if strings.Contains(string(listPayload), "profile") || strings.Contains(string(listPayload), "tags") {
+		t.Fatalf("expected list mode to omit non-scalar fields, got %s", string(listPayload))
+	}
+	if !strings.Contains(string(listPayload), "created_at") {
+		t.Fatalf("expected list mode to keep marshaler scalar fields, got %s", string(listPayload))
+	}
+
+	createPayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().Create().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal create schema: %v", err)
+	}
+	var createData map[string]any
+	if err := json.Unmarshal(createPayload, &createData); err != nil {
+		t.Fatalf("Unmarshal create schema: %v", err)
+	}
+	for _, field := range []string{"id", "created_at", "status_note", "computed"} {
+		if _, ok := createData[field]; ok {
+			t.Fatalf("expected create mode to omit top-level %s, got %s", field, string(createPayload))
+		}
+	}
+	if _, ok := createData["password"]; !ok {
+		t.Fatalf("expected create mode to keep writable password, got %s", string(createPayload))
+	}
+	if _, ok := createData["invite_code"]; !ok {
+		t.Fatalf("expected create mode to keep writable create fields, got %s", string(createPayload))
+	}
+
+	updatePayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().Update().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal update schema: %v", err)
+	}
+	var updateData map[string]any
+	if err := json.Unmarshal(updatePayload, &updateData); err != nil {
+		t.Fatalf("Unmarshal update schema: %v", err)
+	}
+	for _, field := range []string{"id", "created_at", "invite_code", "computed"} {
+		if _, ok := updateData[field]; ok {
+			t.Fatalf("expected update mode to omit top-level %s, got %s", field, string(updatePayload))
+		}
+	}
+	if _, ok := updateData["password"]; !ok {
+		t.Fatalf("expected update mode to keep writable password, got %s", string(updatePayload))
+	}
+	if _, ok := updateData["status_note"]; !ok {
+		t.Fatalf("expected update mode to keep writable status_note, got %s", string(updatePayload))
+	}
+}
+
+func TestModelSchemaModeAffectsOpenAPIComponents(t *testing.T) {
+	type createSchema struct {
+		ModelSchema[schemaModeModel] `mode:"create"`
+	}
+
+	registry := newSchemaRegistry()
+	ref := registry.schemaForType(reflect.TypeOf(createSchema{}))
+	if ref.Ref == "" {
+		t.Fatalf("expected create schema ref, got %+v", ref)
+	}
+	component := registry.schemas["createSchema"]
+	if component == nil {
+		t.Fatalf("expected createSchema component, got %+v", registry.schemas)
+	}
+	if _, ok := component.Properties["id"]; ok {
+		t.Fatalf("expected create mode to omit id, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["status_note"]; ok {
+		t.Fatalf("expected create mode to omit update-only field, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["password"]; !ok {
+		t.Fatalf("expected create mode to keep write-only password input, got %+v", component.Properties)
 	}
 }
 
