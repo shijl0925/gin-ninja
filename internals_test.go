@@ -1166,6 +1166,25 @@ func TestResponseSchemaDescriptorOverridesOpenAPI(t *testing.T) {
 	}
 }
 
+func TestResponseSchemaDescriptorDocumentsSliceOutput(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUserListItem")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/descriptors", func(ctx *Context, in *struct{}) (*[]schemaModel, error) {
+		return &[]schemaModel{}, nil
+	}, nil)
+	ResponseSchema(userSchema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	schema := built.Paths["/descriptors"].Get.Responses["200"].Content["application/json"].Schema
+	if schema == nil || schema.Type != "array" || schema.Items == nil || schema.Items.Ref != "#/components/schemas/PublicUserListItem" {
+		t.Fatalf("expected array response with PublicUserListItem items, got %+v", schema)
+	}
+}
+
 func TestPaginatedSchemaValidatesRequiredItemFields(t *testing.T) {
 	api := New(Config{DisableDocs: true, DisableHomepage: true})
 	router := NewRouter("/runtime")
