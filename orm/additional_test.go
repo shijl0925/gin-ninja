@@ -29,6 +29,10 @@ type modelSchemaPreloadProject struct {
 	Secret  string                   `json:"secret" ninja:"write_only"`
 }
 
+type modelSchemaPreloadProjectOut struct {
+	ninja.ModelSchema[modelSchemaPreloadProject] `fields:"id,owner,members" mode:"read" depth:"2"`
+}
+
 func TestNinjaTransactionHelpersValidateNilContext(t *testing.T) {
 	t.Parallel()
 
@@ -108,6 +112,29 @@ func TestApplyModelSchemaPreloads(t *testing.T) {
 	}
 	if got := ApplyModelSchemaPreloads(nil, descriptor); got != nil {
 		t.Fatalf("expected nil db to stay nil, got %v", got)
+	}
+}
+
+func TestApplyResponseModelPreloads(t *testing.T) {
+	db := testDB(t)
+	scoped := ApplyResponseModelPreloads[modelSchemaPreloadProjectOut](db)
+	if scoped == nil {
+		t.Fatal("expected scoped db")
+	}
+	got := make([]string, 0, len(scoped.Statement.Preloads))
+	for preload := range scoped.Statement.Preloads {
+		got = append(got, preload)
+	}
+	sort.Strings(got)
+	want := []string{"Owner", "Owner.Profile", "Members", "Members.Profile"}
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("preloads = %v, want %v", got, want)
+	}
+
+	unchanged := ApplyResponseModelPreloads[modelSchemaPreloadProject](db)
+	if unchanged != db {
+		t.Fatalf("expected non-schema type to return original db")
 	}
 }
 

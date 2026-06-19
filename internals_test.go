@@ -1702,6 +1702,21 @@ func TestModelSchemaDescriptorPreloadsIncludeNestedPaths(t *testing.T) {
 	}
 }
 
+func TestModelSchemaPreloadsFromSchemaType(t *testing.T) {
+	type deepSchema struct {
+		ModelSchema[schemaDeepModel] `mode:"read" depth:"2"`
+	}
+
+	preloads := ModelSchemaPreloads[deepSchema]()
+	want := []string{"Parent", "Parent.Owner"}
+	if !reflect.DeepEqual(preloads, want) {
+		t.Fatalf("ModelSchemaPreloads() = %v, want %v", preloads, want)
+	}
+	if got := ModelSchemaPreloads[schemaDeepModel](); got != nil {
+		t.Fatalf("expected plain model type to have no schema preloads, got %v", got)
+	}
+}
+
 func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
 	type EmbeddedBody struct {
 		Name string `json:"name" binding:"required"`

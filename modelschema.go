@@ -154,6 +154,16 @@ func (d ModelSchemaDescriptor[T]) Preloads() []string {
 	return modelSchemaPreloads(descriptor.target, descriptor.filter)
 }
 
+// ModelSchemaPreloads returns GORM association preload paths implied by a
+// schema type that embeds ModelSchema.
+func ModelSchemaPreloads[T any]() []string {
+	descriptor, ok := resolveModelSchemaDescriptor(reflect.TypeOf((*T)(nil)).Elem())
+	if !ok {
+		return nil
+	}
+	return modelSchemaPreloads(descriptor.target, descriptor.filter)
+}
+
 // ComponentName returns a copy of the descriptor with a fixed OpenAPI component name.
 func (d ModelSchemaDescriptor[T]) ComponentName(name string) ModelSchemaDescriptor[T] {
 	d.componentName = sanitizeComponentName(name)
