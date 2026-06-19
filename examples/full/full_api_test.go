@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	"github.com/shijl0925/gin-ninja/settings"
 	"go.uber.org/zap"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,21 +14,16 @@ import (
 )
 
 func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
-	server := newFullTestServer(t)
-	defer server.Close()
+	client := newFullTestClient(t)
 
 	for _, path := range []string{"/docs", "/docs/v1", "/docs/v0", "/openapi.json", "/openapi/v1.json", "/health"} {
-		resp, err := http.Get(server.URL + path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", path, err)
-		}
+		resp := client.Get(path)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s: expected 200, got %d", path, resp.StatusCode)
 		}
-		resp.Body.Close()
 	}
 
-	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+	register := doFullJSON(t, client, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
 		"email":    "alice@example.com",
 		"password": "password123",
@@ -39,9 +32,8 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 	if register.StatusCode != http.StatusCreated {
 		t.Fatalf("expected register 201, got %d", register.StatusCode)
 	}
-	register.Body.Close()
 
-	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+	login := doFullJSON(t, client, http.MethodPost, "/api/v1/auth/login", map[string]any{
 		"email":    "alice@example.com",
 		"password": "password123",
 	}, "")
@@ -51,71 +43,56 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 	var auth struct {
 		Token string `json:"token"`
 	}
-	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+	if err := login.DecodeJSON(&auth); err != nil {
 		t.Fatalf("Decode login: %v", err)
 	}
-	login.Body.Close()
 	if auth.Token == "" {
 		t.Fatal("expected login token")
 	}
 
-	list := doFullJSON(t, server, http.MethodGet, "/api/v1/users?sort=-age", nil, auth.Token)
+	list := doFullJSON(t, client, http.MethodGet, "/api/v1/users/?sort=-age", nil, auth.Token)
 	if list.StatusCode != http.StatusOK {
 		t.Fatalf("expected list users 200, got %d", list.StatusCode)
 	}
-	list.Body.Close()
 
-	adminMeta := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users/meta", nil, auth.Token)
+	adminMeta := doFullJSON(t, client, http.MethodGet, "/api/v1/admin/resources/users/meta", nil, auth.Token)
 	if adminMeta.StatusCode != http.StatusOK {
 		t.Fatalf("expected admin metadata 200, got %d", adminMeta.StatusCode)
 	}
-	adminMeta.Body.Close()
 
-	update := doFullJSON(t, server, http.MethodPut, "/api/v1/users/1", map[string]any{
+	update := doFullJSON(t, client, http.MethodPut, "/api/v1/users/1", map[string]any{
 		"name": "Alicia",
 		"age":  19,
 	}, auth.Token)
 	if update.StatusCode != http.StatusOK {
 		t.Fatalf("expected update 200, got %d", update.StatusCode)
 	}
-	update.Body.Close()
 
-	versioned, err := http.Get(server.URL + "/api/v0/examples/versioned/info")
-	if err != nil {
-		t.Fatalf("GET versioned info: %v", err)
-	}
+	versioned := client.Get("/api/v0/examples/versioned/info")
 	if versioned.StatusCode != http.StatusOK || versioned.Header.Get("Deprecation") == "" {
 		t.Fatalf("expected deprecated version response, got status=%d headers=%v", versioned.StatusCode, versioned.Header)
 	}
-	versioned.Body.Close()
 }
 
 func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
-	server := newFullTestServer(t)
-	defer server.Close()
+	client := newFullTestClient(t)
 
-	unauthorized := doFullJSON(t, server, http.MethodGet, "/api/v1/users", nil, "")
+	unauthorized := doFullJSON(t, client, http.MethodGet, "/api/v1/users/", nil, "")
 	if unauthorized.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected unauthorized users list to return 401, got %d", unauthorized.StatusCode)
 	}
-	unauthorized.Body.Close()
 
-	unauthorizedAdmin := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources", nil, "")
+	unauthorizedAdmin := doFullJSON(t, client, http.MethodGet, "/api/v1/admin/resources", nil, "")
 	if unauthorizedAdmin.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("expected unauthorized admin resources to return 401, got %d", unauthorizedAdmin.StatusCode)
 	}
-	unauthorizedAdmin.Body.Close()
 
-	healthResp, err := http.Get(server.URL + "/health")
-	if err != nil {
-		t.Fatalf("GET /health: %v", err)
-	}
-	defer healthResp.Body.Close()
+	healthResp := client.Get("/health")
 	if healthResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected health 200, got %d", healthResp.StatusCode)
 	}
 	var health map[string]string
-	if err := json.NewDecoder(healthResp.Body).Decode(&health); err != nil {
+	if err := healthResp.DecodeJSON(&health); err != nil {
 		t.Fatalf("decode health: %v", err)
 	}
 	if health["status"] != "ok" {
@@ -131,25 +108,17 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 		{path: "/docs/v1", wantTitle: "Full Example (v1) - API Docs", wantSpecURL: "/openapi/v1.json"},
 		{path: "/docs/v0", wantTitle: "Full Example (v0) - API Docs", wantSpecURL: "/openapi/v0.json"},
 	} {
-		resp, err := http.Get(server.URL + tc.path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", tc.path, err)
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			t.Fatalf("read %s body: %v", tc.path, err)
-		}
+		resp := client.Get(tc.path)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s: expected 200, got %d", tc.path, resp.StatusCode)
 		}
-		html := string(body)
+		html := resp.String()
 		if !strings.Contains(html, tc.wantTitle) || !strings.Contains(html, tc.wantSpecURL) {
 			t.Fatalf("%s: unexpected docs body %q", tc.path, html)
 		}
 	}
 
-	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+	register := doFullJSON(t, client, http.MethodPost, "/api/v1/auth/register", map[string]any{
 		"name":     "Alice",
 		"email":    "alice@example.com",
 		"password": "password123",
@@ -158,9 +127,8 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 	if register.StatusCode != http.StatusCreated {
 		t.Fatalf("expected register 201, got %d", register.StatusCode)
 	}
-	register.Body.Close()
 
-	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+	login := doFullJSON(t, client, http.MethodPost, "/api/v1/auth/login", map[string]any{
 		"email":    "alice@example.com",
 		"password": "password123",
 	}, "")
@@ -170,86 +138,62 @@ func TestFullExampleSmokeAuthDocsHealthAndVersioning(t *testing.T) {
 	var auth struct {
 		Token string `json:"token"`
 	}
-	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+	if err := login.DecodeJSON(&auth); err != nil {
 		t.Fatalf("decode login: %v", err)
 	}
-	login.Body.Close()
 	if auth.Token == "" {
 		t.Fatal("expected login token")
 	}
 
-	list := doFullJSON(t, server, http.MethodGet, "/api/v1/users?sort=-age", nil, auth.Token)
+	list := doFullJSON(t, client, http.MethodGet, "/api/v1/users/?sort=-age", nil, auth.Token)
 	if list.StatusCode != http.StatusOK {
 		t.Fatalf("expected list users 200, got %d", list.StatusCode)
 	}
 	var page map[string]any
-	if err := json.NewDecoder(list.Body).Decode(&page); err != nil {
+	if err := list.DecodeJSON(&page); err != nil {
 		t.Fatalf("decode user list: %v", err)
 	}
-	list.Body.Close()
 	if _, ok := page["items"]; !ok {
 		t.Fatalf("expected paginated users payload, got %+v", page)
 	}
 
-	detail := doFullJSON(t, server, http.MethodGet, "/api/v1/users/1", nil, auth.Token)
+	detail := doFullJSON(t, client, http.MethodGet, "/api/v1/users/1", nil, auth.Token)
 	if detail.StatusCode != http.StatusOK {
 		t.Fatalf("expected get user 200, got %d", detail.StatusCode)
 	}
-	detail.Body.Close()
 
-	adminList := doFullJSON(t, server, http.MethodGet, "/api/v1/admin/resources/users?search=alice", nil, auth.Token)
+	adminList := doFullJSON(t, client, http.MethodGet, "/api/v1/admin/resources/users?search=alice", nil, auth.Token)
 	if adminList.StatusCode != http.StatusOK {
 		t.Fatalf("expected admin users list 200, got %d", adminList.StatusCode)
 	}
-	adminList.Body.Close()
 
-	v1, err := http.Get(server.URL + "/api/v1/examples/versioned/info")
-	if err != nil {
-		t.Fatalf("GET versioned v1: %v", err)
-	}
+	v1 := client.Get("/api/v1/examples/versioned/info")
 	if v1.StatusCode != http.StatusOK {
 		t.Fatalf("expected v1 versioned info 200, got %d", v1.StatusCode)
 	}
 	if v1.Header.Get("Deprecation") != "" || v1.Header.Get("Sunset") != "" || v1.Header.Get("Link") != "" {
 		t.Fatalf("did not expect deprecation headers on v1, got %v", v1.Header)
 	}
-	v1.Body.Close()
 
-	v0, err := http.Get(server.URL + "/api/v0/examples/versioned/info")
-	if err != nil {
-		t.Fatalf("GET versioned v0: %v", err)
-	}
+	v0 := client.Get("/api/v0/examples/versioned/info")
 	if v0.StatusCode != http.StatusOK {
 		t.Fatalf("expected v0 versioned info 200, got %d", v0.StatusCode)
 	}
 	if v0.Header.Get("Deprecation") == "" || v0.Header.Get("Sunset") == "" || v0.Header.Get("Link") == "" {
 		t.Fatalf("expected deprecation headers on v0, got %v", v0.Header)
 	}
-	v0.Body.Close()
 
 	for _, path := range []string{"/docs/v9", "/openapi/v9.json"} {
-		resp, err := http.Get(server.URL + path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", path, err)
-		}
+		resp := client.Get(path)
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("%s: expected 404, got %d", path, resp.StatusCode)
 		}
-		resp.Body.Close()
 	}
 
-	docsHeadReq, err := http.NewRequest(http.MethodHead, server.URL+"/docs/v1", nil)
-	if err != nil {
-		t.Fatalf("new HEAD docs request: %v", err)
-	}
-	docsHeadResp, err := http.DefaultClient.Do(docsHeadReq)
-	if err != nil {
-		t.Fatalf("HEAD /docs/v1: %v", err)
-	}
+	docsHeadResp := client.Request(http.MethodHead, "/docs/v1", nil)
 	if docsHeadResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected HEAD /docs/v1 to follow current internal-route behavior and return 404, got %d", docsHeadResp.StatusCode)
 	}
-	docsHeadResp.Body.Close()
 }
 
 func TestFullExampleRunReturnsListenError(t *testing.T) {

@@ -1,18 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/bootstrap"
 	"github.com/shijl0925/gin-ninja/settings"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 )
 
-func newFullTestServer(t *testing.T) *httptest.Server {
+func newFullTestClient(t *testing.T) *ninjatest.TestClient {
 	t.Helper()
 
 	cfg := settings.Config{
@@ -38,40 +34,20 @@ func newFullTestServer(t *testing.T) *httptest.Server {
 		t.Fatalf("initDB: %v", err)
 	}
 
-	return httptest.NewServer(buildAPI(cfg, db, log).Handler())
+	return ninjatest.NewWithT(t, buildAPI(cfg, db, log))
 }
 
-func doFullJSON(t *testing.T, server *httptest.Server, method, path string, body any, token string) *http.Response {
+func doFullJSON(t *testing.T, client *ninjatest.TestClient, method, path string, body any, token string) *ninjatest.Response {
 	t.Helper()
 
-	var payload []byte
-	var err error
-	if body != nil {
-		payload, err = json.Marshal(body)
-		if err != nil {
-			t.Fatalf("marshal body: %v", err)
-		}
-	}
-	req, err := http.NewRequest(method, server.URL+path, bytes.NewReader(payload))
-	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	opts := []ninjatest.RequestOption{}
 	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
+		opts = append(opts, ninjatest.Header("Authorization", "Bearer "+token))
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("Do: %v", err)
-	}
-	return resp
+	return client.Request(method, path, body, opts...)
 }
 
-func readBody(t *testing.T, body io.ReadCloser) string {
+func readBody(t *testing.T, resp *ninjatest.Response) string {
 	t.Helper()
-	data, err := io.ReadAll(body)
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	return string(data)
+	return resp.String()
 }
