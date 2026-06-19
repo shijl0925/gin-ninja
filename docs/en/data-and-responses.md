@@ -16,19 +16,61 @@ type UserOut struct {
     ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
 }
 
-func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
-    return ninja.BindModelSchema[UserOut](User{
+func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
+    return &User{
         ID:       1,
         Name:     "alice",
         Email:    "alice@example.com",
         Password: "secret",
-    })
+    }, nil
 }
+
+ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserOut]())
 ```
 
-`fields:"..."` keeps only the listed serializable fields, while `exclude:"..."` removes sensitive fields from both the JSON response and generated OpenAPI schema.
+`ResponseModel[UserOut]()` binds the handler's returned `User` value to `UserOut` at runtime, then applies response validation and field pruning. `fields:"..."` keeps only the listed serializable fields, while `exclude:"..."` removes sensitive fields from both the JSON response and generated OpenAPI schema.
 
-If you only need ad-hoc filtering without defining a new response type, use `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`.
+If you prefer a reusable descriptor instead of a dedicated `UserOut` struct, use `ResponseSchema`:
+
+```go
+userSchema := ninja.ModelReadSchemaOf[User]().
+    Fields("id", "name", "email").
+    ComponentName("UserOut")
+
+func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
+    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
+}
+
+ninja.Get(router, "/users/:id", getUser, ninja.ResponseSchema(userSchema))
+```
+
+`ResponseSchema(...)` prunes fields at runtime and documents the same schema in OpenAPI. For slices, `pagination.Page[T]`, and `pagination.CursorPage[T]`, use `ResponseModel[[]UserOut]()`, `Paginated[UserOut]()` / `PaginatedSchema(...)`, and `CursorPaginated[UserOut]()` / `CursorPaginatedSchema(...)`; paginated `items` are bound and validated item by item.
+
+If you only need ad-hoc filtering without defining a response type or route-level schema, use `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`. If you explicitly need a schema value, `ninja.BindModelSchema[UserOut](model)` and `ninja.BindModelSchemas[UserOut](models)` are still available.
+
+### Relation Depth and GORM Preloads
+
+`Depth(n)` continues the same model schema mode into nested models, which is useful for detail responses:
+
+```go
+type UserDetailOut struct {
+    ninja.ModelSchema[User] `mode:"read" depth:"1"`
+}
+
+func getUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
+    db := orm.ApplyResponseModelPreloads[UserDetailOut](orm.WithContext(ctx.Context))
+
+    var user User
+    if err := db.First(&user, in.ID).Error; err != nil {
+        return nil, err
+    }
+    return &user, nil
+}
+
+ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
+```
+
+With descriptor-style schemas, inspect preload paths with `descriptor.Preloads()` or apply them directly to GORM with `orm.ApplyModelSchemaPreloads(db, descriptor)`.
 
 ---
 
@@ -101,7 +143,7 @@ Supported operators:
 Apply the declared filters in the handler:
 
 ```go
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
     query, _ := gormx.NewQuery[User]()
 
     filterOpts, err := filter.BuildOptions(in)
@@ -116,6 +158,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
+
+ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
 ```
 
 Behavior notes:
@@ -146,7 +190,7 @@ type ListUsersInput struct {
     Search string `query:"search" filter:"name|email,like"`
 }
 
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
     query, _ := gormx.NewQuery[User]()
 
     if err := order.ApplyOrder(query, in); err != nil {
@@ -159,6 +203,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
+
+ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
 ```
 
 ### Cursor pagination
@@ -173,7 +219,7 @@ type ListEventsInput struct {
     pagination.CursorPagination
 }
 
-func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[EventOut], error) {
+func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[Event], error) {
     items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
     if err != nil {
         return nil, err
@@ -182,7 +228,7 @@ func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage
 }
 ```
 
-Document the response envelope with `ninja.CursorPaginated[EventOut]()`.
+Document the response envelope and runtime item schema with `ninja.CursorPaginated[EventOut]()`.
 
 For simple single-column keyset pagination with GORM, use `orm.SelectCursorPage`:
 
