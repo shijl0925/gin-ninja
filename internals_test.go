@@ -986,6 +986,91 @@ func TestResponseModelValidatesPlainResponseSchema(t *testing.T) {
 	}
 }
 
+func TestResponseSchemaDescriptorSerializesModelAtRuntime(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email", "password").
+		Exclude("password").
+		ComponentName("PublicUser")
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/descriptor", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{
+			ID:       11,
+			Name:     "carol",
+			Email:    "carol@example.com",
+			Password: "secret",
+		}, nil
+	}, ResponseSchema(userSchema))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/descriptor", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if _, ok := data["password"]; ok {
+		t.Fatalf("expected descriptor to prune password, got %+v", data)
+	}
+	if _, ok := data["name"]; ok {
+		t.Fatalf("expected descriptor fields to omit name, got %+v", data)
+	}
+	if data["email"] != "carol@example.com" || data["id"] != float64(11) {
+		t.Fatalf("expected descriptor response fields, got %+v", data)
+	}
+}
+
+func TestResponseSchemaDescriptorOverridesOpenAPI(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUser")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/descriptor", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{}, nil
+	}, nil)
+	ResponseSchema(userSchema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	schema := built.Paths["/descriptor"].Get.Responses["200"].Content["application/json"].Schema
+	if schema == nil || schema.Ref != "#/components/schemas/PublicUser" {
+		t.Fatalf("expected PublicUser response ref, got %+v", schema)
+	}
+	component := built.Components.Schemas["PublicUser"]
+	if component == nil {
+		t.Fatalf("expected PublicUser component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := component.Properties["email"]; !ok {
+		t.Fatalf("expected email field, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["password"]; ok {
+		t.Fatalf("expected password to be omitted, got %+v", component.Properties)
+	}
+}
+
+func TestModelSchemaDescriptorWrap(t *testing.T) {
+	wrapped := ModelSchemaOf[schemaModel]().
+		Fields("id", "name").
+		Wrap(schemaModel{ID: 12, Name: "dave", Email: "dave@example.com"})
+
+	payload, err := json.Marshal(wrapped)
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	if strings.Contains(string(payload), "email") {
+		t.Fatalf("expected descriptor wrapped schema to omit email, got %s", string(payload))
+	}
+	if !strings.Contains(string(payload), `"name":"dave"`) {
+		t.Fatalf("expected descriptor wrapped schema to include name, got %s", string(payload))
+	}
+}
+
 func TestExtractParams_EmbeddedBodyFields(t *testing.T) {
 	type EmbeddedBody struct {
 		Name string `json:"name" binding:"required"`

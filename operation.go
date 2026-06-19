@@ -179,6 +179,18 @@ func Response(status int, description string, model any) OperationOption {
 func ResponseModel[T any]() OperationOption {
 	return func(op *operation) {
 		op.spec.responseType = reflect.TypeOf((*T)(nil)).Elem()
+		op.spec.responseSchema = nil
+	}
+}
+
+// ResponseSchema declares a reusable model schema descriptor for the successful
+// JSON response. Returned model values are serialized through the descriptor at
+// runtime and documented with the same descriptor in OpenAPI.
+func ResponseSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption {
+	return func(op *operation) {
+		schema := descriptor.schemaDescriptor()
+		op.spec.responseSchema = &schema
+		op.spec.responseType = nil
 	}
 }
 
@@ -272,6 +284,7 @@ type operationDocSpec struct {
 	deprecated              bool
 	successStatus           int
 	responseType            reflect.Type
+	responseSchema          *modelSchemaDescriptor
 	responses               []documentedResponse
 	paginatedItemType       reflect.Type
 	cursorPaginatedItemType reflect.Type
@@ -543,6 +556,9 @@ func (op *operation) writeSuccessResponse(c *gin.Context, output any) {
 }
 
 func (op *operation) serializeResponse(output any) (any, error) {
+	if op.spec.responseSchema != nil {
+		return serializeModelSchemaResponse(*op.spec.responseSchema, output)
+	}
 	if op.spec.responseType == nil {
 		return output, nil
 	}
@@ -554,6 +570,48 @@ func (op *operation) serializeResponse(output any) (any, error) {
 		return nil, err
 	}
 	return body, nil
+}
+
+func serializeModelSchemaResponse(descriptor modelSchemaDescriptor, output any) (any, error) {
+	if err := validateModelSchemaResponseType(descriptor.target, output); err != nil {
+		return nil, err
+	}
+	return serializeModelSchemaValue(reflect.ValueOf(output), descriptor.filter)
+}
+
+func validateModelSchemaResponseType(target reflect.Type, output any) error {
+	source := reflect.TypeOf(output)
+	if source == nil {
+		return fmt.Errorf("response value is invalid")
+	}
+	if isModelSchemaResponseType(target, source) {
+		return nil
+	}
+	return fmt.Errorf("cannot serialize response type %s as model schema %s", source, target)
+}
+
+func isModelSchemaResponseType(target, source reflect.Type) bool {
+	if target == nil || source == nil {
+		return false
+	}
+	if source.AssignableTo(target) || source.ConvertibleTo(target) {
+		return true
+	}
+	for source.Kind() == reflect.Ptr {
+		source = source.Elem()
+		if source.AssignableTo(target) || source.ConvertibleTo(target) {
+			return true
+		}
+	}
+
+	target = deref(target)
+	if source.AssignableTo(target) || source.ConvertibleTo(target) {
+		return true
+	}
+	if source.Kind() == reflect.Slice || source.Kind() == reflect.Array {
+		return isModelSchemaResponseType(target, source.Elem())
+	}
+	return false
 }
 
 func bindResponseModel(schemaType reflect.Type, output any) (any, error) {

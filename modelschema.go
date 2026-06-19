@@ -26,6 +26,57 @@ func Exclude(fields ...string) ModelSchemaOption {
 	}
 }
 
+// ModelSchemaDescriptor describes how a model type should be serialized.
+type ModelSchemaDescriptor[T any] struct {
+	filter        modelSchemaFilter
+	componentName string
+}
+
+// ModelSchemaOf creates a reusable model schema descriptor.
+func ModelSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	descriptor := ModelSchemaDescriptor[T]{}
+	for _, opt := range opts {
+		opt(&descriptor.filter)
+	}
+	descriptor.filter = newModelSchemaFilter(descriptor.filter.fields, descriptor.filter.exclude)
+	return descriptor
+}
+
+// Fields returns a copy of the descriptor limited to the provided field names.
+func (d ModelSchemaDescriptor[T]) Fields(fields ...string) ModelSchemaDescriptor[T] {
+	d.filter.fields = normalizeModelSchemaNames(fields)
+	return d
+}
+
+// Exclude returns a copy of the descriptor excluding the provided field names.
+func (d ModelSchemaDescriptor[T]) Exclude(fields ...string) ModelSchemaDescriptor[T] {
+	d.filter.exclude = normalizeModelSchemaNames(fields)
+	return d
+}
+
+// ComponentName returns a copy of the descriptor with a fixed OpenAPI component name.
+func (d ModelSchemaDescriptor[T]) ComponentName(name string) ModelSchemaDescriptor[T] {
+	d.componentName = sanitizeComponentName(name)
+	return d
+}
+
+// Wrap serializes model with the descriptor's field filters.
+func (d ModelSchemaDescriptor[T]) Wrap(model T) *ModelSchema[T] {
+	return &ModelSchema[T]{
+		Model:   model,
+		Fields:  append([]string(nil), d.filter.fields...),
+		Exclude: append([]string(nil), d.filter.exclude...),
+	}
+}
+
+func (d ModelSchemaDescriptor[T]) schemaDescriptor() modelSchemaDescriptor {
+	return modelSchemaDescriptor{
+		target:        reflect.TypeOf((*T)(nil)).Elem(),
+		filter:        newModelSchemaFilter(d.filter.fields, d.filter.exclude),
+		componentName: d.componentName,
+	}
+}
+
 // ModelSchema wraps a model value and serializes only the allowed fields.
 type ModelSchema[T any] struct {
 	Model   T        `json:"-"`
