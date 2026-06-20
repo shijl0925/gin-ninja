@@ -144,8 +144,8 @@ func (r *schemaRegistry) buildStructSchemaWithFilter(t reflect.Type, filter mode
 			continue
 		}
 
-		fieldName := jsonFieldName(f)
-		if fieldName == "-" || !filter.includes(f, fieldName) {
+		fieldName, ok := modelSchemaFieldName(f, filter)
+		if !ok {
 			continue
 		}
 

@@ -989,8 +989,8 @@ func serializeModelSchemaStruct(v reflect.Value, filter modelSchemaFilter) (map[
 			continue
 		}
 
-		name := jsonFieldName(field)
-		if name == "-" || !filter.includes(field, name) {
+		name, ok := modelSchemaFieldName(field, filter)
+		if !ok {
 			continue
 		}
 
@@ -1057,8 +1057,8 @@ func collectModelSchemaPreloads(t reflect.Type, filter modelSchemaFilter, prefix
 			continue
 		}
 
-		name := jsonFieldName(field)
-		if name == "-" || !filter.includes(field, name) || !modelSchemaPreloadField(field) {
+		_, ok := modelSchemaFieldName(field, filter)
+		if !ok || !modelSchemaPreloadField(field) {
 			continue
 		}
 
@@ -1066,6 +1066,7 @@ func collectModelSchemaPreloads(t reflect.Type, filter modelSchemaFilter, prefix
 		if prefix != "" {
 			path = prefix + "." + path
 		}
+
 		*paths = appendModelSchemaPreloadPath(*paths, path)
 
 		child := filter.child()
@@ -1073,6 +1074,21 @@ func collectModelSchemaPreloads(t reflect.Type, filter modelSchemaFilter, prefix
 			collectModelSchemaPreloads(field.Type, child, path, paths)
 		}
 	}
+}
+
+func modelSchemaFieldName(field reflect.StructField, filter modelSchemaFilter) (string, bool) {
+	name := jsonFieldName(field)
+	if name == "-" {
+		name = defaultJSONFieldName(field.Name)
+		if len(filter.fields) == 0 || !containsModelSchemaName(filter.fields, field.Name, name) {
+			return "", false
+		}
+		return name, true
+	}
+	if !filter.includes(field, name) {
+		return "", false
+	}
+	return name, true
 }
 
 func modelSchemaPreloadField(field reflect.StructField) bool {

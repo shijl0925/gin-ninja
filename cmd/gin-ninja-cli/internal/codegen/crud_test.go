@@ -53,7 +53,6 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"ninja.ModelSchema[User] `fields:\"id,name,email,invite_code,status_note,age,is_admin,created\"`",
 		"type IUserRepo interface",
 		"func NewUserRepo() IUserRepo",
-		"func toUserOut(item User) (*UserOut, error)",
 		"type CreateUserInput struct",
 		"Name string `json:\"name\" binding:\"required\" description:\"Full name\"`",
 		"PasswordHash string `json:\"password_hash\" binding:\"required,min=8\"`",
@@ -73,12 +72,11 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return pagination.NewPage(items, total, in.PageInput), nil",
-		"return toUserOut(item)",
 		"item, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)",
 		"if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&item, in); err != nil {",
 		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
-		"if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"if err := db.Model(&User{}).Where(\"id = ?\", in.ID).Select(updateColumns).Updates(item).Error; err != nil {",
 		"if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
 		"return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID))",
 	}
@@ -95,6 +93,8 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"InviteCode *string `json:\"invite_code\"`",
 		"StatusNote string `json:\"status_note\"`",
 		"PasswordHash string `json:\"passwordHash\"`",
+		"item.Name = in.Name",
+		"func toUserOut(",
 	} {
 		if strings.Contains(generated, unexpected) {
 			t.Fatalf("generated content unexpectedly contained %q\n%s", unexpected, generated)
@@ -180,7 +180,7 @@ type User struct {
 		`countQuery := query.Session(&gorm.Session{})`,
 		`query, err = order.ApplyDB(query, in)`,
 		`if err := db.Create(item).Error; err != nil {`,
-		`if err := db.Model(&User{}).Where("id = ?", in.ID).Updates(updates).Error; err != nil {`,
+		`if err := db.Model(&User{}).Where("id = ?", in.ID).Select(updateColumns).Updates(item).Error; err != nil {`,
 		`if err := query.Where("id = ?", id).First(&item).Error; err != nil {`,
 		`return db.Model(&User{}).Where("id = ?", in.ID).Delete(&User{}).Error`,
 	}
@@ -351,7 +351,7 @@ type Session struct {
 	checks := []string{
 		"func loadSessionByID(db *gorm.DB, id string) (Session, error)",
 		"Token string `json:\"token\" binding:\"required\"`",
-		"if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
+		"if err := db.Model(&Session{}).Where(\"id = ?\", in.ID).Select(updateColumns).Updates(item).Error; err != nil {",
 		"if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
 		"return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID))",
 	}
@@ -389,7 +389,6 @@ type Session struct {
 
 	checks := []string{
 		"ID string `json:\"id\"`",
-		"item.ID = in.ID",
 		"loaded, err := loadSessionByID(db, item.ID)",
 	}
 	for _, check := range checks {
@@ -423,8 +422,8 @@ type Membership struct {
 	generated := string(content)
 
 	checks := []string{
-		`updates["user_id"] = *in.UserID`,
-		`updates["api_key"] = *in.APIKey`,
+		`updateColumns = append(updateColumns, "user_id")`,
+		`updateColumns = append(updateColumns, "api_key")`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -432,7 +431,7 @@ type Membership struct {
 		}
 	}
 
-	if strings.Contains(generated, `updates["user_i_d"]`) || strings.Contains(generated, `updates["a_p_i_key"]`) {
+	if strings.Contains(generated, `updateColumns = append(updateColumns, "user_i_d")`) || strings.Contains(generated, `updateColumns = append(updateColumns, "a_p_i_key")`) {
 		t.Fatalf("expected acronym fields to use stable snake_case\n%s", generated)
 	}
 }
@@ -692,21 +691,11 @@ type Project struct {
 		`OwnerID *uint   ` + "`query:\"owner_id\" filter:\"owner_id,eq\"`" + ``,
 		`Sort    string  ` + "`query:\"sort\" order:\"name|status|owner_id\" description:\"Validated sort fields\"`" + ``,
 		`Search  string  ` + "`query:\"search\" filter:\"name|status,like\" description:\"Keyword search\"`" + ``,
-		`Owner                      *ProjectOwnerOut  ` + "`json:\"owner,omitempty\"`" + ``,
-		`Tasks                      []ProjectTasksOut ` + "`json:\"tasks,omitempty\"`" + ``,
-		`Tags                       []ProjectTagsOut  ` + "`json:\"tags,omitempty\"`" + ``,
 		`ninja.ModelSchema[Project] ` + "`fields:\"id,name,status,owner_id,owner,tasks,tags\" mode:\"read\" depth:\"1\"`" + ``,
 		`TagsIDs []uint ` + "`json:\"tags_ids\"`" + ``,
 		`TasksIDs []uint ` + "`json:\"tasks_ids\"`" + ``,
 		`db := orm.ApplyResponseModelPreloads[ProjectOut](orm.WithContext(ctx.Context))`,
 		`db = orm.ApplyResponseModelPreloads[ProjectOut](db)`,
-		`query.Preload("Owner")`,
-		`query.Preload("Tasks")`,
-		`query.Preload("Tags")`,
-		`for i, item := range items`,
-		`bound, err := toProjectOut(item)`,
-		`out.Tasks, err = ninja.BindModelSchemas[ProjectTasksOut](item.Tasks)`,
-		`out.Tags, err = ninja.BindModelSchemas[ProjectTagsOut](item.Tags)`,
 		`filterOpts, err := filter.BuildOptions(in)`,
 		`if err := order.ApplyOrder(query, in); err != nil {`,
 		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,
@@ -715,6 +704,21 @@ type Project struct {
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
 			t.Fatalf("generated content missing %q\n%s", check, generated)
+		}
+	}
+	for _, unexpected := range []string{
+		`query.Preload("Owner")`,
+		`query.Preload("Tasks")`,
+		`query.Preload("Tags")`,
+		`for i, item := range items`,
+		`BindModelSchemas[ProjectTasksOut]`,
+		`BindModelSchemas[ProjectTagsOut]`,
+		`ProjectOwnerOut`,
+		`ProjectTasksOut`,
+		`ProjectTagsOut`,
+	} {
+		if strings.Contains(generated, unexpected) {
+			t.Fatalf("generated content unexpectedly contained %q\n%s", unexpected, generated)
 		}
 	}
 	if err := os.WriteFile(filepath.Join(dir, "project_crud_gen.go"), content, 0o644); err != nil {
@@ -754,8 +758,8 @@ type Project struct {
 	checks := []string{
 		`Slug string ` + "`json:\"slug\"`" + ``,
 		`Slug *string ` + "`json:\"slug\"`" + ``,
-		`*ProjectOwnerOut ` + "`json:\"owner,omitempty\"`" + ``,
-		`query.Preload("Owner")`,
+		`ninja.ModelSchema[Project] ` + "`fields:\"id,owner_id,slug,owner\" mode:\"read\" depth:\"1\"`" + ``,
+		`db = orm.ApplyResponseModelPreloads[ProjectOut](db)`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -796,6 +800,9 @@ type Project struct {
 	}
 	if strings.Contains(generated, "OwnerID uint `json:\"owner_id\"`") || strings.Contains(generated, "syncProjectOwnerRelation") {
 		t.Fatalf("expected explicit foreign key field to avoid synthetic owner_id association input\n%s", generated)
+	}
+	if strings.Contains(generated, "item.OwnerKey = in.OwnerKey") {
+		t.Fatalf("expected create helper to populate explicit foreign key fields without duplicate assignment\n%s", generated)
 	}
 }
 

@@ -93,6 +93,11 @@ type schemaDepthModel struct {
 	Internal string                `json:"internal" ninja:"write_only"`
 }
 
+type schemaHiddenRelationModel struct {
+	ID    uint                `json:"id"`
+	Owner schemaRelationModel `json:"-"`
+}
+
 type schemaDeepRelationModel struct {
 	ID    uint                `json:"id"`
 	Owner schemaRelationModel `json:"owner"`
@@ -1741,6 +1746,56 @@ func TestModelSchemaDepthAffectsOpenAPIComponents(t *testing.T) {
 	}
 	if _, ok := child.Properties["name"]; !ok {
 		t.Fatalf("expected depth schema to keep child public field, got %+v", child.Properties)
+	}
+}
+
+func TestModelSchemaExplicitFieldsCanExposeHiddenRelations(t *testing.T) {
+	model := schemaHiddenRelationModel{
+		ID: 41,
+		Owner: schemaRelationModel{
+			ID:     7,
+			Name:   "owner",
+			Secret: "hidden",
+		},
+	}
+	schema := ModelSchemaOf[schemaHiddenRelationModel]().
+		Read().
+		Depth(1).
+		Fields("id", "owner")
+
+	payload, err := json.Marshal(schema.Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal hidden relation schema: %v", err)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("Unmarshal hidden relation schema: %v", err)
+	}
+	owner, ok := data["owner"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected hidden relation to serialize as owner, got %s", string(payload))
+	}
+	if owner["name"] != "owner" {
+		t.Fatalf("expected nested owner fields, got %+v", owner)
+	}
+	if _, ok := owner["secret"]; ok {
+		t.Fatalf("expected nested write-only field to be pruned, got %+v", owner)
+	}
+	if preloads := schema.Preloads(); !reflect.DeepEqual(preloads, []string{"Owner"}) {
+		t.Fatalf("expected hidden relation preload from explicit field, got %v", preloads)
+	}
+
+	registry := newSchemaRegistry()
+	ref := registry.schemaForDescriptor(schema.ComponentName("HiddenRelationOut").schemaDescriptor())
+	if ref.Ref != "#/components/schemas/HiddenRelationOut" {
+		t.Fatalf("expected hidden relation schema ref, got %+v", ref)
+	}
+	component := registry.schemas["HiddenRelationOut"]
+	if component == nil {
+		t.Fatalf("expected HiddenRelationOut component, got %+v", registry.schemas)
+	}
+	if _, ok := component.Properties["owner"]; !ok {
+		t.Fatalf("expected hidden relation field in schema, got %+v", component.Properties)
 	}
 }
 
