@@ -66,7 +66,7 @@ func login(ctx *ninja.Context, in *LoginInput, cfg settings.JWTConfig) (*LoginOu
 }
 
 // Register creates a new user account without requiring authentication.
-func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
+func Register(ctx *ninja.Context, in *RegisterInput) (*User, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 
@@ -88,7 +88,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 // ---------------------------------------------------------------------------
 
 // ListUsers returns a paginated list of users.
-func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 	query, _ := gormx.NewQuery[User]()
@@ -107,19 +107,11 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 		return nil, err
 	}
 
-	out := make([]UserOut, len(items))
-	for i, item := range items {
-		bound, err := toUserOut(item)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = *bound
-	}
-	return pagination.NewPage(out, total, in.PageInput), nil
+	return pagination.NewPage(items, total, in.PageInput), nil
 }
 
 // GetUser retrieves a single user by ID.
-func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
+func GetUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 	u, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
@@ -129,18 +121,18 @@ func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 		}
 		return nil, err
 	}
-	return toUserOut(u)
+	return &u, nil
 }
 
 // CreateUser creates a new user.
-func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
+func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 	return createUser(repo, db, in.Name, in.Email, in.Password, in.Age)
 }
 
 // UpdateUser updates an existing user's fields.
-func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
+func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 	_, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
@@ -174,7 +166,7 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 		}
 		return nil, err
 	}
-	return toUserOut(u)
+	return &u, nil
 }
 
 // DeleteUser removes a user by ID.
@@ -207,7 +199,7 @@ func checkPassword(hash, password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
-func createUser(repo IUserRepo, db *gorm.DB, name, email, password string, age int) (*UserOut, error) {
+func createUser(repo IUserRepo, db *gorm.DB, name, email, password string, age int) (*User, error) {
 	u := &User{
 		Name:     name,
 		Email:    email,
@@ -217,5 +209,5 @@ func createUser(repo IUserRepo, db *gorm.DB, name, email, password string, age i
 	if err := repo.Insert(u, gormx.UseDB(db)); err != nil {
 		return nil, err
 	}
-	return toUserOut(*u)
+	return u, nil
 }

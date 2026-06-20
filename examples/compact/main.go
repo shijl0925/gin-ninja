@@ -124,7 +124,11 @@ func registerAuthRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 		ninja.WithTagDescription("Auth", "Authentication endpoints for login and registration"),
 		ninja.WithVersion("v1"),
 	)
-	ninja.Post(router, "/register", app.Register, ninja.Summary("Register a new user"), ninja.WithTransaction())
+	ninja.Post(router, "/register", app.Register,
+		ninja.Summary("Register a new user"),
+		ninja.ResponseModel[app.UserOut](),
+		ninja.WithTransaction(),
+	)
 	ninja.Post(router, "/login", app.LoginHandler(jwtCfg), ninja.Summary("Login and get JWT token"))
 	api.AddRouter(router)
 }
@@ -145,9 +149,9 @@ func registerUsersV1Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 		ninja.Timeout(2*time.Second),
 		ninja.RateLimit(20, 40),
 	)
-	ninja.Get(router, "/:id", app.GetUser, ninja.Summary("Get user"))
-	ninja.Post(router, "/", app.CreateUser, ninja.Summary("Create user"), ninja.WithTransaction())
-	ninja.Put(router, "/:id", app.UpdateUser, ninja.Summary("Update user"), ninja.WithTransaction())
+	ninja.Get(router, "/:id", app.GetUser, ninja.Summary("Get user"), ninja.ResponseModel[app.UserOut]())
+	ninja.Post(router, "/", app.CreateUser, ninja.Summary("Create user"), ninja.ResponseModel[app.UserOut](), ninja.WithTransaction())
+	ninja.Put(router, "/:id", app.UpdateUser, ninja.Summary("Update user"), ninja.ResponseModel[app.UserOut](), ninja.WithTransaction())
 	ninja.Delete(router, "/:id", app.DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())
 	api.AddRouter(router)
 }
@@ -175,6 +179,7 @@ func registerUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cache
 	ninja.Get(router, "/:id", app.GetUserV2,
 		ninja.Summary("Get user (cached CRUD demo)"),
 		ninja.Description("Demonstrates detail response caching with a stable cache key and explicit invalidation after update or delete."),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(cacheStore),
 			ninja.CacheWithKey(app.UsersV2DetailCacheKey),
@@ -184,11 +189,13 @@ func registerUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cache
 	ninja.Post(router, "/", app.CreateUserV2,
 		ninja.Summary("Create user (invalidates cached lists)"),
 		ninja.Description("Creates a user and invalidates cached list queries so subsequent reads observe the new record."),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction(),
 	)
 	ninja.Put(router, "/:id", app.UpdateUserV2,
 		ninja.Summary("Update user (invalidates cached detail + lists)"),
 		ninja.Description("Updates a user, deletes the cached detail entry, and invalidates cached list queries."),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction(),
 	)
 	ninja.Delete(router, "/:id", app.DeleteUserV2,

@@ -57,9 +57,9 @@ func TestBasicExampleRoutesAndCRUD(t *testing.T) {
 	if create.StatusCode != http.StatusCreated {
 		t.Fatalf("expected create 201, got %d", create.StatusCode)
 	}
-	var created UserOut
+	var created map[string]any
 	decodeBasicBody(t, create, &created)
-	if created.ID == 0 || created.Name != "Alice" {
+	if created["id"] == nil || created["name"] != "Alice" {
 		t.Fatalf("unexpected created user: %+v", created)
 	}
 
@@ -77,9 +77,9 @@ func TestBasicExampleRoutesAndCRUD(t *testing.T) {
 	if get.StatusCode != http.StatusOK {
 		t.Fatalf("expected get 200, got %d", get.StatusCode)
 	}
-	var got UserOut
+	var got map[string]any
 	decodeBasicBody(t, get, &got)
-	if got.Email != "alice@example.com" {
+	if got["email"] != "alice@example.com" {
 		t.Fatalf("unexpected fetched user: %+v", got)
 	}
 

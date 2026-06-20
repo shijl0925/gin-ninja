@@ -35,7 +35,7 @@ func newRegisterTestAPI(t *testing.T) *ninja.NinjaAPI {
 	api := ninja.New(ninja.Config{Title: "Test", Version: "0.0.1"})
 	api.UseGin(orm.Middleware(db))
 	authRouter := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
-	ninja.Post(authRouter, "/register", Register)
+	ninja.Post(authRouter, "/register", Register, ninja.ResponseModel[UserOut]())
 	api.AddRouter(authRouter)
 	return api
 }
@@ -93,14 +93,15 @@ func newUsersV2CacheTestAPI(t *testing.T) *ninja.NinjaAPI {
 		),
 	)
 	ninja.Get(router, "/:id", GetUserV2,
+		ninja.ResponseModel[UserOut](),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(store),
 			ninja.CacheWithKey(UsersV2DetailCacheKey),
 			ninja.CacheWithTags(UsersV2DetailCacheTags),
 		),
 	)
-	ninja.Post(router, "/", CreateUserV2)
-	ninja.Put(router, "/:id", UpdateUserV2)
+	ninja.Post(router, "/", CreateUserV2, ninja.ResponseModel[UserOut]())
+	ninja.Put(router, "/:id", UpdateUserV2, ninja.ResponseModel[UserOut]())
 	ninja.Delete(router, "/:id", DeleteUserV2)
 	api.AddRouter(router)
 	return api
@@ -178,7 +179,7 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	if registered.Model.Email != "alice@example.com" {
+	if registered.Email != "alice@example.com" {
 		t.Fatalf("unexpected register output: %+v", registered)
 	}
 
@@ -241,7 +242,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	got, err := GetUser(nil, &GetUserInput{UserID: created.Model.ID})
-	if err != nil || got.Model.Email != "alice@example.com" {
+	if err != nil || got.Email != "alice@example.com" {
 		t.Fatalf("GetUser: result=%+v err=%v", got, err)
 	}
 
@@ -252,7 +253,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}
-	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Model.Email != "alice@example.com" {
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Email != "alice@example.com" {
 		t.Fatalf("unexpected list result: %+v", page)
 	}
 
@@ -263,7 +264,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers email search: %v", err)
 	}
-	if emailPage.Total != 1 || len(emailPage.Items) != 1 || emailPage.Items[0].Model.Email != "bob@example.com" {
+	if emailPage.Total != 1 || len(emailPage.Items) != 1 || emailPage.Items[0].Email != "bob@example.com" {
 		t.Fatalf("unexpected email search result: %+v", emailPage)
 	}
 
@@ -275,7 +276,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers admin filter: %v", err)
 	}
-	if adminPage.Total != 1 || len(adminPage.Items) != 1 || adminPage.Items[0].Model.Email != "bob@example.com" || !adminPage.Items[0].Model.IsAdmin {
+	if adminPage.Total != 1 || len(adminPage.Items) != 1 || adminPage.Items[0].Email != "bob@example.com" || !adminPage.Items[0].IsAdmin {
 		t.Fatalf("unexpected admin list result: %+v", adminPage)
 	}
 
@@ -287,7 +288,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers admin search filter: %v", err)
 	}
-	if adminSearchPage.Total != 1 || len(adminSearchPage.Items) != 1 || adminSearchPage.Items[0].Model.Email != "bob@example.com" {
+	if adminSearchPage.Total != 1 || len(adminSearchPage.Items) != 1 || adminSearchPage.Items[0].Email != "bob@example.com" {
 		t.Fatalf("unexpected admin search result: %+v", adminSearchPage)
 	}
 
@@ -298,7 +299,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListUsers sort: %v", err)
 	}
-	if len(sortedPage.Items) != 2 || sortedPage.Items[0].Model.Age < sortedPage.Items[1].Model.Age {
+	if len(sortedPage.Items) != 2 || sortedPage.Items[0].Age < sortedPage.Items[1].Age {
 		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
 	}
 
@@ -318,7 +319,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateUser: %v", err)
 	}
-	if updated.Model.Name != "Bobby" || updated.Model.Email != "bobby@example.com" || updated.Model.Age != 21 {
+	if updated.Name != "Bobby" || updated.Email != "bobby@example.com" || updated.Age != 21 {
 		t.Fatalf("unexpected updated user: %+v", updated)
 	}
 
@@ -418,7 +419,7 @@ func TestUserDirectHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createUser helper: %v", err)
 	}
-	if created.Model.Email != "alice@example.com" {
+	if created.Email != "alice@example.com" {
 		t.Fatalf("unexpected created helper output: %+v", created)
 	}
 

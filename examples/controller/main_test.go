@@ -31,14 +31,14 @@ func TestControllerExample_CRUD(t *testing.T) {
 	if w2.StatusCode != http.StatusCreated {
 		t.Fatalf("create: expected 201, got %d: %s", w2.StatusCode, w2.String())
 	}
-	var created BookOut
+	var created map[string]any
 	if err := w2.DecodeJSON(&created); err != nil {
 		t.Fatalf("create: parse response: %v", err)
 	}
-	if created.Title != "Go Programming" {
-		t.Errorf("create: unexpected title: %q", created.Title)
+	if created["title"] != "Go Programming" {
+		t.Errorf("create: unexpected title: %q", created["title"])
 	}
-	if created.ID == 0 {
+	if created["id"] == nil {
 		t.Error("create: expected non-zero ID")
 	}
 
@@ -78,11 +78,11 @@ func TestControllerExample_UpdateListPaginationAndMain(t *testing.T) {
 	if w.StatusCode != http.StatusOK {
 		t.Fatalf("update status = %d body=%s", w.StatusCode, w.String())
 	}
-	var updated BookOut
+	var updated map[string]any
 	if err := w.DecodeJSON(&updated); err != nil {
 		t.Fatalf("parse update: %v", err)
 	}
-	if updated.Title != "First Revised" || updated.Author != "Ada" {
+	if updated["title"] != "First Revised" || updated["author"] != "Ada" {
 		t.Fatalf("unexpected updated book: %+v", updated)
 	}
 
