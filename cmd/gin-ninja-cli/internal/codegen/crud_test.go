@@ -67,12 +67,15 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
 		"func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error)",
 		"func GetUser(ctx *ninja.Context, in *GetUserInput)",
-		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.WithTransaction())`,
-		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.WithTransaction())`,
+		`ninja.Get(router, "/:id", GetUser, ninja.Summary("Get user"), ninja.ResponseModel[UserOut]())`,
+		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.ResponseModel[UserOut](), ninja.WithTransaction())`,
+		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.ResponseModel[UserOut](), ninja.WithTransaction())`,
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return pagination.NewPage(items, total, in.PageInput), nil",
 		"return toUserOut(item)",
+		"item, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)",
+		"if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&item, in); err != nil {",
 		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
 		"if err := repo.UpdateByOpts(updates, gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
@@ -692,8 +695,11 @@ type Project struct {
 		`Owner                      *ProjectOwnerOut  ` + "`json:\"owner,omitempty\"`" + ``,
 		`Tasks                      []ProjectTasksOut ` + "`json:\"tasks,omitempty\"`" + ``,
 		`Tags                       []ProjectTagsOut  ` + "`json:\"tags,omitempty\"`" + ``,
+		`ninja.ModelSchema[Project] ` + "`fields:\"id,name,status,owner_id,owner,tasks,tags\" mode:\"read\" depth:\"1\"`" + ``,
 		`TagsIDs []uint ` + "`json:\"tags_ids\"`" + ``,
 		`TasksIDs []uint ` + "`json:\"tasks_ids\"`" + ``,
+		`db := orm.ApplyResponseModelPreloads[ProjectOut](orm.WithContext(ctx.Context))`,
+		`db = orm.ApplyResponseModelPreloads[ProjectOut](db)`,
 		`query.Preload("Owner")`,
 		`query.Preload("Tasks")`,
 		`query.Preload("Tags")`,
@@ -711,6 +717,10 @@ type Project struct {
 			t.Fatalf("generated content missing %q\n%s", check, generated)
 		}
 	}
+	if err := os.WriteFile(filepath.Join(dir, "project_crud_gen.go"), content, 0o644); err != nil {
+		t.Fatalf("write generated file: %v", err)
+	}
+	runGoTest(t, dir)
 }
 
 func TestGenerateCRUDDoesNotTreatHyphenatedGORMValuesAsSkippedFields(t *testing.T) {

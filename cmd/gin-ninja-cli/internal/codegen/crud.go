@@ -107,6 +107,7 @@ type modelSpec struct {
 	tag            string
 	fields         []fieldSpec
 	outputFields   []string
+	responseFields []string
 	createFields   []fieldSpec
 	updateFields   []fieldSpec
 	listFields     []listFieldSpec
@@ -213,56 +214,58 @@ type crudSettings struct {
 }
 
 type templateData struct {
-	PackageName       string
-	Imports           []importSpec
-	ModelName         string
-	Tag               string
-	PluralModel       string
-	SingularLabel     string
-	PluralLabel       string
-	OutputFieldsValue string
-	IDTypeExpr        string
-	IDField           string
-	IDColumn          string
-	CreateFields      []fieldSpec
-	UpdateFields      []fieldSpec
-	ListFields        []listFieldSpec
-	SortFields        []sortFieldSpec
-	SearchFields      []string
-	RelationOuts      []relationOutSpec
-	Relations         []relationSpec
-	RepoIfaceName     string
-	RepoImplName      string
-	ToOutFuncName     string
-	UseByIDMethods    bool
-	UseGormX          bool
+	PackageName         string
+	Imports             []importSpec
+	ModelName           string
+	Tag                 string
+	PluralModel         string
+	SingularLabel       string
+	PluralLabel         string
+	OutputFieldsValue   string
+	ResponseFieldsValue string
+	IDTypeExpr          string
+	IDField             string
+	IDColumn            string
+	CreateFields        []fieldSpec
+	UpdateFields        []fieldSpec
+	ListFields          []listFieldSpec
+	SortFields          []sortFieldSpec
+	SearchFields        []string
+	RelationOuts        []relationOutSpec
+	Relations           []relationSpec
+	RepoIfaceName       string
+	RepoImplName        string
+	ToOutFuncName       string
+	UseByIDMethods      bool
+	UseGormX            bool
 }
 
 func buildTemplateData(model modelSpec) templateData {
 	return templateData{
-		PackageName:       model.packageName,
-		Imports:           model.imports,
-		ModelName:         model.modelName,
-		Tag:               model.tag,
-		PluralModel:       model.pluralModel,
-		SingularLabel:     model.singularLabel,
-		PluralLabel:       model.pluralLabel,
-		OutputFieldsValue: strings.Join(model.outputFields, ","),
-		IDTypeExpr:        model.idTypeExpr,
-		IDField:           model.idField,
-		IDColumn:          model.idColumn,
-		CreateFields:      model.createFields,
-		UpdateFields:      model.updateFields,
-		ListFields:        model.listFields,
-		SortFields:        model.sortFields,
-		SearchFields:      model.searchFields,
-		RelationOuts:      model.relationOuts,
-		Relations:         model.relations,
-		RepoIfaceName:     model.repoIfaceName,
-		RepoImplName:      model.repoImplName,
-		ToOutFuncName:     model.toOutFuncName,
-		UseByIDMethods:    model.useByIDMethods,
-		UseGormX:          model.useGormX,
+		PackageName:         model.packageName,
+		Imports:             model.imports,
+		ModelName:           model.modelName,
+		Tag:                 model.tag,
+		PluralModel:         model.pluralModel,
+		SingularLabel:       model.singularLabel,
+		PluralLabel:         model.pluralLabel,
+		OutputFieldsValue:   strings.Join(model.outputFields, ","),
+		ResponseFieldsValue: strings.Join(model.responseFields, ","),
+		IDTypeExpr:          model.idTypeExpr,
+		IDField:             model.idField,
+		IDColumn:            model.idColumn,
+		CreateFields:        model.createFields,
+		UpdateFields:        model.updateFields,
+		ListFields:          model.listFields,
+		SortFields:          model.sortFields,
+		SearchFields:        model.searchFields,
+		RelationOuts:        model.relationOuts,
+		Relations:           model.relations,
+		RepoIfaceName:       model.repoIfaceName,
+		RepoImplName:        model.repoImplName,
+		ToOutFuncName:       model.toOutFuncName,
+		UseByIDMethods:      model.useByIDMethods,
+		UseGormX:            model.useGormX,
 	}
 }
 
@@ -466,6 +469,13 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		outputFields = append([]string{"id"}, outputFields...)
 	}
 	outputFields = uniqueStrings(outputFields)
+	responseFields := append([]string(nil), outputFields...)
+	for _, relation := range relations {
+		if relation.JSONName != "" {
+			responseFields = append(responseFields, relation.JSONName)
+		}
+	}
+	responseFields = uniqueStrings(responseFields)
 	searchFields = uniqueStrings(searchFields)
 	sortFields = uniqueSortFields(sortFields)
 	relations = finalizeRelationInputBindings(relations, fieldByName)
@@ -511,6 +521,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 		tag:            tag,
 		fields:         fields,
 		outputFields:   outputFields,
+		responseFields: responseFields,
 		createFields:   createFields,
 		updateFields:   updateFields,
 		listFields:     listFields,
@@ -1288,7 +1299,7 @@ import (
 
 // {{ .ModelName }}Out is the default public response schema generated from {{ .ModelName }}.
 type {{ .ModelName }}Out struct {
-ninja.ModelSchema[{{ .ModelName }}] ` + "`fields:\"{{ .OutputFieldsValue }}\"`" + `
+ninja.ModelSchema[{{ .ModelName }}] ` + "`fields:\"{{ .ResponseFieldsValue }}\"{{ if .Relations }} mode:\"read\" depth:\"1\"{{ end }}`" + `
 {{- range .Relations }}
 	{{ .FieldName }} {{ if .Collection }}[]{{ else }}*{{ end }}{{ .TargetOutType }} ` + "`json:\"{{ .JSONName }},omitempty\"`" + `
 {{- end }}
@@ -1406,15 +1417,15 @@ ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
 // Register{{ .ModelName }}CRUDRoutes wires the generated CRUD handlers onto a router.
 func Register{{ .ModelName }}CRUDRoutes(router *ninja.Router) {
 ninja.Get(router, "/", List{{ .PluralModel }}, ninja.Summary("List {{ .PluralLabel }}"), ninja.Paginated[{{ .ModelName }}Out]())
-ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .SingularLabel }}"))
-ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"), ninja.WithTransaction())
-ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"), ninja.WithTransaction())
+ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .SingularLabel }}"), ninja.ResponseModel[{{ .ModelName }}Out]())
+ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"), ninja.ResponseModel[{{ .ModelName }}Out](), ninja.WithTransaction())
+ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"), ninja.ResponseModel[{{ .ModelName }}Out](), ninja.WithTransaction())
 ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .SingularLabel }}"), ninja.WithTransaction())
 }
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
 func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ if .Relations }}{{ .ModelName }}Out{{ else }}{{ .ModelName }}{{ end }}], error) {
-	db := orm.WithContext(ctx.Context)
+	db := {{ if .Relations }}orm.ApplyResponseModelPreloads[{{ .ModelName }}Out](orm.WithContext(ctx.Context)){{ else }}orm.WithContext(ctx.Context){{ end }}
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
 query, _ := gormx.NewQuery[{{ .ModelName }}]()
@@ -1504,7 +1515,10 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
 {{- end }}
-	item := &{{ .ModelName }}{}
+	item, err := ninja.ModelCreateSchemaOf[{{ .ModelName }}]().BindInput(in)
+	if err != nil {
+		return nil, err
+	}
 {{ range .CreateFields }}
 	item.{{ .Name }} = in.{{ .Name }}
 {{ end }}
@@ -1548,6 +1562,9 @@ item, err := load{{ .ModelName }}ByID(db, in.ID)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
 		}
+		return nil, err
+	}
+	if err := ninja.ModelUpdateSchemaOf[{{ .ModelName }}]().ApplyInput(&item, in); err != nil {
 		return nil, err
 	}
 	updates := map[string]interface{}{}
@@ -1615,6 +1632,9 @@ return {{ .ToOutFuncName }}(item)
 }
 
 func load{{ .ModelName }}ByID(db *gorm.DB, id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
+{{- if .Relations }}
+	db = orm.ApplyResponseModelPreloads[{{ .ModelName }}Out](db)
+{{- end }}
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
 	opts := []gormx.DBOption{
