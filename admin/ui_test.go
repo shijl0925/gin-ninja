@@ -198,6 +198,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`empty-state-actions`,
 		`function openModalAndFocus`,
 		`function focusFirstFormError`,
+		`function isInteractiveTableTarget`,
+		`role', 'button'`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,

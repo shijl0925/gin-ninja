@@ -1212,6 +1212,11 @@
       background:#fff;
       box-shadow:0 1px 2px rgba(0,0,0,.05);
     }
+    .resource-table tbody tr[data-record-id] { cursor:pointer; }
+    .resource-table tbody tr[data-record-id]:focus-visible {
+      outline:2px solid rgba(99, 91, 255, 0.45);
+      outline-offset:-2px;
+    }
     .empty-state {
       display:grid;
       justify-items:center;
@@ -5186,6 +5191,10 @@
       });
     }
 
+    function isInteractiveTableTarget(target) {
+      return !!(target && target.closest('button, input, select, textarea, a, label, summary'));
+    }
+
     async function renderList() {
       if (!state.current) return;
       setListLoading(true);
@@ -5307,6 +5316,18 @@
         const tr = document.createElement('tr');
         const id = recordPrimaryKey(row);
         tr.dataset.recordId = String(id);
+        tr.tabIndex = 0;
+        tr.setAttribute('role', 'button');
+        tr.setAttribute('aria-label', 'Open record #' + String(id));
+        tr.onclick = (event) => {
+          if (isInteractiveTableTarget(event.target)) return;
+          selectRecord(row, { openModal: 'record' });
+        };
+        tr.onkeydown = (event) => {
+          if (event.key !== 'Enter' || isInteractiveTableTarget(event.target)) return;
+          event.preventDefault();
+          selectRecord(row, { openModal: 'record' });
+        };
         const checkCell = document.createElement('td');
         checkCell.className = 'table-select-cell';
         const checkbox = document.createElement('input');
