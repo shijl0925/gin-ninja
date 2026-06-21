@@ -184,6 +184,9 @@ func TestServeDefaultUI(t *testing.T) {
 		`const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';`,
 		`/resources/stats`,
 		`/search?q=`,
+		`function buildValidatedFormPayload`,
+		`data-form-status`,
+		`Unsaved changes`,
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("default UI body missing %q: %s", snippet, body)

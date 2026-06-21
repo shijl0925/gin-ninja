@@ -1376,6 +1376,33 @@
       line-height:1.55;
     }
     .form-field-checkbox .form-field-control { display:block; }
+    .form-field-card.has-error {
+      border-color:rgba(220, 53, 69, 0.5);
+      background:rgba(220, 53, 69, 0.04);
+    }
+    .form-field-card.has-error input,
+    .form-field-card.has-error select,
+    .form-field-card.has-error textarea,
+    .form-field-card.has-error .multi-relation-dropdown summary {
+      border-color:var(--admin-danger);
+      box-shadow:0 0 0 0.16rem rgba(220, 53, 69, 0.12);
+    }
+    .field-error {
+      margin:8px 0 0;
+      color:var(--admin-danger);
+      font-size:12px;
+      line-height:1.45;
+      font-weight:600;
+    }
+    .form-status {
+      margin:0;
+      max-width:32rem;
+      line-height:1.5;
+    }
+    .resource-form[data-dirty="true"] .form-status {
+      color:#9a6700;
+      font-weight:700;
+    }
     .form-toggle {
       display:flex;
       align-items:center;
@@ -2461,6 +2488,10 @@
       visibleColumns: {},
       relationSearch: {},
       relationTimers: {},
+      forms: {
+        create: { dirty: false, initial: '', pending: false },
+        update: { dirty: false, initial: '', pending: false }
+      },
       searchTimer: null,
       pagination: { page: 1, size: 10, pages: 1, total: 0 }
     };
@@ -3231,6 +3262,125 @@
       }
     }
 
+    function formState(scopeKey) {
+      if (!state.forms[scopeKey]) {
+        state.forms[scopeKey] = { dirty: false, initial: '', pending: false };
+      }
+      return state.forms[scopeKey];
+    }
+
+    function formSnapshot(form) {
+      const values = [];
+      Array.from(form.elements || []).forEach((element) => {
+        if (!element.name || element.disabled || element.type === 'submit' || element.type === 'button') return;
+        if (element.type === 'checkbox') {
+          values.push([element.name, element.checked ? '1' : '0']);
+          return;
+        }
+        if (element.tagName === 'SELECT' && element.multiple) {
+          values.push([element.name, Array.from(element.selectedOptions).map((option) => option.value).sort().join('\u0000')]);
+          return;
+        }
+        values.push([element.name, element.value]);
+      });
+      return JSON.stringify(values.sort((a, b) => a[0].localeCompare(b[0]) || String(a[1]).localeCompare(String(b[1]))));
+    }
+
+    function updateFormStatus(form, scopeKey) {
+      if (!form) return;
+      const info = formState(scopeKey);
+      form.dataset.dirty = info.dirty ? 'true' : 'false';
+      const status = form.querySelector('[data-form-status="' + scopeKey + '"]');
+      if (status) {
+        status.textContent = info.dirty
+          ? 'Unsaved changes'
+          : (scopeKey === 'update' ? 'Review the changes before saving.' : 'Only required fields need values to create the record.');
+      }
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) {
+        submit.disabled = info.pending;
+        submit.textContent = info.pending ? (submit.dataset.pendingText || 'Saving...') : (submit.dataset.defaultText || submit.textContent);
+      }
+    }
+
+    function markFormClean(form, scopeKey) {
+      if (!form) return;
+      const info = formState(scopeKey);
+      info.initial = formSnapshot(form);
+      info.dirty = false;
+      updateFormStatus(form, scopeKey);
+    }
+
+    function syncFormDirty(form, scopeKey) {
+      if (!form) return;
+      const info = formState(scopeKey);
+      info.dirty = formSnapshot(form) !== info.initial;
+      updateFormStatus(form, scopeKey);
+    }
+
+    function setFormPending(form, scopeKey, pending) {
+      const info = formState(scopeKey);
+      info.pending = pending;
+      updateFormStatus(form, scopeKey);
+    }
+
+    function formFieldWrapper(form, name) {
+      return Array.from(form.querySelectorAll('.form-field-card')).find((wrapper) => wrapper.dataset.fieldName === name);
+    }
+
+    function clearFormErrors(form) {
+      form.querySelectorAll('.form-field-card.has-error').forEach((wrapper) => wrapper.classList.remove('has-error'));
+      form.querySelectorAll('.field-error').forEach((errorEl) => {
+        errorEl.textContent = '';
+        errorEl.hidden = true;
+      });
+      form.querySelectorAll('[aria-invalid="true"]').forEach((control) => {
+        control.removeAttribute('aria-invalid');
+        control.removeAttribute('aria-describedby');
+      });
+    }
+
+    function setFormFieldError(form, name, message) {
+      const wrapper = formFieldWrapper(form, name);
+      if (!wrapper) return false;
+      wrapper.classList.add('has-error');
+      const errorEl = wrapper.querySelector('.field-error');
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+      }
+      const control = Array.from(wrapper.querySelectorAll('[name]')).find((item) => item.name === name);
+      if (control) {
+        control.setAttribute('aria-invalid', 'true');
+        if (errorEl?.id) control.setAttribute('aria-describedby', errorEl.id);
+      }
+      return true;
+    }
+
+    function formFieldValue(form, field) {
+      const control = form.elements.namedItem(field.name);
+      if (!control) return '';
+      if (typeof RadioNodeList !== 'undefined' && control instanceof RadioNodeList) {
+        return control.value;
+      }
+      if (control.tagName === 'SELECT' && control.multiple) {
+        return Array.from(control.selectedOptions).map((option) => option.value);
+      }
+      if (control.type === 'checkbox') {
+        return control.checked;
+      }
+      return control.value;
+    }
+
+    function applyServerErrorToForm(form, error) {
+      const message = extractErrorMessage(error);
+      const match = message.match(/^field "([^"]+)"(?:: | is )(.*)$/);
+      if (match && setFormFieldError(form, match[1], match[2] ? 'Field ' + match[2] : message)) {
+        return true;
+      }
+      return false;
+    }
+
     function createFieldTag(text, tone) {
       const badge = document.createElement('span');
       badge.className = 'field-tag' + (tone ? ' ' + tone : '');
@@ -3620,6 +3770,51 @@
 
      function closeAllModals() {
        [els.createModal, els.recordModal, els.editModal, els.confirmModal].forEach((modal) => closeModal(modal));
+     }
+
+     function formForModal(modal) {
+       if (modal === els.createModal) return { form: els.createForm, scopeKey: 'create' };
+       if (modal === els.editModal) return { form: els.updateForm, scopeKey: 'update' };
+       return null;
+     }
+
+     function requestCloseModal(modal) {
+       const modalForm = formForModal(modal);
+       if (!modalForm || !formState(modalForm.scopeKey).dirty) {
+         closeModal(modal);
+         return;
+       }
+       openConfirmDialog(
+         'Discard changes',
+         'This form has unsaved changes. Close it without saving?',
+         () => {
+           markFormClean(modalForm.form, modalForm.scopeKey);
+           closeModal(els.confirmModal);
+           closeModal(modal);
+           const resetForm = modalForm.scopeKey === 'create' ? renderCreateForm : renderUpdateForm;
+           resetForm().catch((error) => setStatus(String(error.message || error)));
+         },
+         'Discard'
+       );
+     }
+
+     function requestCloseActiveModal() {
+       if (els.confirmModal && !els.confirmModal.hidden) {
+         pendingConfirmCallback = null;
+         closeModal(els.confirmModal);
+         return;
+       }
+       if (els.editModal && !els.editModal.hidden) {
+         requestCloseModal(els.editModal);
+         return;
+       }
+       if (els.createModal && !els.createModal.hidden) {
+         requestCloseModal(els.createModal);
+         return;
+       }
+       if (els.recordModal && !els.recordModal.hidden) {
+         closeModal(els.recordModal);
+       }
      }
 
     let _actionMenuPortal = null;
@@ -4223,8 +4418,10 @@
     async function renderForm(target, fieldNames, mode, values, scopeKey) {
       target.innerHTML = '';
       target.className = 'stack resource-form';
+      target.noValidate = true;
       if (!state.meta || !fieldNames.length) {
         target.innerHTML = '<p class="muted">' + mode + ' is not available for this resource.</p>';
+        markFormClean(target, scopeKey);
         return;
       }
       const intro = document.createElement('div');
@@ -4254,6 +4451,7 @@
         if (!field) continue;
         const wrapper = document.createElement('div');
         wrapper.className = 'form-field-card';
+        wrapper.dataset.fieldName = field.name;
         if (shouldSpanFullWidth(field)) {
           wrapper.classList.add('form-field-wide');
         }
@@ -4327,23 +4525,32 @@
           controlWrap.appendChild(control);
         }
         wrapper.appendChild(controlWrap);
+        const errorEl = document.createElement('p');
+        errorEl.className = 'field-error';
+        errorEl.id = fieldControlID(scopeKey, field) + '-error';
+        errorEl.hidden = true;
+        wrapper.appendChild(errorEl);
         grid.appendChild(wrapper);
       }
       target.appendChild(grid);
       const footer = document.createElement('div');
       footer.className = 'resource-form-footer';
       const footerCopy = document.createElement('p');
-      footerCopy.className = 'muted';
+      footerCopy.className = 'muted form-status';
+      footerCopy.dataset.formStatus = scopeKey;
       footerCopy.textContent = mode === 'update'
         ? 'Review the changes before saving.'
         : 'Only required fields need values to create the record.';
       const submit = document.createElement('button');
       submit.type = 'submit';
       submit.textContent = mode === 'update' ? 'Update' : 'Create';
+      submit.dataset.defaultText = submit.textContent;
+      submit.dataset.pendingText = mode === 'update' ? 'Saving...' : 'Creating...';
       submit.className = 'btn btn-primary';
       footer.appendChild(footerCopy);
       footer.appendChild(submit);
       target.appendChild(footer);
+      markFormClean(target, scopeKey);
     }
 
     async function renderCreateForm() {
@@ -4354,6 +4561,7 @@
       if (!state.selected) {
         els.updateForm.innerHTML = '<p class="muted">Select a row to edit it.</p>';
         els.editHint.textContent = 'Select a row to edit.';
+        markFormClean(els.updateForm, 'update');
         return;
       }
       els.editHint.textContent = 'Editing record #' + recordPrimaryKey(state.selected.item) + '.';
@@ -4398,7 +4606,23 @@
       syncWorkspaceActionState();
     }
 
-    function formPayload(form) {
+    function buildValidatedFormPayload(form, scopeKey) {
+      clearFormErrors(form);
+      const errors = [];
+      (state.meta?.fields || []).forEach((field) => {
+        if (!formFieldWrapper(form, field.name) || field.read_only) return;
+        const value = formFieldValue(form, field);
+        const empty = Array.isArray(value)
+          ? value.length === 0
+          : value == null || value === '';
+        if (isFieldRequiredForForm(field, scopeKey) && empty) {
+          errors.push({ field: field.name, message: field.label + ' is required.' });
+        }
+        if (field.component === 'number' && !empty && !Number.isFinite(Number(value))) {
+          errors.push({ field: field.name, message: field.label + ' must be a valid number.' });
+        }
+      });
+
       const payload = {};
       const data = new FormData(form);
       for (const [key, value] of data.entries()) {
@@ -4412,7 +4636,14 @@
           continue;
         }
         if (field.component === 'array') {
-          payload[key] = value ? JSON.parse(value) : [];
+          try {
+            payload[key] = value ? JSON.parse(value) : [];
+            if (!Array.isArray(payload[key])) {
+              errors.push({ field: key, message: field.label + ' must be a JSON array.' });
+            }
+          } catch (_) {
+            errors.push({ field: key, message: field.label + ' must be valid JSON.' });
+          }
           continue;
         }
         if (field.relation) {
@@ -4444,7 +4675,12 @@
           return numericFieldPattern.test(value) ? Number(value) : value;
         });
       });
-      return payload;
+      errors.forEach((error) => setFormFieldError(form, error.field, error.message));
+      return {
+        valid: errors.length === 0,
+        payload,
+        errors
+      };
     }
 
     function appendListQueryParams(params) {
@@ -4989,13 +5225,13 @@
        if (els.openCreateModal.disabled) return;
        openModal(els.createModal);
      };
-     els.closeCreateModal.onclick = () => closeModal(els.createModal);
+     els.closeCreateModal.onclick = () => requestCloseModal(els.createModal);
      els.closeRecordModal.onclick = () => closeModal(els.recordModal);
-     els.closeEditModal.onclick = () => closeModal(els.editModal);
+     els.closeEditModal.onclick = () => requestCloseModal(els.editModal);
      [els.createModal, els.recordModal, els.editModal].forEach((modal) => {
        modal.addEventListener('click', (event) => {
          if (event.target === modal) {
-           closeModal(modal);
+           requestCloseModal(modal);
         }
       });
      });
@@ -5003,7 +5239,7 @@
        if (event.key === 'Escape') {
          closeActionMenuPortal();
          closeColumnMenu();
-         closeAllModals();
+         requestCloseActiveModal();
          return;
        }
        // Ignore shortcuts when focus is in a text control or a modal is open
@@ -5111,39 +5347,71 @@
     els.createForm.onsubmit = async (event) => {
       event.preventDefault();
       if (!state.current) return;
+      const built = buildValidatedFormPayload(els.createForm, 'create');
+      if (!built.valid) {
+        showToast('Please fix the highlighted fields.', 'danger');
+        setStatus('Please fix the highlighted fields.');
+        return;
+      }
+      setFormPending(els.createForm, 'create', true);
       try {
         await request(currentBasePath(), {
           method: 'POST',
-          body: JSON.stringify(formPayload(els.createForm))
+          body: JSON.stringify(built.payload)
         });
         await renderCreateForm();
         closeModal(els.createModal);
         showToast('Created a new ' + state.current.name + ' record.', 'success');
         await reloadListWithStatus('Created a new ' + state.current.name + ' record.', true);
       } catch (error) {
-        showToast(String(error.message || error), 'danger');
-        setStatus(String(error.message || error));
+        const message = String(error.message || error);
+        applyServerErrorToForm(els.createForm, error);
+        showToast(message, 'danger');
+        setStatus(message);
+      } finally {
+        setFormPending(els.createForm, 'create', false);
       }
     };
     els.updateForm.onsubmit = async (event) => {
       event.preventDefault();
       if (!state.current || !state.selected) return;
+      const built = buildValidatedFormPayload(els.updateForm, 'update');
+      if (!built.valid) {
+        showToast('Please fix the highlighted fields.', 'danger');
+        setStatus('Please fix the highlighted fields.');
+        return;
+      }
+      setFormPending(els.updateForm, 'update', true);
       try {
         const id = recordPrimaryKey(state.selected.item);
         await request(currentBasePath() + '/' + encodeURIComponent(String(id)), {
           method: 'PUT',
-          body: JSON.stringify(formPayload(els.updateForm))
+          body: JSON.stringify(built.payload)
         });
+        markFormClean(els.updateForm, 'update');
         closeModal(els.editModal);
         await renderList();
         await selectRecord({ id: id });
         showToast('Updated record #' + id + '.', 'success');
         setStatus('Updated record #' + id + '.');
       } catch (error) {
-        showToast(String(error.message || error), 'danger');
-        setStatus(String(error.message || error));
+        const message = String(error.message || error);
+        applyServerErrorToForm(els.updateForm, error);
+        showToast(message, 'danger');
+        setStatus(message);
+      } finally {
+        setFormPending(els.updateForm, 'update', false);
       }
     };
+    els.createForm.addEventListener('input', () => syncFormDirty(els.createForm, 'create'));
+    els.createForm.addEventListener('change', () => syncFormDirty(els.createForm, 'create'));
+    els.updateForm.addEventListener('input', () => syncFormDirty(els.updateForm, 'update'));
+    els.updateForm.addEventListener('change', () => syncFormDirty(els.updateForm, 'update'));
+    window.addEventListener('beforeunload', (event) => {
+      if (!state.forms.create.dirty && !state.forms.update.dirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
     els.bulkDelete.onclick = () => {
       if (!state.current || !selectedIDs().length) return;
       const count = selectedIDs().length;
