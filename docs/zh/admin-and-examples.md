@@ -33,6 +33,12 @@ site.MustRegisterModel(&admin.ModelResource{
     // Model 是 GORM Model 结构体（值类型，非指针）
     Model: User{},
 
+    // 可选：内置 UI 使用这些元数据进行分组、排序和说明展示
+    Icon:        "users",
+    Group:       "Identity",
+    Description: "管理后台用户、管理员标记和角色关系。",
+    Order:       10,
+
     // Preloads 列出每次查询时需要 Preload 的 GORM 关联名
     Preloads: []string{"Roles"},
 
@@ -48,6 +54,7 @@ site.MustRegisterModel(&admin.ModelResource{
     // 可选：字段级显示和组件覆盖
     FieldOptions: map[string]admin.FieldOptions{
         "is_admin": {Label: "管理员？", Component: "switch"},
+        "role_ids": {Help: "搜索并选择一个或多个角色。", Width: "full"},
     },
 
     // 可选：资源级权限钩子，每次操作前调用
@@ -198,7 +205,9 @@ admin.MountUI(router, admin.UIConfig{
 - 独立登录页：`/admin/login`
 - 独立后台工作台：`/admin`
 - 由 `/api/v1/admin/resources` 驱动的资源导航
+- 按资源 `Group` / `Order` 分组排序的侧边栏导航
 - 支持搜索、元数据过滤、排序、分页大小和翻页的记录列表
+- 表格密度切换与列显隐设置
 - 详情、创建、更新、删除与批量删除流程
 - 带关系字段选项搜索预览的 selector 交互
 - 更紧凑的 “Admin Workspace” 头部布局，后台观感更集中

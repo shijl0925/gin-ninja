@@ -173,7 +173,16 @@ func TestServeDefaultUI(t *testing.T) {
 	if got := w.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
 		t.Fatalf("Content-Type = %q, want text/html", got)
 	}
-	if body := w.Body.String(); !strings.Contains(body, "Gin Ninja Admin") || !strings.Contains(body, `const apiBase = "/api/v1/admin";`) {
-		t.Fatalf("default UI body missing expected content: %s", body)
+	body := w.Body.String()
+	for _, snippet := range []string{
+		"Gin Ninja Admin",
+		`const apiBase = "/api/v1/admin";`,
+		`id="tableDensity"`,
+		`id="columnToggle"`,
+		`id="columnMenu"`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("default UI body missing %q: %s", snippet, body)
+		}
 	}
 }

@@ -66,7 +66,8 @@
     [data-theme="dark"] .topbar { background: var(--admin-topbar); border-bottom-color: var(--admin-border); }
     [data-theme="dark"] .topbar-user-menu,
     [data-theme="dark"] .topbar-search-expand input,
-    [data-theme="dark"] .action-menu-list { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
+    [data-theme="dark"] .action-menu-list,
+    [data-theme="dark"] .column-menu { background: var(--admin-surface); border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .topbar-link,
     [data-theme="dark"] .topbar-user-btn,
     [data-theme="dark"] .topbar-user-menu-item { color: var(--admin-text); }
@@ -114,6 +115,7 @@
     [data-theme="dark"] .multi-relation-menu,
     [data-theme="dark"] .multi-relation-empty { background: #22253a; border-color: var(--admin-border); color: var(--admin-text); }
     [data-theme="dark"] .multi-relation-option:hover { background: #2a2d42; }
+    [data-theme="dark"] .column-option:hover { background: #2a2d42; }
     [data-theme="dark"] .multi-relation-option.selected { background: #28324a; }
     [data-theme="dark"] .multi-relation-option input { accent-color: var(--admin-primary-dark); }
     [data-theme="dark"] .inline-field, [data-theme="dark"] .form-field { color: var(--admin-text); }
@@ -772,6 +774,15 @@
       font-size:12px;
       line-height:1.4;
     }
+    .sidebar-resource-group {
+      padding:12px 8px 4px;
+      color:rgba(255,255,255,.48);
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:0.09em;
+      line-height:1.2;
+      text-transform:uppercase;
+    }
     .resource-strip-header, .resource-strip-copy { display:grid; gap:6px; }
     .resource-strip-header { display:none; }
     .resource-strip-copy strong, .resource-strip-copy p { margin:0; }
@@ -1118,6 +1129,45 @@
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
+    .table-view-tools { position:relative; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .table-view-tools select { flex:0 0 150px; }
+    .column-menu {
+      position:absolute;
+      top:calc(100% + 8px);
+      right:0;
+      z-index:120;
+      display:grid;
+      gap:8px;
+      width:min(260px, calc(100vw - 32px));
+      max-height:320px;
+      overflow:auto;
+      padding:10px;
+      border:1px solid var(--admin-border);
+      border-radius:0.45rem;
+      background:var(--admin-surface);
+      box-shadow:0 12px 30px rgba(15, 23, 42, 0.15);
+    }
+    .column-menu-title {
+      margin:0;
+      color:var(--admin-muted);
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+    .column-option {
+      display:flex;
+      align-items:center;
+      gap:9px;
+      padding:8px 9px;
+      border-radius:0.35rem;
+      color:var(--admin-text);
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .column-option:hover { background:var(--admin-soft); }
+    .column-option input { flex:0 0 auto; }
     .badge.badge-muted {
       background:#f2f4f7;
       color:#667085;
@@ -1433,6 +1483,12 @@
     }
     .resource-table { width:100%; min-width:780px; border-collapse:separate; border-spacing:0; }
     .resource-table th, .resource-table td { border-bottom:1px solid #eef2f7; padding:1rem 1rem; text-align:left; font-size:14px; vertical-align:middle; }
+    body.table-density-compact .resource-table th,
+    body.table-density-compact .resource-table td {
+      padding:0.55rem 0.75rem;
+      font-size:13px;
+    }
+    body.table-density-compact .table-cell { gap:2px; }
     .resource-table thead th {
       position:sticky;
       top:0;
@@ -2217,6 +2273,14 @@
                       <option value="50">50 / page</option>
                     </select>
                   </div>
+                  <div class="table-view-tools" id="tableViewTools">
+                    <select id="tableDensity" class="custom-select" aria-label="Table density">
+                      <option value="comfortable">Comfortable</option>
+                      <option value="compact">Compact</option>
+                    </select>
+                    <button id="columnToggle" class="secondary btn btn-default" type="button" aria-expanded="false" aria-controls="columnMenu">Columns</button>
+                    <div id="columnMenu" class="column-menu" hidden></div>
+                  </div>
                   <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
                 </div>
                 <form id="filtersForm" class="filters"></form>
@@ -2338,6 +2402,8 @@
     const tokenStorageKey = 'gin-ninja-admin-token';
     const flashStorageKey = 'gin-ninja-admin-flash';
     const themeStorageKey = 'gin-ninja-admin-theme';
+    const tableDensityStorageKey = 'gin-ninja-admin-table-density';
+    const columnVisibilityStoragePrefix = 'gin-ninja-admin-columns:';
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
     const stringLikeComponents = new Set(['text', 'textarea', 'email']);
@@ -2388,6 +2454,8 @@
       records: [],
       selected: null,
       bulkSelected: {},
+      tableDensity: 'comfortable',
+      visibleColumns: {},
       relationSearch: {},
       relationTimers: {},
       searchTimer: null,
@@ -2434,6 +2502,9 @@
       filtersForm: document.getElementById('filtersForm'),
       sort: document.getElementById('sort'),
       pageSize: document.getElementById('pageSize'),
+      tableDensity: document.getElementById('tableDensity'),
+      columnToggle: document.getElementById('columnToggle'),
+      columnMenu: document.getElementById('columnMenu'),
       paginationInfo: document.getElementById('paginationInfo'),
       prevPage: document.getElementById('prevPage'),
       nextPage: document.getElementById('nextPage'),
@@ -2609,6 +2680,21 @@
         }
       } catch (_) {
         // localStorage may be unavailable in some contexts
+      }
+    }
+
+    function applyTableDensity(value) {
+      const next = value === 'compact' ? 'compact' : 'comfortable';
+      state.tableDensity = next;
+      document.body.classList.toggle('table-density-compact', next === 'compact');
+      if (els.tableDensity) els.tableDensity.value = next;
+    }
+
+    function restoreTableDensity() {
+      try {
+        applyTableDensity(localStorage.getItem(tableDensityStorageKey) || 'comfortable');
+      } catch (_) {
+        applyTableDensity('comfortable');
       }
     }
 
@@ -2877,6 +2963,7 @@
       state.records = [];
       state.selected = null;
       state.bulkSelected = {};
+      state.visibleColumns = {};
       state.relationSearch = {};
       state.relationTimers = {};
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
@@ -3291,6 +3378,7 @@
       els.search.value = '';
       els.sort.innerHTML = '';
       els.filtersForm.innerHTML = '';
+      closeColumnMenu();
     }
 
     function resetToFirstPage() {
@@ -3330,6 +3418,22 @@
       });
     }
 
+    function groupedResources(resources) {
+      const groups = [];
+      const byName = new Map();
+      resources.forEach((resource) => {
+        const groupName = String(resource.group || 'Resources').trim() || 'Resources';
+        let group = byName.get(groupName);
+        if (!group) {
+          group = { name: groupName, items: [] };
+          byName.set(groupName, group);
+          groups.push(group);
+        }
+        group.items.push(resource);
+      });
+      return groups;
+    }
+
     function renderResources() {
       els.resources.innerHTML = '';
       const resourceTreeview = document.getElementById('resourceTreeview');
@@ -3348,26 +3452,35 @@
           : 'No resources available.';
         els.resources.appendChild(li);
       }
-      matches.forEach((resource, index) => {
-        const li = document.createElement('li');
-        const button = document.createElement('button');
-        const icon = document.createElement('span');
-        const label = document.createElement('span');
-        li.className = 'nav-item';
-        button.type = 'button';
-        button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
-        button.classList.add('d-flex', 'align-items-center');
-        icon.className = 'nav-link-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        icon.innerHTML = dashboardTileMeta(resource, index).icon;
-        label.className = 'nav-link-label';
-        label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
-        button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
-        button.appendChild(icon);
-        button.appendChild(label);
-        button.onclick = () => selectResource(resource);
-        li.appendChild(button);
-        els.resources.appendChild(li);
+      groupedResources(matches).forEach((group) => {
+        const groupLabel = document.createElement('li');
+        groupLabel.className = 'sidebar-resource-group';
+        groupLabel.textContent = group.name;
+        els.resources.appendChild(groupLabel);
+        group.items.forEach((resource, index) => {
+          const li = document.createElement('li');
+          const button = document.createElement('button');
+          const icon = document.createElement('span');
+          const label = document.createElement('span');
+          li.className = 'nav-item';
+          button.type = 'button';
+          button.className = 'nav-link' + (state.current?.name === resource.name ? ' active' : '');
+          button.classList.add('d-flex', 'align-items-center');
+          icon.className = 'nav-link-icon';
+          icon.setAttribute('aria-hidden', 'true');
+          icon.innerHTML = dashboardTileMeta(resource, index).icon;
+          label.className = 'nav-link-label';
+          label.innerHTML = highlightMatch(resource.label, state.resourceSearch);
+          button.setAttribute('aria-current', state.current?.name === resource.name ? 'page' : 'false');
+          if (resource.description) {
+            button.setAttribute('title', resource.description);
+          }
+          button.appendChild(icon);
+          button.appendChild(label);
+          button.onclick = () => selectResource(resource);
+          li.appendChild(button);
+          els.resources.appendChild(li);
+        });
       });
       if (els.sidebarResourceSearchButton) {
         setSidebarSearchButtonContent(Boolean(state.resourceSearch));
@@ -3490,6 +3603,91 @@
        const createEnabled = Boolean(state.current && hasAction('create'));
        els.openCreateModal.disabled = !createEnabled;
      }
+
+    function columnVisibilityKey() {
+      return state.current ? columnVisibilityStoragePrefix + state.current.name : '';
+    }
+
+    function readSavedColumnVisibility() {
+      const key = columnVisibilityKey();
+      if (!key) return {};
+      try {
+        return JSON.parse(localStorage.getItem(key) || '{}') || {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    function saveColumnVisibility() {
+      const key = columnVisibilityKey();
+      if (!key) return;
+      try {
+        localStorage.setItem(key, JSON.stringify(state.visibleColumns || {}));
+      } catch (_) {
+        // ignore storage failures
+      }
+    }
+
+    function initializeColumnVisibility() {
+      const fields = state.meta?.list_fields || [];
+      const saved = readSavedColumnVisibility();
+      const next = {};
+      fields.forEach((name) => {
+        next[name] = Object.prototype.hasOwnProperty.call(saved, name) ? saved[name] !== false : true;
+      });
+      state.visibleColumns = next;
+      renderColumnMenu();
+    }
+
+    function visibleListFields() {
+      const fields = state.meta?.list_fields || [];
+      return fields.filter((name) => state.visibleColumns[name] !== false);
+    }
+
+    function closeColumnMenu() {
+      if (!els.columnMenu || !els.columnToggle) return;
+      els.columnMenu.hidden = true;
+      els.columnToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderColumnMenu() {
+      if (!els.columnMenu) return;
+      const fields = state.meta?.list_fields || [];
+      els.columnMenu.innerHTML = '';
+      const title = document.createElement('p');
+      title.className = 'column-menu-title';
+      title.textContent = 'Visible columns';
+      els.columnMenu.appendChild(title);
+      if (!fields.length) {
+        const empty = document.createElement('div');
+        empty.className = 'muted';
+        empty.textContent = 'No list columns available.';
+        els.columnMenu.appendChild(empty);
+        return;
+      }
+      fields.forEach((name) => {
+        const label = document.createElement('label');
+        label.className = 'column-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = state.visibleColumns[name] !== false;
+        checkbox.addEventListener('change', () => {
+          if (!checkbox.checked && visibleListFields().length <= 1) {
+            checkbox.checked = true;
+            showToast('Keep at least one table column visible.', 'info');
+            return;
+          }
+          state.visibleColumns[name] = checkbox.checked;
+          saveColumnVisibility();
+          renderList().catch((error) => setStatus(String(error.message || error)));
+        });
+        const text = document.createElement('span');
+        text.textContent = fieldLabel(name);
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        els.columnMenu.appendChild(label);
+      });
+    }
 
     function renderResourceSummary() {
       if (!state.current || !state.meta) {
@@ -4191,7 +4389,7 @@
       } finally {
         setListLoading(false);
       }
-      const fields = state.meta?.list_fields || [];
+      const fields = visibleListFields();
       const rows = data.items || [];
       state.records = rows;
       state.pagination = {
@@ -4430,6 +4628,7 @@
         renderSearchPlaceholder();
         renderSortOptions();
         renderFilterControls();
+        initializeColumnVisibility();
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);
         renderSelectedRecord();
         syncBulkActionState();
@@ -4651,6 +4850,7 @@
      document.addEventListener('keydown', (event) => {
        if (event.key === 'Escape') {
          closeActionMenuPortal();
+         closeColumnMenu();
          closeAllModals();
          return;
        }
@@ -4669,6 +4869,7 @@
      });
      document.addEventListener('click', () => {
        closeActionMenuPortal();
+       closeColumnMenu();
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
      els.clearFilters.onclick = () => {
@@ -4708,6 +4909,27 @@
       state.pagination.size = Number(els.pageSize.value || 10);
       reloadListWithStatus('Updated page size.', true).catch((error) => setStatus(String(error.message || error)));
     };
+    if (els.tableDensity) {
+      els.tableDensity.onchange = () => {
+        applyTableDensity(els.tableDensity.value);
+        try {
+          localStorage.setItem(tableDensityStorageKey, state.tableDensity);
+        } catch (_) {
+          // ignore storage failures
+        }
+      };
+    }
+    if (els.columnToggle && els.columnMenu) {
+      els.columnToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const open = els.columnMenu.hidden;
+        els.columnMenu.hidden = !open;
+        els.columnToggle.setAttribute('aria-expanded', String(open));
+      });
+      els.columnMenu.addEventListener('click', (event) => {
+        event.stopPropagation();
+      });
+    }
      els.filtersForm.onchange = () => {
        if (!state.current) return;
        cancelScheduledSearchReload();
@@ -4807,6 +5029,7 @@
     resetAdminState();
     updatePageChrome();
     restoreTheme();
+    restoreTableDensity();
     const restoredToken = restoreToken();
     const flashMessage = consumeFlashMessage();
     renderAuthState();

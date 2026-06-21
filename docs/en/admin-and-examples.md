@@ -33,6 +33,12 @@ site.MustRegisterModel(&admin.ModelResource{
     // Model is the GORM model struct (value, not pointer).
     Model: User{},
 
+    // Optional: the built-in UI uses these hints for grouping, ordering, and copy.
+    Icon:        "users",
+    Group:       "Identity",
+    Description: "Manage back-office users, admin flags, and role relations.",
+    Order:       10,
+
     // Preloads lists GORM association names to Preload on every query.
     Preloads: []string{"Roles"},
 
@@ -48,6 +54,7 @@ site.MustRegisterModel(&admin.ModelResource{
     // Optional per-field display/component overrides.
     FieldOptions: map[string]admin.FieldOptions{
         "is_admin": {Label: "Admin?", Component: "switch"},
+        "role_ids": {Help: "Search and select one or more roles.", Width: "full"},
     },
 
     // Optional permission hook called for every action on this resource.
@@ -199,7 +206,9 @@ It includes:
 - a standalone login page at `/admin/login`
 - a standalone admin workspace at `/admin`
 - resource navigation backed by `/api/v1/admin/resources`
+- sidebar navigation grouped and ordered by resource `Group` / `Order`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
+- table density switching and visible-column controls
 - detail, create, update, delete, and bulk delete flows
 - relation-backed field selectors with option search previews
 - a more compact “Admin Workspace” header for a denser back-office layout
