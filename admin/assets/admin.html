@@ -1425,9 +1425,11 @@
     .resource-header-actions button { padding-inline:13px; }
     .modal-overlay { position:fixed; inset:0; background:rgba(15, 23, 42, 0.54); display:grid; place-items:center; padding:24px; z-index:50; backdrop-filter:blur(2px); }
     .modal-dialog {
+      display:flex;
+      flex-direction:column;
       width:min(720px, 100%);
       max-height:min(85vh, 920px);
-      overflow:auto;
+      overflow:hidden;
       border-radius:var(--admin-radius-lg);
       border:1px solid var(--admin-border);
       border-top:1px solid var(--admin-border);
@@ -1444,8 +1446,9 @@
       padding:12px 16px;
       border-bottom:1px solid var(--admin-border);
       background:var(--admin-surface-elevated);
+      flex:0 0 auto;
     }
-    .modal-body { padding:16px; background:var(--admin-surface); }
+    .modal-body { flex:1 1 auto; min-height:0; padding:16px; background:var(--admin-surface); overflow:auto; }
     .modal-close { min-width:auto; min-height:34px; padding:7px 12px; }
     .modal-heading { gap:4px; }
     .modal-form-heading { gap:2px; }
@@ -2465,6 +2468,93 @@
       .table-toolbar .row-actions { flex-basis:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
       .resource-form-footer { align-items:flex-start; }
+    }
+    @media (max-width: 640px) {
+      :root {
+        --admin-content-gap: 12px;
+        --admin-topbar-min-height: 56px;
+      }
+      .topbar {
+        gap:10px;
+        padding-top:10px;
+        padding-bottom:10px;
+      }
+      .topbar-brand { gap:10px; }
+      .topbar-copy p,
+      .topbar-nav { display:none; }
+      .brand-mark {
+        width:34px;
+        height:34px;
+        font-size:13px;
+      }
+      .topbar-actions {
+        width:100%;
+        border-left:none;
+        border-top:1px solid var(--admin-border);
+      }
+      .topbar-action,
+      .topbar-user-btn {
+        min-height:42px;
+      }
+      .topbar-search-wrap { position:static; }
+      .topbar-search-expand {
+        left:16px;
+        right:16px;
+        top:calc(100% - 2px);
+        width:auto;
+      }
+      .toast-container {
+        top:12px;
+        left:12px;
+        right:12px;
+      }
+      .toast {
+        min-width:0;
+        max-width:none;
+        width:100%;
+      }
+      .modal-overlay {
+        align-items:end;
+        padding:12px 8px 0;
+      }
+      .modal-dialog,
+      .modal-dialog.large {
+        width:100%;
+        max-height:calc(100vh - 12px);
+        border-bottom-left-radius:0;
+        border-bottom-right-radius:0;
+      }
+      .modal-header,
+      .modal-body { padding-left:14px; padding-right:14px; }
+      .table-toolbar,
+      .table-toolbar .row-actions,
+      .table-view-tools,
+      .pagination-bar,
+      .resource-form-footer,
+      .confirm-actions {
+        align-items:stretch;
+        width:100%;
+      }
+      .table-toolbar,
+      .pagination-bar,
+      .resource-form-footer {
+        flex-direction:column;
+      }
+      .table-toolbar input,
+      .table-toolbar select,
+      .table-view-tools select,
+      .table-view-tools button,
+      .pagination-bar button,
+      .resource-form-footer button,
+      .confirm-actions button {
+        flex:1 1 auto;
+        width:100%;
+      }
+      .section-card-header > .row-actions,
+      #recordsShell > .section-card-header > .row-actions {
+        width:100%;
+        justify-content:flex-start;
+      }
     }
   </style>
 </head>
