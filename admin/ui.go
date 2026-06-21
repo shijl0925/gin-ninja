@@ -20,6 +20,7 @@ type UIConfig struct {
 	TokenStorage  string
 	APIBasePath   string
 	AuthLoginPath string
+	AuthMePath    string
 	AdminPath     string
 	LoginPath     string
 
@@ -52,6 +53,7 @@ func DefaultUIConfig() UIConfig {
 		TokenStorage:  "local",
 		APIBasePath:   "/api/v1/admin",
 		AuthLoginPath: "/api/v1/auth/login",
+		AuthMePath:    "/api/v1/auth/me",
 		AdminPath:     "/admin",
 		LoginPath:     "/admin/login",
 	}
@@ -89,6 +91,9 @@ func normalizeUIConfig(cfg UIConfig) UIConfig {
 	if strings.TrimSpace(cfg.AuthLoginPath) == "" {
 		cfg.AuthLoginPath = defaults.AuthLoginPath
 	}
+	if strings.TrimSpace(cfg.AuthMePath) == "" {
+		cfg.AuthMePath = defaults.AuthMePath
+	}
 	if strings.TrimSpace(cfg.AdminPath) == "" {
 		cfg.AdminPath = defaults.AdminPath
 	}
@@ -124,6 +129,7 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_HINT__", html.EscapeString(cfg.AuthLoginPath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH_ATTR__", html.EscapeString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_PATH__", jsonString(cfg.AuthLoginPath),
+		"__GIN_NINJA_ADMIN_AUTH_ME_PATH__", jsonString(cfg.AuthMePath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH__", jsonString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_LOGIN_PATH__", jsonString(cfg.LoginPath),
 		"__GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__", jsonString(cfg.TokenExtractExpr),

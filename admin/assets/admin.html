@@ -90,6 +90,9 @@
     [data-theme="dark"] .topbar-link,
     [data-theme="dark"] .topbar-user-btn,
     [data-theme="dark"] .topbar-user-menu-item { color: var(--admin-text); }
+    [data-theme="dark"] .topbar-user-profile { border-color: var(--admin-border); }
+    [data-theme="dark"] .auth-chip { background:#22253a; border-color:var(--admin-border); color:var(--admin-muted); }
+    [data-theme="dark"] .auth-chip.strong { background:rgba(102,176,255,0.14); border-color:rgba(102,176,255,0.28); color:#bfdbfe; }
     [data-theme="dark"] .topbar-link:hover,
     [data-theme="dark"] .topbar-user-menu-item:hover { background: var(--admin-border); }
     [data-theme="dark"] .topbar-toggle { color: var(--admin-muted); }
@@ -378,7 +381,7 @@
       position:absolute;
       top:calc(100% + 4px);
       right:0;
-      min-width:160px;
+      min-width:240px;
       background:var(--admin-surface);
       border:1px solid var(--admin-border);
       border-radius:var(--admin-radius);
@@ -387,6 +390,54 @@
       margin:0;
       padding:4px 0;
       z-index:200;
+    }
+    .topbar-user-profile {
+      display:grid;
+      gap:8px;
+      padding:10px 12px;
+      border-bottom:1px solid var(--admin-border);
+    }
+    .topbar-user-profile-name {
+      margin:0;
+      font-size:13px;
+      font-weight:700;
+      color:var(--admin-text);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .topbar-user-profile-meta,
+    .topbar-user-profile-expiry {
+      margin:0;
+      font-size:12px;
+      line-height:1.4;
+      color:var(--admin-muted);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .topbar-user-permissions {
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .auth-chip {
+      display:inline-flex;
+      align-items:center;
+      min-height:22px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid var(--admin-border);
+      background:var(--admin-surface-elevated);
+      color:var(--admin-muted);
+      font-size:11px;
+      font-weight:700;
+      line-height:1;
+    }
+    .auth-chip.strong {
+      background:rgba(0, 123, 255, 0.09);
+      border-color:rgba(0, 123, 255, 0.2);
+      color:var(--admin-primary-dark);
     }
     .topbar-user-menu-item {
       display:block;
@@ -805,6 +856,15 @@
       gap:5px;
       font-size:11px;
       color:#adb5bd;
+    }
+    .sidebar-user-meta {
+      margin:0;
+      max-width:170px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      font-size:11px;
+      color:rgba(255,255,255,.5);
     }
     .sidebar-user-online {
       display:inline-block;
@@ -2598,6 +2658,12 @@
             <svg class="topbar-caret" xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/></svg>
           </button>
           <ul class="topbar-user-menu dropdown-menu dropdown-menu-right" id="topbarUserMenu" hidden role="menu">
+            <li class="topbar-user-profile" role="none">
+              <p class="topbar-user-profile-name" id="topbarProfileName">Guest</p>
+              <p class="topbar-user-profile-meta" id="topbarProfileMeta">No profile loaded</p>
+              <p class="topbar-user-profile-expiry" id="topbarProfileExpiry">Token status unknown</p>
+              <div class="topbar-user-permissions" id="topbarPermissionChips" aria-label="Current permissions"></div>
+            </li>
             <li role="none"><button id="clearToken" class="topbar-user-menu-item dropdown-item" type="button" role="menuitem">Sign out</button></li>
           </ul>
         </div>
@@ -2679,8 +2745,9 @@
             <strong>Alexander Pierce</strong>
             <span class="sidebar-user-status">
               <span class="sidebar-user-online" aria-hidden="true"></span>
-              Online
+              <span id="sidebarAuthStatus">Authenticated</span>
             </span>
+            <span class="sidebar-user-meta" id="sidebarAuthMeta">Profile pending</span>
           </div>
         </div>
         <div class="sidebar-search input-group input-group-sm sidebar-search-form">
@@ -2952,6 +3019,7 @@
     const formControlTagNames = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
     const adminPagePath = __GIN_NINJA_ADMIN_PAGE_PATH__;
     const adminLoginPath = __GIN_NINJA_ADMIN_LOGIN_PATH__;
+    const authMePath = __GIN_NINJA_ADMIN_AUTH_ME_PATH__;
     const loginTokenExtractExpr = __GIN_NINJA_ADMIN_TOKEN_EXTRACT_EXPR__;
     const loginNameExtractExpr = __GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__;
     const loginUserIDExtractExpr = __GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__;
@@ -2988,7 +3056,7 @@
     const dashboardCountPlaceholder = '—';
     let pendingConfirmCallback = null;
     const state = {
-      auth: { name: '', userID: null },
+      auth: { name: '', userID: null, email: '', isAdmin: false, roles: [], expiresAt: '', issuedAt: '', issuer: '' },
       current: null,
       meta: null,
       resources: [],
@@ -3090,7 +3158,13 @@
       darkModeIconMoon: document.getElementById('darkModeIconMoon'),
       darkModeIconSun: document.getElementById('darkModeIconSun'),
       topbarSearchInput: document.getElementById('topbarSearchInput'),
-      topbarSearchResults: document.getElementById('topbarSearchResults')
+      topbarSearchResults: document.getElementById('topbarSearchResults'),
+      topbarProfileName: document.getElementById('topbarProfileName'),
+      topbarProfileMeta: document.getElementById('topbarProfileMeta'),
+      topbarProfileExpiry: document.getElementById('topbarProfileExpiry'),
+      topbarPermissionChips: document.getElementById('topbarPermissionChips'),
+      sidebarAuthStatus: document.getElementById('sidebarAuthStatus'),
+      sidebarAuthMeta: document.getElementById('sidebarAuthMeta')
     };
 
     function inferStatusTone(value) {
@@ -3579,14 +3653,41 @@
       sessionStorage.removeItem(authIdentityStorageKey);
     }
 
+    function emptyAuthIdentity() {
+      return { name: '', userID: null, email: '', isAdmin: false, roles: [], expiresAt: '', issuedAt: '', issuer: '' };
+    }
+
+    function normalizeAuthIdentity(input = {}) {
+      const roleSource = Array.isArray(input.roles) ? input.roles : (Array.isArray(input.permissions) ? input.permissions : []);
+      const roles = roleSource.map((role) => {
+        if (typeof role === 'string') return { name: role, code: role };
+        if (!role || typeof role !== 'object') return null;
+        return {
+          id: role.id ?? role.ID ?? null,
+          name: String(role.name || role.Name || role.code || role.Code || '').trim(),
+          code: String(role.code || role.Code || '').trim(),
+          status: role.status ?? role.Status ?? null
+        };
+      }).filter(Boolean);
+      return {
+        name: String(input.name || input.username || input.user_name || '').trim(),
+        userID: input.user_id ?? input.userID ?? input.id ?? null,
+        email: String(input.email || '').trim(),
+        isAdmin: Boolean(input.is_admin ?? input.isAdmin ?? input.admin ?? false),
+        roles,
+        expiresAt: String(input.expires_at || input.expiresAt || '').trim(),
+        issuedAt: String(input.issued_at || input.issuedAt || '').trim(),
+        issuer: String(input.issuer || '').trim()
+      };
+    }
+
     function persistAuthIdentity() {
-      const name = String(state.auth.name || '').trim();
-      const userID = state.auth.userID == null ? null : state.auth.userID;
-      if (!name && (userID == null || userID === '')) {
+      const auth = normalizeAuthIdentity(state.auth);
+      if (!auth.name && (auth.userID == null || auth.userID === '') && !auth.email) {
         clearPersistedAuthIdentity();
         return;
       }
-      tokenStorage().setItem(authIdentityStorageKey, JSON.stringify({ name, userID }));
+      tokenStorage().setItem(authIdentityStorageKey, JSON.stringify(auth));
     }
 
     function restoreAuthIdentity() {
@@ -3595,11 +3696,8 @@
       try {
         const parsed = JSON.parse(saved);
         if (!parsed || typeof parsed !== 'object') return false;
-        state.auth = {
-          name: typeof parsed.name === 'string' ? parsed.name : '',
-          userID: parsed.userID == null ? null : parsed.userID
-        };
-        return !!state.auth.name || state.auth.userID != null;
+        state.auth = normalizeAuthIdentity(parsed);
+        return !!state.auth.name || state.auth.userID != null || !!state.auth.email;
       } catch (error) {
         clearPersistedAuthIdentity();
         return false;
@@ -3628,6 +3726,31 @@
       return false;
     }
 
+    function formatDateTime(value) {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function tokenExpirySummary(value) {
+      if (!value) return 'Token expiry unavailable';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'Token expiry unavailable';
+      const diff = date.getTime() - Date.now();
+      if (diff <= 0) return 'Token expired';
+      const minutes = Math.round(diff / 60000);
+      if (minutes < 60) return 'Token expires in ' + minutes + ' min';
+      const hours = Math.round(minutes / 60);
+      if (hours < 48) return 'Token expires in ' + hours + ' hr';
+      return 'Token expires ' + formatDateTime(value);
+    }
+
+    function roleLabel(role) {
+      if (!role) return '';
+      return String(role.name || role.code || '').trim();
+    }
+
      function renderSignedOutState() {
        closeAllModals();
        setLoginFeedback('');
@@ -3636,6 +3759,8 @@
       els.sessionActions.hidden = true;
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = true;
+      if (els.sidebarAuthStatus) els.sidebarAuthStatus.textContent = 'Signed out';
+      if (els.sidebarAuthMeta) els.sidebarAuthMeta.textContent = 'No active session';
       const topbarUserDropdown = document.getElementById('topbarUserDropdown');
       if (topbarUserDropdown) topbarUserDropdown.hidden = true;
     }
@@ -3648,16 +3773,46 @@
       els.manualTokenTools.hidden = true;
       els.adminShell.hidden = standaloneLoginPage;
       // Update user info in sidebar and topbar
-      const name = state.auth.name || 'Admin';
+      const name = state.auth.name || state.auth.email || 'Admin';
       const initials = name.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
       const sidebarAvatar = document.querySelector('.sidebar-user-avatar');
       const sidebarName = document.querySelector('.sidebar-user-copy strong');
       if (sidebarAvatar) sidebarAvatar.textContent = initials;
       if (sidebarName) sidebarName.textContent = name;
+      if (els.sidebarAuthStatus) els.sidebarAuthStatus.textContent = state.auth.isAdmin ? 'Admin session' : 'Authenticated';
+      if (els.sidebarAuthMeta) {
+        const meta = state.auth.email || (state.auth.userID != null ? ('User #' + state.auth.userID) : tokenExpirySummary(state.auth.expiresAt));
+        els.sidebarAuthMeta.textContent = meta;
+      }
       const topbarAvatar = document.getElementById('topbarUserAvatar');
       const topbarName = document.getElementById('topbarUserName');
       if (topbarAvatar) topbarAvatar.textContent = initials;
       if (topbarName) topbarName.textContent = name;
+      if (els.topbarProfileName) els.topbarProfileName.textContent = name;
+      if (els.topbarProfileMeta) {
+        const pieces = [];
+        if (state.auth.email) pieces.push(state.auth.email);
+        if (state.auth.userID != null) pieces.push('ID ' + state.auth.userID);
+        if (state.auth.issuer) pieces.push(state.auth.issuer);
+        els.topbarProfileMeta.textContent = pieces.join(' · ') || 'Profile loaded from token';
+      }
+      if (els.topbarProfileExpiry) els.topbarProfileExpiry.textContent = tokenExpirySummary(state.auth.expiresAt);
+      if (els.topbarPermissionChips) {
+        els.topbarPermissionChips.innerHTML = '';
+        const chips = [];
+        chips.push({ label: state.auth.isAdmin ? 'Admin' : 'User', strong: state.auth.isAdmin });
+        for (const role of state.auth.roles || []) {
+          const label = roleLabel(role);
+          if (label) chips.push({ label, strong: false });
+        }
+        if (state.auth.expiresAt) chips.push({ label: tokenExpirySummary(state.auth.expiresAt), strong: false });
+        chips.slice(0, 4).forEach((chip) => {
+          const el = document.createElement('span');
+          el.className = 'auth-chip' + (chip.strong ? ' strong' : '');
+          el.textContent = chip.label;
+          els.topbarPermissionChips.appendChild(el);
+        });
+      }
       const topbarUserDropdown = document.getElementById('topbarUserDropdown');
       if (topbarUserDropdown) topbarUserDropdown.hidden = standaloneLoginPage;
     }
@@ -3677,8 +3832,47 @@
       }
     }
 
+    function applyAuthProfile(payload) {
+      const source = payload && typeof payload === 'object' && payload.user && typeof payload.user === 'object' ? { ...payload.user, ...payload } : (payload || {});
+      const profile = normalizeAuthIdentity(source);
+      state.auth = {
+        ...state.auth,
+        ...profile,
+        name: profile.name || state.auth.name,
+        userID: profile.userID ?? state.auth.userID
+      };
+      persistAuthIdentity();
+      renderSignedInState();
+    }
+
+    async function refreshAuthProfile(options = {}) {
+      if (!hasToken() || !authMePath) return false;
+      const response = await fetch(authMePath, { method: 'GET', headers: requestHeaders() });
+      const text = await response.text();
+      let payload = null;
+      try { payload = text ? JSON.parse(text) : null; } catch (_) { payload = text; }
+      if (response.status === 401) {
+        logout('Your session has expired. Please sign in again.');
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+      if (response.status === 403) {
+        const message = extractErrorMessage(payload) || 'Your account is authenticated but does not have permission to open this admin area.';
+        showToast(message, 'danger');
+        setStatus(message, 'danger');
+        return false;
+      }
+      if (!response.ok) {
+        if (options.required) {
+          throw new Error(extractErrorMessage(payload) || 'Unable to load the current user profile.');
+        }
+        return false;
+      }
+      applyAuthProfile(payload);
+      return true;
+    }
+
     function resetAdminState() {
-      state.auth = { name: '', userID: null };
+      state.auth = emptyAuthIdentity();
       state.current = null;
       state.meta = null;
       state.resources = [];
@@ -3759,8 +3953,12 @@
       try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
       if (!response.ok) {
         if (response.status === 401 && !skipAuthRedirect) {
-          logout('Session expired. Please sign in again.');
-          throw new Error('Session expired. Please sign in again.');
+          const message = 'Your session has expired or the token is invalid. Please sign in again.';
+          logout(message);
+          throw new Error(message);
+        }
+        if (response.status === 403) {
+          throw new Error(extractErrorMessage(data) || 'You are signed in, but your account does not have permission for this action.');
         }
         throw new Error(extractErrorMessage(data) || response.statusText || ('Request failed with status ' + response.status + '.'));
       }
@@ -6547,7 +6745,7 @@
     }
 
     els.token.addEventListener('input', () => {
-      state.auth = { name: '', userID: null };
+      state.auth = emptyAuthIdentity();
       clearPersistedAuthIdentity();
       persistToken();
       if (!hasToken()) {
@@ -6572,6 +6770,7 @@
           throw new Error('Login response did not include a token.');
         }
         state.auth = {
+          ...emptyAuthIdentity(),
           name: extractLoginName(payload) || '',
           userID: extractLoginUserID(payload) || null
         };
@@ -6580,6 +6779,7 @@
         persistAuthIdentity();
         els.loginPassword.value = '';
         renderAuthState();
+        await refreshAuthProfile();
         const successMessage = state.auth.name ? ('Signed in as ' + state.auth.name + '.') : 'Signed in successfully.';
         if (isStandaloneLoginPage()) {
           redirectToAdmin(successMessage);
@@ -7056,7 +7256,11 @@
         if (!flashMessage) {
           setStatus('Restored saved token.');
         }
-        loadResources().catch((error) => setStatus(String(error.message || error)));
+        refreshAuthProfile().catch((error) => setStatus(String(error.message || error), 'danger')).finally(() => {
+          if (hasToken()) {
+            loadResources().catch((error) => setStatus(String(error.message || error), 'danger'));
+          }
+        });
       }
     } else {
       if (!flashMessage) {

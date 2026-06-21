@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/bootstrap"
+	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 	"github.com/shijl0925/gin-ninja/settings"
 )
 

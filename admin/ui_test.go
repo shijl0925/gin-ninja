@@ -17,6 +17,7 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 		Title:         `Admin <Console>`,
 		APIBasePath:   "/custom/api/admin",
 		AuthLoginPath: "/custom/api/auth/login",
+		AuthMePath:    "/custom/api/auth/me",
 		AdminPath:     "/console",
 		LoginPath:     "/console/login",
 	})
@@ -32,6 +33,7 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 		for _, snippet := range []string{
 			"<title>Admin &lt;Console&gt;</title>",
 			`const apiBase = "/custom/api/admin";`,
+			`const authMePath = "/custom/api/auth/me";`,
 			`const adminPagePath = "/console";`,
 			`const adminLoginPath = "/console/login";`,
 			`await request("/custom/api/auth/login", {`,
