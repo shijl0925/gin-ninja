@@ -213,6 +213,7 @@ It includes:
 - topbar global aggregate search backed by `/api/v1/admin/search`
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
+- actionable empty states for clearing list state or creating the first record
 - active list-state chips for the current search, sort, filters, and page size
 - per-resource list state remembered locally when switching between resources
 - CSV export for the current search / filter / sort query

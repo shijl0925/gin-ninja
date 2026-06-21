@@ -194,6 +194,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function applySavedListState`,
 		`id="clearSelection"`,
 		`function clearBulkSelection`,
+		`function renderListEmptyState`,
+		`empty-state-actions`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,
