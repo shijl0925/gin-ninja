@@ -80,6 +80,28 @@ func TestMountUICustomTokenExtract(t *testing.T) {
 	}
 }
 
+func TestRenderUIHTMLAssemblesSplitAssets(t *testing.T) {
+	body := renderUIHTML(DefaultUIConfig())
+	for _, snippet := range []string{
+		`<style>`,
+		`:root {`,
+		`<script>`,
+		`const apiBase = "/api/v1/admin";`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("rendered UI missing assembled asset snippet %q", snippet)
+		}
+	}
+	for _, placeholder := range []string{
+		"__GIN_NINJA_ADMIN_INLINE_CSS__",
+		"__GIN_NINJA_ADMIN_INLINE_JS__",
+	} {
+		if strings.Contains(body, placeholder) {
+			t.Fatalf("rendered UI still contains asset placeholder %q", placeholder)
+		}
+	}
+}
+
 func TestMountUIUsesBrandThemeAndStorageOptions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

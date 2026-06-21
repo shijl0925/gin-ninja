@@ -114,6 +114,10 @@ func normalizeUIConfig(cfg UIConfig) UIConfig {
 
 func renderUIHTML(cfg UIConfig) string {
 	cfg = normalizeUIConfig(cfg)
+	template := strings.NewReplacer(
+		"__GIN_NINJA_ADMIN_INLINE_CSS__", adminCSS,
+		"__GIN_NINJA_ADMIN_INLINE_JS__", adminJS,
+	).Replace(adminHTMLTemplate)
 	replacer := strings.NewReplacer(
 		"__GIN_NINJA_ADMIN_TITLE__", html.EscapeString(cfg.Title),
 		"__GIN_NINJA_ADMIN_BRAND_NAME__", html.EscapeString(cfg.BrandName),
@@ -136,7 +140,7 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_USER_NAME_EXTRACT_EXPR__", jsonString(cfg.UserNameExtractExpr),
 		"__GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__", jsonString(cfg.UserIDExtractExpr),
 	)
-	return replacer.Replace(adminHTML)
+	return replacer.Replace(template)
 }
 
 func shortLogoText(value string) string {
@@ -185,10 +189,14 @@ func MountUI(routes gin.IRoutes, cfg UIConfig) {
 	}
 }
 
-//go:embed assets/admin.html
+//go:embed assets/admin.html assets/admin.css assets/admin.js
 var adminAssetFS embed.FS
 
-var adminHTML = mustReadAdminAsset("assets/admin.html")
+var (
+	adminHTMLTemplate = mustReadAdminAsset("assets/admin.html")
+	adminCSS          = mustReadAdminAsset("assets/admin.css")
+	adminJS           = mustReadAdminAsset("assets/admin.js")
+)
 
 func mustReadAdminAsset(name string) string {
 	data, err := adminAssetFS.ReadFile(name)
