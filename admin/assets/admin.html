@@ -1162,6 +1162,7 @@
     .state-chip-clear { color:var(--admin-muted); font-weight:800; }
     .table-view-tools { position:relative; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .table-view-tools select { flex:0 0 150px; }
+    .table-view-tools .saved-view-select { flex-basis:180px; }
     .column-menu {
       position:absolute;
       top:calc(100% + 8px);
@@ -2356,6 +2357,11 @@
                     </select>
                   </div>
                   <div class="table-view-tools" id="tableViewTools">
+                    <select id="savedViewSelect" class="custom-select saved-view-select" aria-label="Saved views">
+                      <option value="">Saved views</option>
+                    </select>
+                    <button id="saveView" class="secondary btn btn-default" type="button">Save view</button>
+                    <button id="deleteView" class="secondary btn btn-default" type="button">Delete view</button>
                     <select id="tableDensity" class="custom-select" aria-label="Table density">
                       <option value="comfortable">Comfortable</option>
                       <option value="compact">Compact</option>
@@ -2496,6 +2502,7 @@
     const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';
     const columnVisibilityStoragePrefix = 'gin-ninja-admin-columns:';
     const listStateStoragePrefix = 'gin-ninja-admin-list-state:';
+    const savedViewsStoragePrefix = 'gin-ninja-admin-saved-views:';
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
     const stringLikeComponents = new Set(['text', 'textarea', 'email']);
@@ -2546,6 +2553,7 @@
       records: [],
       selected: null,
       bulkSelected: {},
+      savedViews: [],
       tableDensity: 'comfortable',
       filtersCollapsed: false,
       visibleColumns: {},
@@ -2615,6 +2623,9 @@
       toggleFilters: document.getElementById('toggleFilters'),
       copyViewLink: document.getElementById('copyViewLink'),
       exportList: document.getElementById('exportList'),
+      savedViewSelect: document.getElementById('savedViewSelect'),
+      saveView: document.getElementById('saveView'),
+      deleteView: document.getElementById('deleteView'),
       activeListState: document.getElementById('activeListState'),
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search'),
@@ -3170,6 +3181,7 @@
       state.records = [];
       state.selected = null;
       state.bulkSelected = {};
+      state.savedViews = [];
       state.visibleColumns = {};
       state.relationSearch = {};
       state.relationTimers = {};
@@ -3198,6 +3210,7 @@
         els.activeListState.innerHTML = '';
         els.activeListState.hidden = true;
       }
+      renderSavedViews();
        els.editHint.textContent = 'Sign in to open the change form.';
        renderPagination();
        syncBulkActionState();
@@ -4023,12 +4036,21 @@
        if (els.exportList) {
          els.exportList.disabled = !state.current || !hasAction('list');
        }
-       if (els.copyViewLink) {
-         els.copyViewLink.disabled = !state.current;
-       }
-       if (els.openSelectedEdit) {
-         els.openSelectedEdit.disabled = !state.selected || !hasAction('update');
-       }
+      if (els.copyViewLink) {
+        els.copyViewLink.disabled = !state.current;
+      }
+      if (els.savedViewSelect) {
+        els.savedViewSelect.disabled = !state.current || !state.savedViews.length;
+      }
+      if (els.saveView) {
+        els.saveView.disabled = !state.current;
+      }
+      if (els.deleteView) {
+        els.deleteView.disabled = !state.current || !els.savedViewSelect || !els.savedViewSelect.value;
+      }
+      if (els.openSelectedEdit) {
+        els.openSelectedEdit.disabled = !state.selected || !hasAction('update');
+      }
        if (els.copyRecordJSON) {
          els.copyRecordJSON.disabled = !state.selected;
        }
@@ -4991,13 +5013,14 @@
       }
     }
 
-    function applySavedListState(resourceName) {
-      const saved = readSavedListState(resourceName);
+    function applyListStateSnapshot(saved) {
       if (!saved || typeof saved !== 'object') return false;
       els.search.value = String(saved.search || '');
       const sortValue = String(saved.sort || '');
       if (sortValue && Array.from(els.sort.options).some((option) => option.value === sortValue)) {
         els.sort.value = sortValue;
+      } else {
+        els.sort.value = '';
       }
       const sizeValue = String(saved.size || '');
       if (sizeValue && Array.from(els.pageSize.options).some((option) => option.value === sizeValue)) {
@@ -5013,6 +5036,141 @@
         input.value = filters[name] == null ? '' : String(filters[name]);
       });
       return true;
+    }
+
+    function applySavedListState(resourceName) {
+      return applyListStateSnapshot(readSavedListState(resourceName));
+    }
+
+    function savedViewsStorageKey(resourceName) {
+      return savedViewsStoragePrefix + resourceName;
+    }
+
+    function normalizeSavedViews(value) {
+      if (!Array.isArray(value)) return [];
+      return value
+        .filter((view) => view && typeof view === 'object' && view.id && view.name && view.state)
+        .map((view) => ({
+          id: String(view.id),
+          name: String(view.name),
+          state: view.state,
+          createdAt: view.createdAt || '',
+          updatedAt: view.updatedAt || ''
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function readSavedViews(resourceName) {
+      try {
+        return normalizeSavedViews(JSON.parse(localStorage.getItem(savedViewsStorageKey(resourceName)) || '[]'));
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function persistSavedViews() {
+      if (!state.current) return;
+      try {
+        localStorage.setItem(savedViewsStorageKey(state.current.name), JSON.stringify(state.savedViews));
+      } catch (_) {
+        // ignore storage failures
+      }
+    }
+
+    function makeSavedViewID(name) {
+      const base = String(name || 'view').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'view';
+      return base + '-' + Date.now().toString(36);
+    }
+
+    function defaultSavedViewName() {
+      const now = new Date();
+      const date = now.toLocaleDateString(adminLocale || undefined, { month: 'short', day: 'numeric' });
+      const time = now.toLocaleTimeString(adminLocale || undefined, { hour: '2-digit', minute: '2-digit' });
+      return 'View ' + date + ' ' + time;
+    }
+
+    function renderSavedViews(selectedID) {
+      if (!els.savedViewSelect) return;
+      const selected = selectedID || els.savedViewSelect.value;
+      els.savedViewSelect.innerHTML = '';
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = state.savedViews.length ? 'Saved views' : 'No saved views';
+      els.savedViewSelect.appendChild(empty);
+      state.savedViews.forEach((view) => {
+        const option = document.createElement('option');
+        option.value = view.id;
+        option.textContent = view.name;
+        els.savedViewSelect.appendChild(option);
+      });
+      if (selected && state.savedViews.some((view) => view.id === selected)) {
+        els.savedViewSelect.value = selected;
+      } else {
+        els.savedViewSelect.value = '';
+      }
+      syncWorkspaceActionState();
+    }
+
+    function loadSavedViews(resourceName) {
+      state.savedViews = readSavedViews(resourceName);
+      renderSavedViews();
+    }
+
+    function saveCurrentViewPreset() {
+      if (!state.current) return;
+      const input = window.prompt('Name this saved view', defaultSavedViewName());
+      if (input == null) return;
+      const name = input.trim();
+      if (!name) {
+        showToast('Saved view needs a name.', 'info');
+        return;
+      }
+      const existing = state.savedViews.find((view) => view.name.toLowerCase() === name.toLowerCase());
+      if (existing && !window.confirm('Replace the saved view "' + existing.name + '"?')) {
+        return;
+      }
+      const now = new Date().toISOString();
+      const snapshot = collectCurrentListState();
+      const view = existing || { id: makeSavedViewID(name), createdAt: now };
+      view.name = name;
+      view.state = snapshot;
+      view.updatedAt = now;
+      if (!existing) state.savedViews.push(view);
+      state.savedViews = normalizeSavedViews(state.savedViews);
+      persistSavedViews();
+      renderSavedViews(view.id);
+      showToast('Saved view "' + name + '".', 'success');
+      setStatus('Saved view "' + name + '".');
+    }
+
+    function applySavedViewByID(id) {
+      if (!state.current || !id) {
+        syncWorkspaceActionState();
+        return;
+      }
+      const view = state.savedViews.find((item) => item.id === id);
+      if (!view) {
+        renderSavedViews();
+        return;
+      }
+      cancelScheduledSearchReload();
+      if (!applyListStateSnapshot(view.state)) {
+        showToast('Saved view could not be applied.', 'danger');
+        return;
+      }
+      reloadListWithStatus('Applied saved view "' + view.name + '".', false).catch((error) => setStatus(String(error.message || error)));
+    }
+
+    function deleteSelectedSavedView() {
+      if (!state.current || !els.savedViewSelect || !els.savedViewSelect.value) return;
+      const view = state.savedViews.find((item) => item.id === els.savedViewSelect.value);
+      if (!view) return;
+      if (!window.confirm('Delete the saved view "' + view.name + '"?')) return;
+      state.savedViews = state.savedViews.filter((item) => item.id !== view.id);
+      persistSavedViews();
+      renderSavedViews();
+      showToast('Deleted saved view "' + view.name + '".', 'success');
+      setStatus('Deleted saved view "' + view.name + '".');
     }
 
     function buildListQuery() {
@@ -5547,6 +5705,7 @@
         renderSortOptions();
         renderFilterControls();
         initializeColumnVisibility();
+        loadSavedViews(resource.name);
         if (options?.restoreQuery !== false) {
           const restoredFromURL = applyListStateFromURL(resource.name);
           if (!restoredFromURL) {
@@ -5675,6 +5834,8 @@
         els.activeListState.innerHTML = '';
         els.activeListState.hidden = true;
       }
+      state.savedViews = [];
+      renderSavedViews();
       renderPagination();
       syncBulkActionState();
       syncWorkspaceActionState();
@@ -5820,6 +5981,18 @@
     }
     if (els.exportList) {
       els.exportList.onclick = () => exportCurrentList();
+    }
+    if (els.savedViewSelect) {
+      els.savedViewSelect.onchange = () => {
+        syncWorkspaceActionState();
+        applySavedViewByID(els.savedViewSelect.value);
+      };
+    }
+    if (els.saveView) {
+      els.saveView.onclick = () => saveCurrentViewPreset();
+    }
+    if (els.deleteView) {
+      els.deleteView.onclick = () => deleteSelectedSavedView();
     }
     if (els.clearSelection) {
       els.clearSelection.onclick = () => clearBulkSelection();

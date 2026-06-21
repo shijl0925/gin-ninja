@@ -218,6 +218,7 @@ It includes:
 - actionable empty states for clearing list state or creating the first record
 - active list-state chips for the current search, sort, filters, and page size
 - per-resource list state remembered locally when switching between resources
+- per-resource saved views for reusing named search / filter / sort states
 - modal focus management for faster keyboard-first create, edit, and detail flows
 - copyable current-view links for sharing or bookmarking list state
 - CSV export for the current search / filter / sort query
