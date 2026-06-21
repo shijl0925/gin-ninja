@@ -209,6 +209,8 @@ It includes:
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
 - table density switching and visible-column controls
+- search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
+- collapsible filters with remembered collapsed state
 - detail, create, update, delete, and bulk delete flows
 - relation-backed field selectors with option search previews
 - a more compact “Admin Workspace” header for a denser back-office layout

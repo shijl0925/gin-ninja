@@ -41,6 +41,7 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 			`id="tableDensity"`,
 			`id="columnToggle"`,
 			`id="columnMenu"`,
+			`id="toggleFilters"`,
 			`id="openCreateModal"`,
 			`id="createModal"`,
 			`id="toastContainer"`,

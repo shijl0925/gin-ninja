@@ -2259,6 +2259,7 @@
                   <div class="row-actions">
                     <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
                     <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
+                    <button id="toggleFilters" class="secondary btn btn-default" type="button" aria-expanded="true" aria-controls="filtersForm">Hide filters</button>
                     <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                   </div>
                 </div>
@@ -2403,6 +2404,7 @@
     const flashStorageKey = 'gin-ninja-admin-flash';
     const themeStorageKey = 'gin-ninja-admin-theme';
     const tableDensityStorageKey = 'gin-ninja-admin-table-density';
+    const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';
     const columnVisibilityStoragePrefix = 'gin-ninja-admin-columns:';
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
@@ -2455,6 +2457,7 @@
       selected: null,
       bulkSelected: {},
       tableDensity: 'comfortable',
+      filtersCollapsed: false,
       visibleColumns: {},
       relationSearch: {},
       relationTimers: {},
@@ -2512,6 +2515,7 @@
       detail: document.getElementById('detail'),
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
+      toggleFilters: document.getElementById('toggleFilters'),
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search'),
       listLoading: document.getElementById('listLoading'),
@@ -2617,6 +2621,32 @@
       };
     }
 
+    function navigationStateFromURL() {
+      const params = new URLSearchParams(window.location.search || '');
+      const resourceName = params.get('resource') || '';
+      if (resourceName) {
+        return buildNavigationState('resource', resourceName);
+      }
+      if (params.get('view') === 'dashboard') {
+        return buildNavigationState('dashboard');
+      }
+      return null;
+    }
+
+    function buildNavigationURL(view, resourceName, includeListState) {
+      const params = new URLSearchParams();
+      if (view === 'resource' && resourceName) {
+        params.set('resource', resourceName);
+        if (includeListState) {
+          appendListQueryParams(params);
+        }
+      } else if (view === 'dashboard') {
+        params.set('view', 'dashboard');
+      }
+      const query = params.toString();
+      return currentPagePath() + (query ? '?' + query : '');
+    }
+
     function sameNavigationState(a, b) {
       return !!a && !!b &&
         (a.pagePath || '') === (b.pagePath || '') &&
@@ -2624,21 +2654,24 @@
         (a.resourceName || '') === (b.resourceName || '');
     }
 
-    function updateNavigationState(mode, view, resourceName) {
+    function updateNavigationState(mode, view, resourceName, options) {
       if (!window.history) return;
       const nextState = buildNavigationState(view, resourceName);
       const currentState = window.history.state;
-      if (sameNavigationState(currentState, nextState)) return;
+      const nextURL = buildNavigationURL(view, resourceName, Boolean(options?.includeListState));
+      const currentURL = currentPagePath() + (window.location.search || '');
+      if (sameNavigationState(currentState, nextState) && currentURL === nextURL) return;
       if (mode === 'push' && typeof window.history.pushState === 'function') {
-        window.history.pushState(nextState, '', nextState.pagePath);
+        window.history.pushState(nextState, '', nextURL);
         return;
       }
       if (typeof window.history.replaceState === 'function') {
-        window.history.replaceState(nextState, '', nextState.pagePath);
+        window.history.replaceState(nextState, '', nextURL);
       }
     }
 
     async function restoreNavigationState(navState) {
+      navState = navigationStateFromURL() || navState;
       if (!state.resources.length) return false;
       try {
         if (navState?.view === 'dashboard') {
@@ -2648,7 +2681,7 @@
         if (!navState?.resourceName) return false;
         const resource = state.resources.find((item) => item.name === navState.resourceName);
         if (!resource) return false;
-        await selectResource(resource, { history: 'none' });
+        await selectResource(resource, { history: 'none', restoreQuery: true });
         return true;
       } catch (error) {
         console.error('navigation state restore failed:', error);
@@ -2695,6 +2728,23 @@
         applyTableDensity(localStorage.getItem(tableDensityStorageKey) || 'comfortable');
       } catch (_) {
         applyTableDensity('comfortable');
+      }
+    }
+
+    function applyFiltersCollapsed(collapsed) {
+      state.filtersCollapsed = Boolean(collapsed);
+      if (els.filtersForm) els.filtersForm.hidden = state.filtersCollapsed;
+      if (els.toggleFilters) {
+        els.toggleFilters.textContent = state.filtersCollapsed ? 'Show filters' : 'Hide filters';
+        els.toggleFilters.setAttribute('aria-expanded', String(!state.filtersCollapsed));
+      }
+    }
+
+    function restoreFiltersCollapsed() {
+      try {
+        applyFiltersCollapsed(localStorage.getItem(filtersCollapsedStorageKey) === 'true');
+      } catch (_) {
+        applyFiltersCollapsed(false);
       }
     }
 
@@ -3907,6 +3957,10 @@
     function renderFilterControls() {
       els.filtersForm.innerHTML = '';
       const filterFields = state.meta?.filter_fields || [];
+      if (els.toggleFilters) {
+        els.toggleFilters.disabled = !filterFields.length;
+        els.toggleFilters.hidden = !filterFields.length;
+      }
       if (!filterFields.length) {
         els.filtersForm.innerHTML = '<p class="muted">No filters available for this resource.</p>';
         return;
@@ -3915,6 +3969,7 @@
         const field = fieldMeta(name);
         if (field) buildFilterControl(field);
       });
+      applyFiltersCollapsed(state.filtersCollapsed);
     }
 
     function updateRelationPreview(preview, items, term) {
@@ -4346,6 +4401,52 @@
       return payload;
     }
 
+    function appendListQueryParams(params) {
+      if (els.search.value.trim()) {
+        params.set('search', els.search.value.trim());
+      }
+      if (els.sort.value) {
+        params.set('sort', els.sort.value);
+      }
+      params.set('page', String(state.pagination.page));
+      params.set('size', String(state.pagination.size));
+      (state.meta?.filter_fields || []).forEach((name) => {
+        const field = fieldValue(name);
+        if (!field) return;
+        const value = String(field.value || '').trim();
+        if (value !== '') {
+          params.set('f.' + name, value);
+        }
+      });
+    }
+
+    function syncListURLState() {
+      if (!state.current) return;
+      updateNavigationState('replace', 'resource', state.current.name, { includeListState: true });
+    }
+
+    function applyListStateFromURL(resourceName) {
+      const params = new URLSearchParams(window.location.search || '');
+      if ((params.get('resource') || '') !== resourceName) return;
+      els.search.value = params.get('search') || '';
+      const sortValue = params.get('sort') || '';
+      if (sortValue && Array.from(els.sort.options).some((option) => option.value === sortValue)) {
+        els.sort.value = sortValue;
+      }
+      const sizeValue = params.get('size') || '';
+      if (sizeValue && Array.from(els.pageSize.options).some((option) => option.value === sizeValue)) {
+        els.pageSize.value = sizeValue;
+        state.pagination.size = Number(sizeValue);
+      }
+      const pageValue = Number(params.get('page') || '1');
+      state.pagination.page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
+      (state.meta?.filter_fields || []).forEach((name) => {
+        const input = fieldValue(name);
+        if (!input) return;
+        input.value = params.get('f.' + name) || '';
+      });
+    }
+
     function buildListQuery() {
       const params = new URLSearchParams();
       if (els.search.value.trim()) {
@@ -4398,6 +4499,8 @@
         pages: data.pages || 1,
         total: data.total || 0
       };
+      if (els.pageSize) els.pageSize.value = String(state.pagination.size);
+      syncListURLState();
       renderPagination();
       if (!fields.length) {
         els.list.innerHTML = '<div class="empty-state">No list fields are available for this resource.</div>';
@@ -4629,6 +4732,9 @@
         renderSortOptions();
         renderFilterControls();
         initializeColumnVisibility();
+        if (options?.restoreQuery !== false) {
+          applyListStateFromURL(resource.name);
+        }
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);
         renderSelectedRecord();
         syncBulkActionState();
@@ -4909,6 +5015,16 @@
       state.pagination.size = Number(els.pageSize.value || 10);
       reloadListWithStatus('Updated page size.', true).catch((error) => setStatus(String(error.message || error)));
     };
+    if (els.toggleFilters) {
+      els.toggleFilters.onclick = () => {
+        applyFiltersCollapsed(!state.filtersCollapsed);
+        try {
+          localStorage.setItem(filtersCollapsedStorageKey, String(state.filtersCollapsed));
+        } catch (_) {
+          // ignore storage failures
+        }
+      };
+    }
     if (els.tableDensity) {
       els.tableDensity.onchange = () => {
         applyTableDensity(els.tableDensity.value);
@@ -5030,6 +5146,7 @@
     updatePageChrome();
     restoreTheme();
     restoreTableDensity();
+    restoreFiltersCollapsed();
     const restoredToken = restoreToken();
     const flashMessage = consumeFlashMessage();
     renderAuthState();

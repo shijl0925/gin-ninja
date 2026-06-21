@@ -180,6 +180,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`id="tableDensity"`,
 		`id="columnToggle"`,
 		`id="columnMenu"`,
+		`id="toggleFilters"`,
+		`const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';`,
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("default UI body missing %q: %s", snippet, body)
