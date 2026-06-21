@@ -235,7 +235,7 @@ It includes:
 - detail modal quick actions for editing the selected record and copying its JSON payload
 - create / update forms with inline validation, pending submit states, and unsaved-change guards
 - failed form submissions focus the first highlighted field
-- bulk selection summary with one-click selection clearing
+- bulk selection summary with one-click ID copying and selection clearing
 - clickable, keyboard-openable table rows for faster record inspection
 - relation-backed field selectors with option search previews
 - a more compact “Admin Workspace” header for a denser back-office layout

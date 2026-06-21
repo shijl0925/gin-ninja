@@ -2384,6 +2384,7 @@
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
+                  <button id="copySelectedIDs" class="secondary btn btn-default btn-sm" type="button">Copy IDs</button>
                   <button id="clearSelection" class="secondary btn btn-default btn-sm" type="button">Clear selection</button>
                 </div>
               </div>
@@ -2649,6 +2650,7 @@
       resourcePath: document.getElementById('resourcePath'),
       resourceActionSummary: document.getElementById('resourceActionSummary'),
       selectedCountBadge: document.getElementById('selectedCountBadge'),
+      copySelectedIDs: document.getElementById('copySelectedIDs'),
       clearSelection: document.getElementById('clearSelection'),
       detailTitle: document.getElementById('detailTitle'),
       detailObjectBadge: document.getElementById('detailObjectBadge'),
@@ -5135,6 +5137,10 @@
     function syncBulkActionState() {
       const count = selectedIDs().length;
       els.selectedCountBadge.textContent = count + ' selected';
+      if (els.copySelectedIDs) {
+        els.copySelectedIDs.disabled = count === 0;
+        els.copySelectedIDs.hidden = count === 0;
+      }
       if (els.clearSelection) {
         els.clearSelection.disabled = count === 0;
         els.clearSelection.hidden = count === 0;
@@ -5148,6 +5154,14 @@
       syncBulkActionState();
       renderList().catch((error) => setStatus(String(error.message || error)));
       setStatus('Cleared selected records.');
+    }
+
+    async function copyBulkSelectedIDs() {
+      const ids = selectedIDs();
+      if (!ids.length) return;
+      await copyTextToClipboard(ids.map((id) => String(id)).join('\n'));
+      showToast('Copied ' + ids.length + ' selected ID(s).', 'success');
+      setStatus('Copied ' + ids.length + ' selected ID(s).');
     }
 
     function buildValidatedFormPayload(form, scopeKey) {
@@ -6315,6 +6329,12 @@
     }
     if (els.clearSelection) {
       els.clearSelection.onclick = () => clearBulkSelection();
+    }
+    if (els.copySelectedIDs) {
+      els.copySelectedIDs.onclick = () => copyBulkSelectedIDs().catch((error) => {
+        showToast(String(error.message || error), 'danger');
+        setStatus(String(error.message || error));
+      });
     }
      els.clearFilters.onclick = () => {
        if (!state.current) return;

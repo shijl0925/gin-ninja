@@ -204,6 +204,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function saveCurrentViewPreset`,
 		`function applySavedViewByID`,
 		`id="clearSelection"`,
+		`id="copySelectedIDs"`,
+		`function copyBulkSelectedIDs`,
 		`function clearBulkSelection`,
 		`function renderListEmptyState`,
 		`empty-state-actions`,
