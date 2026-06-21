@@ -2911,8 +2911,24 @@
     function applyFiltersCollapsed(collapsed) {
       state.filtersCollapsed = Boolean(collapsed);
       if (els.filtersForm) els.filtersForm.hidden = state.filtersCollapsed;
+      updateFilterToggleLabel();
+    }
+
+    function activeFilterCount() {
+      if (!state.current) return 0;
+      return (state.meta?.filter_fields || []).reduce((count, name) => {
+        const input = fieldValue(name);
+        if (!input) return count;
+        return String(input.value || '').trim() ? count + 1 : count;
+      }, 0);
+    }
+
+    function updateFilterToggleLabel() {
       if (els.toggleFilters) {
-        els.toggleFilters.textContent = state.filtersCollapsed ? 'Show filters' : 'Hide filters';
+        const count = activeFilterCount();
+        const suffix = count ? ' (' + count + ')' : '';
+        els.toggleFilters.textContent = (state.filtersCollapsed ? 'Show filters' : 'Hide filters') + suffix;
+        els.toggleFilters.setAttribute('aria-label', (state.filtersCollapsed ? 'Show filters' : 'Hide filters') + (count ? '. ' + count + ' active filter(s).' : '.'));
         els.toggleFilters.setAttribute('aria-expanded', String(!state.filtersCollapsed));
       }
     }
@@ -4748,6 +4764,7 @@
       }
       if (!filterFields.length) {
         els.filtersForm.innerHTML = '<p class="muted">No filters available for this resource.</p>';
+        updateFilterToggleLabel();
         return;
       }
       filterFields.forEach((name) => {
@@ -4755,6 +4772,7 @@
         if (field) buildFilterControl(field);
       });
       applyFiltersCollapsed(state.filtersCollapsed);
+      updateFilterToggleLabel();
     }
 
     function updateRelationPreview(preview, items, term) {
@@ -5682,6 +5700,7 @@
 
     function renderActiveListState() {
       if (!els.activeListState) return;
+      updateFilterToggleLabel();
       const entries = activeListEntries();
       els.activeListState.innerHTML = '';
       els.activeListState.hidden = !state.current || entries.length === 0;

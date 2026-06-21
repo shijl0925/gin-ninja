@@ -188,6 +188,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function restoreAuthIdentity`,
 		`id="toggleFilters"`,
 		`const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';`,
+		`function activeFilterCount`,
+		`function updateFilterToggleLabel`,
 		`/resources/stats`,
 		`/search?q=`,
 		`function moveGlobalSearchSelection`,

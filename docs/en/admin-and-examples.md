@@ -230,7 +230,7 @@ It includes:
 - delete and bulk-delete reloads step back from emptied pages automatically
 - table density switching and visible-column controls with visible counts, show-all, and reset actions
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
-- collapsible filters with remembered collapsed state
+- collapsible filters with remembered collapsed state and active filter counts
 - detail, create, update, delete, and bulk delete flows
 - detail modal quick actions for editing the selected record, copying field values from the value area, and copying its JSON payload
 - create / update forms with inline validation, pending submit states, and unsaved-change guards
