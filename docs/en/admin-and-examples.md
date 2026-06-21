@@ -228,7 +228,7 @@ It includes:
 - copyable current-view links for sharing or bookmarking list state
 - CSV export for the current search / filter / sort query
 - delete and bulk-delete reloads step back from emptied pages automatically
-- table density switching and visible-column controls
+- table density switching and visible-column controls with visible counts, show-all, and reset actions
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
 - collapsible filters with remembered collapsed state
 - detail, create, update, delete, and bulk delete flows

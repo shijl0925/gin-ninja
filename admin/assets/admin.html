@@ -1247,6 +1247,15 @@
     }
     .column-option:hover { background:var(--admin-soft); }
     .column-option input { flex:0 0 auto; }
+    .column-menu-actions {
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:8px;
+      flex-wrap:wrap;
+      padding-top:4px;
+      border-top:1px solid var(--admin-border);
+    }
     .badge.badge-muted {
       background:#f2f4f7;
       color:#667085;
@@ -3232,6 +3241,7 @@
       state.bulkSelected = {};
       state.savedViews = [];
       state.visibleColumns = {};
+      updateColumnToggleLabel();
       state.relationSearch = {};
       state.relationTimers = {};
       state.forms = {
@@ -4323,6 +4333,29 @@
       }
     }
 
+    function clearSavedColumnVisibility() {
+      const key = columnVisibilityKey();
+      if (!key) return;
+      try {
+        localStorage.removeItem(key);
+      } catch (_) {
+        // ignore storage failures
+      }
+    }
+
+    function updateColumnToggleLabel() {
+      if (!els.columnToggle) return;
+      const fields = state.meta?.list_fields || [];
+      if (!state.current || !fields.length) {
+        els.columnToggle.textContent = 'Columns';
+        els.columnToggle.setAttribute('aria-label', 'Choose visible columns');
+        return;
+      }
+      const visible = visibleListFields().length;
+      els.columnToggle.textContent = 'Columns ' + visible + '/' + fields.length;
+      els.columnToggle.setAttribute('aria-label', 'Choose visible columns. ' + visible + ' of ' + fields.length + ' columns visible.');
+    }
+
     function initializeColumnVisibility() {
       const fields = state.meta?.list_fields || [];
       const saved = readSavedColumnVisibility();
@@ -4332,6 +4365,7 @@
       });
       state.visibleColumns = next;
       renderColumnMenu();
+      updateColumnToggleLabel();
     }
 
     function visibleListFields() {
@@ -4349,6 +4383,7 @@
       if (!els.columnMenu) return;
       const fields = state.meta?.list_fields || [];
       els.columnMenu.innerHTML = '';
+      updateColumnToggleLabel();
       const title = document.createElement('p');
       title.className = 'column-menu-title';
       title.textContent = 'Visible columns';
@@ -4374,6 +4409,7 @@
           }
           state.visibleColumns[name] = checkbox.checked;
           saveColumnVisibility();
+          updateColumnToggleLabel();
           renderList().catch((error) => setStatus(String(error.message || error)));
         });
         const text = document.createElement('span');
@@ -4382,6 +4418,34 @@
         label.appendChild(text);
         els.columnMenu.appendChild(label);
       });
+      const actions = document.createElement('div');
+      actions.className = 'column-menu-actions';
+      const showAll = document.createElement('button');
+      showAll.type = 'button';
+      showAll.className = 'secondary btn btn-default btn-sm';
+      showAll.textContent = 'Show all';
+      showAll.onclick = () => {
+        fields.forEach((name) => {
+          state.visibleColumns[name] = true;
+        });
+        saveColumnVisibility();
+        renderColumnMenu();
+        renderList().catch((error) => setStatus(String(error.message || error)));
+        showToast('Showing all table columns.', 'success');
+      };
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'secondary btn btn-default btn-sm';
+      reset.textContent = 'Reset';
+      reset.onclick = () => {
+        clearSavedColumnVisibility();
+        initializeColumnVisibility();
+        renderList().catch((error) => setStatus(String(error.message || error)));
+        showToast('Reset visible columns.', 'success');
+      };
+      actions.appendChild(showAll);
+      actions.appendChild(reset);
+      els.columnMenu.appendChild(actions);
     }
 
     function renderResourceSummary() {
@@ -6081,6 +6145,7 @@
       state.savedViews = [];
       renderResourceActionSummary();
       renderSavedViews();
+      updateColumnToggleLabel();
       renderPagination();
       syncBulkActionState();
       syncWorkspaceActionState();
