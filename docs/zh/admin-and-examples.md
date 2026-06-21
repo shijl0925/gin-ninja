@@ -142,7 +142,7 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | `LogoText` | `"G"` | 文本 Logo，最多显示 3 个字符 |
 | `Locale` | `"en"` | HTML 语言和本地化格式化提示 |
 | `DefaultTheme` | `"light"` | 默认主题，可选 `light` / `dark` / `system` |
-| `TokenStorage` | `"local"` | token 存储位置，可选 `local` / `session` |
+| `TokenStorage` | `"local"` | token 和会话身份信息的存储位置，可选 `local` / `session` |
 | `APIBasePath` | `"/api/v1/admin"` | Admin API 根路径（用于资源导航） |
 | `AuthLoginPath` | `"/api/v1/auth/login"` | 登录表单调用的接口路径 |
 | `AdminPath` | `"/admin"` | Admin 工作台页面路径 |
@@ -173,6 +173,8 @@ admin.MountUI(router, admin.UIConfig{
     UserIDExtractExpr:   "payload.data && payload.data.id",
 })
 ```
+
+当登录响应包含展示名或用户 ID 时，Admin 壳会把这份会话身份信息和 token 一起保存，刷新页面后侧边栏与顶栏仍能显示同一个用户标签。手动修改 token 会清除已保存的身份信息，避免展示过期用户名。
 
 > **安全说明：** 这些表达式仍应只来自可信的开发者配置，绝不能接受用户输入；不符合受限路径语法的表达式会解析失败。
 

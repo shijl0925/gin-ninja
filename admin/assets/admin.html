@@ -2489,6 +2489,7 @@
     const tokenStorageDriver = __GIN_NINJA_ADMIN_TOKEN_STORAGE__;
     const apiBase = __GIN_NINJA_ADMIN_API_BASE__;
     const tokenStorageKey = 'gin-ninja-admin-token';
+    const authIdentityStorageKey = 'gin-ninja-admin-auth-identity';
     const flashStorageKey = 'gin-ninja-admin-flash';
     const themeStorageKey = 'gin-ninja-admin-theme';
     const tableDensityStorageKey = 'gin-ninja-admin-table-density';
@@ -3057,6 +3058,38 @@
       return tokenStorageDriver === 'session' ? sessionStorage : localStorage;
     }
 
+    function clearPersistedAuthIdentity() {
+      localStorage.removeItem(authIdentityStorageKey);
+      sessionStorage.removeItem(authIdentityStorageKey);
+    }
+
+    function persistAuthIdentity() {
+      const name = String(state.auth.name || '').trim();
+      const userID = state.auth.userID == null ? null : state.auth.userID;
+      if (!name && (userID == null || userID === '')) {
+        clearPersistedAuthIdentity();
+        return;
+      }
+      tokenStorage().setItem(authIdentityStorageKey, JSON.stringify({ name, userID }));
+    }
+
+    function restoreAuthIdentity() {
+      const saved = tokenStorage().getItem(authIdentityStorageKey);
+      if (!saved) return false;
+      try {
+        const parsed = JSON.parse(saved);
+        if (!parsed || typeof parsed !== 'object') return false;
+        state.auth = {
+          name: typeof parsed.name === 'string' ? parsed.name : '',
+          userID: parsed.userID == null ? null : parsed.userID
+        };
+        return !!state.auth.name || state.auth.userID != null;
+      } catch (error) {
+        clearPersistedAuthIdentity();
+        return false;
+      }
+    }
+
     function persistToken() {
       const token = els.token.value.trim();
       const storage = tokenStorage();
@@ -3065,6 +3098,7 @@
       } else {
         localStorage.removeItem(tokenStorageKey);
         sessionStorage.removeItem(tokenStorageKey);
+        clearPersistedAuthIdentity();
       }
     }
 
@@ -3072,6 +3106,7 @@
       const saved = tokenStorage().getItem(tokenStorageKey);
       if (saved) {
         els.token.value = saved;
+        restoreAuthIdentity();
         return true;
       }
       return false;
@@ -5529,6 +5564,8 @@
     }
 
     els.token.addEventListener('input', () => {
+      state.auth = { name: '', userID: null };
+      clearPersistedAuthIdentity();
       persistToken();
       if (!hasToken()) {
         resetAdminState();
@@ -5557,6 +5594,7 @@
         };
         els.token.value = extractedToken;
         persistToken();
+        persistAuthIdentity();
         els.loginPassword.value = '';
         renderAuthState();
         const successMessage = state.auth.name ? ('Signed in as ' + state.auth.name + '.') : 'Signed in successfully.';

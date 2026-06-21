@@ -142,7 +142,7 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | `LogoText` | `"G"` | Text logo, capped to 3 characters |
 | `Locale` | `"en"` | HTML language and localised formatting hint |
 | `DefaultTheme` | `"light"` | Initial theme: `light`, `dark`, or `system` |
-| `TokenStorage` | `"local"` | Token storage policy: `local` or `session` |
+| `TokenStorage` | `"local"` | Token and session identity storage policy: `local` or `session` |
 | `APIBasePath` | `"/api/v1/admin"` | Admin API root path (for resource navigation) |
 | `AuthLoginPath` | `"/api/v1/auth/login"` | Login endpoint called by the sign-in form |
 | `AdminPath` | `"/admin"` | Admin workspace page path |
@@ -173,6 +173,8 @@ admin.MountUI(router, admin.UIConfig{
     UserIDExtractExpr:   "payload.data && payload.data.id",
 })
 ```
+
+When a login response includes a display name or user ID, the admin shell stores that session identity with the token so refreshed pages keep the same sidebar and topbar user label. Manual token changes clear the saved identity to avoid showing stale user information.
 
 > **Security note:** these expressions should still come only from trusted, developer-controlled configuration — never from user-supplied input. Expressions outside the restricted path syntax fail to resolve.
 
