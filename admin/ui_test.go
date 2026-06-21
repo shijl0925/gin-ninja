@@ -209,6 +209,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`role', 'button'`,
 		`id="copyViewLink"`,
 		`function copyCurrentViewLink`,
+		`id="resourceActionSummary"`,
+		`function renderResourceActionSummary`,
 		`function rewindPageIfCurrentPageEmptied`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,

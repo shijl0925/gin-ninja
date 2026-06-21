@@ -214,6 +214,7 @@ It includes:
 - dashboard resource counts loaded in one request from `/api/v1/admin/resources/stats`
 - topbar global aggregate search backed by `/api/v1/admin/search`
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
+- resource-level action chips that show the currently allowed list / detail / write operations
 - record listing with search, metadata-driven filters, sort, page size, and pagination
 - actionable empty states for clearing list state or creating the first record
 - active list-state chips for the current search, sort, filters, and page size
