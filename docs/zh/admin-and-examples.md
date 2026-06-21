@@ -106,7 +106,7 @@ api.AddRouter(adminRouter)
 | `GET` | `/search?q=关键词` | 跨当前可见且可搜索的资源执行聚合搜索 |
 | `GET` | `/resources/{path}/meta` | 获取资源字段元数据 |
 | `GET` | `/resources/{path}` | 分页列表（支持搜索 / 过滤 / 排序） |
-| `GET` | `/resources/{path}/export` | 按当前搜索 / 过滤 / 排序条件导出 CSV |
+| `GET` | `/resources/{path}/export` | 按当前搜索 / 过滤 / 排序条件导出 CSV；可用 `fields=id,name` 限制导出的列表字段 |
 | `GET` | `/resources/{path}/{id}` | 获取单条记录详情 |
 | `POST` | `/resources/{path}` | 创建记录 |
 | `PUT` | `/resources/{path}/{id}` | 更新记录 |
@@ -225,7 +225,7 @@ admin.MountUI(router, admin.UIConfig{
 - 支持按资源保存命名视图，复用常用搜索 / 筛选 / 排序状态
 - 弹窗自动聚焦关键控件，提升键盘优先的创建、编辑和详情流转体验
 - 支持复制当前视图链接，便于分享或收藏列表状态
-- 按当前搜索 / 过滤 / 排序条件导出 CSV
+- 按当前搜索 / 过滤 / 排序条件和当前可见表格列导出 CSV
 - 删除或批量删除清空当前页时，会自动回退到上一页重新加载
 - 表格密度切换与列显隐设置，包含可见列数量、显示全部和重置操作
 - 搜索、排序、分页与筛选会同步到 URL query，刷新或分享链接后可恢复当前列表状态

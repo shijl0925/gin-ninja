@@ -5501,6 +5501,15 @@
       return '?' + params.toString();
     }
 
+    function buildExportQuery() {
+      const params = new URLSearchParams(buildListQuery().slice(1));
+      const fields = visibleListFields();
+      if (fields.length) {
+        params.set('fields', fields.join(','));
+      }
+      return '?' + params.toString();
+    }
+
     function reloadListFromStateChip(message) {
       cancelScheduledSearchReload();
       resetToFirstPage();
@@ -5663,7 +5672,7 @@
       els.exportList.textContent = 'Exporting...';
       try {
         persistToken();
-        const response = await fetch(currentBasePath() + '/export' + buildListQuery(), { headers: requestHeaders() });
+        const response = await fetch(currentBasePath() + '/export' + buildExportQuery(), { headers: requestHeaders() });
         if (!response.ok) {
           const text = await response.text();
           let data = text;

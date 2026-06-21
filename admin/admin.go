@@ -812,7 +812,10 @@ func (r *Resource) handleExport(site *Site) func(*ninja.Context, *listInput) (*n
 			return nil, err
 		}
 		view := r.resolved(ctx)
-		fields := exportFields(view)
+		fields, err := exportFields(view, requestedExportFieldNames(ctx.Request.URL.Query()))
+		if err != nil {
+			return nil, err
+		}
 		if len(fields) == 0 {
 			return nil, ninja.NewError(http.StatusBadRequest, "no list fields are available for export")
 		}
@@ -858,18 +861,53 @@ func (r *Resource) handleExport(site *Site) func(*ninja.Context, *listInput) (*n
 	}
 }
 
-func exportFields(view *resolvedResource) []*fieldMeta {
-	if view == nil {
-		return nil
+func requestedExportFieldNames(query url.Values) []string {
+	var names []string
+	for _, raw := range query["fields"] {
+		for _, part := range strings.Split(raw, ",") {
+			name := strings.TrimSpace(part)
+			if name != "" {
+				names = append(names, name)
+			}
+		}
 	}
-	fields := make([]*fieldMeta, 0, len(view.metadata.ListFields))
+	return names
+}
+
+func exportFields(view *resolvedResource, requested []string) ([]*fieldMeta, error) {
+	if view == nil {
+		return nil, nil
+	}
+	allowed := make(map[string]*fieldMeta, len(view.metadata.ListFields))
 	for _, name := range view.metadata.ListFields {
 		field := view.fieldByName[name]
 		if field != nil && view.allowed(field, fieldModeList) {
-			fields = append(fields, field)
+			allowed[name] = field
 		}
 	}
-	return fields
+	if len(requested) == 0 {
+		fields := make([]*fieldMeta, 0, len(view.metadata.ListFields))
+		for _, name := range view.metadata.ListFields {
+			if field := allowed[name]; field != nil {
+				fields = append(fields, field)
+			}
+		}
+		return fields, nil
+	}
+	fields := make([]*fieldMeta, 0, len(requested))
+	seen := make(map[string]struct{}, len(requested))
+	for _, name := range requested {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		field := allowed[name]
+		if field == nil {
+			return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q is not available for export", name))
+		}
+		fields = append(fields, field)
+		seen[name] = struct{}{}
+	}
+	return fields, nil
 }
 
 func csvCellValue(value any) string {

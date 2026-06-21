@@ -192,6 +192,7 @@ func TestServeDefaultUI(t *testing.T) {
 		`/search?q=`,
 		`id="exportList"`,
 		`/export`,
+		`function buildExportQuery`,
 		`id="copyRecordJSON"`,
 		`function copySelectedRecordJSON`,
 		`id="activeListState"`,

@@ -333,6 +333,27 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		t.Fatalf("unexpected export csv: %+v", records)
 	}
 
+	visibleFieldsExportResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/export?search=bob&fields=email,name", nil, map[string]string{"X-User-ID": "1"})
+	if visibleFieldsExportResp.Code != http.StatusOK {
+		t.Fatalf("visible fields export status = %d body=%s", visibleFieldsExportResp.Code, visibleFieldsExportResp.Body.String())
+	}
+	visibleFieldRecords, err := csv.NewReader(strings.NewReader(visibleFieldsExportResp.Body.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read visible fields export csv: %v", err)
+	}
+	if len(visibleFieldRecords) != 2 ||
+		strings.TrimPrefix(visibleFieldRecords[0][0], "\ufeff") != "Email" ||
+		visibleFieldRecords[0][1] != "Name" ||
+		visibleFieldRecords[1][0] != "bob@example.com" ||
+		visibleFieldRecords[1][1] != "Bob" {
+		t.Fatalf("unexpected visible fields export csv: %+v", visibleFieldRecords)
+	}
+
+	invalidFieldsExportResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/export?fields=password", nil, map[string]string{"X-User-ID": "1"})
+	if invalidFieldsExportResp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid fields export status = %d body=%s", invalidFieldsExportResp.Code, invalidFieldsExportResp.Body.String())
+	}
+
 	sortedByIDResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?sort=-id", nil, map[string]string{"X-User-ID": "1"})
 	if sortedByIDResp.Code != http.StatusOK {
 		t.Fatalf("sort by id status = %d body=%s", sortedByIDResp.Code, sortedByIDResp.Body.String())

@@ -106,7 +106,7 @@ This registers the following endpoints under `/api/v1/admin` (given `Prefix: "/a
 | `GET` | `/search?q=term` | Aggregated search across currently visible searchable resources |
 | `GET` | `/resources/{path}/meta` | Resource field metadata |
 | `GET` | `/resources/{path}` | Paginated record list (search / filter / sort) |
-| `GET` | `/resources/{path}/export` | CSV export for the current search / filter / sort query |
+| `GET` | `/resources/{path}/export` | CSV export for the current search / filter / sort query; optional `fields=id,name` limits exported list fields |
 | `GET` | `/resources/{path}/{id}` | Single record detail |
 | `POST` | `/resources/{path}` | Create record |
 | `PUT` | `/resources/{path}/{id}` | Update record |
@@ -226,7 +226,7 @@ It includes:
 - per-resource saved views for reusing named search / filter / sort states
 - modal focus management for faster keyboard-first create, edit, and detail flows
 - copyable current-view links for sharing or bookmarking list state
-- CSV export for the current search / filter / sort query
+- CSV export for the current search / filter / sort query and currently visible table columns
 - delete and bulk-delete reloads step back from emptied pages automatically
 - table density switching and visible-column controls with visible counts, show-all, and reset actions
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
