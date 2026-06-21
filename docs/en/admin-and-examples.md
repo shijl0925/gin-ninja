@@ -216,7 +216,7 @@ It includes:
 - a standalone admin workspace at `/admin`
 - resource navigation backed by `/api/v1/admin/resources`
 - dashboard resource counts loaded in one request from `/api/v1/admin/resources/stats`
-- topbar global aggregate search backed by `/api/v1/admin/search`
+- topbar global aggregate search backed by `/api/v1/admin/search`, with keyboard result navigation
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
 - resource-level action chips that show the currently allowed list / detail / write operations
 - record listing with search, metadata-driven filters, sort, page size, pagination ranges, and refresh recency

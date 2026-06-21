@@ -416,7 +416,8 @@
       transition:background 0.1s;
     }
     .search-result-item:hover,
-    .search-result-item:focus { background:var(--admin-body-bg); outline:none; }
+    .search-result-item:focus,
+    .search-result-item.active { background:var(--admin-body-bg); outline:none; }
     .search-result-item mark { background:#fff9c4; color:inherit; border-radius:2px; padding:0 1px; }
     .search-result-summary { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .search-result-id { font-size:11px; color:var(--admin-muted); flex-shrink:0; }
@@ -2948,14 +2949,55 @@
     }
 
     let globalSearchTimer = null;
+    let globalSearchActiveIndex = -1;
 
     function closeGlobalSearch() {
+      globalSearchActiveIndex = -1;
       const expandEl = document.getElementById('topbarSearchExpand');
       if (expandEl) expandEl.classList.remove('has-results');
       if (els.topbarSearchResults) {
         els.topbarSearchResults.classList.remove('has-results');
         els.topbarSearchResults.innerHTML = '';
+        els.topbarSearchResults.removeAttribute('aria-activedescendant');
       }
+    }
+
+    function globalSearchResultItems() {
+      return els.topbarSearchResults ? Array.from(els.topbarSearchResults.querySelectorAll('.search-result-item')) : [];
+    }
+
+    function setGlobalSearchActiveIndex(index) {
+      const items = globalSearchResultItems();
+      if (!items.length) {
+        globalSearchActiveIndex = -1;
+        if (els.topbarSearchResults) els.topbarSearchResults.removeAttribute('aria-activedescendant');
+        return;
+      }
+      globalSearchActiveIndex = ((index % items.length) + items.length) % items.length;
+      items.forEach((item, itemIndex) => {
+        const active = itemIndex === globalSearchActiveIndex;
+        item.classList.toggle('active', active);
+        item.setAttribute('aria-selected', String(active));
+        if (active) {
+          if (!item.id) item.id = 'global-search-result-' + itemIndex;
+          if (els.topbarSearchResults) els.topbarSearchResults.setAttribute('aria-activedescendant', item.id);
+          item.scrollIntoView({ block: 'nearest' });
+        }
+      });
+    }
+
+    function moveGlobalSearchSelection(delta) {
+      const items = globalSearchResultItems();
+      if (!items.length) return false;
+      setGlobalSearchActiveIndex(globalSearchActiveIndex + delta);
+      return true;
+    }
+
+    function openActiveGlobalSearchResult() {
+      const items = globalSearchResultItems();
+      if (globalSearchActiveIndex < 0 || !items[globalSearchActiveIndex]) return false;
+      items[globalSearchActiveIndex].click();
+      return true;
     }
 
     function recordDisplayLabel(record, fields) {
@@ -3038,6 +3080,7 @@
           btn.type = 'button';
           btn.className = 'search-result-item';
           btn.setAttribute('role', 'option');
+          btn.setAttribute('aria-selected', 'false');
           const record = result.item || {};
           const pk = result.id ?? recordPrimaryKey(record);
           const displayLabel = result.label || recordDisplayLabel(record, []);
@@ -3071,6 +3114,7 @@
         els.topbarSearchResults.classList.add('has-results');
         const expandEl = document.getElementById('topbarSearchExpand');
         if (expandEl) expandEl.classList.add('has-results');
+        setGlobalSearchActiveIndex(0);
       }
     }
 
@@ -6246,6 +6290,18 @@
         }, globalSearchDebounceMs);
       });
       els.topbarSearchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') {
+          if (moveGlobalSearchSelection(1)) event.preventDefault();
+          return;
+        }
+        if (event.key === 'ArrowUp') {
+          if (moveGlobalSearchSelection(-1)) event.preventDefault();
+          return;
+        }
+        if (event.key === 'Enter') {
+          if (openActiveGlobalSearchResult()) event.preventDefault();
+          return;
+        }
         if (event.key === 'Escape') {
           event.stopPropagation();
           els.topbarSearchInput.value = '';

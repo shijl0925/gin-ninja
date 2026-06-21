@@ -215,7 +215,7 @@ admin.MountUI(router, admin.UIConfig{
 - 独立后台工作台：`/admin`
 - 由 `/api/v1/admin/resources` 驱动的资源导航
 - 由 `/api/v1/admin/resources/stats` 一次性加载的 dashboard 资源记录数
-- 由 `/api/v1/admin/search` 驱动的顶部全局聚合搜索
+- 由 `/api/v1/admin/search` 驱动的顶部全局聚合搜索，并支持键盘导航结果
 - 按资源 `Group` / `Order` 分组排序的侧边栏导航
 - 资源级 action chips 展示当前允许的列表、详情和写操作
 - 支持搜索、元数据过滤、排序、分页大小、分页范围和刷新时间提示的记录列表
