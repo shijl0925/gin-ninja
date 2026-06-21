@@ -1110,6 +1110,7 @@
       box-shadow:0 1px 2px rgba(0, 0, 0, 0.05);
     }
     .detail-card-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .detail-card-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
     .detail-grid { display:grid; gap:8px; }
     .detail-row {
       display:grid;
@@ -2365,6 +2366,9 @@
                       <span class="eyebrow subtle">Overview</span>
                       <strong id="detailTitle">No record selected</strong>
                     </div>
+                    <div class="detail-card-actions">
+                      <button id="openSelectedEdit" class="secondary btn btn-default btn-sm" type="button">Edit</button>
+                    </div>
                   </div>
                   <div id="detailFields" class="detail-grid">
                     <p class="muted">No record selected.</p>
@@ -2376,6 +2380,9 @@
                       <span class="eyebrow subtle">Payload</span>
                       <strong>Reference payload</strong>
                       <p class="section-copy muted">Use the raw payload for quick inspection or copy/paste during debugging.</p>
+                    </div>
+                    <div class="detail-card-actions">
+                      <button id="copyRecordJSON" class="secondary btn btn-default btn-sm" type="button">Copy JSON</button>
                     </div>
                   </div>
                   <pre id="detail">No record selected.</pre>
@@ -2524,6 +2531,8 @@
       detailTitle: document.getElementById('detailTitle'),
       detailObjectBadge: document.getElementById('detailObjectBadge'),
       detailFields: document.getElementById('detailFields'),
+      openSelectedEdit: document.getElementById('openSelectedEdit'),
+      copyRecordJSON: document.getElementById('copyRecordJSON'),
       createForm: document.getElementById('createForm'),
       createModal: document.getElementById('createModal'),
       openCreateModal: document.getElementById('openCreateModal'),
@@ -3879,6 +3888,12 @@
        if (els.exportList) {
          els.exportList.disabled = !state.current || !hasAction('list');
        }
+       if (els.openSelectedEdit) {
+         els.openSelectedEdit.disabled = !state.selected || !hasAction('update');
+       }
+       if (els.copyRecordJSON) {
+         els.copyRecordJSON.disabled = !state.selected;
+       }
      }
 
     function columnVisibilityKey() {
@@ -4585,6 +4600,7 @@
         els.detail.textContent = 'No record selected.';
         els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
         highlightSelectedRow();
+        syncWorkspaceActionState();
         return;
       }
       const record = state.selected.item || {};
@@ -4606,6 +4622,38 @@
         row.appendChild(value);
         els.detailFields.appendChild(row);
       });
+      syncWorkspaceActionState();
+    }
+
+    async function copyTextToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+
+    async function copySelectedRecordJSON() {
+      if (!state.selected) return;
+      const text = JSON.stringify(state.selected.item || {}, null, 2);
+      await copyTextToClipboard(text);
+      showToast('Copied record JSON.', 'success');
+      setStatus('Copied record JSON.');
+    }
+
+    async function openSelectedRecordEdit() {
+      if (!state.selected || !hasAction('update')) return;
+      await renderUpdateForm();
+      closeModal(els.recordModal);
+      openModal(els.editModal);
     }
 
     function syncBulkActionState() {
@@ -5287,6 +5335,15 @@
      els.closeCreateModal.onclick = () => requestCloseModal(els.createModal);
      els.closeRecordModal.onclick = () => closeModal(els.recordModal);
      els.closeEditModal.onclick = () => requestCloseModal(els.editModal);
+     if (els.openSelectedEdit) {
+       els.openSelectedEdit.onclick = () => openSelectedRecordEdit().catch((error) => setStatus(String(error.message || error)));
+     }
+     if (els.copyRecordJSON) {
+       els.copyRecordJSON.onclick = () => copySelectedRecordJSON().catch((error) => {
+         showToast(String(error.message || error), 'danger');
+         setStatus(String(error.message || error));
+       });
+     }
      [els.createModal, els.recordModal, els.editModal].forEach((modal) => {
        modal.addEventListener('click', (event) => {
          if (event.target === modal) {

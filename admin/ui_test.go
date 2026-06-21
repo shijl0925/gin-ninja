@@ -186,6 +186,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`/search?q=`,
 		`id="exportList"`,
 		`/export`,
+		`id="copyRecordJSON"`,
+		`function copySelectedRecordJSON`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,

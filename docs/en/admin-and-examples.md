@@ -218,6 +218,7 @@ It includes:
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
 - collapsible filters with remembered collapsed state
 - detail, create, update, delete, and bulk delete flows
+- detail modal quick actions for editing the selected record and copying its JSON payload
 - create / update forms with inline validation, pending submit states, and unsaved-change guards
 - relation-backed field selectors with option search previews
 - a more compact “Admin Workspace” header for a denser back-office layout
