@@ -2339,6 +2339,7 @@
                     <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
                     <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
                     <button id="toggleFilters" class="secondary btn btn-default" type="button" aria-expanded="true" aria-controls="filtersForm">Hide filters</button>
+                    <button id="copyViewLink" class="secondary btn btn-default" type="button">Copy view link</button>
                     <button id="exportList" class="secondary btn btn-default" type="button">Export CSV</button>
                     <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                   </div>
@@ -2611,6 +2612,7 @@
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
       toggleFilters: document.getElementById('toggleFilters'),
+      copyViewLink: document.getElementById('copyViewLink'),
       exportList: document.getElementById('exportList'),
       activeListState: document.getElementById('activeListState'),
       bulkDelete: document.getElementById('bulkDelete'),
@@ -3986,6 +3988,9 @@
        if (els.exportList) {
          els.exportList.disabled = !state.current || !hasAction('list');
        }
+       if (els.copyViewLink) {
+         els.copyViewLink.disabled = !state.current;
+       }
        if (els.openSelectedEdit) {
          els.openSelectedEdit.disabled = !state.selected || !hasAction('update');
        }
@@ -4745,6 +4750,15 @@
       await copyTextToClipboard(text);
       showToast('Copied record JSON.', 'success');
       setStatus('Copied record JSON.');
+    }
+
+    async function copyCurrentViewLink() {
+      if (!state.current) return;
+      syncListURLState();
+      const url = window.location.href;
+      await copyTextToClipboard(url);
+      showToast('Copied current admin view link.', 'success');
+      setStatus('Copied current admin view link.');
     }
 
     async function openSelectedRecordEdit() {
@@ -5750,6 +5764,12 @@
        closeColumnMenu();
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
+    if (els.copyViewLink) {
+      els.copyViewLink.onclick = () => copyCurrentViewLink().catch((error) => {
+        showToast(String(error.message || error), 'danger');
+        setStatus(String(error.message || error));
+      });
+    }
     if (els.exportList) {
       els.exportList.onclick = () => exportCurrentList();
     }

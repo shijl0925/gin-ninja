@@ -200,6 +200,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function focusFirstFormError`,
 		`function isInteractiveTableTarget`,
 		`role', 'button'`,
+		`id="copyViewLink"`,
+		`function copyCurrentViewLink`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,
