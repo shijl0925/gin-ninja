@@ -5439,6 +5439,7 @@
               setSelectedForBulk(id, false);
               closeModal(els.recordModal);
               closeModal(els.editModal);
+              rewindPageIfCurrentPageEmptied([id]);
               showToast('Deleted record #' + id + '.', 'success');
               await reloadListWithStatus('Deleted record #' + id + '.', false);
             } catch (error) {
@@ -5449,6 +5450,15 @@
           'Delete'
         );
       }
+
+     function rewindPageIfCurrentPageEmptied(ids) {
+      if (state.pagination.page <= 1 || !Array.isArray(ids) || !ids.length || !state.records.length) return;
+      const deleted = new Set(ids.map((id) => String(id)));
+      const currentPageDeleted = state.records.every((row) => deleted.has(String(recordPrimaryKey(row))));
+      if (currentPageDeleted) {
+        state.pagination.page -= 1;
+      }
+    }
 
      async function reloadListWithStatus(message, resetPage) {
       if (resetPage) resetToFirstPage();
@@ -5951,6 +5961,7 @@
             }
             state.bulkSelected = {};
             const deleted = String(result.deleted || 0);
+            rewindPageIfCurrentPageEmptied(ids);
             showToast('Bulk deleted ' + deleted + ' record(s).', 'success');
             await reloadListWithStatus('Bulk deleted ' + deleted + ' record(s).', false);
           } catch (error) {

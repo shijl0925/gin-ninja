@@ -219,6 +219,7 @@ It includes:
 - modal focus management for faster keyboard-first create, edit, and detail flows
 - copyable current-view links for sharing or bookmarking list state
 - CSV export for the current search / filter / sort query
+- delete and bulk-delete reloads step back from emptied pages automatically
 - table density switching and visible-column controls
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
 - collapsible filters with remembered collapsed state
