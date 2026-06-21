@@ -3426,6 +3426,22 @@
       return true;
     }
 
+    function focusFormFieldWrapper(wrapper) {
+      if (!wrapper) return false;
+      wrapper.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      window.requestAnimationFrame(() => {
+        const target = wrapper.querySelector('.multi-relation-dropdown summary, input:not([disabled]):not([type="hidden"]), select:not([disabled]):not([hidden]), textarea:not([disabled]), button:not([disabled])');
+        if (target && typeof target.focus === 'function') {
+          target.focus();
+        }
+      });
+      return true;
+    }
+
+    function focusFirstFormError(form) {
+      return focusFormFieldWrapper(form.querySelector('.form-field-card.has-error'));
+    }
+
     function formFieldValue(form, field) {
       const control = form.elements.namedItem(field.name);
       if (!control) return '';
@@ -3445,6 +3461,7 @@
       const message = extractErrorMessage(error);
       const match = message.match(/^field "([^"]+)"(?:: | is )(.*)$/);
       if (match && setFormFieldError(form, match[1], match[2] ? 'Field ' + match[2] : message)) {
+        focusFirstFormError(form);
         return true;
       }
       return false;
@@ -5809,6 +5826,7 @@
       if (!built.valid) {
         showToast('Please fix the highlighted fields.', 'danger');
         setStatus('Please fix the highlighted fields.');
+        focusFirstFormError(els.createForm);
         return;
       }
       setFormPending(els.createForm, 'create', true);
@@ -5837,6 +5855,7 @@
       if (!built.valid) {
         showToast('Please fix the highlighted fields.', 'danger');
         setStatus('Please fix the highlighted fields.');
+        focusFirstFormError(els.updateForm);
         return;
       }
       setFormPending(els.updateForm, 'update', true);
