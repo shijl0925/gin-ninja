@@ -54,6 +54,8 @@ site.MustRegisterModel(&admin.ModelResource{
     // Optional per-field display/component overrides.
     FieldOptions: map[string]admin.FieldOptions{
         "is_admin": {Label: "Admin?", Component: "switch"},
+        "age": {Format: "integer"},
+        "createdAt": {Format: "relative"},
         "role_ids": {Help: "Search and select one or more roles.", Width: "full"},
     },
 
@@ -76,6 +78,8 @@ site.MustRegisterModel(&admin.ModelResource{
 `MustRegisterModel` panics on configuration errors (e.g. duplicate resource name).  Use `RegisterModel` instead if you want to handle the error yourself.
 
 Relation fields pointing to another registered model are resolved automatically: the framework infers `value_field`, `label_field`, and `search_fields` from the target resource.
+
+Use `FieldOptions` when a field needs an explicit component, label, placeholder, help copy, width, or display format. The built-in UI currently understands display formats such as `title`, `uppercase`, `lowercase`, `mono`, `number`, `integer`, `percent`, `currency:USD`, `date`, `datetime`, and `relative`.
 
 ### 3. Mount the Admin API Routes
 

@@ -3441,9 +3441,135 @@
         return { primary: String(value), secondary: '' };
       }
       return {
-        primary: new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date),
-        secondary: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date),
+        primary: new Intl.DateTimeFormat(adminLocale || undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date),
+        secondary: new Intl.DateTimeFormat(adminLocale || undefined, { hour: 'numeric', minute: '2-digit' }).format(date),
       };
+    }
+
+    function normalizedFieldFormat(field) {
+      return String(field?.format || '').trim().toLowerCase();
+    }
+
+    function titleCaseValue(value) {
+      return String(value).replace(/\w\S*/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+    }
+
+    function numberValue(value) {
+      const number = typeof value === 'number' ? value : Number(String(value).replace(/,/g, ''));
+      return Number.isFinite(number) ? number : null;
+    }
+
+    function formatNumberValue(value, options) {
+      const number = numberValue(value);
+      if (number == null) return String(value);
+      return new Intl.NumberFormat(adminLocale || undefined, options).format(number);
+    }
+
+    function formatRelativeTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      const seconds = Math.round((date.getTime() - Date.now()) / 1000);
+      const units = [
+        ['year', 60 * 60 * 24 * 365],
+        ['month', 60 * 60 * 24 * 30],
+        ['day', 60 * 60 * 24],
+        ['hour', 60 * 60],
+        ['minute', 60],
+        ['second', 1]
+      ];
+      const [unit, size] = units.find(([, unitSeconds]) => Math.abs(seconds) >= unitSeconds) || units[units.length - 1];
+      return new Intl.RelativeTimeFormat(adminLocale || undefined, { numeric: 'auto' }).format(Math.round(seconds / size), unit);
+    }
+
+    function currencyCodeFromFormat(format) {
+      const match = format.match(/^currency(?::|-)?([a-z]{3})?$/i);
+      return match && match[1] ? match[1].toUpperCase() : '';
+    }
+
+    function formatFieldDisplay(field, fieldName, value) {
+      const format = normalizedFieldFormat(field);
+      const display = {
+        primary: formatValue(value),
+        secondary: '',
+        mono: fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id'),
+        numeric: field?.component === 'number' || field?.type === 'number' || field?.type === 'integer',
+        applied: false
+      };
+      if (!format) return display;
+      if (format === 'title') {
+        display.primary = titleCaseValue(value);
+        display.applied = true;
+        return display;
+      }
+      if (format === 'uppercase') {
+        display.primary = String(value).toUpperCase();
+        display.applied = true;
+        return display;
+      }
+      if (format === 'lowercase') {
+        display.primary = String(value).toLowerCase();
+        display.applied = true;
+        return display;
+      }
+      if (format === 'mono' || format === 'code') {
+        display.mono = true;
+        display.applied = true;
+        return display;
+      }
+      if (format === 'number' || format === 'decimal') {
+        display.primary = formatNumberValue(value, { maximumFractionDigits: 2 });
+        display.numeric = true;
+        display.applied = true;
+        return display;
+      }
+      if (format === 'integer') {
+        display.primary = formatNumberValue(value, { maximumFractionDigits: 0 });
+        display.numeric = true;
+        display.applied = true;
+        return display;
+      }
+      if (format === 'percent') {
+        const number = numberValue(value);
+        display.primary = number == null
+          ? String(value)
+          : (Math.abs(number) <= 1
+            ? new Intl.NumberFormat(adminLocale || undefined, { style: 'percent', maximumFractionDigits: 2 }).format(number)
+            : formatNumberValue(number, { maximumFractionDigits: 2 }) + '%');
+        display.numeric = true;
+        display.applied = true;
+        return display;
+      }
+      if (format.startsWith('currency')) {
+        const currency = currencyCodeFromFormat(format);
+        display.primary = currency
+          ? formatNumberValue(value, { style: 'currency', currency })
+          : formatNumberValue(value, { maximumFractionDigits: 2 });
+        display.numeric = true;
+        display.applied = true;
+        return display;
+      }
+      if (format === 'date') {
+        const date = new Date(value);
+        display.primary = Number.isNaN(date.getTime())
+          ? String(value)
+          : new Intl.DateTimeFormat(adminLocale || undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+        display.applied = true;
+        return display;
+      }
+      if (format === 'datetime' || format === 'time') {
+        const formattedDate = formatDateTimeParts(value);
+        display.primary = formattedDate.primary;
+        display.secondary = formattedDate.secondary;
+        display.applied = true;
+        return display;
+      }
+      if (format === 'relative') {
+        display.primary = formatRelativeTime(value);
+        display.secondary = formatDateTimeParts(value).primary;
+        display.applied = true;
+        return display;
+      }
+      return display;
     }
 
     function fieldControlID(scopeKey, field) {
@@ -3657,7 +3783,17 @@
       }
       const primary = document.createElement('span');
       primary.className = 'table-cell-value';
-      if (isDateLikeValue(field, value)) {
+      const formatted = formatFieldDisplay(field, fieldName, value);
+      if (formatted.applied) {
+        primary.textContent = formatted.primary;
+        wrap.appendChild(primary);
+        if (formatted.secondary) {
+          const secondary = document.createElement('span');
+          secondary.className = 'table-cell-hint';
+          secondary.textContent = formatted.secondary;
+          wrap.appendChild(secondary);
+        }
+      } else if (isDateLikeValue(field, value)) {
         const formattedDate = formatDateTimeParts(value);
         primary.textContent = formattedDate.primary;
         const secondary = document.createElement('span');
@@ -3671,10 +3807,10 @@
         primary.textContent = formatValue(value);
         wrap.appendChild(primary);
       }
-      if (fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+      if (formatted.mono) {
         primary.classList.add('mono');
       }
-      if (field?.component === 'number' || field?.type === 'number' || field?.type === 'integer') {
+      if (formatted.numeric) {
         primary.classList.add('numeric');
       }
       if (field?.unique) {
@@ -3708,8 +3844,23 @@
       }
       const primary = document.createElement('span');
       primary.className = 'detail-value-text';
-      if (fieldName === 'id' || fieldName.endsWith('_id') || fieldName.endsWith('Id')) {
+      const formatted = formatFieldDisplay(field, fieldName, value);
+      if (formatted.mono) {
         primary.classList.add('mono');
+      }
+      if (formatted.numeric) {
+        primary.classList.add('numeric');
+      }
+      if (formatted.applied) {
+        primary.textContent = formatted.primary;
+        fragment.appendChild(primary);
+        if (formatted.secondary) {
+          const secondary = document.createElement('span');
+          secondary.className = 'table-cell-hint';
+          secondary.textContent = formatted.secondary;
+          fragment.appendChild(secondary);
+        }
+        return fragment;
       }
       if (isDateLikeValue(field, value)) {
         const formattedDate = formatDateTimeParts(value);

@@ -54,6 +54,8 @@ site.MustRegisterModel(&admin.ModelResource{
     // 可选：字段级显示和组件覆盖
     FieldOptions: map[string]admin.FieldOptions{
         "is_admin": {Label: "管理员？", Component: "switch"},
+        "age": {Format: "integer"},
+        "createdAt": {Format: "relative"},
         "role_ids": {Help: "搜索并选择一个或多个角色。", Width: "full"},
     },
 
@@ -76,6 +78,8 @@ site.MustRegisterModel(&admin.ModelResource{
 `MustRegisterModel` 在配置错误（如资源名重复）时会 panic；如需自行处理错误，可改用 `RegisterModel`。
 
 指向另一个已注册 Model 的关联字段会被自动解析：框架会从目标资源推断 `value_field`、`label_field` 与 `search_fields`。
+
+字段需要显式组件、标签、placeholder、帮助文案、宽度或展示格式时，可以使用 `FieldOptions`。内置 UI 目前支持 `title`、`uppercase`、`lowercase`、`mono`、`number`、`integer`、`percent`、`currency:USD`、`date`、`datetime`、`relative` 等展示格式。
 
 ### 3. 注册 Admin API 路由
 

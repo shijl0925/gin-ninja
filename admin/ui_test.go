@@ -211,6 +211,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function copyCurrentViewLink`,
 		`id="resourceActionSummary"`,
 		`function renderResourceActionSummary`,
+		`function formatFieldDisplay`,
+		`function formatRelativeTime`,
 		`function rewindPageIfCurrentPageEmptied`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
