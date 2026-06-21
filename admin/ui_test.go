@@ -195,7 +195,7 @@ func TestServeDefaultUI(t *testing.T) {
 		`function buildExportQuery`,
 		`id="copyRecordJSON"`,
 		`function copySelectedRecordJSON`,
-		`detail-field-copy`,
+		`detail-value copyable`,
 		`function copyDetailFieldValue`,
 		`id="activeListState"`,
 		`function renderActiveListState`,

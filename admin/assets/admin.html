@@ -1161,7 +1161,7 @@
     .detail-grid { display:grid; gap:8px; }
     .detail-row {
       display:grid;
-      grid-template-columns:minmax(120px, 152px) minmax(0, 1fr) auto;
+      grid-template-columns:minmax(120px, 152px) minmax(0, 1fr);
       gap:14px;
       align-items:start;
       padding:10px 0;
@@ -1170,9 +1170,11 @@
     .detail-row:last-child { border-bottom:none; padding-bottom:0; }
     .detail-label { font-size:11px; font-weight:700; color:var(--admin-muted); text-transform:uppercase; letter-spacing:0.08em; padding-top:4px; }
     .detail-value { display:grid; gap:6px; font-size:14px; word-break:break-word; color:var(--admin-text); }
+    .detail-value.copyable { cursor:copy; border-radius:0.35rem; padding:4px 6px; margin:-4px -6px; transition:background-color 120ms ease, box-shadow 120ms ease; }
+    .detail-value.copyable:hover { background:var(--admin-soft); }
+    .detail-value.copyable:focus-visible { outline:none; background:var(--admin-soft); box-shadow:0 0 0 2px rgba(99, 91, 255, 0.2); }
     .detail-value-text { font-size:14px; line-height:1.55; color:var(--admin-text); }
     .detail-value-text.mono { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:13px; }
-    .detail-field-copy { align-self:start; min-height:30px; padding:4px 8px; font-size:12px; }
     .bulk-edit-fields { display:grid; gap:12px; }
     .bulk-edit-field { border:1px solid var(--admin-border); border-radius:var(--admin-radius); padding:14px; background:rgba(255,255,255,0.72); }
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
@@ -2168,7 +2170,6 @@
       .section-card-header,
       .section-card-footer { padding-left:16px; padding-right:16px; }
       .detail-row { grid-template-columns:minmax(0, 1fr); }
-      .detail-field-copy { justify-self:start; }
       .form-section-intro { grid-template-columns:minmax(0, 1fr); }
       .table-toolbar .row-actions { flex-basis:100%; }
       .form-grid { grid-template-columns:minmax(0, 1fr); }
@@ -5085,26 +5086,30 @@
       els.detail.textContent = JSON.stringify(record, null, 2);
       const detailFields = state.meta?.detail_fields || Object.keys(record);
       detailFields.forEach((name) => {
+        const labelText = fieldMeta(name)?.label || name;
         const row = document.createElement('div');
         row.className = 'detail-row';
         const label = document.createElement('div');
         label.className = 'detail-label';
-        label.textContent = fieldMeta(name)?.label || name;
+        label.textContent = labelText;
         const value = document.createElement('div');
-        value.className = 'detail-value';
-        value.appendChild(buildDetailValueContent(name, record[name]));
-        const copy = document.createElement('button');
-        copy.type = 'button';
-        copy.className = 'secondary btn btn-default btn-sm detail-field-copy';
-        copy.textContent = 'Copy';
-        copy.setAttribute('aria-label', 'Copy ' + (fieldMeta(name)?.label || name));
-        copy.onclick = () => copyDetailFieldValue(name, record[name]).catch((error) => {
+        value.className = 'detail-value copyable';
+        value.tabIndex = 0;
+        value.setAttribute('role', 'button');
+        value.setAttribute('aria-label', 'Copy ' + labelText);
+        value.title = 'Copy value';
+        value.onclick = () => copyDetailFieldValue(name, record[name]).catch((error) => {
           showToast(String(error.message || error), 'danger');
           setStatus(String(error.message || error));
         });
+        value.onkeydown = (event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          value.click();
+        };
+        value.appendChild(buildDetailValueContent(name, record[name]));
         row.appendChild(label);
         row.appendChild(value);
-        row.appendChild(copy);
         els.detailFields.appendChild(row);
       });
       syncWorkspaceActionState();
