@@ -3874,6 +3874,7 @@
       }
       els.dashboardShell.hidden = false;
       els.dashboardTiles.innerHTML = '';
+      const tileRefs = [];
       state.resources.forEach((resource, index) => {
         const meta = dashboardTileMeta(resource, index);
         const tile = document.createElement('button');
@@ -3902,18 +3903,40 @@
           '</div>';
         tile.onclick = () => selectResource(resource);
         els.dashboardTiles.appendChild(tile);
-        // Load record count in background for each tile
+        tileRefs.push({ resource, tile });
+      });
+      loadDashboardCounts(tileRefs);
+    }
+
+    function setDashboardTileCount(tile, total) {
+      const countEl = tile ? tile.querySelector('.dashboard-tile-count') : null;
+      if (countEl) countEl.textContent = String(total ?? dashboardCountPlaceholder);
+    }
+
+    function loadDashboardCountsFallback(tileRefs) {
+      tileRefs.forEach(({ resource, tile }) => {
         const basePath = apiBase + '/resources' + resource.path;
         request(basePath + '?page=1&size=1')
-          .then((data) => {
-            const countEl = tile.querySelector('.dashboard-tile-count');
-            if (countEl) countEl.textContent = String(data.total ?? dashboardCountPlaceholder);
-          })
+          .then((data) => setDashboardTileCount(tile, data.total))
           .catch((err) => {
             // Count is decorative; log but don't surface to user
             console.error('dashboard tile count load failed for ' + resource.name + ':', err);
           });
       });
+    }
+
+    async function loadDashboardCounts(tileRefs) {
+      if (!tileRefs.length) return;
+      try {
+        const stats = await request(apiBase + '/resources/stats');
+        const totals = new Map((stats.resources || []).map((item) => [item.name, item.total]));
+        tileRefs.forEach(({ resource, tile }) => {
+          setDashboardTileCount(tile, totals.has(resource.name) ? totals.get(resource.name) : dashboardCountPlaceholder);
+        });
+      } catch (err) {
+        console.error('dashboard stats load failed:', err);
+        loadDashboardCountsFallback(tileRefs);
+      }
     }
 
     function buildFilterControl(field) {

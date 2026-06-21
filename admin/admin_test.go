@@ -278,6 +278,18 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		t.Fatalf("password must not be returned: %+v", created.Item)
 	}
 
+	statsResp := performJSON(t, api, http.MethodGet, "/admin/resources/stats", nil, map[string]string{"X-User-ID": "1"})
+	if statsResp.Code != http.StatusOK {
+		t.Fatalf("stats status = %d body=%s", statsResp.Code, statsResp.Body.String())
+	}
+	var stats ResourceStatsOutput
+	if err := json.NewDecoder(statsResp.Body).Decode(&stats); err != nil {
+		t.Fatalf("decode stats: %v", err)
+	}
+	if stats.Total != 2 || len(stats.Resources) != 1 || stats.Resources[0].Name != "users" || stats.Resources[0].Total != 2 {
+		t.Fatalf("unexpected stats payload: %+v", stats)
+	}
+
 	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?search=bob&sort=-name&is_admin=false", nil, map[string]string{"X-User-ID": "1"})
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())

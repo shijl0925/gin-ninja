@@ -151,6 +151,18 @@ type ResourceIndex struct {
 	Resources []ResourceSummary `json:"resources"`
 }
 
+type ResourceStat struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
+	Path  string `json:"path"`
+	Total int64  `json:"total"`
+}
+
+type ResourceStatsOutput struct {
+	Resources []ResourceStat `json:"resources"`
+	Total     int64          `json:"total"`
+}
+
 type FieldMeta struct {
 	Name        string        `json:"name"`
 	Label       string        `json:"label"`
@@ -474,6 +486,9 @@ func (s *Site) Mount(router *ninja.Router) {
 	ninja.Get(router, "/resources", s.listResources,
 		ninja.Summary("List admin resources"),
 		ninja.Description("Returns the registered admin resources used to build navigation menus."))
+	ninja.Get(router, "/resources/stats", s.resourceStats,
+		ninja.Summary("Get admin resource stats"),
+		ninja.Description("Returns count summaries for visible admin resources."))
 
 	for _, resource := range s.resources {
 		base := "/resources" + resource.Path
@@ -531,6 +546,35 @@ func (s *Site) listResources(ctx *ninja.Context, _ *struct{}) (*ResourceIndex, e
 		})
 	}
 	return &ResourceIndex{Resources: items}, nil
+}
+
+func (s *Site) resourceStats(ctx *ninja.Context, _ *struct{}) (*ResourceStatsOutput, error) {
+	items := make([]ResourceStat, 0, len(s.resources))
+	var grandTotal int64
+	for _, resource := range s.resources {
+		if err := s.authorize(ctx, ActionList, resource); err != nil {
+			if isVisibilityDenied(err) {
+				if errors.Is(err, ninja.UnauthorizedError()) {
+					return nil, err
+				}
+				continue
+			}
+			return nil, err
+		}
+		db := resource.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context)).Model(resource.newModel())
+		var total int64
+		if err := db.Count(&total).Error; err != nil {
+			return nil, err
+		}
+		grandTotal += total
+		items = append(items, ResourceStat{
+			Name:  resource.metadata.Name,
+			Label: resource.metadata.Label,
+			Path:  resource.metadata.Path,
+			Total: total,
+		})
+	}
+	return &ResourceStatsOutput{Resources: items, Total: grandTotal}, nil
 }
 
 func (s *Site) authorize(ctx *ninja.Context, action Action, resource *Resource) error {

@@ -98,6 +98,7 @@ This registers the following endpoints under `/api/v1/admin` (given `Prefix: "/a
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/resources` | List all registered resources |
+| `GET` | `/resources/stats` | Count summary for currently visible resources |
 | `GET` | `/resources/{path}/meta` | Resource field metadata |
 | `GET` | `/resources/{path}` | Paginated record list (search / filter / sort) |
 | `GET` | `/resources/{path}/{id}` | Single record detail |
@@ -206,6 +207,7 @@ It includes:
 - a standalone login page at `/admin/login`
 - a standalone admin workspace at `/admin`
 - resource navigation backed by `/api/v1/admin/resources`
+- dashboard resource counts loaded in one request from `/api/v1/admin/resources/stats`
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
 - table density switching and visible-column controls
