@@ -221,6 +221,7 @@ admin.MountUI(router, admin.UIConfig{
 - 详情、创建、更新、删除与批量删除流程
 - 详情弹窗支持快速编辑所选记录、复制 JSON payload
 - 创建 / 更新表单支持内联校验、提交中状态和未保存变更提醒
+- 批量选择区展示已选数量，并支持一键清空选择
 - 带关系字段选项搜索预览的 selector 交互
 - 更紧凑的 “Admin Workspace” 头部布局，后台观感更集中
 

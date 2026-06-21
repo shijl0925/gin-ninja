@@ -2308,6 +2308,7 @@
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
+                  <button id="clearSelection" class="secondary btn btn-default btn-sm" type="button">Clear selection</button>
                 </div>
               </div>
               <div class="card-body section-card-body">
@@ -2562,6 +2563,7 @@
       resourceTitle: document.getElementById('resourceTitle'),
       resourcePath: document.getElementById('resourcePath'),
       selectedCountBadge: document.getElementById('selectedCountBadge'),
+      clearSelection: document.getElementById('clearSelection'),
       detailTitle: document.getElementById('detailTitle'),
       detailObjectBadge: document.getElementById('detailObjectBadge'),
       detailFields: document.getElementById('detailFields'),
@@ -4698,8 +4700,19 @@
     function syncBulkActionState() {
       const count = selectedIDs().length;
       els.selectedCountBadge.textContent = count + ' selected';
+      if (els.clearSelection) {
+        els.clearSelection.disabled = count === 0;
+        els.clearSelection.hidden = count === 0;
+      }
       els.bulkDelete.disabled = count === 0 || !hasAction('bulk_delete');
       syncWorkspaceActionState();
+    }
+
+    function clearBulkSelection() {
+      state.bulkSelected = {};
+      syncBulkActionState();
+      renderList().catch((error) => setStatus(String(error.message || error)));
+      setStatus('Cleared selected records.');
     }
 
     function buildValidatedFormPayload(form, scopeKey) {
@@ -5605,6 +5618,9 @@
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
     if (els.exportList) {
       els.exportList.onclick = () => exportCurrentList();
+    }
+    if (els.clearSelection) {
+      els.clearSelection.onclick = () => clearBulkSelection();
     }
      els.clearFilters.onclick = () => {
        if (!state.current) return;
