@@ -163,6 +163,25 @@ type ResourceStatsOutput struct {
 	Total     int64          `json:"total"`
 }
 
+type SearchResultItem struct {
+	ID    any            `json:"id"`
+	Label string         `json:"label"`
+	Item  map[string]any `json:"item"`
+}
+
+type SearchResourceResult struct {
+	Resource ResourceSummary    `json:"resource"`
+	Items    []SearchResultItem `json:"items"`
+	Total    int64              `json:"total"`
+}
+
+type SearchOutput struct {
+	Query   string                 `json:"query"`
+	Results []SearchResourceResult `json:"results"`
+	Total   int64                  `json:"total"`
+	Size    int                    `json:"size"`
+}
+
 type FieldMeta struct {
 	Name        string        `json:"name"`
 	Label       string        `json:"label"`
@@ -242,6 +261,11 @@ type listInput struct {
 	pagination.PageInput
 	Search string `query:"search"`
 	Sort   string `query:"sort"`
+}
+
+type searchInput struct {
+	Q    string `query:"q"`
+	Size int    `query:"size" binding:"omitempty,min=1,max=20"`
 }
 
 type relationOptionsInput struct {
@@ -489,6 +513,9 @@ func (s *Site) Mount(router *ninja.Router) {
 	ninja.Get(router, "/resources/stats", s.resourceStats,
 		ninja.Summary("Get admin resource stats"),
 		ninja.Description("Returns count summaries for visible admin resources."))
+	ninja.Get(router, "/search", s.searchResources,
+		ninja.Summary("Search admin resources"),
+		ninja.Description("Searches across visible searchable resources and returns grouped results."))
 
 	for _, resource := range s.resources {
 		base := "/resources" + resource.Path
@@ -575,6 +602,124 @@ func (s *Site) resourceStats(ctx *ninja.Context, _ *struct{}) (*ResourceStatsOut
 		})
 	}
 	return &ResourceStatsOutput{Resources: items, Total: grandTotal}, nil
+}
+
+func (s *Site) searchResources(ctx *ninja.Context, in *searchInput) (*SearchOutput, error) {
+	query := strings.TrimSpace(in.Q)
+	size := in.Size
+	if size < 1 {
+		size = 5
+	}
+	if size > 20 {
+		size = 20
+	}
+	out := &SearchOutput{
+		Query:   query,
+		Results: []SearchResourceResult{},
+		Size:    size,
+	}
+	if len(query) < 2 {
+		return out, nil
+	}
+
+	for _, resource := range s.resources {
+		if err := s.authorize(ctx, ActionList, resource); err != nil {
+			if isVisibilityDenied(err) {
+				if errors.Is(err, ninja.UnauthorizedError()) {
+					return nil, err
+				}
+				continue
+			}
+			return nil, err
+		}
+		view := resource.resolved(ctx)
+		if len(view.metadata.SearchFields) == 0 {
+			continue
+		}
+
+		db := resource.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context)).Model(resource.newModel())
+		listQuery, err := resource.applyListQueryFor(view, db, url.Values{}, &listInput{
+			PageInput: pagination.PageInput{Page: 1, Size: size},
+			Search:    query,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		var total int64
+		if err := listQuery.Count(&total).Error; err != nil {
+			return nil, err
+		}
+		if total == 0 {
+			continue
+		}
+
+		itemsPtr := reflect.New(reflect.SliceOf(resource.modelType))
+		if err := listQuery.Limit(size).Find(itemsPtr.Interface()).Error; err != nil {
+			return nil, err
+		}
+		items := make([]SearchResultItem, 0, itemsPtr.Elem().Len())
+		for i := 0; i < itemsPtr.Elem().Len(); i++ {
+			itemValue := itemsPtr.Elem().Index(i)
+			var id any
+			if resource.primaryKey != nil {
+				id = resource.primaryKey.value(itemValue)
+			}
+			items = append(items, SearchResultItem{
+				ID:    id,
+				Label: resource.searchLabelFor(view, itemValue),
+				Item:  resource.serializeFor(view, itemValue, fieldModeList),
+			})
+		}
+		out.Total += total
+		out.Results = append(out.Results, SearchResourceResult{
+			Resource: resource.summary(),
+			Items:    items,
+			Total:    total,
+		})
+	}
+	return out, nil
+}
+
+func (r *Resource) summary() ResourceSummary {
+	if r == nil {
+		return ResourceSummary{}
+	}
+	return ResourceSummary{
+		Name:        r.metadata.Name,
+		Label:       r.metadata.Label,
+		Path:        r.metadata.Path,
+		Icon:        r.metadata.Icon,
+		Group:       r.metadata.Group,
+		Description: r.metadata.Description,
+		Order:       r.metadata.Order,
+	}
+}
+
+func (r *Resource) searchLabelFor(view *resolvedResource, value reflect.Value) string {
+	if r == nil || view == nil {
+		return ""
+	}
+	names := append(cloneSlice(view.metadata.SearchFields), view.metadata.ListFields...)
+	seen := map[string]struct{}{}
+	for _, name := range names {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		field := view.fieldByName[name]
+		if field == nil || field.fieldType.Kind() != reflect.String {
+			continue
+		}
+		label := strings.TrimSpace(fmt.Sprint(field.value(value)))
+		if label != "" {
+			return label
+		}
+	}
+	if r.primaryKey != nil {
+		return fmt.Sprint(r.primaryKey.value(value))
+	}
+	return ""
 }
 
 func (s *Site) authorize(ctx *ninja.Context, action Action, resource *Resource) error {

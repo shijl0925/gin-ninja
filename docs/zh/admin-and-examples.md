@@ -99,6 +99,7 @@ api.AddRouter(adminRouter)
 |------|------|------|
 | `GET` | `/resources` | 列出所有已注册资源 |
 | `GET` | `/resources/stats` | 获取当前可见资源的记录数聚合统计 |
+| `GET` | `/search?q=关键词` | 跨当前可见且可搜索的资源执行聚合搜索 |
 | `GET` | `/resources/{path}/meta` | 获取资源字段元数据 |
 | `GET` | `/resources/{path}` | 分页列表（支持搜索 / 过滤 / 排序） |
 | `GET` | `/resources/{path}/{id}` | 获取单条记录详情 |
@@ -207,6 +208,7 @@ admin.MountUI(router, admin.UIConfig{
 - 独立后台工作台：`/admin`
 - 由 `/api/v1/admin/resources` 驱动的资源导航
 - 由 `/api/v1/admin/resources/stats` 一次性加载的 dashboard 资源记录数
+- 由 `/api/v1/admin/search` 驱动的顶部全局聚合搜索
 - 按资源 `Group` / `Order` 分组排序的侧边栏导航
 - 支持搜索、元数据过滤、排序、分页大小和翻页的记录列表
 - 表格密度切换与列显隐设置

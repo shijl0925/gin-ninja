@@ -2795,6 +2795,41 @@
       return '';
     }
 
+    async function globalSearchFallback(q) {
+      return Promise.all(
+        state.resources.map(async (resource) => {
+          try {
+            const basePath = apiBase + '/resources' + resource.path;
+            const data = await request(basePath + '?page=1&size=5&search=' + encodeURIComponent(q));
+            const items = data.items || data.results || data.data || [];
+            return {
+              resource,
+              items: items.map((item) => ({
+                id: recordPrimaryKey(item),
+                label: recordDisplayLabel(item, []),
+                item: item
+              }))
+            };
+          } catch (_) {
+            return { resource, items: [] };
+          }
+        })
+      );
+    }
+
+    async function fetchGlobalSearchResults(q) {
+      try {
+        const payload = await request(apiBase + '/search?q=' + encodeURIComponent(q) + '&size=5');
+        return (payload.results || []).map((group) => ({
+          resource: state.resources.find((item) => item.name === group.resource?.name) || group.resource,
+          items: group.items || []
+        }));
+      } catch (error) {
+        console.error('global search aggregate failed:', error);
+        return globalSearchFallback(q);
+      }
+    }
+
     async function globalSearch(query) {
       closeGlobalSearch();
       if (!els.topbarSearchResults) return;
@@ -2802,18 +2837,7 @@
       if (!q || q.length < 2) return;
       if (!state.resources.length) return;
 
-      const results = await Promise.all(
-        state.resources.map(async (resource) => {
-          try {
-            const basePath = apiBase + '/resources' + resource.path;
-            const data = await request(basePath + '?page=1&size=5&search=' + encodeURIComponent(q));
-            const items = data.items || data.results || data.data || [];
-            return { resource, items };
-          } catch (_) {
-            return { resource, items: [] };
-          }
-        })
-      );
+      const results = await fetchGlobalSearchResults(q);
 
       const noResults = results.every((r) => r.items.length === 0);
       if (noResults) {
@@ -2833,13 +2857,14 @@
         label.textContent = resource.label || resource.name;
         group.appendChild(label);
 
-        items.forEach((record) => {
+        items.forEach((result) => {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'search-result-item';
           btn.setAttribute('role', 'option');
-          const pk = recordPrimaryKey(record);
-          const displayLabel = recordDisplayLabel(record, []);
+          const record = result.item || {};
+          const pk = result.id ?? recordPrimaryKey(record);
+          const displayLabel = result.label || recordDisplayLabel(record, []);
           const summary = document.createElement('span');
           summary.className = 'search-result-summary';
           summary.innerHTML = highlightMatch(displayLabel || String(pk ?? ''), q);
@@ -2853,14 +2878,12 @@
             const expandEl = document.getElementById('topbarSearchExpand');
             if (expandEl) expandEl.classList.remove('open');
             closeGlobalSearch();
-            await selectResource(resource);
-            // Try to open the specific record
-            const found = (state.records || []).find((r) => String(recordPrimaryKey(r)) === String(pk));
-            if (found) {
-              state.selected = { item: found };
+            await selectResource(resource, { restoreQuery: false });
+            if (pk != null && pk !== '') {
+              state.selected = await request(currentBasePath() + '/' + encodeURIComponent(String(pk)));
               renderSelectedRecord();
               await renderUpdateForm();
-              openModal(els.editModal);
+              openModal(els.recordModal);
             }
           });
           group.appendChild(btn);

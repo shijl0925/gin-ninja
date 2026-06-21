@@ -290,6 +290,21 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		t.Fatalf("unexpected stats payload: %+v", stats)
 	}
 
+	searchResp := performJSON(t, api, http.MethodGet, "/admin/search?q=bob&size=3", nil, map[string]string{"X-User-ID": "1"})
+	if searchResp.Code != http.StatusOK {
+		t.Fatalf("search status = %d body=%s", searchResp.Code, searchResp.Body.String())
+	}
+	var search SearchOutput
+	if err := json.NewDecoder(searchResp.Body).Decode(&search); err != nil {
+		t.Fatalf("decode search: %v", err)
+	}
+	if search.Query != "bob" || search.Total != 1 || len(search.Results) != 1 || search.Results[0].Resource.Name != "users" || len(search.Results[0].Items) != 1 {
+		t.Fatalf("unexpected search payload: %+v", search)
+	}
+	if search.Results[0].Items[0].Label != "Bob" || search.Results[0].Items[0].Item["name"] != "Bob" {
+		t.Fatalf("unexpected search result item: %+v", search.Results[0].Items[0])
+	}
+
 	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?search=bob&sort=-name&is_admin=false", nil, map[string]string{"X-User-ID": "1"})
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
