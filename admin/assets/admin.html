@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="__GIN_NINJA_ADMIN_LOCALE_ATTR__">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1989,13 +1989,13 @@
     <div class="topbar-left">
       <button class="topbar-toggle nav-link" type="button" aria-label="Toggle navigation" data-widget="pushmenu" role="button"><span aria-hidden="true">☰</span></button>
       <nav class="topbar-nav navbar-nav" aria-label="Admin navigation shortcuts">
-        <a class="topbar-link nav-link" href="/admin"><span>Home</span></a>
+        <a class="topbar-link nav-link" href="__GIN_NINJA_ADMIN_PAGE_PATH_ATTR__"><span>Home</span></a>
       </nav>
       <div class="topbar-brand brand-link">
-        <span class="brand-mark">A</span>
+        <span class="brand-mark">__GIN_NINJA_ADMIN_LOGO_TEXT__</span>
         <div class="topbar-copy">
           <span id="shellEyebrow" class="eyebrow">Admin Console</span>
-          <h1 id="pageTitle">Gin Ninja Admin</h1>
+          <h1 id="pageTitle">__GIN_NINJA_ADMIN_TITLE__</h1>
           <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
         </div>
       </div>
@@ -2035,15 +2035,15 @@
       <section class="panel login-marketing card card-outline card-secondary">
         <span class="eyebrow">Secure Admin</span>
         <div class="login-brand">
-          <span class="login-brand-mark">G</span>
+          <span class="login-brand-mark">__GIN_NINJA_ADMIN_LOGO_TEXT__</span>
           <div class="login-brand-copy">
-            <strong>Gin Ninja</strong>
+            <strong>__GIN_NINJA_ADMIN_BRAND_NAME__</strong>
             <span>Admin Console</span>
           </div>
         </div>
         <div class="login-marketing-copy">
           <h2>Fast operations with a cleaner control center.</h2>
-          <p>Use the demo admin workspace to inspect resources, manage records, and test secure API flows with the same polished visual language as the homepage.</p>
+          <p>Inspect resources, manage records, and verify secure API flows from one metadata-driven workspace.</p>
         </div>
         <ul class="login-highlights">
           <li>Unified dashboard, detail views, and CRUD actions in one lightweight workspace.</li>
@@ -2084,16 +2084,16 @@
           <label>JWT token
             <input id="token" class="form-control" placeholder="Paste a token from __GIN_NINJA_ADMIN_AUTH_LOGIN_HINT__" autocomplete="off">
           </label>
-          <p class="muted">Successful sign-in stores the JWT in localStorage and attaches it to every admin request automatically.</p>
+          <p class="muted">Successful sign-in stores the JWT according to the configured browser storage policy and attaches it to every admin request automatically.</p>
         </div>
       </section>
     </section>
     <section id="adminShell" class="admin-shell" hidden>
       <aside class="panel resource-strip stack sidebar-shell">
         <div class="sidebar-brand brand-link">
-          <span class="sidebar-brand-mark">G</span>
+          <span class="sidebar-brand-mark">__GIN_NINJA_ADMIN_LOGO_TEXT__</span>
           <div class="sidebar-brand-copy">
-            <strong>Gin Ninja</strong>
+            <strong>__GIN_NINJA_ADMIN_BRAND_NAME__</strong>
             <span>Admin console</span>
           </div>
         </div>
@@ -2152,7 +2152,7 @@
           </div>
         </div>
         <div class="sidebar-footer">
-          <span class="sidebar-footer-text">v0.1 · Gin Ninja</span>
+          <span class="sidebar-footer-text">v0.1 · __GIN_NINJA_ADMIN_BRAND_NAME__</span>
           <button id="sidebarSignOut" class="sidebar-footer-link btn btn-link" type="button" aria-label="Sign out"><span aria-hidden="true">⏻</span> Sign out</button>
         </div>
       </aside>
@@ -2328,6 +2328,12 @@
   </main>
   </div>
   <script>
+    const adminTitle = __GIN_NINJA_ADMIN_TITLE_JS__;
+    const adminBrandName = __GIN_NINJA_ADMIN_BRAND_NAME_JS__;
+    const adminLogoText = __GIN_NINJA_ADMIN_LOGO_TEXT_JS__;
+    const adminLocale = __GIN_NINJA_ADMIN_LOCALE__;
+    const adminDefaultTheme = __GIN_NINJA_ADMIN_DEFAULT_THEME__;
+    const tokenStorageDriver = __GIN_NINJA_ADMIN_TOKEN_STORAGE__;
     const apiBase = __GIN_NINJA_ADMIN_API_BASE__;
     const tokenStorageKey = 'gin-ninja-admin-token';
     const flashStorageKey = 'gin-ninja-admin-flash';
@@ -2616,6 +2622,15 @@
       } catch (_) {
         // ignore
       }
+      if (adminDefaultTheme === 'dark') {
+        applyTheme(true);
+        return true;
+      }
+      if (adminDefaultTheme === 'system' && window.matchMedia) {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(prefersDark);
+        return prefersDark;
+      }
       applyTheme(false);
       return false;
     }
@@ -2750,16 +2765,16 @@
       document.body.classList.toggle('standalone-admin-page', !isStandaloneLoginPage());
       document.body.classList.toggle('login-page', isStandaloneLoginPage());
       if (isStandaloneLoginPage()) {
-        document.title = 'Gin Ninja Admin Login';
+        document.title = adminTitle + ' Login';
         els.shellEyebrow.textContent = 'Admin Login';
-        els.pageTitle.textContent = 'Gin Ninja Admin Login';
-        els.pageIntro.textContent = 'Sign in to enter the example admin console.';
+        els.pageTitle.textContent = adminTitle + ' Login';
+        els.pageIntro.textContent = 'Sign in to enter ' + adminBrandName + ' admin.';
         return;
       }
-      document.title = 'Gin Ninja Admin';
+      document.title = adminTitle;
       els.shellEyebrow.textContent = 'Admin Console';
-      els.pageTitle.textContent = 'Gin Ninja Admin';
-      els.pageIntro.textContent = 'An operations workspace for the example back-office experience.';
+      els.pageTitle.textContent = adminTitle;
+      els.pageIntro.textContent = 'An operations workspace for ' + adminBrandName + '.';
     }
 
     function redirectToLogin(message) {
@@ -2780,17 +2795,23 @@
       return !!els.token.value.trim();
     }
 
+    function tokenStorage() {
+      return tokenStorageDriver === 'session' ? sessionStorage : localStorage;
+    }
+
     function persistToken() {
       const token = els.token.value.trim();
+      const storage = tokenStorage();
       if (token) {
-        localStorage.setItem(tokenStorageKey, token);
+        storage.setItem(tokenStorageKey, token);
       } else {
         localStorage.removeItem(tokenStorageKey);
+        sessionStorage.removeItem(tokenStorageKey);
       }
     }
 
     function restoreToken() {
-      const saved = localStorage.getItem(tokenStorageKey);
+      const saved = tokenStorage().getItem(tokenStorageKey);
       if (saved) {
         els.token.value = saved;
         return true;
@@ -3024,7 +3045,7 @@
 
     function shouldSpanFullWidth(field) {
       if (!field) return false;
-      return field.component === 'textarea' || field.component === 'text' || field.component === 'array' || isMultiRelationField(field);
+      return field.width === 'full' || field.component === 'textarea' || field.component === 'text' || field.component === 'array' || isMultiRelationField(field);
     }
 
     function isFieldRequiredForForm(field, scopeKey) {
@@ -3295,11 +3316,17 @@
 
     function filteredResources() {
       const term = String(state.resourceSearch || '').trim().toLowerCase();
-      if (!term) return state.resources.slice();
-      return state.resources.filter((resource) => {
+      const resources = state.resources.slice().sort((a, b) => {
+        const orderDelta = Number(a.order || 0) - Number(b.order || 0);
+        if (orderDelta !== 0) return orderDelta;
+        return String(a.label || a.name || '').localeCompare(String(b.label || b.name || ''), adminLocale || undefined);
+      });
+      if (!term) return resources;
+      return resources.filter((resource) => {
         const label = String(resource.label || '').toLowerCase();
         const name = String(resource.name || '').toLowerCase();
-        return label.includes(term) || name.includes(term);
+        const group = String(resource.group || '').toLowerCase();
+        return label.includes(term) || name.includes(term) || group.includes(term);
       });
     }
 
@@ -3469,7 +3496,7 @@
         els.resourcePath.textContent = 'Sign in to open a resource workspace.';
         return;
       }
-      els.resourcePath.textContent = 'Browse, inspect, and edit ' + state.meta.label + '.';
+      els.resourcePath.textContent = state.meta.description || ('Browse, inspect, and edit ' + state.meta.label + '.');
     }
 
     function renderSortOptions() {
@@ -3533,22 +3560,33 @@
       if (active) els.list.innerHTML = '';
     }
 
-    function resourceIcon(name) {
-      const byName = {
+    function resourceIcon(resource) {
+      const iconByKey = {
         users: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
+        },
+        user: {
           icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 8a2.75 2.75 0 1 0 0-5.5A2.75 2.75 0 0 0 8 8Z"/><path d="M3.5 13.25a4.5 4.5 0 0 1 9 0"/></svg>'
         },
         roles: {
           icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
         },
+        shield: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 2.5 3.5 4.75v3c0 2.9 1.85 5.5 4.5 6.25 2.65-.75 4.5-3.35 4.5-6.25v-3z"/><path d="m6.5 8 1 1 2-2.25"/></svg>'
+        },
         projects: {
           icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+        },
+        briefcase: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M3 4.5h10"/><path d="M5 2.75v3.5"/><path d="M11 2.75v3.5"/><rect x="3" y="4.5" width="10" height="8.5" rx="1.25"/><path d="M6 8h4"/><path d="M6 10.5h2.5"/></svg>'
+        },
+        table: {
+          icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
         }
       };
-      const normalizedName = String(name || '').toLowerCase();
-      return (byName[normalizedName] || {
-        icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect x="3" y="3.5" width="10" height="9" rx="1.25"/><path d="M6 6.5h4"/><path d="M6 9h4"/></svg>'
-      }).icon;
+      const iconKey = String(resource?.icon || '').trim().toLowerCase();
+      const nameKey = String(resource?.name || '').trim().toLowerCase();
+      return (iconByKey[iconKey] || iconByKey[nameKey] || iconByKey.table).icon;
     }
 
     function dashboardTileMeta(resource, index) {
@@ -3574,9 +3612,9 @@
       };
       return {
         accent: palette[index % palette.length],
-        badge: meta.badge,
-        description: meta.description,
-        icon: resourceIcon(resource?.name)
+        badge: resource?.group || meta.badge,
+        description: resource?.description || meta.description,
+        icon: resourceIcon(resource)
       };
     }
 
@@ -3660,7 +3698,7 @@
         input.className = 'form-control';
       }
       input.name = field.name;
-      input.placeholder = 'Filter by ' + field.label;
+      input.placeholder = field.placeholder || ('Filter by ' + field.label);
       input.id = 'filter-' + field.name;
       label.setAttribute('for', input.id);
       wrapper.appendChild(label);
@@ -3809,7 +3847,7 @@
         const searchKey = relationStateKey(scopeKey, field);
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
-        searchInput.placeholder = 'Search related ' + field.label;
+        searchInput.placeholder = field.placeholder || ('Search related ' + field.label);
         searchInput.value = state.relationSearch[searchKey] || '';
         searchInput.className = 'form-control';
         const select = document.createElement('select');
@@ -3868,6 +3906,7 @@
         const input = document.createElement('textarea');
         input.name = field.name;
         input.className = 'form-control';
+        input.placeholder = field.placeholder || '';
         input.value = field.component === 'array'
           ? (Array.isArray(value) ? JSON.stringify(value, null, 2) : (value ? JSON.stringify(value, null, 2) : ''))
           : (value == null ? '' : String(value));
@@ -3877,6 +3916,7 @@
       input.name = field.name;
       input.type = ({ email: 'email', password: 'password', number: 'number', datetime: 'datetime-local' }[field.component]) || 'text';
       input.value = value == null ? '' : String(value);
+      input.placeholder = field.placeholder || '';
       input.className = 'form-control';
       return input;
     }
@@ -3939,6 +3979,12 @@
           description.className = 'form-field-description';
           description.textContent = field.description;
           copy.appendChild(description);
+        }
+        if (field.help) {
+          const help = document.createElement('p');
+          help.className = 'form-field-description';
+          help.textContent = field.help;
+          copy.appendChild(help);
         }
         const meta = document.createElement('div');
         meta.className = 'form-field-meta';

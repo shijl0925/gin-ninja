@@ -169,6 +169,10 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	site.MustRegister(&Resource{
 		Name:         "users",
 		Path:         "/users",
+		Icon:         "users",
+		Group:        "Identity",
+		Description:  "Manage users in tests.",
+		Order:        10,
 		Model:        adminUser{},
 		ListFields:   []string{"id", "name", "email", "is_admin", "created_at"},
 		DetailFields: []string{"id", "name", "email", "age", "is_admin", "created_at", "updated_at"},
@@ -178,6 +182,7 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		SortFields:   []string{"id", "name", "email", "created_at"},
 		SearchFields: []string{"name", "email"},
 		FieldOptions: map[string]FieldOptions{
+			"name":     {Placeholder: "Full name", Help: "Shown in lists.", Width: "wide", Format: "title"},
 			"password": {Component: "password", Create: boolPtr(true), Update: boolPtr(true)},
 		},
 		BeforeCreate: func(ctx *ninja.Context, values map[string]any) error {
@@ -220,15 +225,24 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	if !containsName(meta.CreateFields, "password") {
 		t.Fatalf("expected password create field, got %+v", meta.CreateFields)
 	}
+	if meta.Icon != "users" || meta.Group != "Identity" || meta.Description != "Manage users in tests." || meta.Order != 10 {
+		t.Fatalf("unexpected resource UI metadata: %+v", meta)
+	}
 	var passwordField *FieldMeta
+	var nameField *FieldMeta
 	for i := range meta.Fields {
 		if meta.Fields[i].Name == "password" {
 			passwordField = &meta.Fields[i]
-			break
+		}
+		if meta.Fields[i].Name == "name" {
+			nameField = &meta.Fields[i]
 		}
 	}
 	if passwordField == nil || passwordField.Component != "password" || passwordField.List || passwordField.Detail {
 		t.Fatalf("unexpected password metadata: %+v", passwordField)
+	}
+	if nameField == nil || nameField.Placeholder != "Full name" || nameField.Help != "Shown in lists." || nameField.Width != "wide" || nameField.Format != "title" {
+		t.Fatalf("unexpected name field UI metadata: %+v", nameField)
 	}
 
 	createResp := performJSON(t, api, http.MethodPost, "/admin/resources/users", map[string]any{

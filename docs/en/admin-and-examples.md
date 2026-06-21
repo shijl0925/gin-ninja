@@ -111,6 +111,11 @@ admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 // Or customise paths and title:
 admin.MountUI(api.Engine(), admin.UIConfig{
     Title:         "My App Admin",
+    BrandName:     "My App",
+    LogoText:      "MA",
+    Locale:        "en",
+    DefaultTheme:  "system",
+    TokenStorage:  "session",
     APIBasePath:   "/api/v1/admin",
     AuthLoginPath: "/api/v1/auth/login",
     AdminPath:     "/admin",
@@ -123,6 +128,11 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | Field | Default | Description |
 |-------|---------|-------------|
 | `Title` | `"Gin Ninja Admin"` | Browser tab title |
+| `BrandName` | `"Gin Ninja"` | Brand name shown in the admin shell |
+| `LogoText` | `"G"` | Text logo, capped to 3 characters |
+| `Locale` | `"en"` | HTML language and localised formatting hint |
+| `DefaultTheme` | `"light"` | Initial theme: `light`, `dark`, or `system` |
+| `TokenStorage` | `"local"` | Token storage policy: `local` or `session` |
 | `APIBasePath` | `"/api/v1/admin"` | Admin API root path (for resource navigation) |
 | `AuthLoginPath` | `"/api/v1/auth/login"` | Login endpoint called by the sign-in form |
 | `AdminPath` | `"/admin"` | Admin workspace page path |
@@ -143,7 +153,7 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-The expression is a raw JavaScript expression that receives the parsed `payload` object and should return the token string (or a falsy value on failure).  Similarly, `UserNameExtractExpr` and `UserIDExtractExpr` customise where the display name and user ID are read from:
+The expression is passed as string data to a restricted path extractor.  It currently supports `payload.foo.bar` paths plus `&&` / `||` fallback combinations; it is not executed as arbitrary JavaScript.  Similarly, `UserNameExtractExpr` and `UserIDExtractExpr` customise where the display name and user ID are read from:
 
 ```go
 admin.MountUI(router, admin.UIConfig{
@@ -154,7 +164,7 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-> **Security note:** the expressions are injected verbatim as JavaScript function bodies.  They must come from trusted, developer-controlled configuration — never from user-supplied input.
+> **Security note:** these expressions should still come only from trusted, developer-controlled configuration — never from user-supplied input. Expressions outside the restricted path syntax fail to resolve.
 
 ---
 

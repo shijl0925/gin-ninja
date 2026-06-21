@@ -78,6 +78,44 @@ func TestMountUICustomTokenExtract(t *testing.T) {
 	}
 }
 
+func TestMountUIUsesBrandThemeAndStorageOptions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	MountUI(router, UIConfig{
+		Title:        "Ops Desk",
+		BrandName:    "Acme Ops",
+		LogoText:     "ACME",
+		Locale:       "zh-CN",
+		DefaultTheme: "system",
+		TokenStorage: "session",
+		AdminPath:    "/admin",
+		LoginPath:    "/admin/login",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /admin status = %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, snippet := range []string{
+		`<html lang="zh-CN">`,
+		`const adminTitle = "Ops Desk";`,
+		`const adminBrandName = "Acme Ops";`,
+		`const adminLogoText = "ACM";`,
+		`const adminLocale = "zh-CN";`,
+		`const adminDefaultTheme = "system";`,
+		`const tokenStorageDriver = "session";`,
+		`<strong>Acme Ops</strong>`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("GET /admin missing %q", snippet)
+		}
+	}
+}
+
 func TestMountUIDeduplicatesPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

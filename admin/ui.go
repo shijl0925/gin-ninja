@@ -13,6 +13,11 @@ import (
 // UIConfig configures the default admin UI shell routes and API endpoint paths.
 type UIConfig struct {
 	Title         string
+	BrandName     string
+	LogoText      string
+	Locale        string
+	DefaultTheme  string
+	TokenStorage  string
 	APIBasePath   string
 	AuthLoginPath string
 	AdminPath     string
@@ -40,6 +45,11 @@ type UIConfig struct {
 func DefaultUIConfig() UIConfig {
 	return UIConfig{
 		Title:         "Gin Ninja Admin",
+		BrandName:     "Gin Ninja",
+		LogoText:      "G",
+		Locale:        "en",
+		DefaultTheme:  "light",
+		TokenStorage:  "local",
 		APIBasePath:   "/api/v1/admin",
 		AuthLoginPath: "/api/v1/auth/login",
 		AdminPath:     "/admin",
@@ -51,6 +61,27 @@ func normalizeUIConfig(cfg UIConfig) UIConfig {
 	defaults := DefaultUIConfig()
 	if strings.TrimSpace(cfg.Title) == "" {
 		cfg.Title = defaults.Title
+	}
+	if strings.TrimSpace(cfg.BrandName) == "" {
+		cfg.BrandName = defaults.BrandName
+	}
+	if strings.TrimSpace(cfg.LogoText) == "" {
+		cfg.LogoText = defaults.LogoText
+	}
+	if strings.TrimSpace(cfg.Locale) == "" {
+		cfg.Locale = defaults.Locale
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.DefaultTheme)) {
+	case "dark", "system":
+		cfg.DefaultTheme = strings.ToLower(strings.TrimSpace(cfg.DefaultTheme))
+	default:
+		cfg.DefaultTheme = defaults.DefaultTheme
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.TokenStorage)) {
+	case "session":
+		cfg.TokenStorage = "session"
+	default:
+		cfg.TokenStorage = defaults.TokenStorage
 	}
 	if strings.TrimSpace(cfg.APIBasePath) == "" {
 		cfg.APIBasePath = defaults.APIBasePath
@@ -80,8 +111,18 @@ func renderUIHTML(cfg UIConfig) string {
 	cfg = normalizeUIConfig(cfg)
 	replacer := strings.NewReplacer(
 		"__GIN_NINJA_ADMIN_TITLE__", html.EscapeString(cfg.Title),
+		"__GIN_NINJA_ADMIN_BRAND_NAME__", html.EscapeString(cfg.BrandName),
+		"__GIN_NINJA_ADMIN_LOGO_TEXT__", html.EscapeString(shortLogoText(cfg.LogoText)),
+		"__GIN_NINJA_ADMIN_TITLE_JS__", jsonString(cfg.Title),
+		"__GIN_NINJA_ADMIN_BRAND_NAME_JS__", jsonString(cfg.BrandName),
+		"__GIN_NINJA_ADMIN_LOGO_TEXT_JS__", jsonString(shortLogoText(cfg.LogoText)),
+		"__GIN_NINJA_ADMIN_LOCALE_ATTR__", html.EscapeString(cfg.Locale),
+		"__GIN_NINJA_ADMIN_LOCALE__", jsonString(cfg.Locale),
+		"__GIN_NINJA_ADMIN_DEFAULT_THEME__", jsonString(cfg.DefaultTheme),
+		"__GIN_NINJA_ADMIN_TOKEN_STORAGE__", jsonString(cfg.TokenStorage),
 		"__GIN_NINJA_ADMIN_API_BASE__", jsonString(cfg.APIBasePath),
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_HINT__", html.EscapeString(cfg.AuthLoginPath),
+		"__GIN_NINJA_ADMIN_PAGE_PATH_ATTR__", html.EscapeString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_PATH__", jsonString(cfg.AuthLoginPath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH__", jsonString(cfg.AdminPath),
 		"__GIN_NINJA_ADMIN_LOGIN_PATH__", jsonString(cfg.LoginPath),
@@ -90,6 +131,17 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__", jsonString(cfg.UserIDExtractExpr),
 	)
 	return replacer.Replace(adminHTML)
+}
+
+func shortLogoText(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "G"
+	}
+	if len([]rune(value)) > 3 {
+		return string([]rune(value)[:3])
+	}
+	return value
 }
 
 func jsonString(value string) string {

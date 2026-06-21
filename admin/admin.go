@@ -66,25 +66,33 @@ type RelationMeta struct {
 }
 
 type FieldOptions struct {
-	Label      string
-	Component  string
-	Enum       []any
-	Relation   *RelationOptions
-	Hidden     *bool
-	ReadOnly   *bool
-	List       *bool
-	Detail     *bool
-	Create     *bool
-	Update     *bool
-	Filterable *bool
-	Sortable   *bool
-	Searchable *bool
+	Label       string
+	Component   string
+	Placeholder string
+	Help        string
+	Width       string
+	Format      string
+	Enum        []any
+	Relation    *RelationOptions
+	Hidden      *bool
+	ReadOnly    *bool
+	List        *bool
+	Detail      *bool
+	Create      *bool
+	Update      *bool
+	Filterable  *bool
+	Sortable    *bool
+	Searchable  *bool
 }
 
 type Resource struct {
 	Name             string
 	Label            string
 	Path             string
+	Icon             string
+	Group            string
+	Description      string
+	Order            int
 	Model            any
 	ListFields       []string
 	DetailFields     []string
@@ -130,9 +138,13 @@ func WithPermissionChecker(checker PermissionChecker) Option {
 }
 
 type ResourceSummary struct {
-	Name  string `json:"name"`
-	Label string `json:"label"`
-	Path  string `json:"path"`
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Path        string `json:"path"`
+	Icon        string `json:"icon,omitempty"`
+	Group       string `json:"group,omitempty"`
+	Description string `json:"description,omitempty"`
+	Order       int    `json:"order,omitempty"`
 }
 
 type ResourceIndex struct {
@@ -146,6 +158,10 @@ type FieldMeta struct {
 	Component   string        `json:"component"`
 	Column      string        `json:"column"`
 	Description string        `json:"description,omitempty"`
+	Placeholder string        `json:"placeholder,omitempty"`
+	Help        string        `json:"help,omitempty"`
+	Width       string        `json:"width,omitempty"`
+	Format      string        `json:"format,omitempty"`
 	Required    bool          `json:"required"`
 	Unique      bool          `json:"unique"`
 	ReadOnly    bool          `json:"read_only"`
@@ -165,6 +181,10 @@ type ResourceMetadata struct {
 	Name         string      `json:"name"`
 	Label        string      `json:"label"`
 	Path         string      `json:"path"`
+	Icon         string      `json:"icon,omitempty"`
+	Group        string      `json:"group,omitempty"`
+	Description  string      `json:"description,omitempty"`
+	Order        int         `json:"order,omitempty"`
 	Fields       []FieldMeta `json:"fields"`
 	ListFields   []string    `json:"list_fields"`
 	DetailFields []string    `json:"detail_fields"`
@@ -261,6 +281,10 @@ type ModelResource struct {
 	Name             string
 	Label            string
 	Path             string
+	Icon             string
+	Group            string
+	Description      string
+	Order            int
 	Model            any
 	Preloads         []string
 	ListFields       []string
@@ -292,6 +316,10 @@ func (r *ModelResource) Resource() *Resource {
 		Name:             r.Name,
 		Label:            r.Label,
 		Path:             r.Path,
+		Icon:             r.Icon,
+		Group:            r.Group,
+		Description:      r.Description,
+		Order:            r.Order,
 		Model:            r.Model,
 		QueryScope:       queryScope,
 		ListFields:       cloneSlice(r.ListFields),
@@ -493,9 +521,13 @@ func (s *Site) listResources(ctx *ninja.Context, _ *struct{}) (*ResourceIndex, e
 			return nil, err
 		}
 		items = append(items, ResourceSummary{
-			Name:  resource.metadata.Name,
-			Label: resource.metadata.Label,
-			Path:  resource.metadata.Path,
+			Name:        resource.metadata.Name,
+			Label:       resource.metadata.Label,
+			Path:        resource.metadata.Path,
+			Icon:        resource.metadata.Icon,
+			Group:       resource.metadata.Group,
+			Description: resource.metadata.Description,
+			Order:       resource.metadata.Order,
 		})
 	}
 	return &ResourceIndex{Resources: items}, nil

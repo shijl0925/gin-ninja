@@ -110,6 +110,10 @@ func (r *Resource) prepare() error {
 		Name:         r.Name,
 		Label:        r.Label,
 		Path:         r.Path,
+		Icon:         strings.TrimSpace(r.Icon),
+		Group:        strings.TrimSpace(r.Group),
+		Description:  strings.TrimSpace(r.Description),
+		Order:        r.Order,
 		Fields:       make([]FieldMeta, 0, len(r.fields)),
 		ListFields:   visibleFields(r.fields, fieldModeList),
 		DetailFields: visibleFields(r.fields, fieldModeDetail),
@@ -309,6 +313,18 @@ func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
 	if opts.Component != "" {
 		meta.Meta.Component = opts.Component
 		meta.componentExplicit = true
+	}
+	if opts.Placeholder != "" {
+		meta.Meta.Placeholder = opts.Placeholder
+	}
+	if opts.Help != "" {
+		meta.Meta.Help = opts.Help
+	}
+	if opts.Width != "" {
+		meta.Meta.Width = opts.Width
+	}
+	if opts.Format != "" {
+		meta.Meta.Format = opts.Format
 	}
 	if len(opts.Enum) > 0 {
 		meta.Meta.Enum = cloneSlice(opts.Enum)

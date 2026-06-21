@@ -111,6 +111,11 @@ admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 // 或自定义路径和标题：
 admin.MountUI(api.Engine(), admin.UIConfig{
     Title:         "My App Admin",
+    BrandName:     "My App",
+    LogoText:      "MA",
+    Locale:        "zh-CN",
+    DefaultTheme:  "system",
+    TokenStorage:  "session",
     APIBasePath:   "/api/v1/admin",
     AuthLoginPath: "/api/v1/auth/login",
     AdminPath:     "/admin",
@@ -123,6 +128,11 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
 | `Title` | `"Gin Ninja Admin"` | 浏览器标签标题 |
+| `BrandName` | `"Gin Ninja"` | Admin 页面品牌名 |
+| `LogoText` | `"G"` | 文本 Logo，最多显示 3 个字符 |
+| `Locale` | `"en"` | HTML 语言和本地化格式化提示 |
+| `DefaultTheme` | `"light"` | 默认主题，可选 `light` / `dark` / `system` |
+| `TokenStorage` | `"local"` | token 存储位置，可选 `local` / `session` |
 | `APIBasePath` | `"/api/v1/admin"` | Admin API 根路径（用于资源导航） |
 | `AuthLoginPath` | `"/api/v1/auth/login"` | 登录表单调用的接口路径 |
 | `AdminPath` | `"/admin"` | Admin 工作台页面路径 |
@@ -143,7 +153,7 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-该表达式是一段原始 JS 表达式，接收解析后的 `payload` 对象，返回 token 字符串（失败时返回假值）。同样，`UserNameExtractExpr` 和 `UserIDExtractExpr` 用于自定义展示名和用户 ID 的读取路径：
+该表达式会作为字符串配置传入内置的受限路径解析器，目前只支持 `payload.foo.bar` 这样的路径，以及用 `&&` / `||` 组合的兜底表达式；它不会被作为任意 JavaScript 代码执行。同样，`UserNameExtractExpr` 和 `UserIDExtractExpr` 用于自定义展示名和用户 ID 的读取路径：
 
 ```go
 admin.MountUI(router, admin.UIConfig{
@@ -154,7 +164,7 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-> **安全说明：** 这些表达式会被直接注入为 JavaScript 函数体，必须来自可信的开发者配置，绝不能接受用户输入。
+> **安全说明：** 这些表达式仍应只来自可信的开发者配置，绝不能接受用户输入；不符合受限路径语法的表达式会解析失败。
 
 ## 完整示例
 
