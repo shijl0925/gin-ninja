@@ -2617,6 +2617,7 @@
       visibleColumns: {},
       relationSearch: {},
       relationTimers: {},
+      listUpdatedAt: null,
       forms: {
         create: { dirty: false, initial: '', pending: false },
         update: { dirty: false, initial: '', pending: false }
@@ -3243,6 +3244,7 @@
       state.bulkSelected = {};
       state.savedViews = [];
       state.visibleColumns = {};
+      state.listUpdatedAt = null;
       updateColumnToggleLabel();
       state.relationSearch = {};
       state.relationTimers = {};
@@ -3991,6 +3993,7 @@
       state.relationSearch = {};
       state.resourceSearch = '';
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
+      state.listUpdatedAt = null;
       if (els.sidebarResourceSearch) {
         els.sidebarResourceSearch.value = '';
       }
@@ -5715,8 +5718,27 @@
       }
     }
 
+    function paginationSummaryText() {
+      const total = Number(state.pagination.total || 0);
+      const page = Math.max(1, Number(state.pagination.page || 1));
+      const size = Math.max(1, Number(state.pagination.size || 1));
+      const pages = Math.max(1, Number(state.pagination.pages || 1));
+      let text = 'Page ' + page + ' of ' + pages + ' · ';
+      if (!total) {
+        text += '0 records';
+      } else {
+        const start = ((page - 1) * size) + 1;
+        const end = Math.min(total, start + Math.max(0, state.records.length || size) - 1);
+        text += 'Showing ' + start + '-' + end + ' of ' + total;
+      }
+      if (state.listUpdatedAt) {
+        text += ' · Updated ' + formatRelativeTime(state.listUpdatedAt);
+      }
+      return text;
+    }
+
     function renderPagination() {
-      els.paginationInfo.textContent = 'Page ' + state.pagination.page + ' of ' + state.pagination.pages + ' · ' + state.pagination.total + ' record(s)';
+      els.paginationInfo.textContent = paginationSummaryText();
       els.prevPage.disabled = state.pagination.page <= 1;
       els.nextPage.disabled = state.pagination.page >= state.pagination.pages;
     }
@@ -5750,6 +5772,7 @@
         pages: data.pages || 1,
         total: data.total || 0
       };
+      state.listUpdatedAt = new Date();
       if (els.pageSize) els.pageSize.value = String(state.pagination.size);
       syncListURLState();
       saveCurrentListState();

@@ -219,6 +219,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function renderResourceActionSummary`,
 		`function formatFieldDisplay`,
 		`function formatRelativeTime`,
+		`function paginationSummaryText`,
+		`Updated `,
 		`function rewindPageIfCurrentPageEmptied`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
