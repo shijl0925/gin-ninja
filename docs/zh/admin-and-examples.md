@@ -102,6 +102,7 @@ api.AddRouter(adminRouter)
 | `GET` | `/search?q=关键词` | 跨当前可见且可搜索的资源执行聚合搜索 |
 | `GET` | `/resources/{path}/meta` | 获取资源字段元数据 |
 | `GET` | `/resources/{path}` | 分页列表（支持搜索 / 过滤 / 排序） |
+| `GET` | `/resources/{path}/export` | 按当前搜索 / 过滤 / 排序条件导出 CSV |
 | `GET` | `/resources/{path}/{id}` | 获取单条记录详情 |
 | `POST` | `/resources/{path}` | 创建记录 |
 | `PUT` | `/resources/{path}/{id}` | 更新记录 |
@@ -211,6 +212,7 @@ admin.MountUI(router, admin.UIConfig{
 - 由 `/api/v1/admin/search` 驱动的顶部全局聚合搜索
 - 按资源 `Group` / `Order` 分组排序的侧边栏导航
 - 支持搜索、元数据过滤、排序、分页大小和翻页的记录列表
+- 按当前搜索 / 过滤 / 排序条件导出 CSV
 - 表格密度切换与列显隐设置
 - 搜索、排序、分页与筛选会同步到 URL query，刷新或分享链接后可恢复当前列表状态
 - 筛选区支持折叠，并会记住折叠状态

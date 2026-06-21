@@ -3,6 +3,7 @@ package admin
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,8 @@ import (
 )
 
 type Action string
+
+const exportMaxRows = 10000
 
 const (
 	ActionList       Action = "list"
@@ -528,6 +531,9 @@ func (s *Site) Mount(router *ninja.Router) {
 		ninja.Get(router, base+"/fields/:field/options", resource.handleRelationOptions(s),
 			ninja.Summary("List admin relation selector options"),
 			ninja.Description("Returns paginated selector options for relation-backed admin fields."))
+		ninja.Get(router, base+"/export", resource.handleExport(s),
+			ninja.Summary("Export admin resource records"),
+			ninja.Description("Exports filtered admin records as CSV using visible list fields."))
 		ninja.Get(router, base+"/:id", resource.handleDetail(s),
 			ninja.Summary("Get admin resource record"),
 			ninja.Description("Returns one admin record by primary key."))
@@ -798,6 +804,124 @@ func (r *Resource) handleList(site *Site) func(*ninja.Context, *listInput) (*Res
 			Pages: page.Pages,
 		}, nil
 	}
+}
+
+func (r *Resource) handleExport(site *Site) func(*ninja.Context, *listInput) (*ninja.Download, error) {
+	return func(ctx *ninja.Context, in *listInput) (*ninja.Download, error) {
+		if err := site.authorize(ctx, ActionList, r); err != nil {
+			return nil, err
+		}
+		view := r.resolved(ctx)
+		fields := exportFields(view)
+		if len(fields) == 0 {
+			return nil, ninja.NewError(http.StatusBadRequest, "no list fields are available for export")
+		}
+
+		db := r.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context))
+		query, err := r.applyListQueryFor(view, db.Model(r.newModel()), ctx.Request.URL.Query(), in)
+		if err != nil {
+			return nil, err
+		}
+
+		itemsPtr := reflect.New(reflect.SliceOf(r.modelType))
+		if err := query.Limit(exportMaxRows).Find(itemsPtr.Interface()).Error; err != nil {
+			return nil, err
+		}
+
+		var buf bytes.Buffer
+		buf.WriteString("\ufeff")
+		writer := csv.NewWriter(&buf)
+		header := make([]string, 0, len(fields))
+		for _, field := range fields {
+			header = append(header, view.meta(field).Label)
+		}
+		if err := writer.Write(header); err != nil {
+			return nil, err
+		}
+		for i := 0; i < itemsPtr.Elem().Len(); i++ {
+			row := make([]string, 0, len(fields))
+			itemValue := itemsPtr.Elem().Index(i)
+			for _, field := range fields {
+				row = append(row, csvCellValue(field.value(itemValue)))
+			}
+			if err := writer.Write(row); err != nil {
+				return nil, err
+			}
+		}
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			return nil, err
+		}
+
+		filename := exportFilename(r.metadata.Name, time.Now())
+		return ninja.NewDownload(filename, "text/csv; charset=utf-8", buf.Bytes()), nil
+	}
+}
+
+func exportFields(view *resolvedResource) []*fieldMeta {
+	if view == nil {
+		return nil
+	}
+	fields := make([]*fieldMeta, 0, len(view.metadata.ListFields))
+	for _, name := range view.metadata.ListFields {
+		field := view.fieldByName[name]
+		if field != nil && view.allowed(field, fieldModeList) {
+			fields = append(fields, field)
+		}
+	}
+	return fields
+}
+
+func csvCellValue(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case time.Time:
+		if typed.IsZero() {
+			return ""
+		}
+		return typed.Format(time.RFC3339)
+	case fmt.Stringer:
+		return typed.String()
+	case []byte:
+		return string(typed)
+	}
+	if reflect.TypeOf(value).Kind() == reflect.Slice || reflect.TypeOf(value).Kind() == reflect.Map || reflect.TypeOf(value).Kind() == reflect.Struct {
+		data, err := json.Marshal(value)
+		if err == nil {
+			return string(data)
+		}
+	}
+	return fmt.Sprint(value)
+}
+
+func exportFilename(resourceName string, now time.Time) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(resourceName) {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+			lastDash = false
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_':
+			b.WriteRune(r)
+			lastDash = r == '-'
+		default:
+			if b.Len() > 0 && !lastDash {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	name := strings.Trim(b.String(), "-")
+	if name == "" {
+		name = "resource"
+	}
+	return name + "-" + now.Format("20060102-150405") + ".csv"
 }
 
 func (r *Resource) handleDetail(site *Site) func(*ninja.Context, *pathIDInput) (*ResourceRecordOutput, error) {

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -315,6 +316,21 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0]["name"] != "Bob" {
 		t.Fatalf("unexpected list payload: %+v", page)
+	}
+
+	exportResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/export?search=bob&sort=-name&is_admin=false", nil, map[string]string{"X-User-ID": "1"})
+	if exportResp.Code != http.StatusOK {
+		t.Fatalf("export status = %d body=%s", exportResp.Code, exportResp.Body.String())
+	}
+	if got := exportResp.Header().Get("Content-Disposition"); !strings.Contains(got, "attachment") || !strings.Contains(got, "users-") || !strings.Contains(got, ".csv") {
+		t.Fatalf("unexpected export disposition: %q", got)
+	}
+	records, err := csv.NewReader(strings.NewReader(exportResp.Body.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read export csv: %v", err)
+	}
+	if len(records) != 2 || strings.TrimPrefix(records[0][0], "\ufeff") != "Id" || records[0][1] != "Name" || records[1][1] != "Bob" {
+		t.Fatalf("unexpected export csv: %+v", records)
 	}
 
 	sortedByIDResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?sort=-id", nil, map[string]string{"X-User-ID": "1"})

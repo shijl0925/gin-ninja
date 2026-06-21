@@ -184,6 +184,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';`,
 		`/resources/stats`,
 		`/search?q=`,
+		`id="exportList"`,
+		`/export`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,

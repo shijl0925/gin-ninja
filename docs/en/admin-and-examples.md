@@ -102,6 +102,7 @@ This registers the following endpoints under `/api/v1/admin` (given `Prefix: "/a
 | `GET` | `/search?q=term` | Aggregated search across currently visible searchable resources |
 | `GET` | `/resources/{path}/meta` | Resource field metadata |
 | `GET` | `/resources/{path}` | Paginated record list (search / filter / sort) |
+| `GET` | `/resources/{path}/export` | CSV export for the current search / filter / sort query |
 | `GET` | `/resources/{path}/{id}` | Single record detail |
 | `POST` | `/resources/{path}` | Create record |
 | `PUT` | `/resources/{path}/{id}` | Update record |
@@ -212,6 +213,7 @@ It includes:
 - topbar global aggregate search backed by `/api/v1/admin/search`
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
+- CSV export for the current search / filter / sort query
 - table density switching and visible-column controls
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
 - collapsible filters with remembered collapsed state

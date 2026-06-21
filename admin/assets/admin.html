@@ -2287,6 +2287,7 @@
                     <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
                     <button id="clearFilters" class="secondary btn btn-default" type="button">Clear filters</button>
                     <button id="toggleFilters" class="secondary btn btn-default" type="button" aria-expanded="true" aria-controls="filtersForm">Hide filters</button>
+                    <button id="exportList" class="secondary btn btn-default" type="button">Export CSV</button>
                     <button id="bulkDelete" class="danger btn btn-danger" type="button">Bulk delete</button>
                   </div>
                 </div>
@@ -2547,6 +2548,7 @@
       reloadList: document.getElementById('reloadList'),
       clearFilters: document.getElementById('clearFilters'),
       toggleFilters: document.getElementById('toggleFilters'),
+      exportList: document.getElementById('exportList'),
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search'),
       listLoading: document.getElementById('listLoading'),
@@ -3070,6 +3072,10 @@
       state.visibleColumns = {};
       state.relationSearch = {};
       state.relationTimers = {};
+      state.forms = {
+        create: { dirty: false, initial: '', pending: false },
+        update: { dirty: false, initial: '', pending: false }
+      };
       state.pagination = { page: 1, size: Number(els.pageSize.value || 10), pages: 1, total: 0 };
        if (els.sidebarResourceSearch) {
          els.sidebarResourceSearch.value = '';
@@ -3870,6 +3876,9 @@
      function syncWorkspaceActionState() {
        const createEnabled = Boolean(state.current && hasAction('create'));
        els.openCreateModal.disabled = !createEnabled;
+       if (els.exportList) {
+         els.exportList.disabled = !state.current || !hasAction('list');
+       }
      }
 
     function columnVisibilityKey() {
@@ -4750,6 +4759,56 @@
       return '?' + params.toString();
     }
 
+    function downloadFilenameFromResponse(response, fallback) {
+      const disposition = response.headers.get('Content-Disposition') || '';
+      const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      if (encoded) {
+        try {
+          return decodeURIComponent(encoded[1].replace(/"/g, ''));
+        } catch (_) {
+          return fallback;
+        }
+      }
+      const plain = disposition.match(/filename="?([^";]+)"?/i);
+      return plain ? plain[1] : fallback;
+    }
+
+    async function exportCurrentList() {
+      if (!state.current || !hasAction('list') || !els.exportList) return;
+      const originalText = els.exportList.textContent;
+      els.exportList.disabled = true;
+      els.exportList.textContent = 'Exporting...';
+      try {
+        persistToken();
+        const response = await fetch(currentBasePath() + '/export' + buildListQuery(), { headers: requestHeaders() });
+        if (!response.ok) {
+          const text = await response.text();
+          let data = text;
+          try { data = text ? JSON.parse(text) : text; } catch (_) { data = text; }
+          throw new Error(extractErrorMessage(data) || response.statusText || ('Export failed with status ' + response.status + '.'));
+        }
+        const blob = await response.blob();
+        const filename = downloadFilenameFromResponse(response, (state.current.name || 'resource') + '.csv');
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        showToast('Exported ' + (state.current.label || state.current.name) + ' CSV.', 'success');
+        setStatus('Exported ' + (state.current.label || state.current.name) + ' CSV.');
+      } catch (error) {
+        const message = String(error.message || error);
+        showToast(message, 'danger');
+        setStatus(message);
+      } finally {
+        els.exportList.textContent = originalText;
+        syncWorkspaceActionState();
+      }
+    }
+
     function renderPagination() {
       els.paginationInfo.textContent = 'Page ' + state.pagination.page + ' of ' + state.pagination.pages + ' · ' + state.pagination.total + ' record(s)';
       els.prevPage.disabled = state.pagination.page <= 1;
@@ -5255,11 +5314,14 @@
          if (!els.openCreateModal.disabled) els.openCreateModal.click();
        }
      });
-     document.addEventListener('click', () => {
+    document.addEventListener('click', () => {
        closeActionMenuPortal();
        closeColumnMenu();
      });
     els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
+    if (els.exportList) {
+      els.exportList.onclick = () => exportCurrentList();
+    }
      els.clearFilters.onclick = () => {
        if (!state.current) return;
        cancelScheduledSearchReload();
