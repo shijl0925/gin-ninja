@@ -214,6 +214,7 @@ It includes:
 - sidebar navigation grouped and ordered by resource `Group` / `Order`
 - record listing with search, metadata-driven filters, sort, page size, and pagination
 - active list-state chips for the current search, sort, filters, and page size
+- per-resource list state remembered locally when switching between resources
 - CSV export for the current search / filter / sort query
 - table density switching and visible-column controls
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state

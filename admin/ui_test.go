@@ -190,6 +190,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`function copySelectedRecordJSON`,
 		`id="activeListState"`,
 		`function renderActiveListState`,
+		`const listStateStoragePrefix`,
+		`function applySavedListState`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,

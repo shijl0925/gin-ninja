@@ -2474,6 +2474,7 @@
     const tableDensityStorageKey = 'gin-ninja-admin-table-density';
     const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';
     const columnVisibilityStoragePrefix = 'gin-ninja-admin-columns:';
+    const listStateStoragePrefix = 'gin-ninja-admin-list-state:';
     const toastDefaultDurationMs = 4000;
     const globalSearchDebounceMs = 350;
     const stringLikeComponents = new Set(['text', 'textarea', 'email']);
@@ -4802,9 +4803,15 @@
       updateNavigationState('replace', 'resource', state.current.name, { includeListState: true });
     }
 
+    function hasListStateParams(params) {
+      if (!params) return false;
+      if (params.has('search') || params.has('sort') || params.has('page') || params.has('size')) return true;
+      return Array.from(params.keys()).some((key) => key.startsWith('f.'));
+    }
+
     function applyListStateFromURL(resourceName) {
       const params = new URLSearchParams(window.location.search || '');
-      if ((params.get('resource') || '') !== resourceName) return;
+      if ((params.get('resource') || '') !== resourceName || !hasListStateParams(params)) return false;
       els.search.value = params.get('search') || '';
       const sortValue = params.get('sort') || '';
       if (sortValue && Array.from(els.sort.options).some((option) => option.value === sortValue)) {
@@ -4822,6 +4829,71 @@
         if (!input) return;
         input.value = params.get('f.' + name) || '';
       });
+      return true;
+    }
+
+    function listStateStorageKey(resourceName) {
+      return listStateStoragePrefix + resourceName;
+    }
+
+    function collectCurrentListState() {
+      const filters = {};
+      (state.meta?.filter_fields || []).forEach((name) => {
+        const input = fieldValue(name);
+        if (!input) return;
+        const value = String(input.value || '').trim();
+        if (value !== '') {
+          filters[name] = value;
+        }
+      });
+      return {
+        search: els.search.value.trim(),
+        sort: els.sort.value || '',
+        page: state.pagination.page,
+        size: state.pagination.size,
+        filters
+      };
+    }
+
+    function saveCurrentListState() {
+      if (!state.current) return;
+      try {
+        localStorage.setItem(listStateStorageKey(state.current.name), JSON.stringify(collectCurrentListState()));
+      } catch (_) {
+        // ignore storage failures
+      }
+    }
+
+    function readSavedListState(resourceName) {
+      try {
+        return JSON.parse(localStorage.getItem(listStateStorageKey(resourceName)) || 'null');
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function applySavedListState(resourceName) {
+      const saved = readSavedListState(resourceName);
+      if (!saved || typeof saved !== 'object') return false;
+      els.search.value = String(saved.search || '');
+      const sortValue = String(saved.sort || '');
+      if (sortValue && Array.from(els.sort.options).some((option) => option.value === sortValue)) {
+        els.sort.value = sortValue;
+      }
+      const sizeValue = String(saved.size || '');
+      if (sizeValue && Array.from(els.pageSize.options).some((option) => option.value === sizeValue)) {
+        els.pageSize.value = sizeValue;
+        state.pagination.size = Number(sizeValue);
+      }
+      const pageValue = Number(saved.page || '1');
+      state.pagination.page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
+      const filters = saved.filters && typeof saved.filters === 'object' ? saved.filters : {};
+      (state.meta?.filter_fields || []).forEach((name) => {
+        const input = fieldValue(name);
+        if (!input) return;
+        input.value = filters[name] == null ? '' : String(filters[name]);
+      });
+      return true;
     }
 
     function buildListQuery() {
@@ -5036,6 +5108,7 @@
       };
       if (els.pageSize) els.pageSize.value = String(state.pagination.size);
       syncListURLState();
+      saveCurrentListState();
       renderPagination();
       renderActiveListState();
       if (!fields.length) {
@@ -5269,7 +5342,10 @@
         renderFilterControls();
         initializeColumnVisibility();
         if (options?.restoreQuery !== false) {
-          applyListStateFromURL(resource.name);
+          const restoredFromURL = applyListStateFromURL(resource.name);
+          if (!restoredFromURL) {
+            applySavedListState(resource.name);
+          }
         }
         await Promise.all([renderCreateForm(), renderUpdateForm(), renderList()]);
         renderSelectedRecord();
