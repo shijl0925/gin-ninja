@@ -1130,6 +1130,36 @@
     .table-toolbar, .pagination-bar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
     .table-toolbar .row-actions { flex:1 1 480px; }
     .table-toolbar input, .table-toolbar select { flex:1 1 180px; min-width:0; }
+    .active-list-state {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      padding:8px 0 2px;
+    }
+    .active-list-state[hidden] { display:none; }
+    .state-chip {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      min-height:30px;
+      padding:5px 10px;
+      border:1px solid var(--admin-border);
+      border-radius:999px;
+      background:#fff;
+      color:var(--admin-muted);
+      font-size:12px;
+      font-weight:600;
+      box-shadow:none;
+    }
+    button.state-chip {
+      cursor:pointer;
+      color:var(--admin-text);
+      border-color:rgba(99, 91, 255, 0.22);
+      background:rgba(99, 91, 255, 0.07);
+    }
+    button.state-chip:hover { background:rgba(99, 91, 255, 0.12); }
+    .state-chip-clear { color:var(--admin-muted); font-weight:800; }
     .table-view-tools { position:relative; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .table-view-tools select { flex:0 0 150px; }
     .column-menu {
@@ -1913,6 +1943,8 @@
     [data-theme="dark"] .resource-table tbody tr:nth-child(even) td { background:#1c2030; }
     [data-theme="dark"] .resource-table tbody tr:hover td { background:#273047; }
     [data-theme="dark"] .resource-table tbody tr.row-selected td { background:#25354b; }
+    [data-theme="dark"] .state-chip { background:#22253a; border-color:var(--admin-border); color:var(--admin-muted); }
+    [data-theme="dark"] button.state-chip { background:rgba(99, 91, 255, 0.16); border-color:rgba(129, 140, 248, 0.32); color:var(--admin-text); }
     [data-theme="dark"] .resource-table th.sortable-th:hover { background:#293246; color:#f8fafc; }
     [data-theme="dark"] .resource-table th.sortable-th.sort-asc,
     [data-theme="dark"] .resource-table th.sortable-th.sort-desc { background:#31415f; color:#9dc7ff; }
@@ -2313,6 +2345,7 @@
                   </div>
                   <div class="pagination-info" id="paginationInfo">Page 1 of 1</div>
                 </div>
+                <div id="activeListState" class="active-list-state" hidden></div>
                 <form id="filtersForm" class="filters"></form>
                 <div id="list"></div>
                 <div id="listLoading" class="list-loading" aria-live="polite" aria-label="Loading records">
@@ -2558,6 +2591,7 @@
       clearFilters: document.getElementById('clearFilters'),
       toggleFilters: document.getElementById('toggleFilters'),
       exportList: document.getElementById('exportList'),
+      activeListState: document.getElementById('activeListState'),
       bulkDelete: document.getElementById('bulkDelete'),
       search: document.getElementById('search'),
       listLoading: document.getElementById('listLoading'),
@@ -3102,6 +3136,10 @@
       els.sort.innerHTML = '';
       els.search.placeholder = 'Search current resource';
       els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
+      if (els.activeListState) {
+        els.activeListState.innerHTML = '';
+        els.activeListState.hidden = true;
+      }
        els.editHint.textContent = 'Sign in to open the change form.';
        renderPagination();
        syncBulkActionState();
@@ -4807,6 +4845,114 @@
       return '?' + params.toString();
     }
 
+    function reloadListFromStateChip(message) {
+      cancelScheduledSearchReload();
+      resetToFirstPage();
+      reloadListWithStatus(message, false).catch((error) => setStatus(String(error.message || error)));
+    }
+
+    function currentSortLabel() {
+      const option = els.sort ? els.sort.selectedOptions[0] : null;
+      return option ? option.textContent : els.sort.value;
+    }
+
+    function activeListEntries() {
+      if (!state.current) return [];
+      const entries = [];
+      const searchValue = els.search.value.trim();
+      if (searchValue) {
+        entries.push({
+          label: 'Search',
+          value: searchValue,
+          clearable: true,
+          clear: () => {
+            els.search.value = '';
+            reloadListFromStateChip('Cleared search.');
+          }
+        });
+      }
+      if (els.sort.value) {
+        entries.push({
+          label: 'Sort',
+          value: currentSortLabel(),
+          clearable: true,
+          clear: () => {
+            els.sort.value = '';
+            reloadListFromStateChip('Cleared sort.');
+          }
+        });
+      }
+      (state.meta?.filter_fields || []).forEach((name) => {
+        const input = fieldValue(name);
+        if (!input) return;
+        const value = String(input.value || '').trim();
+        if (!value) return;
+        entries.push({
+          label: fieldLabel(name),
+          value,
+          clearable: true,
+          clear: () => {
+            input.value = '';
+            reloadListFromStateChip('Cleared filter ' + fieldLabel(name) + '.');
+          }
+        });
+      });
+      const sizeOption = els.pageSize ? els.pageSize.selectedOptions[0] : null;
+      entries.push({
+        label: 'Page size',
+        value: sizeOption ? sizeOption.textContent : String(state.pagination.size),
+        clearable: false
+      });
+      return entries;
+    }
+
+    function createStateChip(entry) {
+      const chip = document.createElement(entry.clearable ? 'button' : 'span');
+      chip.className = 'state-chip';
+      if (entry.clearable) {
+        chip.type = 'button';
+        chip.setAttribute('aria-label', 'Clear ' + entry.label);
+        chip.onclick = entry.clear;
+      }
+      const text = document.createElement('span');
+      text.textContent = entry.label + ': ' + entry.value;
+      chip.appendChild(text);
+      if (entry.clearable) {
+        const clear = document.createElement('span');
+        clear.className = 'state-chip-clear';
+        clear.setAttribute('aria-hidden', 'true');
+        clear.textContent = '×';
+        chip.appendChild(clear);
+      }
+      return chip;
+    }
+
+    function renderActiveListState() {
+      if (!els.activeListState) return;
+      const entries = activeListEntries();
+      els.activeListState.innerHTML = '';
+      els.activeListState.hidden = !state.current || entries.length === 0;
+      if (els.activeListState.hidden) return;
+      const clearableEntries = entries.filter((entry) => entry.clearable);
+      entries.forEach((entry) => els.activeListState.appendChild(createStateChip(entry)));
+      if (clearableEntries.length > 1) {
+        const clearAll = document.createElement('button');
+        clearAll.type = 'button';
+        clearAll.className = 'state-chip';
+        clearAll.textContent = 'Clear all';
+        clearAll.onclick = () => {
+          els.search.value = '';
+          els.sort.value = '';
+          (state.meta?.filter_fields || []).forEach((name) => {
+            const input = fieldValue(name);
+            if (input) input.value = '';
+          });
+          reloadListFromStateChip('Cleared list state.');
+        };
+        els.activeListState.appendChild(clearAll);
+      }
+    }
+
     function downloadFilenameFromResponse(response, fallback) {
       const disposition = response.headers.get('Content-Disposition') || '';
       const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -4891,6 +5037,7 @@
       if (els.pageSize) els.pageSize.value = String(state.pagination.size);
       syncListURLState();
       renderPagination();
+      renderActiveListState();
       if (!fields.length) {
         els.list.innerHTML = '<div class="empty-state">No list fields are available for this resource.</div>';
         return;
@@ -5239,6 +5386,10 @@
       els.updateForm.innerHTML = '<p class="muted">Select a resource to edit records.</p>';
       els.editHint.textContent = 'Select a resource to open the change form.';
       els.list.innerHTML = '<div class="empty-state">Select a resource from the sidebar to load records.</div>';
+      if (els.activeListState) {
+        els.activeListState.innerHTML = '';
+        els.activeListState.hidden = true;
+      }
       renderPagination();
       syncBulkActionState();
       syncWorkspaceActionState();

@@ -188,6 +188,8 @@ func TestServeDefaultUI(t *testing.T) {
 		`/export`,
 		`id="copyRecordJSON"`,
 		`function copySelectedRecordJSON`,
+		`id="activeListState"`,
+		`function renderActiveListState`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,
