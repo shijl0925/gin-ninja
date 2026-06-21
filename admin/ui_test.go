@@ -196,6 +196,7 @@ func TestServeDefaultUI(t *testing.T) {
 		`function clearBulkSelection`,
 		`function renderListEmptyState`,
 		`empty-state-actions`,
+		`function openModalAndFocus`,
 		`function buildValidatedFormPayload`,
 		`data-form-status`,
 		`Unsaved changes`,

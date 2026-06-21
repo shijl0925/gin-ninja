@@ -216,6 +216,7 @@ It includes:
 - actionable empty states for clearing list state or creating the first record
 - active list-state chips for the current search, sort, filters, and page size
 - per-resource list state remembered locally when switching between resources
+- modal focus management for faster keyboard-first create, edit, and detail flows
 - CSV export for the current search / filter / sort query
 - table density switching and visible-column controls
 - search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state

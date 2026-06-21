@@ -3823,6 +3823,28 @@
         document.body.classList.add('modal-open');
       }
 
+     function focusFirstModalControl(modal) {
+       if (!modal) return;
+       window.requestAnimationFrame(() => {
+         const target = modal.querySelector('input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])');
+         if (target && typeof target.focus === 'function') {
+           target.focus();
+         }
+       });
+     }
+
+     function openModalAndFocus(modal, selector) {
+       openModal(modal);
+       window.requestAnimationFrame(() => {
+         const target = selector ? modal?.querySelector(selector) : null;
+         if (target && typeof target.focus === 'function') {
+           target.focus();
+           return;
+         }
+         focusFirstModalControl(modal);
+       });
+     }
+
      function anyModalOpen() {
        return [els.createModal, els.recordModal, els.editModal, els.confirmModal].some((modal) => modal && !modal.hidden);
      }
@@ -4707,7 +4729,7 @@
       if (!state.selected || !hasAction('update')) return;
       await renderUpdateForm();
       closeModal(els.recordModal);
-      openModal(els.editModal);
+      openModalAndFocus(els.editModal, 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
     }
 
     function syncBulkActionState() {
@@ -5194,7 +5216,7 @@
           actions.push({
             label: 'Create record',
             primary: true,
-            onClick: () => openModal(els.createModal)
+            onClick: () => openModalAndFocus(els.createModal, 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])')
           });
         }
         renderListEmptyState(
@@ -5335,11 +5357,11 @@
          highlightSelectedRow();
          syncWorkspaceActionState();
          if (options.openModal === 'record') {
-           openModal(els.recordModal);
+           openModalAndFocus(els.recordModal, '#openSelectedEdit:not([disabled]), #copyRecordJSON:not([disabled])');
          }
          if (options.openModal === 'edit') {
            closeModal(els.recordModal);
-           openModal(els.editModal);
+           openModalAndFocus(els.editModal, 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
          }
          setStatus('Loaded record #' + id + '.');
         } catch (error) {
@@ -5644,7 +5666,7 @@
     }
      els.openCreateModal.onclick = () => {
        if (els.openCreateModal.disabled) return;
-       openModal(els.createModal);
+       openModalAndFocus(els.createModal, 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
      };
      els.closeCreateModal.onclick = () => requestCloseModal(els.createModal);
      els.closeRecordModal.onclick = () => closeModal(els.recordModal);
