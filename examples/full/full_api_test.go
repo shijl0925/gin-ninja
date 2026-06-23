@@ -50,6 +50,23 @@ func TestFullExampleBuildsRoutesAndEndpoints(t *testing.T) {
 		t.Fatal("expected login token")
 	}
 
+	me := doFullJSON(t, client, http.MethodGet, "/api/v1/auth/me", nil, auth.Token)
+	if me.StatusCode != http.StatusOK {
+		t.Fatalf("expected auth me 200, got %d", me.StatusCode)
+	}
+	var profile struct {
+		UserID    uint   `json:"user_id"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := me.DecodeJSON(&profile); err != nil {
+		t.Fatalf("Decode auth me: %v", err)
+	}
+	if profile.UserID == 0 || profile.Name != "Alice" || profile.Email != "alice@example.com" || profile.ExpiresAt == "" {
+		t.Fatalf("unexpected auth profile: %+v", profile)
+	}
+
 	list := doFullJSON(t, client, http.MethodGet, "/api/v1/users/?sort=-age", nil, auth.Token)
 	if list.StatusCode != http.StatusOK {
 		t.Fatalf("expected list users 200, got %d", list.StatusCode)

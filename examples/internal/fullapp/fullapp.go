@@ -283,6 +283,16 @@ func addAuthRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 	)
 	ninja.Post(authRouter, "/login", app.LoginHandler(jwtCfg), ninja.Summary("Login and get JWT token"))
 	api.AddRouter(authRouter)
+
+	protectedAuthRouter := ninja.NewRouter(
+		"/auth",
+		ninja.WithTags("Auth"),
+		ninja.WithTagDescription("Auth", "Authentication endpoints for login and registration"),
+		ninja.WithBearerAuth(middleware.JWTAuthWithConfig(jwtCfg)),
+		ninja.WithVersion("v1"),
+	)
+	ninja.Get(protectedAuthRouter, "/me", app.CurrentUser, ninja.Summary("Get current user profile"))
+	api.AddRouter(protectedAuthRouter)
 }
 
 func addUsersV1Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {

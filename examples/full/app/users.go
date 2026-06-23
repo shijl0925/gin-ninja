@@ -65,6 +65,49 @@ func login(ctx *ninja.Context, in *LoginInput, cfg settings.JWTConfig) (*LoginOu
 	}, nil
 }
 
+// CurrentUser returns the authenticated user's profile and token metadata.
+func CurrentUser(ctx *ninja.Context, _ *CurrentUserInput) (*CurrentUserOutput, error) {
+	userID := ctx.GetUserID()
+	if userID == 0 {
+		return nil, ninja.UnauthorizedError()
+	}
+
+	db := userDB(ctx)
+	var user User
+	if err := db.Preload("Roles").First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ninja.NewError(401, "authenticated user no longer exists")
+		}
+		return nil, err
+	}
+
+	out := &CurrentUserOutput{
+		UserID:  user.ID,
+		Name:    user.Name,
+		Email:   user.Email,
+		IsAdmin: user.IsAdmin,
+		Roles:   make([]AuthRoleOut, 0, len(user.Roles)),
+	}
+	for _, role := range user.Roles {
+		out.Roles = append(out.Roles, AuthRoleOut{
+			ID:     role.ID,
+			Name:   role.Name,
+			Code:   role.Code,
+			Status: role.Status,
+		})
+	}
+	if claims := middleware.GetClaims(ctx.Context); claims != nil {
+		out.Issuer = claims.Issuer
+		if claims.ExpiresAt != nil {
+			out.ExpiresAt = claims.ExpiresAt.Time.Format(time.RFC3339)
+		}
+		if claims.IssuedAt != nil {
+			out.IssuedAt = claims.IssuedAt.Time.Format(time.RFC3339)
+		}
+	}
+	return out, nil
+}
+
 // Register creates a new user account without requiring authentication.
 func Register(ctx *ninja.Context, in *RegisterInput) (*User, error) {
 	db := userDB(ctx)

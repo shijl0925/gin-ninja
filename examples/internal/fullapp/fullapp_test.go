@@ -9,6 +9,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	ninja "github.com/shijl0925/gin-ninja"
+	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 	"github.com/shijl0925/gin-ninja/settings"
 	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"go.uber.org/zap"

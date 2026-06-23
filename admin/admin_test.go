@@ -2,6 +2,7 @@ package admin
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -169,6 +170,10 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	site.MustRegister(&Resource{
 		Name:         "users",
 		Path:         "/users",
+		Icon:         "users",
+		Group:        "Identity",
+		Description:  "Manage users in tests.",
+		Order:        10,
 		Model:        adminUser{},
 		ListFields:   []string{"id", "name", "email", "is_admin", "created_at"},
 		DetailFields: []string{"id", "name", "email", "age", "is_admin", "created_at", "updated_at"},
@@ -178,6 +183,7 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		SortFields:   []string{"id", "name", "email", "created_at"},
 		SearchFields: []string{"name", "email"},
 		FieldOptions: map[string]FieldOptions{
+			"name":     {Placeholder: "Full name", Help: "Shown in lists.", Width: "wide", Format: "title"},
 			"password": {Component: "password", Create: boolPtr(true), Update: boolPtr(true)},
 		},
 		BeforeCreate: func(ctx *ninja.Context, values map[string]any) error {
@@ -220,15 +226,24 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	if !containsName(meta.CreateFields, "password") {
 		t.Fatalf("expected password create field, got %+v", meta.CreateFields)
 	}
+	if meta.Icon != "users" || meta.Group != "Identity" || meta.Description != "Manage users in tests." || meta.Order != 10 {
+		t.Fatalf("unexpected resource UI metadata: %+v", meta)
+	}
 	var passwordField *FieldMeta
+	var nameField *FieldMeta
 	for i := range meta.Fields {
 		if meta.Fields[i].Name == "password" {
 			passwordField = &meta.Fields[i]
-			break
+		}
+		if meta.Fields[i].Name == "name" {
+			nameField = &meta.Fields[i]
 		}
 	}
 	if passwordField == nil || passwordField.Component != "password" || passwordField.List || passwordField.Detail {
 		t.Fatalf("unexpected password metadata: %+v", passwordField)
+	}
+	if nameField == nil || nameField.Placeholder != "Full name" || nameField.Help != "Shown in lists." || nameField.Width != "wide" || nameField.Format != "title" {
+		t.Fatalf("unexpected name field UI metadata: %+v", nameField)
 	}
 
 	createResp := performJSON(t, api, http.MethodPost, "/admin/resources/users", map[string]any{
@@ -264,6 +279,33 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 		t.Fatalf("password must not be returned: %+v", created.Item)
 	}
 
+	statsResp := performJSON(t, api, http.MethodGet, "/admin/resources/stats", nil, map[string]string{"X-User-ID": "1"})
+	if statsResp.Code != http.StatusOK {
+		t.Fatalf("stats status = %d body=%s", statsResp.Code, statsResp.Body.String())
+	}
+	var stats ResourceStatsOutput
+	if err := json.NewDecoder(statsResp.Body).Decode(&stats); err != nil {
+		t.Fatalf("decode stats: %v", err)
+	}
+	if stats.Total != 2 || len(stats.Resources) != 1 || stats.Resources[0].Name != "users" || stats.Resources[0].Total != 2 {
+		t.Fatalf("unexpected stats payload: %+v", stats)
+	}
+
+	searchResp := performJSON(t, api, http.MethodGet, "/admin/search?q=bob&size=3", nil, map[string]string{"X-User-ID": "1"})
+	if searchResp.Code != http.StatusOK {
+		t.Fatalf("search status = %d body=%s", searchResp.Code, searchResp.Body.String())
+	}
+	var search SearchOutput
+	if err := json.NewDecoder(searchResp.Body).Decode(&search); err != nil {
+		t.Fatalf("decode search: %v", err)
+	}
+	if search.Query != "bob" || search.Total != 1 || len(search.Results) != 1 || search.Results[0].Resource.Name != "users" || len(search.Results[0].Items) != 1 {
+		t.Fatalf("unexpected search payload: %+v", search)
+	}
+	if search.Results[0].Items[0].Label != "Bob" || search.Results[0].Items[0].Item["name"] != "Bob" {
+		t.Fatalf("unexpected search result item: %+v", search.Results[0].Items[0])
+	}
+
 	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?search=bob&sort=-name&is_admin=false", nil, map[string]string{"X-User-ID": "1"})
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
@@ -274,6 +316,42 @@ func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0]["name"] != "Bob" {
 		t.Fatalf("unexpected list payload: %+v", page)
+	}
+
+	exportResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/export?search=bob&sort=-name&is_admin=false", nil, map[string]string{"X-User-ID": "1"})
+	if exportResp.Code != http.StatusOK {
+		t.Fatalf("export status = %d body=%s", exportResp.Code, exportResp.Body.String())
+	}
+	if got := exportResp.Header().Get("Content-Disposition"); !strings.Contains(got, "attachment") || !strings.Contains(got, "users-") || !strings.Contains(got, ".csv") {
+		t.Fatalf("unexpected export disposition: %q", got)
+	}
+	records, err := csv.NewReader(strings.NewReader(exportResp.Body.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read export csv: %v", err)
+	}
+	if len(records) != 2 || strings.TrimPrefix(records[0][0], "\ufeff") != "Id" || records[0][1] != "Name" || records[1][1] != "Bob" {
+		t.Fatalf("unexpected export csv: %+v", records)
+	}
+
+	visibleFieldsExportResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/export?search=bob&fields=email,name", nil, map[string]string{"X-User-ID": "1"})
+	if visibleFieldsExportResp.Code != http.StatusOK {
+		t.Fatalf("visible fields export status = %d body=%s", visibleFieldsExportResp.Code, visibleFieldsExportResp.Body.String())
+	}
+	visibleFieldRecords, err := csv.NewReader(strings.NewReader(visibleFieldsExportResp.Body.String())).ReadAll()
+	if err != nil {
+		t.Fatalf("read visible fields export csv: %v", err)
+	}
+	if len(visibleFieldRecords) != 2 ||
+		strings.TrimPrefix(visibleFieldRecords[0][0], "\ufeff") != "Email" ||
+		visibleFieldRecords[0][1] != "Name" ||
+		visibleFieldRecords[1][0] != "bob@example.com" ||
+		visibleFieldRecords[1][1] != "Bob" {
+		t.Fatalf("unexpected visible fields export csv: %+v", visibleFieldRecords)
+	}
+
+	invalidFieldsExportResp := performJSON(t, api, http.MethodGet, "/admin/resources/users/export?fields=password", nil, map[string]string{"X-User-ID": "1"})
+	if invalidFieldsExportResp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid fields export status = %d body=%s", invalidFieldsExportResp.Code, invalidFieldsExportResp.Body.String())
 	}
 
 	sortedByIDResp := performJSON(t, api, http.MethodGet, "/admin/resources/users?sort=-id", nil, map[string]string{"X-User-ID": "1"})
