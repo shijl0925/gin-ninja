@@ -33,6 +33,12 @@ site.MustRegisterModel(&admin.ModelResource{
     // Model is the GORM model struct (value, not pointer).
     Model: User{},
 
+    // Optional: the built-in UI uses these hints for grouping, ordering, and copy.
+    Icon:        "users",
+    Group:       "Identity",
+    Description: "Manage back-office users, admin flags, and role relations.",
+    Order:       10,
+
     // Preloads lists GORM association names to Preload on every query.
     Preloads: []string{"Roles"},
 
@@ -48,6 +54,9 @@ site.MustRegisterModel(&admin.ModelResource{
     // Optional per-field display/component overrides.
     FieldOptions: map[string]admin.FieldOptions{
         "is_admin": {Label: "Admin?", Component: "switch"},
+        "age": {Format: "integer"},
+        "createdAt": {Format: "relative"},
+        "role_ids": {Help: "Search and select one or more roles.", Width: "full"},
     },
 
     // Optional permission hook called for every action on this resource.
@@ -70,6 +79,8 @@ site.MustRegisterModel(&admin.ModelResource{
 
 Relation fields pointing to another registered model are resolved automatically: the framework infers `value_field`, `label_field`, and `search_fields` from the target resource.
 
+Use `FieldOptions` when a field needs an explicit component, label, placeholder, help copy, width, or display format. The built-in UI currently understands display formats such as `title`, `uppercase`, `lowercase`, `mono`, `number`, `integer`, `percent`, `currency:USD`, `date`, `datetime`, and `relative`.
+
 ### 3. Mount the Admin API Routes
 
 `site.Mount` registers REST endpoints for every resource under the given `*ninja.Router`.  The router is a standard gin-ninja router, so you can attach JWT middleware or any other gin middleware to it.
@@ -91,8 +102,11 @@ This registers the following endpoints under `/api/v1/admin` (given `Prefix: "/a
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/resources` | List all registered resources |
+| `GET` | `/resources/stats` | Count summary for currently visible resources |
+| `GET` | `/search?q=term` | Aggregated search across currently visible searchable resources |
 | `GET` | `/resources/{path}/meta` | Resource field metadata |
 | `GET` | `/resources/{path}` | Paginated record list (search / filter / sort) |
+| `GET` | `/resources/{path}/export` | CSV export for the current search / filter / sort query; optional `fields=id,name` limits exported list fields |
 | `GET` | `/resources/{path}/{id}` | Single record detail |
 | `POST` | `/resources/{path}` | Create record |
 | `PUT` | `/resources/{path}/{id}` | Update record |
@@ -111,6 +125,11 @@ admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 // Or customise paths and title:
 admin.MountUI(api.Engine(), admin.UIConfig{
     Title:         "My App Admin",
+    BrandName:     "My App",
+    LogoText:      "MA",
+    Locale:        "en",
+    DefaultTheme:  "system",
+    TokenStorage:  "session",
     APIBasePath:   "/api/v1/admin",
     AuthLoginPath: "/api/v1/auth/login",
     AdminPath:     "/admin",
@@ -123,6 +142,11 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | Field | Default | Description |
 |-------|---------|-------------|
 | `Title` | `"Gin Ninja Admin"` | Browser tab title |
+| `BrandName` | `"Gin Ninja"` | Brand name shown in the admin shell |
+| `LogoText` | `"G"` | Text logo, capped to 3 characters |
+| `Locale` | `"en"` | HTML language and localised formatting hint |
+| `DefaultTheme` | `"light"` | Initial theme: `light`, `dark`, or `system` |
+| `TokenStorage` | `"local"` | Token and session identity storage policy: `local` or `session` |
 | `APIBasePath` | `"/api/v1/admin"` | Admin API root path (for resource navigation) |
 | `AuthLoginPath` | `"/api/v1/auth/login"` | Login endpoint called by the sign-in form |
 | `AdminPath` | `"/admin"` | Admin workspace page path |
@@ -143,7 +167,7 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-The expression is a raw JavaScript expression that receives the parsed `payload` object and should return the token string (or a falsy value on failure).  Similarly, `UserNameExtractExpr` and `UserIDExtractExpr` customise where the display name and user ID are read from:
+The expression is passed as string data to a restricted path extractor.  It currently supports `payload.foo.bar` paths plus `&&` / `||` fallback combinations; it is not executed as arbitrary JavaScript.  Similarly, `UserNameExtractExpr` and `UserIDExtractExpr` customise where the display name and user ID are read from:
 
 ```go
 admin.MountUI(router, admin.UIConfig{
@@ -154,7 +178,9 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-> **Security note:** the expressions are injected verbatim as JavaScript function bodies.  They must come from trusted, developer-controlled configuration — never from user-supplied input.
+When a login response includes a display name or user ID, the admin shell stores that session identity with the token so refreshed pages keep the same sidebar and topbar user label. Manual token changes clear the saved identity to avoid showing stale user information.
+
+> **Security note:** these expressions should still come only from trusted, developer-controlled configuration — never from user-supplied input. Expressions outside the restricted path syntax fail to resolve.
 
 ---
 
@@ -189,8 +215,28 @@ It includes:
 - a standalone login page at `/admin/login`
 - a standalone admin workspace at `/admin`
 - resource navigation backed by `/api/v1/admin/resources`
-- record listing with search, metadata-driven filters, sort, page size, and pagination
+- dashboard resource counts loaded in one request from `/api/v1/admin/resources/stats`
+- topbar global aggregate search backed by `/api/v1/admin/search`, with keyboard result navigation
+- sidebar navigation grouped and ordered by resource `Group` / `Order`
+- resource-level action chips that show the currently allowed list / detail / write operations
+- record listing with search, metadata-driven filters, sort, page size, pagination ranges, and refresh recency
+- actionable empty states for clearing list state or creating the first record
+- active list-state chips for the current search, sort, filters, and page size
+- per-resource list state remembered locally when switching between resources
+- per-resource saved views for reusing named search / filter / sort states
+- modal focus management for faster keyboard-first create, edit, and detail flows
+- copyable current-view links for sharing or bookmarking list state
+- CSV export for the current search / filter / sort query and currently visible table columns
+- delete and bulk-delete reloads step back from emptied pages automatically
+- table density switching and visible-column controls with visible counts, show-all, and reset actions
+- search, sort, pagination, and filters sync to the URL query so refreshes and shared links restore the list state
+- collapsible filters with remembered collapsed state and active filter counts
 - detail, create, update, delete, and bulk delete flows
+- detail modal quick actions for editing the selected record, copying field values from the value area, and copying its JSON payload
+- create / update forms with inline validation, pending submit states, and unsaved-change guards
+- failed form submissions focus the first highlighted field
+- bulk selection summary with one-click ID copying and selection clearing
+- clickable, keyboard-openable table rows for faster record inspection
 - relation-backed field selectors with option search previews
 - a more compact “Admin Workspace” header for a denser back-office layout
 

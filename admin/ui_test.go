@@ -17,6 +17,7 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 		Title:         `Admin <Console>`,
 		APIBasePath:   "/custom/api/admin",
 		AuthLoginPath: "/custom/api/auth/login",
+		AuthMePath:    "/custom/api/auth/me",
 		AdminPath:     "/console",
 		LoginPath:     "/console/login",
 	})
@@ -32,6 +33,7 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 		for _, snippet := range []string{
 			"<title>Admin &lt;Console&gt;</title>",
 			`const apiBase = "/custom/api/admin";`,
+			`const authMePath = "/custom/api/auth/me";`,
 			`const adminPagePath = "/console";`,
 			`const adminLoginPath = "/console/login";`,
 			`await request("/custom/api/auth/login", {`,
@@ -71,6 +73,66 @@ func TestMountUICustomTokenExtract(t *testing.T) {
 		`const loginTokenExtractExpr = "payload.data \u0026\u0026 payload.data.accessToken";`,
 		`const loginNameExtractExpr = "payload.data \u0026\u0026 payload.data.userName";`,
 		`const loginUserIDExtractExpr = "payload.data \u0026\u0026 payload.data.id";`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("GET /admin missing %q", snippet)
+		}
+	}
+}
+
+func TestRenderUIHTMLAssemblesSplitAssets(t *testing.T) {
+	body := renderUIHTML(DefaultUIConfig())
+	for _, snippet := range []string{
+		`<style>`,
+		`:root {`,
+		`<script>`,
+		`const apiBase = "/api/v1/admin";`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("rendered UI missing assembled asset snippet %q", snippet)
+		}
+	}
+	for _, placeholder := range []string{
+		"__GIN_NINJA_ADMIN_INLINE_CSS__",
+		"__GIN_NINJA_ADMIN_INLINE_JS__",
+	} {
+		if strings.Contains(body, placeholder) {
+			t.Fatalf("rendered UI still contains asset placeholder %q", placeholder)
+		}
+	}
+}
+
+func TestMountUIUsesBrandThemeAndStorageOptions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	MountUI(router, UIConfig{
+		Title:        "Ops Desk",
+		BrandName:    "Acme Ops",
+		LogoText:     "ACME",
+		Locale:       "zh-CN",
+		DefaultTheme: "system",
+		TokenStorage: "session",
+		AdminPath:    "/admin",
+		LoginPath:    "/admin/login",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /admin status = %d", w.Code)
+	}
+	body := w.Body.String()
+	for _, snippet := range []string{
+		`<html lang="zh-CN">`,
+		`const adminTitle = "Ops Desk";`,
+		`const adminBrandName = "Acme Ops";`,
+		`const adminLogoText = "ACM";`,
+		`const adminLocale = "zh-CN";`,
+		`const adminDefaultTheme = "system";`,
+		`const tokenStorageDriver = "session";`,
+		`<strong>Acme Ops</strong>`,
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("GET /admin missing %q", snippet)
@@ -135,7 +197,67 @@ func TestServeDefaultUI(t *testing.T) {
 	if got := w.Header().Get("Content-Type"); !strings.Contains(got, "text/html") {
 		t.Fatalf("Content-Type = %q, want text/html", got)
 	}
-	if body := w.Body.String(); !strings.Contains(body, "Gin Ninja Admin") || !strings.Contains(body, `const apiBase = "/api/v1/admin";`) {
-		t.Fatalf("default UI body missing expected content: %s", body)
+	body := w.Body.String()
+	for _, snippet := range []string{
+		"Gin Ninja Admin",
+		`const apiBase = "/api/v1/admin";`,
+		`id="tableDensity"`,
+		`id="columnToggle"`,
+		`id="columnMenu"`,
+		`function updateColumnToggleLabel`,
+		`function clearSavedColumnVisibility`,
+		`column-menu-actions`,
+		`const authIdentityStorageKey = 'gin-ninja-admin-auth-identity';`,
+		`function persistAuthIdentity`,
+		`function restoreAuthIdentity`,
+		`id="toggleFilters"`,
+		`const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';`,
+		`function activeFilterCount`,
+		`function updateFilterToggleLabel`,
+		`/resources/stats`,
+		`/search?q=`,
+		`function moveGlobalSearchSelection`,
+		`function openActiveGlobalSearchResult`,
+		`id="exportList"`,
+		`/export`,
+		`function buildExportQuery`,
+		`id="copyRecordJSON"`,
+		`function copySelectedRecordJSON`,
+		`detail-value copyable`,
+		`function copyDetailFieldValue`,
+		`id="activeListState"`,
+		`function renderActiveListState`,
+		`const listStateStoragePrefix`,
+		`function applySavedListState`,
+		`id="savedViewSelect"`,
+		`const savedViewsStoragePrefix`,
+		`function saveCurrentViewPreset`,
+		`function applySavedViewByID`,
+		`id="clearSelection"`,
+		`id="copySelectedIDs"`,
+		`function copyBulkSelectedIDs`,
+		`function clearBulkSelection`,
+		`function renderListEmptyState`,
+		`empty-state-actions`,
+		`function openModalAndFocus`,
+		`function focusFirstFormError`,
+		`function isInteractiveTableTarget`,
+		`role', 'button'`,
+		`id="copyViewLink"`,
+		`function copyCurrentViewLink`,
+		`id="resourceActionSummary"`,
+		`function renderResourceActionSummary`,
+		`function formatFieldDisplay`,
+		`function formatRelativeTime`,
+		`function paginationSummaryText`,
+		`Updated `,
+		`function rewindPageIfCurrentPageEmptied`,
+		`function buildValidatedFormPayload`,
+		`data-form-status`,
+		`Unsaved changes`,
+	} {
+		if !strings.Contains(body, snippet) {
+			t.Fatalf("default UI body missing %q: %s", snippet, body)
+		}
 	}
 }

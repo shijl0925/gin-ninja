@@ -32,6 +32,29 @@ type LoginOutput struct {
 	Name    string `json:"name"`
 }
 
+// CurrentUserInput is intentionally empty for GET /auth/me.
+type CurrentUserInput struct{}
+
+// AuthRoleOut is a compact role summary returned with the current user.
+type AuthRoleOut struct {
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Code   string `json:"code"`
+	Status int    `json:"status"`
+}
+
+// CurrentUserOutput is the response body for GET /auth/me.
+type CurrentUserOutput struct {
+	UserID    uint          `json:"user_id"`
+	Name      string        `json:"name"`
+	Email     string        `json:"email"`
+	IsAdmin   bool          `json:"is_admin"`
+	Roles     []AuthRoleOut `json:"roles,omitempty"`
+	Issuer    string        `json:"issuer,omitempty"`
+	ExpiresAt string        `json:"expires_at,omitempty"`
+	IssuedAt  string        `json:"issued_at,omitempty"`
+}
+
 // ---------------------------------------------------------------------------
 // User schemas
 // ---------------------------------------------------------------------------

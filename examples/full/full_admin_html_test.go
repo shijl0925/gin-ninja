@@ -38,6 +38,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		for _, marker := range []string{
 			`id="loginForm"`,
 			`id="resources"`,
+			`id="tableDensity"`,
+			`id="columnToggle"`,
+			`id="columnMenu"`,
+			`id="toggleFilters"`,
 			`id="openCreateModal"`,
 			`id="createModal"`,
 			`id="toastContainer"`,
