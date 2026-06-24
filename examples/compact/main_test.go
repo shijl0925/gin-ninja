@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/examples/full/app"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/settings"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -37,26 +37,21 @@ func TestBuildCompactAPI(t *testing.T) {
 		},
 	}
 	api := buildAPI(cfg, db, zap.NewNop())
+	client := ninjatest.NewWithT(t, api)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rec := httptest.NewRecorder()
-	api.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /health status = %d", rec.Code)
+	rec := client.Get("/health")
+	if rec.StatusCode != http.StatusOK {
+		t.Fatalf("GET /health status = %d", rec.StatusCode)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/docs", nil)
-	rec = httptest.NewRecorder()
-	api.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /docs status = %d", rec.Code)
+	rec = client.Get("/docs")
+	if rec.StatusCode != http.StatusOK {
+		t.Fatalf("GET /docs status = %d", rec.StatusCode)
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/examples/features", nil)
-	rec = httptest.NewRecorder()
-	api.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /api/v1/examples/features status = %d", rec.Code)
+	rec = client.Get("/api/v1/examples/features")
+	if rec.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/v1/examples/features status = %d", rec.StatusCode)
 	}
 }
 

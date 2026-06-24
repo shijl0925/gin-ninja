@@ -276,7 +276,11 @@ func addAuthRoutes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 		ninja.WithTagDescription("Auth", "Authentication endpoints for login and registration"),
 		ninja.WithVersion("v1"),
 	)
-	ninja.Post(authRouter, "/register", app.Register, ninja.Summary("Register a new user"), ninja.WithTransaction())
+	ninja.Post(authRouter, "/register", app.Register,
+		ninja.Summary("Register a new user"),
+		ninja.ResponseModel[app.UserOut](),
+		ninja.WithTransaction(),
+	)
 	ninja.Post(authRouter, "/login", app.LoginHandler(jwtCfg), ninja.Summary("Login and get JWT token"))
 	api.AddRouter(authRouter)
 
@@ -308,12 +312,16 @@ func addUsersV1Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig) {
 		ninja.RateLimit(20, 40),
 	)
 	ninja.Get(usersRouter, "/:id", app.GetUser,
-		ninja.Summary("Get user"))
+		ninja.Summary("Get user"),
+		ninja.ResponseModel[app.UserOut](),
+	)
 	ninja.Post(usersRouter, "/", app.CreateUser,
 		ninja.Summary("Create user"),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction())
 	ninja.Put(usersRouter, "/:id", app.UpdateUser,
 		ninja.Summary("Update user"),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction())
 	ninja.Delete(usersRouter, "/:id", app.DeleteUser,
 		ninja.Summary("Delete user"),
@@ -343,6 +351,7 @@ func addUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cacheStore
 	ninja.Get(usersV2Router, "/:id", app.GetUserV2,
 		ninja.Summary("Get user (cached CRUD demo)"),
 		ninja.Description("Demonstrates detail response caching with a stable cache key and explicit invalidation after update or delete."),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(cacheStore),
 			ninja.CacheWithKey(app.UsersV2DetailCacheKey),
@@ -352,11 +361,13 @@ func addUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cacheStore
 	ninja.Post(usersV2Router, "/", app.CreateUserV2,
 		ninja.Summary("Create user (invalidates cached lists)"),
 		ninja.Description("Creates a user and invalidates cached list queries so subsequent reads observe the new record."),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction(),
 	)
 	ninja.Put(usersV2Router, "/:id", app.UpdateUserV2,
 		ninja.Summary("Update user (invalidates cached detail + lists)"),
 		ninja.Description("Updates a user, deletes the cached detail entry, and invalidates cached list queries."),
+		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction(),
 	)
 	ninja.Delete(usersV2Router, "/:id", app.DeleteUserV2,

@@ -16,19 +16,111 @@ type UserOut struct {
     ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
 }
 
-func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
-    return ninja.BindModelSchema[UserOut](User{
+func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
+    return &User{
         ID:       1,
         Name:     "alice",
         Email:    "alice@example.com",
         Password: "secret",
-    })
+    }, nil
+}
+
+ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserOut]())
+```
+
+`ResponseModel[UserOut]()` 会在运行时把处理器返回的 `User` 绑定到 `UserOut`，再执行响应校验和字段裁剪。`fields:"..."` 只保留列出的可序列化字段，`exclude:"..."` 会从 JSON 响应和生成的 OpenAPI schema 中移除敏感字段。
+
+如果你更喜欢复用描述符而不是定义单独的 `UserOut` 结构体，可以使用 `ResponseSchema`：
+
+```go
+userSchema := ninja.ModelReadSchemaOf[User]().
+    Fields("id", "name", "email").
+    ComponentName("UserOut")
+
+func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
+    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
+}
+
+ninja.Get(router, "/users/:id", getUser, ninja.ResponseSchema(userSchema))
+```
+
+`ResponseSchema(...)` 同样会在运行时裁剪字段，并让 OpenAPI 使用同一份 schema。对于切片、`pagination.Page[T]` 和 `pagination.CursorPage[T]`，可以分别使用 `ResponseModel[[]UserOut]()`、`Paginated[UserOut]()` / `PaginatedSchema(...)`、`CursorPaginated[UserOut]()` / `CursorPaginatedSchema(...)`，分页响应的 `items` 也会逐项绑定和校验。
+
+如果只需要临时过滤而不想定义响应类型或路由级 schema，可以使用 `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`。如果需要显式得到一个 schema 值，也可以继续使用 `ninja.BindModelSchema[UserOut](model)` 或 `ninja.BindModelSchemas[UserOut](models)`。
+
+### 关系深度与 GORM preload
+
+`Depth(n)` 会把嵌套 model 按同一模式继续裁剪，适合 detail 响应：
+
+```go
+type UserDetailOut struct {
+    ninja.ModelSchema[User] `mode:"read" depth:"1"`
+}
+
+func getUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
+    db := orm.ApplyResponseModelPreloads[UserDetailOut](orm.WithContext(ctx.Context))
+
+    var user User
+    if err := db.First(&user, in.ID).Error; err != nil {
+        return nil, err
+    }
+    return &user, nil
+}
+
+ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
+```
+
+如果使用描述符风格，可以用 `descriptor.Preloads()` 查看 preload 路径，或者用 `orm.ApplyModelSchemaPreloads(db, descriptor)` 直接应用到 GORM 查询。
+
+### 输入绑定到 model
+
+请求输入仍然由普通 struct 和 `binding:"..."` 标签负责。对于已经绑定好的 create/update input，可以复用 ModelSchema 的字段规则把它应用到 GORM model，减少重复赋值代码：
+
+```go
+type CreateUserInput struct {
+    Name     string `json:"name" binding:"required"`
+    Email    string `json:"email" binding:"required,email"`
+    Password string `json:"password" binding:"required,min=8"`
+}
+
+func createUser(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
+    user, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)
+    if err != nil {
+        return nil, err
+    }
+    if err := orm.WithContext(ctx.Context).Create(user).Error; err != nil {
+        return nil, err
+    }
+    return user, nil
 }
 ```
 
-`fields:"..."` 只保留列出的可序列化字段，`exclude:"..."` 会从 JSON 响应和生成的 OpenAPI schema 中移除敏感字段。
+对于 PATCH 风格的部分更新，使用指针字段表示“未提供”，然后把输入应用到已有 model：
 
-如果只需要临时过滤而不想定义新的响应类型，可以使用 `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`。
+```go
+type UpdateUserInput struct {
+    ID    uint    `path:"id" json:"-"`
+    Name  *string `json:"name"`
+    Email *string `json:"email" binding:"omitempty,email"`
+}
+
+func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
+    var user User
+    db := orm.WithContext(ctx.Context)
+    if err := db.First(&user, in.ID).Error; err != nil {
+        return nil, err
+    }
+    if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&user, in); err != nil {
+        return nil, err
+    }
+    if err := db.Save(&user).Error; err != nil {
+        return nil, err
+    }
+    return &user, nil
+}
+```
+
+`BindInput` / `ApplyInput` 会复用 `fields`、`exclude`、`mode`、GORM tag，以及 `ninja:"create_only"` / `ninja:"update_only"` / `ninja:"write_only"` 等字段规则；update 输入中的 nil 指针字段会被跳过。
 
 ---
 
@@ -101,7 +193,7 @@ type ListUsersInput struct {
 在处理器中应用声明的过滤条件：
 
 ```go
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
     query, _ := gormx.NewQuery[User]()
 
     filterOpts, err := filter.BuildOptions(in)
@@ -116,6 +208,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
+
+ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
 ```
 
 行为说明：
@@ -146,7 +240,7 @@ type ListUsersInput struct {
     Search string `query:"search" filter:"name|email,like"`
 }
 
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
     query, _ := gormx.NewQuery[User]()
 
     if err := order.ApplyOrder(query, in); err != nil {
@@ -159,6 +253,8 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
+
+ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
 ```
 
 ### 游标分页
@@ -170,7 +266,7 @@ type ListEventsInput struct {
     pagination.CursorPagination
 }
 
-func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[EventOut], error) {
+func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[Event], error) {
     items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
     if err != nil {
         return nil, err
@@ -179,7 +275,7 @@ func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage
 }
 ```
 
-使用 `ninja.CursorPaginated[EventOut]()` 声明响应信封文档。
+使用 `ninja.CursorPaginated[EventOut]()` 声明响应信封文档和运行时 item schema。
 
 对于简单的 GORM 单列 keyset 分页，可以使用 `orm.SelectCursorPage`：
 

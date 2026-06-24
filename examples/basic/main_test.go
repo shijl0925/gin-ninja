@@ -1,89 +1,55 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 )
 
-func newBasicTestAPI(t *testing.T) *httptest.Server {
+func newBasicTestAPI(t *testing.T) *ninjatest.TestClient {
 	t.Helper()
 
 	db, err := initDB("file:" + t.Name() + "?mode=memory&cache=shared")
 	if err != nil {
 		t.Fatalf("initDB: %v", err)
 	}
-	return httptest.NewServer(buildAPI(db).Handler())
+	return ninjatest.NewWithT(t, buildAPI(db))
 }
 
-func doBasicJSON(t *testing.T, server *httptest.Server, method, path string, body any) *http.Response {
+func doBasicJSON(t *testing.T, client *ninjatest.TestClient, method, path string, body any) *ninjatest.Response {
 	t.Helper()
 
-	var reader *bytes.Reader
-	if body == nil {
-		reader = bytes.NewReader(nil)
-	} else {
-		payload, err := json.Marshal(body)
-		if err != nil {
-			t.Fatalf("marshal body: %v", err)
-		}
-		reader = bytes.NewReader(payload)
-	}
-	req, err := http.NewRequest(method, server.URL+path, reader)
-	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("Do: %v", err)
-	}
-	return resp
+	return client.Request(method, path, body)
 }
 
-func decodeBasicBody(t *testing.T, resp *http.Response, out any) {
+func decodeBasicBody(t *testing.T, resp *ninjatest.Response, out any) {
 	t.Helper()
-	defer resp.Body.Close()
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := resp.DecodeJSON(out); err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
 }
 
 func TestBasicExampleRoutesAndCRUD(t *testing.T) {
-	server := newBasicTestAPI(t)
-	defer server.Close()
+	client := newBasicTestAPI(t)
 
-	resp, err := http.Get(server.URL + "/docs")
-	if err != nil {
-		t.Fatalf("GET /docs: %v", err)
-	}
+	resp := client.Get("/docs")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected docs 200, got %d", resp.StatusCode)
 	}
-	resp.Body.Close()
 
-	resp, err = http.Get(server.URL + "/openapi.json")
-	if err != nil {
-		t.Fatalf("GET /openapi.json: %v", err)
-	}
+	resp = client.Get("/openapi.json")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected openapi 200, got %d", resp.StatusCode)
 	}
-	resp.Body.Close()
 
-	resp, err = http.Get(server.URL + "/health")
-	if err != nil {
-		t.Fatalf("GET /health: %v", err)
-	}
+	resp = client.Get("/health")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected health 200, got %d", resp.StatusCode)
 	}
-	resp.Body.Close()
 
-	create := doBasicJSON(t, server, http.MethodPost, "/api/v1/users/", CreateUserInput{
+	create := doBasicJSON(t, client, http.MethodPost, "/api/v1/users/", CreateUserInput{
 		Name:  "Alice",
 		Email: "alice@example.com",
 		Age:   18,
@@ -91,16 +57,13 @@ func TestBasicExampleRoutesAndCRUD(t *testing.T) {
 	if create.StatusCode != http.StatusCreated {
 		t.Fatalf("expected create 201, got %d", create.StatusCode)
 	}
-	var created UserOut
+	var created map[string]any
 	decodeBasicBody(t, create, &created)
-	if created.ID == 0 || created.Name != "Alice" {
+	if created["id"] == nil || created["name"] != "Alice" {
 		t.Fatalf("unexpected created user: %+v", created)
 	}
 
-	list, err := http.Get(server.URL + "/api/v1/users/?search=Ali")
-	if err != nil {
-		t.Fatalf("GET list: %v", err)
-	}
+	list := client.Get("/api/v1/users/?search=Ali")
 	if list.StatusCode != http.StatusOK {
 		t.Fatalf("expected list 200, got %d", list.StatusCode)
 	}
@@ -110,16 +73,13 @@ func TestBasicExampleRoutesAndCRUD(t *testing.T) {
 		t.Fatalf("unexpected list page: %+v", page)
 	}
 
-	get, err := http.Get(server.URL + "/api/v1/users/1")
-	if err != nil {
-		t.Fatalf("GET user: %v", err)
-	}
+	get := client.Get("/api/v1/users/1")
 	if get.StatusCode != http.StatusOK {
 		t.Fatalf("expected get 200, got %d", get.StatusCode)
 	}
-	var got UserOut
+	var got map[string]any
 	decodeBasicBody(t, get, &got)
-	if got.Email != "alice@example.com" {
+	if got["email"] != "alice@example.com" {
 		t.Fatalf("unexpected fetched user: %+v", got)
 	}
 
@@ -136,17 +96,12 @@ func TestBasicExampleRoutesAndCRUD(t *testing.T) {
 		t.Fatalf("unexpected updated user: %+v", updatedDirect)
 	}
 
-	deleteResp := doBasicJSON(t, server, http.MethodDelete, "/api/v1/users/1", nil)
-	deleteResp.Body.Close()
+	deleteResp := doBasicJSON(t, client, http.MethodDelete, "/api/v1/users/1", nil)
 	if deleteResp.StatusCode != http.StatusNoContent {
 		t.Fatalf("expected delete 204, got %d", deleteResp.StatusCode)
 	}
 
-	missing, err := http.Get(server.URL + "/api/v1/users/1")
-	if err != nil {
-		t.Fatalf("GET missing user: %v", err)
-	}
-	defer missing.Body.Close()
+	missing := client.Get("/api/v1/users/1")
 	if missing.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected missing user 404, got %d", missing.StatusCode)
 	}

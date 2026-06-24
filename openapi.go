@@ -268,16 +268,28 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 		} else {
 			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
 		}
+	} else if op.spec.paginatedResponseSchema != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: paginatedSchema(s.registry.schemaForDescriptor(*op.spec.paginatedResponseSchema))},
+		}
 	} else if op.spec.paginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
 			"application/json": {Schema: paginatedSchema(s.registry.schemaForType(op.spec.paginatedItemType))},
+		}
+	} else if op.spec.cursorPaginatedResponseSchema != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForDescriptor(*op.spec.cursorPaginatedResponseSchema))},
 		}
 	} else if op.spec.cursorPaginatedItemType != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
 			"application/json": {Schema: cursorPaginatedSchema(s.registry.schemaForType(op.spec.cursorPaginatedItemType))},
 		}
-	} else if op.route.outputType != nil {
-		contentType, schema := s.responseSchemaForType(op.route.outputType)
+	} else if op.spec.responseSchema != nil {
+		successResponse.Content = map[string]mediaTypeSpec{
+			"application/json": {Schema: s.responseSchemaForDescriptor(op, *op.spec.responseSchema)},
+		}
+	} else if responseType := op.successResponseType(); responseType != nil {
+		contentType, schema := s.responseSchemaForType(responseType)
 		successResponse.Content = map[string]mediaTypeSpec{
 			contentType: {Schema: schema},
 		}
@@ -504,6 +516,22 @@ func (s *openAPISpec) responseSchemaForType(t reflect.Type) (string, *Schema) {
 		return "application/octet-stream", &Schema{Type: "string", Format: "binary"}
 	}
 	return "application/json", s.registry.schemaForType(t)
+}
+
+func (s *openAPISpec) responseSchemaForDescriptor(op *operation, descriptor modelSchemaDescriptor) *Schema {
+	schema := s.registry.schemaForDescriptor(descriptor)
+	if op == nil || !isSliceOrArrayType(op.route.outputType) || isSliceOrArrayType(descriptor.target) {
+		return schema
+	}
+	return &Schema{Type: "array", Items: schema}
+}
+
+func isSliceOrArrayType(t reflect.Type) bool {
+	if t == nil {
+		return false
+	}
+	t = deref(t)
+	return t.Kind() == reflect.Slice || t.Kind() == reflect.Array
 }
 
 func hasMultipartBody(t reflect.Type) bool {

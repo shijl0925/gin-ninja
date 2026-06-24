@@ -3,7 +3,6 @@ package fullapp
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 	"github.com/shijl0925/gin-ninja/settings"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"go.uber.org/zap"
 )
 
@@ -37,11 +37,8 @@ func testConfig(dsn string) settings.Config {
 	}
 }
 
-func doFullappRequest(api *ninja.NinjaAPI, method, path string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, path, nil)
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	return w
+func doFullappRequest(api *ninja.NinjaAPI, method, path string) *ninjatest.Response {
+	return ninjatest.New(api).Request(method, path, nil)
 }
 
 func TestFullappOptionsAndHelpers(t *testing.T) {
@@ -146,8 +143,8 @@ func TestFullappBuildAPIAndRunCoverage(t *testing.T) {
 		{path: "/api/v2/users/", want: http.StatusUnauthorized},
 	} {
 		w := doFullappRequest(api, http.MethodGet, tc.path)
-		if w.Code != tc.want {
-			t.Fatalf("%s status = %d, want %d body=%s", tc.path, w.Code, tc.want, w.Body.String())
+		if w.StatusCode != tc.want {
+			t.Fatalf("%s status = %d, want %d body=%s", tc.path, w.StatusCode, tc.want, w.String())
 		}
 	}
 

@@ -1,14 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -16,116 +14,91 @@ import (
 func init() { gin.SetMode(gin.TestMode) }
 
 func TestControllerExample_CRUD(t *testing.T) {
-	api := buildAPI()
+	client := ninjatest.NewWithT(t, buildAPI())
 
 	// List — empty initially.
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/books/", nil)
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("list: expected 200, got %d: %s", w.Code, w.Body.String())
+	w := client.Get("/api/v1/books/")
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("list: expected 200, got %d: %s", w.StatusCode, w.String())
 	}
 	var listResp map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &listResp); err != nil {
+	if err := w.DecodeJSON(&listResp); err != nil {
 		t.Fatalf("list: parse response: %v", err)
 	}
 
 	// Create.
-	createBody := `{"title":"Go Programming","author":"Donovan"}`
-	w2 := httptest.NewRecorder()
-	req2 := httptest.NewRequest(http.MethodPost, "/api/v1/books/", strings.NewReader(createBody))
-	req2.Header.Set("Content-Type", "application/json")
-	api.Handler().ServeHTTP(w2, req2)
-	if w2.Code != http.StatusCreated {
-		t.Fatalf("create: expected 201, got %d: %s", w2.Code, w2.Body.String())
+	w2 := client.Post("/api/v1/books/", CreateBookInput{Title: "Go Programming", Author: "Donovan"})
+	if w2.StatusCode != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d: %s", w2.StatusCode, w2.String())
 	}
-	var created BookOut
-	if err := json.Unmarshal(w2.Body.Bytes(), &created); err != nil {
+	var created map[string]any
+	if err := w2.DecodeJSON(&created); err != nil {
 		t.Fatalf("create: parse response: %v", err)
 	}
-	if created.Title != "Go Programming" {
-		t.Errorf("create: unexpected title: %q", created.Title)
+	if created["title"] != "Go Programming" {
+		t.Errorf("create: unexpected title: %q", created["title"])
 	}
-	if created.ID == 0 {
+	if created["id"] == nil {
 		t.Error("create: expected non-zero ID")
 	}
 
 	// Get.
-	w3 := httptest.NewRecorder()
-	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/books/1", nil)
-	api.Handler().ServeHTTP(w3, req3)
-	if w3.Code != http.StatusOK {
-		t.Fatalf("get: expected 200, got %d: %s", w3.Code, w3.Body.String())
+	w3 := client.Get("/api/v1/books/1")
+	if w3.StatusCode != http.StatusOK {
+		t.Fatalf("get: expected 200, got %d: %s", w3.StatusCode, w3.String())
 	}
 
 	// Get non-existent.
-	w4 := httptest.NewRecorder()
-	req4 := httptest.NewRequest(http.MethodGet, "/api/v1/books/999", nil)
-	api.Handler().ServeHTTP(w4, req4)
-	if w4.Code != http.StatusNotFound {
-		t.Fatalf("get missing: expected 404, got %d", w4.Code)
+	w4 := client.Get("/api/v1/books/999")
+	if w4.StatusCode != http.StatusNotFound {
+		t.Fatalf("get missing: expected 404, got %d", w4.StatusCode)
 	}
 
 	// Delete.
-	w5 := httptest.NewRecorder()
-	req5 := httptest.NewRequest(http.MethodDelete, "/api/v1/books/1", nil)
-	api.Handler().ServeHTTP(w5, req5)
-	if w5.Code != http.StatusNoContent {
-		t.Fatalf("delete: expected 204, got %d: %s", w5.Code, w5.Body.String())
+	w5 := client.Delete("/api/v1/books/1")
+	if w5.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete: expected 204, got %d: %s", w5.StatusCode, w5.String())
 	}
 }
 
 func TestControllerExample_UpdateListPaginationAndMain(t *testing.T) {
-	api := buildAPI()
+	client := ninjatest.NewWithT(t, buildAPI())
 
-	for _, body := range []string{
-		`{"title":"First","author":"Ada"}`,
-		`{"title":"Second","author":"Grace"}`,
+	for _, body := range []CreateBookInput{
+		{Title: "First", Author: "Ada"},
+		{Title: "Second", Author: "Grace"},
 	} {
-		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/books/", strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
-		api.Handler().ServeHTTP(w, req)
-		if w.Code != http.StatusCreated {
-			t.Fatalf("create status = %d body=%s", w.Code, w.Body.String())
+		w := client.Post("/api/v1/books/", body)
+		if w.StatusCode != http.StatusCreated {
+			t.Fatalf("create status = %d body=%s", w.StatusCode, w.String())
 		}
 	}
 
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/books/1", strings.NewReader(`{"title":"First Revised"}`))
-	req.Header.Set("Content-Type", "application/json")
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("update status = %d body=%s", w.Code, w.Body.String())
+	w := client.Put("/api/v1/books/1", map[string]string{"title": "First Revised"})
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("update status = %d body=%s", w.StatusCode, w.String())
 	}
-	var updated BookOut
-	if err := json.Unmarshal(w.Body.Bytes(), &updated); err != nil {
+	var updated map[string]any
+	if err := w.DecodeJSON(&updated); err != nil {
 		t.Fatalf("parse update: %v", err)
 	}
-	if updated.Title != "First Revised" || updated.Author != "Ada" {
+	if updated["title"] != "First Revised" || updated["author"] != "Ada" {
 		t.Fatalf("unexpected updated book: %+v", updated)
 	}
 
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPut, "/api/v1/books/999", strings.NewReader(`{"author":"Nobody"}`))
-	req.Header.Set("Content-Type", "application/json")
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("update missing status = %d body=%s", w.Code, w.Body.String())
+	w = client.Put("/api/v1/books/999", map[string]string{"author": "Nobody"})
+	if w.StatusCode != http.StatusNotFound {
+		t.Fatalf("update missing status = %d body=%s", w.StatusCode, w.String())
 	}
 
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/books/?page=3&size=1", nil)
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("list page past end status = %d body=%s", w.Code, w.Body.String())
+	w = client.Get("/api/v1/books/?page=3&size=1")
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("list page past end status = %d body=%s", w.StatusCode, w.String())
 	}
 
-	w = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/health", nil)
-	api.Handler().ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("health status = %d body=%s", w.Code, w.Body.String())
+	w = client.Get("/health")
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("health status = %d body=%s", w.StatusCode, w.String())
 	}
 
 	origRun := runControllerMain

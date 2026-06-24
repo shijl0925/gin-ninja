@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 )
 
 func newDemoAPI() *ninja.NinjaAPI {
@@ -70,17 +71,16 @@ func newDemoAPI() *ninja.NinjaAPI {
 	return api
 }
 
-func doDemoRequest(api *ninja.NinjaAPI, method, path string, configure func(*http.Request)) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, path, nil)
+func doDemoRequest(api *ninja.NinjaAPI, method, path string, configure func(*http.Request)) *ninjatest.Response {
+	client := ninjatest.New(api)
+	req := client.NewRequest(method, path, nil)
 	if configure != nil {
 		configure(req)
 	}
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	return w
+	return client.Do(req)
 }
 
-func doMultipartDemoRequest(t *testing.T, api *ninja.NinjaAPI, path string, fields map[string]string, files map[string][]string) *httptest.ResponseRecorder {
+func doMultipartDemoRequest(t *testing.T, api *ninja.NinjaAPI, path string, fields map[string]string, files map[string][]string) *ninjatest.Response {
 	t.Helper()
 
 	var body bytes.Buffer
@@ -105,23 +105,19 @@ func doMultipartDemoRequest(t *testing.T, api *ninja.NinjaAPI, path string, fiel
 		t.Fatalf("writer.Close: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, path, &body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	return w
+	return ninjatest.NewWithT(t, api).Post(path, &body, ninjatest.Header("Content-Type", writer.FormDataContentType()))
 }
 
 func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 	api := newDemoAPI()
 
 	w := doDemoRequest(api, http.MethodGet, "/api/v1/examples/request-meta", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.StatusCode, w.String())
 	}
 
 	var out RequestMetaOutput
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+	if err := json.Unmarshal(w.Body, &out); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if out.Session != "guest-session" || out.TraceID != "trace-demo" || out.Lang != "zh-CN" || out.Verbose {
@@ -132,7 +128,7 @@ func TestDemoEndpoints_RequestMetaDefaultsAndOverrides(t *testing.T) {
 		req.Header.Set("X-Trace-ID", "trace-override")
 		req.AddCookie(&http.Cookie{Name: "session", Value: "sess-123"})
 	})
-	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+	if err := json.Unmarshal(w.Body, &out); err != nil {
 		t.Fatalf("unmarshal override response: %v", err)
 	}
 	if out.Session != "sess-123" || out.TraceID != "trace-override" || out.Lang != "en-US" || !out.Verbose {
@@ -144,12 +140,12 @@ func TestDemoEndpoints_PaginatedCacheRateLimitedAndTimeout(t *testing.T) {
 	api := newDemoAPI()
 
 	w := doDemoRequest(api, http.MethodGet, "/api/v1/examples/features?search=timeout", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.StatusCode, w.String())
 	}
 
 	var page map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil {
+	if err := json.Unmarshal(w.Body, &page); err != nil {
 		t.Fatalf("unmarshal paginated response: %v", err)
 	}
 	if _, ok := page["items"]; !ok {
@@ -158,47 +154,47 @@ func TestDemoEndpoints_PaginatedCacheRateLimitedAndTimeout(t *testing.T) {
 
 	cacheDemoCounter.Store(0)
 	cacheFirst := doDemoRequest(api, http.MethodGet, "/api/v1/examples/cache", nil)
-	if cacheFirst.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", cacheFirst.Code, cacheFirst.Body.String())
+	if cacheFirst.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", cacheFirst.StatusCode, cacheFirst.String())
 	}
-	if got := cacheFirst.Header().Get("Cache-Control"); got != "private, max-age=60" {
+	if got := cacheFirst.Header.Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
 	}
-	etag := cacheFirst.Header().Get("ETag")
+	etag := cacheFirst.Header.Get("ETag")
 	if etag == "" {
 		t.Fatal("expected ETag header")
 	}
 
 	cacheSecond := doDemoRequest(api, http.MethodGet, "/api/v1/examples/cache", nil)
-	if cacheSecond.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", cacheSecond.Code, cacheSecond.Body.String())
+	if cacheSecond.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", cacheSecond.StatusCode, cacheSecond.String())
 	}
 	if cacheDemoCounter.Load() != 1 {
 		t.Fatalf("expected cached response, counter=%d", cacheDemoCounter.Load())
 	}
-	if cacheSecond.Body.String() != cacheFirst.Body.String() {
-		t.Fatalf("expected cached body to match, got %q vs %q", cacheSecond.Body.String(), cacheFirst.Body.String())
+	if cacheSecond.String() != cacheFirst.String() {
+		t.Fatalf("expected cached body to match, got %q vs %q", cacheSecond.String(), cacheFirst.String())
 	}
 
 	notModified := doDemoRequest(api, http.MethodGet, "/api/v1/examples/cache", func(req *http.Request) {
 		req.Header.Set("If-None-Match", etag)
 	})
-	if notModified.Code != http.StatusNotModified {
-		t.Fatalf("expected 304, got %d: %s", notModified.Code, notModified.Body.String())
+	if notModified.StatusCode != http.StatusNotModified {
+		t.Fatalf("expected 304, got %d: %s", notModified.StatusCode, notModified.String())
 	}
 
 	first := doDemoRequest(api, http.MethodGet, "/api/v1/examples/limited", nil)
-	if first.Code != http.StatusOK {
-		t.Fatalf("expected first limited request to pass, got %d: %s", first.Code, first.Body.String())
+	if first.StatusCode != http.StatusOK {
+		t.Fatalf("expected first limited request to pass, got %d: %s", first.StatusCode, first.String())
 	}
 	second := doDemoRequest(api, http.MethodGet, "/api/v1/examples/limited", nil)
-	if second.Code != http.StatusTooManyRequests {
-		t.Fatalf("expected second limited request to be rejected, got %d: %s", second.Code, second.Body.String())
+	if second.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected second limited request to be rejected, got %d: %s", second.StatusCode, second.String())
 	}
 
 	slow := doDemoRequest(api, http.MethodGet, "/api/v1/examples/slow", nil)
-	if slow.Code != http.StatusRequestTimeout {
-		t.Fatalf("expected 408, got %d: %s", slow.Code, slow.Body.String())
+	if slow.StatusCode != http.StatusRequestTimeout {
+		t.Fatalf("expected 408, got %d: %s", slow.StatusCode, slow.String())
 	}
 }
 
@@ -210,12 +206,12 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	}, map[string][]string{
 		"file": {"avatar.png"},
 	})
-	if single.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", single.Code, single.Body.String())
+	if single.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", single.StatusCode, single.String())
 	}
 
 	var singleOut UploadDemoOutput
-	if err := json.Unmarshal(single.Body.Bytes(), &singleOut); err != nil {
+	if err := json.Unmarshal(single.Body, &singleOut); err != nil {
 		t.Fatalf("unmarshal single upload: %v", err)
 	}
 	if singleOut.Title != "avatar" || singleOut.Filename != "avatar.png" || singleOut.FileCount != 1 {
@@ -227,12 +223,12 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	}, map[string][]string{
 		"files": {"a.txt", "b.txt"},
 	})
-	if multi.Code != http.StatusCreated {
-		t.Fatalf("expected 201, got %d: %s", multi.Code, multi.Body.String())
+	if multi.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", multi.StatusCode, multi.String())
 	}
 
 	var multiOut UploadDemoOutput
-	if err := json.Unmarshal(multi.Body.Bytes(), &multiOut); err != nil {
+	if err := json.Unmarshal(multi.Body, &multiOut); err != nil {
 		t.Fatalf("unmarshal multi upload: %v", err)
 	}
 	if multiOut.Category != "docs" || multiOut.FileCount != 2 {
@@ -240,21 +236,21 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	}
 
 	download := doDemoRequest(api, http.MethodGet, "/api/v1/examples/download", nil)
-	if download.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", download.Code, download.Body.String())
+	if download.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", download.StatusCode, download.String())
 	}
-	if got := download.Header().Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("demo.txt")) {
+	if got := download.Header.Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("demo.txt")) {
 		t.Fatalf("expected attachment header, got %q", got)
 	}
-	if got := download.Header().Get("Content-Type"); got == "" || !strings.HasPrefix(got, "text/plain") {
+	if got := download.Header.Get("Content-Type"); got == "" || !strings.HasPrefix(got, "text/plain") {
 		t.Fatalf("expected text/plain content type, got %q", got)
 	}
 
 	readerDownload := doDemoRequest(api, http.MethodGet, "/api/v1/examples/download-reader", nil)
-	if readerDownload.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", readerDownload.Code, readerDownload.Body.String())
+	if readerDownload.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", readerDownload.StatusCode, readerDownload.String())
 	}
-	if got := readerDownload.Header().Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("request.txt")) {
+	if got := readerDownload.Header.Get("Content-Disposition"); got == "" || !bytes.Contains([]byte(got), []byte("request.txt")) {
 		t.Fatalf("expected reader download header, got %q", got)
 	}
 }
@@ -263,35 +259,35 @@ func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
 	api := newDemoAPI()
 
 	v1 := doDemoRequest(api, http.MethodGet, "/api/v1/examples/versioned/info", nil)
-	if v1.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", v1.Code, v1.Body.String())
+	if v1.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v1.StatusCode, v1.String())
 	}
-	if v1.Header().Get("Deprecation") != "" {
-		t.Fatalf("did not expect deprecation header on v1, got %v", v1.Header())
+	if v1.Header.Get("Deprecation") != "" {
+		t.Fatalf("did not expect deprecation header on v1, got %v", v1.Header)
 	}
-	if v1.Header().Get("Sunset") != "" || v1.Header().Get("Link") != "" {
-		t.Fatalf("did not expect sunset/link headers on v1, got %v", v1.Header())
+	if v1.Header.Get("Sunset") != "" || v1.Header.Get("Link") != "" {
+		t.Fatalf("did not expect sunset/link headers on v1, got %v", v1.Header)
 	}
 
 	v0 := doDemoRequest(api, http.MethodGet, "/api/v0/examples/versioned/info", nil)
-	if v0.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", v0.Code, v0.Body.String())
+	if v0.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v0.StatusCode, v0.String())
 	}
-	if v0.Header().Get("Deprecation") != "true" {
-		t.Fatalf("expected deprecation header, got %v", v0.Header())
+	if v0.Header.Get("Deprecation") != "true" {
+		t.Fatalf("expected deprecation header, got %v", v0.Header)
 	}
-	if v0.Header().Get("Sunset") == "" || v0.Header().Get("Link") == "" {
-		t.Fatalf("expected sunset and link headers, got %v", v0.Header())
+	if v0.Header.Get("Sunset") == "" || v0.Header.Get("Link") == "" {
+		t.Fatalf("expected sunset and link headers, got %v", v0.Header)
 	}
 
 	sse := doDemoRequest(api, http.MethodGet, "/api/v1/examples/events?name=bot", nil)
-	if sse.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", sse.Code, sse.Body.String())
+	if sse.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", sse.StatusCode, sse.String())
 	}
-	if got := sse.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+	if got := sse.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
 		t.Fatalf("expected SSE content type, got %q", got)
 	}
-	if body := sse.Body.String(); !strings.Contains(body, "event: hello") || !strings.Contains(body, `"name":"bot"`) || !strings.Contains(body, `"transport":"sse"`) {
+	if body := sse.String(); !strings.Contains(body, "event: hello") || !strings.Contains(body, `"name":"bot"`) || !strings.Contains(body, `"transport":"sse"`) {
 		t.Fatalf("unexpected SSE body %q", body)
 	}
 
@@ -350,12 +346,12 @@ func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) 
 	api := newDemoAPI()
 
 	w := doDemoRequest(api, http.MethodGet, "/openapi.json", nil)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	if w.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.StatusCode, w.String())
 	}
 
 	var spec map[string]interface{}
-	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+	if err := json.Unmarshal(w.Body, &spec); err != nil {
 		t.Fatalf("unmarshal openapi: %v", err)
 	}
 
@@ -404,11 +400,11 @@ func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) 
 	}
 
 	v1Docs := doDemoRequest(api, http.MethodGet, "/openapi/v1.json", nil)
-	if v1Docs.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", v1Docs.Code, v1Docs.Body.String())
+	if v1Docs.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v1Docs.StatusCode, v1Docs.String())
 	}
 	var v1Spec map[string]interface{}
-	if err := json.Unmarshal(v1Docs.Body.Bytes(), &v1Spec); err != nil {
+	if err := json.Unmarshal(v1Docs.Body, &v1Spec); err != nil {
 		t.Fatalf("unmarshal v1 openapi: %v", err)
 	}
 	v1Paths := v1Spec["paths"].(map[string]interface{})
@@ -420,11 +416,11 @@ func TestDemoEndpoints_OpenAPIVisibilityResponsesAndVersionedDocs(t *testing.T) 
 	}
 
 	v0Docs := doDemoRequest(api, http.MethodGet, "/openapi/v0.json", nil)
-	if v0Docs.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", v0Docs.Code, v0Docs.Body.String())
+	if v0Docs.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", v0Docs.StatusCode, v0Docs.String())
 	}
 	var v0Spec map[string]interface{}
-	if err := json.Unmarshal(v0Docs.Body.Bytes(), &v0Spec); err != nil {
+	if err := json.Unmarshal(v0Docs.Body, &v0Spec); err != nil {
 		t.Fatalf("unmarshal v0 openapi: %v", err)
 	}
 	v0Paths := v0Spec["paths"].(map[string]interface{})

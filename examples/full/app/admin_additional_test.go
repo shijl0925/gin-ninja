@@ -12,6 +12,7 @@ import (
 	ninja "github.com/shijl0925/gin-ninja"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
 	"github.com/shijl0925/gin-ninja/orm"
+	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -49,14 +50,12 @@ func newExampleAdminAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	return api, db
 }
 
-func performExampleAdminRequest(api *ninja.NinjaAPI, method, path string, headers map[string]string) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, path, nil)
+func performExampleAdminRequest(api *ninja.NinjaAPI, method, path string, headers map[string]string) *ninjatest.Response {
+	opts := make([]ninjatest.RequestOption, 0, len(headers))
 	for key, value := range headers {
-		req.Header.Set(key, value)
+		opts = append(opts, ninjatest.Header(key, value))
 	}
-	w := httptest.NewRecorder()
-	api.Handler().ServeHTTP(w, req)
-	return w
+	return ninjatest.New(api).Request(method, path, nil, opts...)
 }
 
 func TestExampleAdminSiteAuthorizationAndRowFiltering(t *testing.T) {
@@ -86,15 +85,15 @@ func TestExampleAdminSiteAuthorizationAndRowFiltering(t *testing.T) {
 	}
 
 	unauthorized := performExampleAdminRequest(api, http.MethodGet, "/admin/resources", nil)
-	if unauthorized.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d: %s", unauthorized.Code, unauthorized.Body.String())
+	if unauthorized.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d: %s", unauthorized.StatusCode, unauthorized.String())
 	}
 
 	resources := performExampleAdminRequest(api, http.MethodGet, "/admin/resources", map[string]string{"X-User-ID": strconv.FormatUint(uint64(owner.ID), 10)})
-	if resources.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", resources.Code, resources.Body.String())
+	if resources.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resources.StatusCode, resources.String())
 	}
-	body := resources.Body.String()
+	body := resources.String()
 	for _, name := range []string{"users", "roles", "projects"} {
 		if !strings.Contains(body, `"`+name+`"`) {
 			t.Fatalf("expected resource %q in body %q", name, body)
@@ -102,19 +101,19 @@ func TestExampleAdminSiteAuthorizationAndRowFiltering(t *testing.T) {
 	}
 
 	projects := performExampleAdminRequest(api, http.MethodGet, "/admin/resources/projects", map[string]string{"X-User-ID": strconv.FormatUint(uint64(owner.ID), 10)})
-	if projects.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", projects.Code, projects.Body.String())
+	if projects.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", projects.StatusCode, projects.String())
 	}
-	if !strings.Contains(projects.Body.String(), `"title":"Mine"`) || strings.Contains(projects.Body.String(), `"title":"Theirs"`) {
-		t.Fatalf("expected row permissions to filter projects, got %q", projects.Body.String())
+	if !strings.Contains(projects.String(), `"title":"Mine"`) || strings.Contains(projects.String(), `"title":"Theirs"`) {
+		t.Fatalf("expected row permissions to filter projects, got %q", projects.String())
 	}
 
 	meta := performExampleAdminRequest(api, http.MethodGet, "/admin/resources/users/meta", map[string]string{"X-User-ID": strconv.FormatUint(uint64(owner.ID), 10)})
-	if meta.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", meta.Code, meta.Body.String())
+	if meta.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", meta.StatusCode, meta.String())
 	}
-	if !strings.Contains(meta.Body.String(), `"name":"role_ids"`) || !strings.Contains(meta.Body.String(), `"resource":"roles"`) {
-		t.Fatalf("expected relation metadata for role_ids, got %q", meta.Body.String())
+	if !strings.Contains(meta.String(), `"name":"role_ids"`) || !strings.Contains(meta.String(), `"resource":"roles"`) {
+		t.Fatalf("expected relation metadata for role_ids, got %q", meta.String())
 	}
 }
 

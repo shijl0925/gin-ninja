@@ -6,11 +6,29 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // ModelSchemaOption customizes how a model is serialized.
 type ModelSchemaOption func(*modelSchemaFilter)
+
+// ModelSchemaMode controls which model fields are selected by convention.
+type ModelSchemaMode string
+
+const (
+	// ModelSchemaModeRead includes fields that are safe to return in JSON.
+	ModelSchemaModeRead ModelSchemaMode = "read"
+	// ModelSchemaModeList includes readable scalar fields for list responses.
+	ModelSchemaModeList ModelSchemaMode = "list"
+	// ModelSchemaModeDetail includes readable fields for detail responses.
+	ModelSchemaModeDetail ModelSchemaMode = "detail"
+	// ModelSchemaModeCreate includes fields writable during create operations.
+	ModelSchemaModeCreate ModelSchemaMode = "create"
+	// ModelSchemaModeUpdate includes fields writable during update operations.
+	ModelSchemaModeUpdate ModelSchemaMode = "update"
+)
 
 // Fields limits serialization to the provided field names.
 func Fields(fields ...string) ModelSchemaOption {
@@ -26,11 +44,180 @@ func Exclude(fields ...string) ModelSchemaOption {
 	}
 }
 
+// SchemaMode applies a conventional field-selection mode.
+func SchemaMode(mode ModelSchemaMode) ModelSchemaOption {
+	return func(filter *modelSchemaFilter) {
+		filter.mode = normalizeModelSchemaMode(mode)
+	}
+}
+
+// Depth controls how many nested model levels are serialized through the same schema mode.
+func Depth(depth int) ModelSchemaOption {
+	return func(filter *modelSchemaFilter) {
+		filter.depth = normalizeModelSchemaDepth(depth)
+	}
+}
+
+// ModelSchemaDescriptor describes how a model type should be serialized.
+type ModelSchemaDescriptor[T any] struct {
+	filter        modelSchemaFilter
+	componentName string
+}
+
+// ModelSchemaOf creates a reusable model schema descriptor.
+func ModelSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	descriptor := ModelSchemaDescriptor[T]{}
+	for _, opt := range opts {
+		opt(&descriptor.filter)
+	}
+	descriptor.filter = descriptor.filter.normalized()
+	return descriptor
+}
+
+// ModelReadSchemaOf creates a descriptor for general response serialization.
+func ModelReadSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Read()
+}
+
+// ModelListSchemaOf creates a descriptor for list response serialization.
+func ModelListSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).List()
+}
+
+// ModelDetailSchemaOf creates a descriptor for detail response serialization.
+func ModelDetailSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Detail()
+}
+
+// ModelCreateSchemaOf creates a descriptor for create input-like field selection.
+func ModelCreateSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Create()
+}
+
+// ModelUpdateSchemaOf creates a descriptor for update input-like field selection.
+func ModelUpdateSchemaOf[T any](opts ...ModelSchemaOption) ModelSchemaDescriptor[T] {
+	return ModelSchemaOf[T](opts...).Update()
+}
+
+// Fields returns a copy of the descriptor limited to the provided field names.
+func (d ModelSchemaDescriptor[T]) Fields(fields ...string) ModelSchemaDescriptor[T] {
+	d.filter.fields = normalizeModelSchemaNames(fields)
+	return d
+}
+
+// Exclude returns a copy of the descriptor excluding the provided field names.
+func (d ModelSchemaDescriptor[T]) Exclude(fields ...string) ModelSchemaDescriptor[T] {
+	d.filter.exclude = normalizeModelSchemaNames(fields)
+	return d
+}
+
+// Mode returns a copy of the descriptor with a conventional field-selection mode.
+func (d ModelSchemaDescriptor[T]) Mode(mode ModelSchemaMode) ModelSchemaDescriptor[T] {
+	d.filter.mode = normalizeModelSchemaMode(mode)
+	return d
+}
+
+// Read returns a copy of the descriptor using read-mode field selection.
+func (d ModelSchemaDescriptor[T]) Read() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeRead)
+}
+
+// List returns a copy of the descriptor using list-mode field selection.
+func (d ModelSchemaDescriptor[T]) List() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeList)
+}
+
+// Detail returns a copy of the descriptor using detail-mode field selection.
+func (d ModelSchemaDescriptor[T]) Detail() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeDetail)
+}
+
+// Create returns a copy of the descriptor using create-mode field selection.
+func (d ModelSchemaDescriptor[T]) Create() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeCreate)
+}
+
+// Update returns a copy of the descriptor using update-mode field selection.
+func (d ModelSchemaDescriptor[T]) Update() ModelSchemaDescriptor[T] {
+	return d.Mode(ModelSchemaModeUpdate)
+}
+
+// Depth returns a copy of the descriptor with nested model serialization depth.
+func (d ModelSchemaDescriptor[T]) Depth(depth int) ModelSchemaDescriptor[T] {
+	d.filter.depth = normalizeModelSchemaDepth(depth)
+	return d
+}
+
+// Preloads returns GORM association preload paths implied by the descriptor depth.
+func (d ModelSchemaDescriptor[T]) Preloads() []string {
+	descriptor := d.schemaDescriptor()
+	return modelSchemaPreloads(descriptor.target, descriptor.filter)
+}
+
+// ModelSchemaPreloads returns GORM association preload paths implied by a
+// schema type that embeds ModelSchema.
+func ModelSchemaPreloads[T any]() []string {
+	descriptor, ok := resolveModelSchemaDescriptor(reflect.TypeOf((*T)(nil)).Elem())
+	if !ok {
+		return nil
+	}
+	return modelSchemaPreloads(descriptor.target, descriptor.filter)
+}
+
+// ComponentName returns a copy of the descriptor with a fixed OpenAPI component name.
+func (d ModelSchemaDescriptor[T]) ComponentName(name string) ModelSchemaDescriptor[T] {
+	d.componentName = sanitizeComponentName(name)
+	return d
+}
+
+// Wrap serializes model with the descriptor's field filters.
+func (d ModelSchemaDescriptor[T]) Wrap(model T) *ModelSchema[T] {
+	return &ModelSchema[T]{
+		Model:   model,
+		Fields:  append([]string(nil), d.filter.fields...),
+		Exclude: append([]string(nil), d.filter.exclude...),
+		Mode:    d.filter.mode,
+		Depth:   d.filter.depth,
+	}
+}
+
+// BindInput creates a model value from an already-bound input struct, copying
+// only fields allowed by the descriptor.
+func (d ModelSchemaDescriptor[T]) BindInput(input any) (*T, error) {
+	var model T
+	if err := d.ApplyInput(&model, input); err != nil {
+		return nil, err
+	}
+	return &model, nil
+}
+
+// ApplyInput copies an already-bound input struct onto model using the
+// descriptor's field-selection rules. Nil pointer input fields are skipped,
+// which makes update inputs with optional pointer fields behave as partial
+// updates.
+func (d ModelSchemaDescriptor[T]) ApplyInput(model *T, input any) error {
+	if model == nil {
+		return fmt.Errorf("model input target is nil")
+	}
+	descriptor := d.schemaDescriptor()
+	return applyModelSchemaInput(reflect.ValueOf(model), reflect.ValueOf(input), descriptor.filter)
+}
+
+func (d ModelSchemaDescriptor[T]) schemaDescriptor() modelSchemaDescriptor {
+	return modelSchemaDescriptor{
+		target:        reflect.TypeOf((*T)(nil)).Elem(),
+		filter:        d.filter.normalized(),
+		componentName: d.componentName,
+	}
+}
+
 // ModelSchema wraps a model value and serializes only the allowed fields.
 type ModelSchema[T any] struct {
-	Model   T        `json:"-"`
-	Fields  []string `json:"-"`
-	Exclude []string `json:"-"`
+	Model   T               `json:"-"`
+	Fields  []string        `json:"-"`
+	Exclude []string        `json:"-"`
+	Mode    ModelSchemaMode `json:"-"`
+	Depth   int             `json:"-"`
 }
 
 // NewModelSchema wraps a model with optional field filters.
@@ -43,6 +230,8 @@ func NewModelSchema[T any](model T, opts ...ModelSchemaOption) *ModelSchema[T] {
 		Model:   model,
 		Fields:  append([]string(nil), filter.fields...),
 		Exclude: append([]string(nil), filter.exclude...),
+		Mode:    filter.mode,
+		Depth:   filter.depth,
 	}
 }
 
@@ -78,13 +267,208 @@ func BindModelSchema[TSchema any](model any) (*TSchema, error) {
 	}
 	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), fieldInfo.filter.fields...)))
 	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), fieldInfo.filter.exclude...)))
+	field.FieldByName("Mode").Set(reflect.ValueOf(fieldInfo.filter.mode))
+	field.FieldByName("Depth").Set(reflect.ValueOf(fieldInfo.filter.depth))
 
 	out := value.Addr().Interface().(*TSchema)
 	return out, nil
 }
 
+// BindModelSchemas creates user-defined schema values from model values.
+func BindModelSchemas[TSchema any, TModel any](models []TModel) ([]TSchema, error) {
+	if models == nil {
+		return nil, nil
+	}
+	out := make([]TSchema, len(models))
+	for i, model := range models {
+		bound, err := BindModelSchema[TSchema](model)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = *bound
+	}
+	return out, nil
+}
+
+func applyModelSchemaInput(model, input reflect.Value, filter modelSchemaFilter) error {
+	if !input.IsValid() {
+		return fmt.Errorf("model input value is invalid")
+	}
+	for input.Kind() == reflect.Ptr {
+		if input.IsNil() {
+			return fmt.Errorf("model input value is nil")
+		}
+		input = input.Elem()
+	}
+	if input.Kind() != reflect.Struct {
+		return fmt.Errorf("model input must be a struct, got %s", input.Kind())
+	}
+	for model.Kind() == reflect.Ptr {
+		if model.IsNil() {
+			return fmt.Errorf("model input target is nil")
+		}
+		model = model.Elem()
+	}
+	if model.Kind() != reflect.Struct {
+		return fmt.Errorf("model input target must be a struct, got %s", model.Kind())
+	}
+
+	fields := map[string]reflect.Value{}
+	collectModelSchemaInputFields(input, fields)
+	return applyModelSchemaInputFields(model, filter.normalized(), fields)
+}
+
+func collectModelSchemaInputFields(input reflect.Value, fields map[string]reflect.Value) {
+	t := input.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		value := input.Field(i)
+		if field.Anonymous {
+			embedded := value
+			for embedded.Kind() == reflect.Ptr {
+				if embedded.IsNil() {
+					break
+				}
+				embedded = embedded.Elem()
+			}
+			if embedded.Kind() == reflect.Struct {
+				collectModelSchemaInputFields(embedded, fields)
+			}
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" {
+			continue
+		}
+		fields[field.Name] = value
+		fields[name] = value
+	}
+}
+
+func applyModelSchemaInputFields(model reflect.Value, filter modelSchemaFilter, fields map[string]reflect.Value) error {
+	t := model.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		value := model.Field(i)
+		if field.Anonymous {
+			if value.Kind() == reflect.Ptr {
+				if value.IsNil() {
+					value.Set(reflect.New(value.Type().Elem()))
+				}
+				value = value.Elem()
+			}
+			if value.Kind() == reflect.Struct {
+				if err := applyModelSchemaInputFields(value, filter, fields); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" || !filter.includes(field, name) {
+			continue
+		}
+		inputValue, ok := modelSchemaInputFieldValue(fields, field.Name, name)
+		if !ok || !modelSchemaInputValuePresent(inputValue) {
+			continue
+		}
+		if !value.CanSet() {
+			return fmt.Errorf("model input field %s cannot be set", field.Name)
+		}
+		if err := assignModelSchemaModel(value, inputValue); err != nil {
+			return fmt.Errorf("model input field %s: %w", field.Name, err)
+		}
+	}
+	return nil
+}
+
+func modelSchemaInputFieldValue(fields map[string]reflect.Value, names ...string) (reflect.Value, bool) {
+	for _, name := range names {
+		if value, ok := fields[name]; ok {
+			return value, true
+		}
+	}
+	return reflect.Value{}, false
+}
+
+func modelSchemaInputValuePresent(value reflect.Value) bool {
+	if !value.IsValid() {
+		return false
+	}
+	return value.Kind() != reflect.Ptr || !value.IsNil()
+}
+
+func bindModelSchemaForType(schemaType reflect.Type, model any) (any, bool, error) {
+	t := deref(schemaType)
+	if t.Kind() != reflect.Struct {
+		return nil, false, nil
+	}
+
+	value := reflect.New(t).Elem()
+	field, filter, ok := modelSchemaBindingField(value, t)
+	if !ok {
+		return nil, false, nil
+	}
+	if field.Kind() == reflect.Ptr {
+		field.Set(reflect.New(field.Type().Elem()))
+		field = field.Elem()
+	}
+
+	if err := assignModelSchemaModel(field.FieldByName("Model"), reflect.ValueOf(model)); err != nil {
+		return nil, true, err
+	}
+	field.FieldByName("Fields").Set(reflect.ValueOf(append([]string(nil), filter.fields...)))
+	field.FieldByName("Exclude").Set(reflect.ValueOf(append([]string(nil), filter.exclude...)))
+	field.FieldByName("Mode").Set(reflect.ValueOf(filter.mode))
+	field.FieldByName("Depth").Set(reflect.ValueOf(filter.depth))
+	return value.Addr().Interface(), true, nil
+}
+
+func modelSchemaBindingField(value reflect.Value, t reflect.Type) (reflect.Value, modelSchemaFilter, bool) {
+	if hasDirectModelSchemaFields(t) {
+		return value, modelSchemaFilter{}, true
+	}
+
+	embedded, ok := findEmbeddedModelSchemaField(t)
+	if !ok {
+		return reflect.Value{}, modelSchemaFilter{}, false
+	}
+	return value.FieldByIndex(embedded.index), embedded.filter, true
+}
+
+func hasDirectModelSchemaFields(t reflect.Type) bool {
+	fields := map[string]bool{
+		"Model":   false,
+		"Fields":  false,
+		"Exclude": false,
+		"Mode":    false,
+		"Depth":   false,
+	}
+	for i := 0; i < t.NumField(); i++ {
+		if _, ok := fields[t.Field(i).Name]; ok {
+			fields[t.Field(i).Name] = true
+		}
+	}
+	for _, ok := range fields {
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func (m ModelSchema[T]) MarshalJSON() ([]byte, error) {
 	filter := newModelSchemaFilter(m.Fields, m.Exclude)
+	filter.mode = normalizeModelSchemaMode(m.Mode)
+	filter.depth = normalizeModelSchemaDepth(m.Depth)
 	filtered, err := serializeModelSchemaValue(reflect.ValueOf(m.Model), filter)
 	if err != nil {
 		return nil, err
@@ -95,6 +479,8 @@ func (m ModelSchema[T]) MarshalJSON() ([]byte, error) {
 type modelSchemaFilter struct {
 	fields  []string
 	exclude []string
+	mode    ModelSchemaMode
+	depth   int
 }
 
 type modelSchemaDescriptor struct {
@@ -114,9 +500,12 @@ type modelSchemaCarrier interface {
 
 func (m ModelSchema[T]) modelSchemaDescriptor() modelSchemaDescriptor {
 	var zero T
+	filter := newModelSchemaFilter(m.Fields, m.Exclude)
+	filter.mode = normalizeModelSchemaMode(m.Mode)
+	filter.depth = normalizeModelSchemaDepth(m.Depth)
 	return modelSchemaDescriptor{
 		target:        reflect.TypeOf(zero),
-		filter:        newModelSchemaFilter(m.Fields, m.Exclude),
+		filter:        filter,
 		componentName: sanitizeComponentName(typeName(reflect.TypeOf(m))),
 	}
 }
@@ -128,20 +517,27 @@ func newModelSchemaFilter(fields, exclude []string) modelSchemaFilter {
 	}
 }
 
+func (f modelSchemaFilter) normalized() modelSchemaFilter {
+	return modelSchemaFilter{
+		fields:  normalizeModelSchemaNames(f.fields),
+		exclude: normalizeModelSchemaNames(f.exclude),
+		mode:    normalizeModelSchemaMode(f.mode),
+		depth:   normalizeModelSchemaDepth(f.depth),
+	}
+}
+
 func (f modelSchemaFilter) isZero() bool {
-	return len(f.fields) == 0 && len(f.exclude) == 0
+	return len(f.fields) == 0 && len(f.exclude) == 0 && f.mode == "" && f.depth == 0
 }
 
 func (f modelSchemaFilter) includes(field reflect.StructField, jsonName string) bool {
-	if !f.isZero() {
-		if len(f.fields) > 0 && !containsModelSchemaName(f.fields, field.Name, jsonName) {
-			return false
-		}
-		if containsModelSchemaName(f.exclude, field.Name, jsonName) {
-			return false
-		}
+	if len(f.fields) > 0 && !containsModelSchemaName(f.fields, field.Name, jsonName) {
+		return false
 	}
-	return true
+	if containsModelSchemaName(f.exclude, field.Name, jsonName) {
+		return false
+	}
+	return modelSchemaModeIncludes(f.mode, field, jsonName)
 }
 
 func resolveModelSchemaDescriptor(t reflect.Type) (modelSchemaDescriptor, bool) {
@@ -195,8 +591,12 @@ func findEmbeddedModelSchemaField(t reflect.Type) (embeddedModelSchemaField, boo
 		}
 		if _, ok := directModelSchemaDescriptor(field.Type); ok {
 			return embeddedModelSchemaField{
-				index:  field.Index,
-				filter: newModelSchemaFilter(parseModelSchemaTag(field.Tag.Get("fields")), parseModelSchemaTag(field.Tag.Get("exclude"))),
+				index: field.Index,
+				filter: newModelSchemaFilter(
+					parseModelSchemaTag(field.Tag.Get("fields")),
+					parseModelSchemaTag(field.Tag.Get("exclude")),
+				).withMode(parseModelSchemaModeTag(field.Tag.Get("mode"))).
+					withDepth(parseModelSchemaDepthTag(field.Tag.Get("depth"))),
 			}, true
 		}
 	}
@@ -243,6 +643,232 @@ func containsModelSchemaName(names []string, candidates ...string) bool {
 		if index < len(names) && names[index] == candidate {
 			return true
 		}
+	}
+	return false
+}
+
+func parseModelSchemaModeTag(raw string) ModelSchemaMode {
+	return normalizeModelSchemaMode(ModelSchemaMode(raw))
+}
+
+func parseModelSchemaDepthTag(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	depth, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return normalizeModelSchemaDepth(depth)
+}
+
+func normalizeModelSchemaMode(mode ModelSchemaMode) ModelSchemaMode {
+	value := strings.TrimSpace(strings.ToLower(string(mode)))
+	value = strings.ReplaceAll(value, "_", "-")
+	switch value {
+	case "", "none":
+		return ""
+	case "read", "output":
+		return ModelSchemaModeRead
+	case "list":
+		return ModelSchemaModeList
+	case "detail", "details":
+		return ModelSchemaModeDetail
+	case "create", "creation", "insert":
+		return ModelSchemaModeCreate
+	case "update", "patch":
+		return ModelSchemaModeUpdate
+	default:
+		return ModelSchemaMode(value)
+	}
+}
+
+func normalizeModelSchemaDepth(depth int) int {
+	if depth < 0 {
+		return 0
+	}
+	return depth
+}
+
+func (f modelSchemaFilter) withMode(mode ModelSchemaMode) modelSchemaFilter {
+	f.mode = normalizeModelSchemaMode(mode)
+	return f
+}
+
+func (f modelSchemaFilter) withDepth(depth int) modelSchemaFilter {
+	f.depth = normalizeModelSchemaDepth(depth)
+	return f
+}
+
+func (f modelSchemaFilter) child() modelSchemaFilter {
+	if f.depth <= 0 {
+		return modelSchemaFilter{}
+	}
+	return modelSchemaFilter{
+		mode:  normalizeModelSchemaMode(f.mode),
+		depth: f.depth - 1,
+	}
+}
+
+func modelSchemaModeIncludes(mode ModelSchemaMode, field reflect.StructField, jsonName string) bool {
+	switch normalizeModelSchemaMode(mode) {
+	case "":
+		return true
+	case ModelSchemaModeRead, ModelSchemaModeDetail:
+		return modelSchemaReadableField(field)
+	case ModelSchemaModeList:
+		return modelSchemaReadableField(field) && modelSchemaListField(field.Type)
+	case ModelSchemaModeCreate:
+		return modelSchemaWritableField(field, jsonName, ModelSchemaModeCreate)
+	case ModelSchemaModeUpdate:
+		return modelSchemaWritableField(field, jsonName, ModelSchemaModeUpdate)
+	default:
+		return true
+	}
+}
+
+type modelSchemaFieldAccess struct {
+	writeOnly  bool
+	createOnly bool
+	updateOnly bool
+}
+
+func modelSchemaReadableField(field reflect.StructField) bool {
+	access := modelSchemaResolveFieldAccess(field.Tag)
+	return !access.writeOnly
+}
+
+func modelSchemaWritableField(field reflect.StructField, jsonName string, mode ModelSchemaMode) bool {
+	if modelSchemaReadOnlyField(field, jsonName) {
+		return false
+	}
+	gormTag := field.Tag.Get("gorm")
+	if mode == ModelSchemaModeCreate && modelSchemaHasGORMToken(gormTag, "<-:update") {
+		return false
+	}
+	if mode == ModelSchemaModeUpdate && modelSchemaHasGORMToken(gormTag, "<-:create") {
+		return false
+	}
+	access := modelSchemaResolveFieldAccess(field.Tag)
+	switch normalizeModelSchemaMode(mode) {
+	case ModelSchemaModeCreate:
+		return !modelSchemaHasWriteModeOverride(access) || access.createOnly
+	case ModelSchemaModeUpdate:
+		return !modelSchemaHasWriteModeOverride(access) || access.updateOnly
+	default:
+		return true
+	}
+}
+
+func modelSchemaHasWriteModeOverride(access modelSchemaFieldAccess) bool {
+	return access.createOnly || access.updateOnly
+}
+
+func modelSchemaResolveFieldAccess(tag reflect.StructTag) modelSchemaFieldAccess {
+	var access modelSchemaFieldAccess
+	modelSchemaApplyFieldAccessTag(&access, tag.Get("ninja"))
+	modelSchemaApplyFieldAccessTag(&access, tag.Get("crud"))
+	return access
+}
+
+func modelSchemaApplyFieldAccessTag(access *modelSchemaFieldAccess, raw string) {
+	for _, token := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ';' || unicode.IsSpace(r)
+	}) {
+		switch modelSchemaNormalizeAccessToken(token) {
+		case "writeonly":
+			access.writeOnly = true
+		case "createonly":
+			access.createOnly = true
+		case "updateonly":
+			access.updateOnly = true
+		}
+	}
+}
+
+func modelSchemaNormalizeAccessToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	token = strings.ReplaceAll(token, "-", "")
+	return token
+}
+
+func modelSchemaReadOnlyField(field reflect.StructField, jsonName string) bool {
+	gormTag := field.Tag.Get("gorm")
+	if modelSchemaHasGORMToken(gormTag, "-") ||
+		modelSchemaHasGORMToken(gormTag, "primarykey") ||
+		modelSchemaHasGORMToken(gormTag, "primary_key") ||
+		modelSchemaHasGORMToken(gormTag, "->") ||
+		modelSchemaHasGORMToken(gormTag, "<-:false") ||
+		modelSchemaHasGORMToken(gormTag, "autocreatetime") ||
+		modelSchemaHasGORMToken(gormTag, "autoupdatetime") {
+		return true
+	}
+	if field.Name == "ID" || jsonName == "id" {
+		return true
+	}
+	switch field.Name {
+	case "CreatedAt", "UpdatedAt", "DeletedAt":
+		return true
+	default:
+		return false
+	}
+}
+
+func modelSchemaHasGORMToken(raw, token string) bool {
+	token = modelSchemaNormalizeGORMToken(token)
+	for _, part := range strings.Split(raw, ";") {
+		if modelSchemaNormalizeGORMToken(part) == token {
+			return true
+		}
+	}
+	return false
+}
+
+func modelSchemaHasGORMSetting(raw, key string) bool {
+	key = modelSchemaNormalizeGORMToken(key)
+	for _, part := range strings.Split(raw, ";") {
+		name, _, _ := strings.Cut(part, ":")
+		if modelSchemaNormalizeGORMToken(name) == key {
+			return true
+		}
+	}
+	return false
+}
+
+func modelSchemaNormalizeGORMToken(token string) string {
+	token = strings.TrimSpace(strings.ToLower(token))
+	token = strings.ReplaceAll(token, "_", "")
+	return token
+}
+
+func modelSchemaListField(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if modelSchemaImplementsMarshaler(t) {
+		return true
+	}
+	switch t.Kind() {
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64, reflect.String:
+		return true
+	default:
+		return false
+	}
+}
+
+func modelSchemaImplementsMarshaler(t reflect.Type) bool {
+	jsonMarshalerType := reflect.TypeOf((*json.Marshaler)(nil)).Elem()
+	textMarshalerType := reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+	if t.Implements(jsonMarshalerType) || t.Implements(textMarshalerType) {
+		return true
+	}
+	if t.Kind() != reflect.Ptr {
+		ptr := reflect.PointerTo(t)
+		return ptr.Implements(jsonMarshalerType) || ptr.Implements(textMarshalerType)
 	}
 	return false
 }
@@ -363,8 +989,8 @@ func serializeModelSchemaStruct(v reflect.Value, filter modelSchemaFilter) (map[
 			continue
 		}
 
-		name := jsonFieldName(field)
-		if name == "-" || !filter.includes(field, name) {
+		name, ok := modelSchemaFieldName(field, filter)
+		if !ok {
 			continue
 		}
 
@@ -376,9 +1002,122 @@ func serializeModelSchemaStruct(v reflect.Value, filter modelSchemaFilter) (map[
 			out[name] = marshaled
 			continue
 		}
+		if filter.depth > 0 && modelSchemaNestedField(value.Type()) {
+			nested, err := serializeModelSchemaValue(value, filter.child())
+			if err != nil {
+				return nil, err
+			}
+			out[name] = nested
+			continue
+		}
 		out[name] = value.Interface()
 	}
 	return out, nil
+}
+
+func modelSchemaNestedField(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Struct:
+		return !modelSchemaImplementsMarshaler(t)
+	case reflect.Slice, reflect.Array:
+		return modelSchemaNestedField(t.Elem())
+	default:
+		return false
+	}
+}
+
+func modelSchemaPreloads(t reflect.Type, filter modelSchemaFilter) []string {
+	filter = filter.normalized()
+	if filter.depth <= 0 {
+		return nil
+	}
+	var paths []string
+	collectModelSchemaPreloads(deref(t), filter, "", &paths)
+	if len(paths) == 0 {
+		return nil
+	}
+	return paths
+}
+
+func collectModelSchemaPreloads(t reflect.Type, filter modelSchemaFilter, prefix string, paths *[]string) {
+	t = modelSchemaRelationType(t)
+	if t.Kind() != reflect.Struct {
+		return
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Anonymous {
+			collectModelSchemaPreloads(field.Type, filter, prefix, paths)
+			continue
+		}
+
+		_, ok := modelSchemaFieldName(field, filter)
+		if !ok || !modelSchemaPreloadField(field) {
+			continue
+		}
+
+		path := field.Name
+		if prefix != "" {
+			path = prefix + "." + path
+		}
+
+		*paths = appendModelSchemaPreloadPath(*paths, path)
+
+		child := filter.child()
+		if child.depth > 0 {
+			collectModelSchemaPreloads(field.Type, child, path, paths)
+		}
+	}
+}
+
+func modelSchemaFieldName(field reflect.StructField, filter modelSchemaFilter) (string, bool) {
+	name := jsonFieldName(field)
+	if name == "-" {
+		name = defaultJSONFieldName(field.Name)
+		if len(filter.fields) == 0 || !containsModelSchemaName(filter.fields, field.Name, name) {
+			return "", false
+		}
+		return name, true
+	}
+	if !filter.includes(field, name) {
+		return "", false
+	}
+	return name, true
+}
+
+func modelSchemaPreloadField(field reflect.StructField) bool {
+	if !modelSchemaNestedField(field.Type) {
+		return false
+	}
+	gormTag := field.Tag.Get("gorm")
+	return !modelSchemaHasGORMToken(gormTag, "-") &&
+		!modelSchemaHasGORMSetting(gormTag, "embedded") &&
+		!modelSchemaHasGORMSetting(gormTag, "embeddedprefix")
+}
+
+func modelSchemaRelationType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Ptr || t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
+		t = t.Elem()
+	}
+	return t
+}
+
+func appendModelSchemaPreloadPath(paths []string, path string) []string {
+	if path == "" {
+		return paths
+	}
+	for _, existing := range paths {
+		if existing == path {
+			return paths
+		}
+	}
+	return append(paths, path)
 }
 
 func isJSONOmitEmpty(field reflect.StructField) bool {
