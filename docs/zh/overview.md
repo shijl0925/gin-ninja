@@ -43,7 +43,7 @@ gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层
 - **Gin 中间件支持** – API 和单个 Router 都支持 `UseGin()`。
 - **OpenAPI 控制** – 从文档中隐藏内部端点，并为操作声明额外响应。
 - **操作级控制** – 每端点超时、内存限流和标准分页响应声明。
-- **ModelSchema 风格响应** – 使用 `fields` / `exclude` 控制过滤后的 JSON 输出和 OpenAPI schema。
+- **ModelSchema 风格响应** – 使用 `ResponseModel` / `ResponseSchema` 在运行时绑定、校验、裁剪输出字段，并生成一致的 OpenAPI schema。
 - **路由级缓存** – 内置 `Cache(...)`、`ETag()`、`CacheControl(...)`、缓存标签和可插拔的内存/Redis 存储，适合读多端点。
 - **API 版本隔离** – 版本感知路由、按版本输出 OpenAPI/Swagger，以及弃用响应头。
 - **流式端点** – 一等支持 SSE 和 WebSocket 路由注册辅助函数。

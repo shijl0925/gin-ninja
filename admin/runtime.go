@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/internal/sqlident"
 	"github.com/shijl0925/gin-ninja/order"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
@@ -33,9 +34,13 @@ func (r *Resource) resolved(ctx *ninja.Context) *resolvedResource {
 		fields:      r.fields,
 		fieldByName: r.fieldByName,
 		metadata: ResourceMetadata{
-			Name:  r.metadata.Name,
-			Label: r.metadata.Label,
-			Path:  r.metadata.Path,
+			Name:        r.metadata.Name,
+			Label:       r.metadata.Label,
+			Path:        r.metadata.Path,
+			Icon:        r.metadata.Icon,
+			Group:       r.metadata.Group,
+			Description: r.metadata.Description,
+			Order:       r.metadata.Order,
 		},
 		primaryKey: r.primaryKey,
 		fieldMeta:  make(map[*fieldMeta]FieldMeta, len(r.fields)),
@@ -209,6 +214,14 @@ func queryColumnFor(field *fieldMeta, meta FieldMeta) string {
 	return meta.Column
 }
 
+func safeQueryColumnFor(field *fieldMeta, meta FieldMeta) (string, error) {
+	column := queryColumnFor(field, meta)
+	if !sqlident.IsSafeFieldName(column) {
+		return "", fmt.Errorf("admin field %q uses unsafe column %q", meta.Name, column)
+	}
+	return column, nil
+}
+
 func (r *Resource) validateRequiredFor(view *resolvedResource, values map[string]any, mode fieldMode) error {
 	if mode != fieldModeCreate {
 		return nil
@@ -304,7 +317,11 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 			if field == nil {
 				continue
 			}
-			parts = append(parts, view.meta(field).Column+" LIKE ?")
+			column, err := safeQueryColumnFor(field, view.meta(field))
+			if err != nil {
+				return nil, err
+			}
+			parts = append(parts, column+" LIKE ?")
 			args = append(args, "%"+term+"%")
 		}
 		if len(parts) > 0 {
@@ -340,7 +357,11 @@ func (r *Resource) applyListQueryFor(view *resolvedResource, db *gorm.DB, query 
 			if sortField.Desc {
 				direction = "DESC"
 			}
-			db = db.Order(queryColumnFor(field, view.meta(field)) + " " + direction)
+			column, err := safeQueryColumnFor(field, view.meta(field))
+			if err != nil {
+				return nil, err
+			}
+			db = db.Order(column + " " + direction)
 		}
 	}
 
@@ -405,7 +426,11 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 			parts := make([]string, 0, len(names)+1)
 			args := make([]any, 0, len(names)+1)
 			if value, err := valueField.parseString(term); err == nil {
-				parts = append(parts, queryColumnFor(valueField, targetView.meta(valueField))+" = ?")
+				column, err := safeQueryColumnFor(valueField, targetView.meta(valueField))
+				if err != nil {
+					return nil, err
+				}
+				parts = append(parts, column+" = ?")
 				args = append(args, value)
 			}
 			for _, name := range names {
@@ -413,7 +438,11 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 				if searchField == nil {
 					continue
 				}
-				parts = append(parts, targetView.meta(searchField).Column+" LIKE ?")
+				column, err := safeQueryColumnFor(searchField, targetView.meta(searchField))
+				if err != nil {
+					return nil, err
+				}
+				parts = append(parts, column+" LIKE ?")
 				args = append(args, "%"+term+"%")
 			}
 			if len(parts) > 0 {

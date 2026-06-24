@@ -1,6 +1,7 @@
 package ninja
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 	"time"
@@ -172,19 +173,68 @@ func Response(status int, description string, model any) OperationOption {
 	}
 }
 
-// Paginated declares a standard paginated success response schema.
+// ResponseModel declares the runtime and OpenAPI schema for the successful
+// JSON response. When T embeds ModelSchema, returned model values are bound to
+// T before being written so fields/exclude tags are enforced at runtime.
+func ResponseModel[T any]() OperationOption {
+	return func(op *operation) {
+		op.spec.responseType = reflect.TypeOf((*T)(nil)).Elem()
+		op.spec.responseSchema = nil
+		op.spec.paginatedResponseSchema = nil
+		op.spec.cursorPaginatedResponseSchema = nil
+	}
+}
+
+// ResponseSchema declares a reusable model schema descriptor for the successful
+// JSON response. Returned model values are serialized through the descriptor at
+// runtime and documented with the same descriptor in OpenAPI.
+func ResponseSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption {
+	return func(op *operation) {
+		schema := descriptor.schemaDescriptor()
+		op.spec.responseSchema = &schema
+		op.spec.responseType = nil
+		op.spec.paginatedResponseSchema = nil
+		op.spec.cursorPaginatedResponseSchema = nil
+	}
+}
+
+// Paginated declares a standard paginated success response schema. Items are
+// bound and validated with the same runtime rules as ResponseModel.
 func Paginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
 		op.spec.paginatedItemType = reflect.TypeOf(item)
+		op.spec.paginatedResponseSchema = nil
+	}
+}
+
+// PaginatedSchema declares a paginated success response whose items are
+// serialized through the provided model schema descriptor at runtime.
+func PaginatedSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption {
+	return func(op *operation) {
+		schema := descriptor.schemaDescriptor()
+		op.spec.paginatedResponseSchema = &schema
+		op.spec.paginatedItemType = nil
 	}
 }
 
 // CursorPaginated declares a standard cursor-paginated success response schema.
+// Items are bound and validated with the same runtime rules as ResponseModel.
 func CursorPaginated[T any]() OperationOption {
 	return func(op *operation) {
 		var item T
 		op.spec.cursorPaginatedItemType = reflect.TypeOf(item)
+		op.spec.cursorPaginatedResponseSchema = nil
+	}
+}
+
+// CursorPaginatedSchema declares a cursor-paginated success response whose
+// items are serialized through the provided model schema descriptor at runtime.
+func CursorPaginatedSchema[T any](descriptor ModelSchemaDescriptor[T]) OperationOption {
+	return func(op *operation) {
+		schema := descriptor.schemaDescriptor()
+		op.spec.cursorPaginatedResponseSchema = &schema
+		op.spec.cursorPaginatedItemType = nil
 	}
 }
 
@@ -253,18 +303,22 @@ type operationRoute struct {
 }
 
 type operationDocSpec struct {
-	summary                 string
-	description             string
-	operationID             string
-	tags                    []string
-	tagDescriptions         map[string]string
-	security                []SecurityRequirement
-	deprecated              bool
-	successStatus           int
-	responses               []documentedResponse
-	paginatedItemType       reflect.Type
-	cursorPaginatedItemType reflect.Type
-	excludeFromDocs         bool
+	summary                       string
+	description                   string
+	operationID                   string
+	tags                          []string
+	tagDescriptions               map[string]string
+	security                      []SecurityRequirement
+	deprecated                    bool
+	successStatus                 int
+	responseType                  reflect.Type
+	responseSchema                *modelSchemaDescriptor
+	paginatedResponseSchema       *modelSchemaDescriptor
+	cursorPaginatedResponseSchema *modelSchemaDescriptor
+	responses                     []documentedResponse
+	paginatedItemType             reflect.Type
+	cursorPaginatedItemType       reflect.Type
+	excludeFromDocs               bool
 }
 
 type operationBehavior struct {
@@ -400,21 +454,7 @@ func newOperation[TIn any, TOut any](
 			return
 		}
 
-		// Write the response.
-		if output == nil {
-			c.Status(http.StatusNoContent)
-			return
-		}
-		if writer, ok := any(output).(responseWriter); ok {
-			writer.writeTo(c, op.spec.successStatus)
-			return
-		}
-		if c.Request.Method == http.MethodHead {
-			c.Header("Content-Type", "application/json; charset=utf-8")
-			c.Status(op.spec.successStatus)
-			return
-		}
-		c.JSON(op.spec.successStatus, output)
+		op.writeSuccessResponse(c, output)
 	}
 
 	return op
@@ -513,6 +553,440 @@ func (op *operation) usesDirectResponseWriter() bool {
 		return true
 	}
 	return op.route.outputType.Implements(responseWriterType)
+}
+
+func (op *operation) successResponseType() reflect.Type {
+	if op.spec.responseType != nil {
+		return op.spec.responseType
+	}
+	return op.route.outputType
+}
+
+func (op *operation) writeSuccessResponse(c *gin.Context, output any) {
+	if isNilResponse(output) {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	if writer, ok := output.(responseWriter); ok {
+		writer.writeTo(c, op.spec.successStatus)
+		return
+	}
+	if c.Request.Method == http.MethodHead {
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.Status(op.spec.successStatus)
+		return
+	}
+
+	body, err := op.serializeResponse(output)
+	if err != nil {
+		WriteError(c, err)
+		return
+	}
+	c.JSON(op.spec.successStatus, body)
+}
+
+func isNilResponse(output any) bool {
+	if output == nil {
+		return true
+	}
+	value := reflect.ValueOf(output)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+func (op *operation) serializeResponse(output any) (any, error) {
+	if op.spec.paginatedResponseSchema != nil {
+		return serializePaginatedModelSchemaResponse(*op.spec.paginatedResponseSchema, output)
+	}
+	if op.spec.cursorPaginatedResponseSchema != nil {
+		return serializePaginatedModelSchemaResponse(*op.spec.cursorPaginatedResponseSchema, output)
+	}
+	if op.spec.paginatedItemType != nil {
+		return serializePaginatedResponseModel(op.spec.paginatedItemType, output)
+	}
+	if op.spec.cursorPaginatedItemType != nil {
+		return serializePaginatedResponseModel(op.spec.cursorPaginatedItemType, output)
+	}
+	if op.spec.responseSchema != nil {
+		return serializeModelSchemaResponse(*op.spec.responseSchema, output)
+	}
+	if op.spec.responseType == nil {
+		return output, nil
+	}
+	body, err := bindResponseModel(op.spec.responseType, output)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateResponseModel(body); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func serializePaginatedModelSchemaResponse(descriptor modelSchemaDescriptor, output any) (any, error) {
+	value := reflect.ValueOf(output)
+	if !value.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil, fmt.Errorf("response value is nil")
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("paginated response must be a struct, got %s", value.Kind())
+	}
+
+	items := value.FieldByName("Items")
+	if !items.IsValid() {
+		return nil, fmt.Errorf("paginated response must have an Items field")
+	}
+	if !items.CanInterface() {
+		return nil, fmt.Errorf("paginated response Items field is not accessible")
+	}
+	if err := validateModelSchemaResponseType(descriptor.target, items.Interface()); err != nil {
+		return nil, err
+	}
+	if err := validateModelSchemaRequiredFields(items, descriptor.filter); err != nil {
+		return nil, err
+	}
+	serializedItems, err := serializeModelSchemaValue(items, descriptor.filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return serializePaginatedResponseEnvelope(value, serializedItems)
+}
+
+func serializePaginatedResponseModel(itemType reflect.Type, output any) (any, error) {
+	value := reflect.ValueOf(output)
+	if !value.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil, fmt.Errorf("response value is nil")
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("paginated response must be a struct, got %s", value.Kind())
+	}
+
+	items := value.FieldByName("Items")
+	if !items.IsValid() {
+		return nil, fmt.Errorf("paginated response must have an Items field")
+	}
+	if !items.CanInterface() {
+		return nil, fmt.Errorf("paginated response Items field is not accessible")
+	}
+
+	serializedItems, err := bindResponseModelItems(reflect.SliceOf(itemType), items.Interface())
+	if err != nil {
+		return nil, err
+	}
+	if err := validateResponseModel(serializedItems); err != nil {
+		return nil, err
+	}
+	return serializePaginatedResponseEnvelope(value, serializedItems)
+}
+
+func serializePaginatedResponseEnvelope(value reflect.Value, serializedItems any) (map[string]any, error) {
+	out := make(map[string]any)
+	t := value.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name := jsonFieldName(field)
+		if name == "-" {
+			continue
+		}
+		fieldValue := value.Field(i)
+		if isJSONOmitEmpty(field) && fieldValue.IsZero() {
+			continue
+		}
+		if field.Name == "Items" {
+			out[name] = serializedItems
+			continue
+		}
+		if marshaled, ok := preserveCustomJSONValue(fieldValue); ok {
+			out[name] = marshaled
+			continue
+		}
+		if !fieldValue.CanInterface() {
+			continue
+		}
+		out[name] = fieldValue.Interface()
+	}
+	return out, nil
+}
+
+func serializeModelSchemaResponse(descriptor modelSchemaDescriptor, output any) (any, error) {
+	if err := validateModelSchemaResponseType(descriptor.target, output); err != nil {
+		return nil, err
+	}
+	if err := validateModelSchemaRequiredFields(reflect.ValueOf(output), descriptor.filter); err != nil {
+		return nil, err
+	}
+	return serializeModelSchemaValue(reflect.ValueOf(output), descriptor.filter)
+}
+
+func validateModelSchemaRequiredFields(value reflect.Value, filter modelSchemaFilter) error {
+	return validateModelSchemaRequiredFieldsAt(value, filter.normalized(), "")
+}
+
+func validateModelSchemaRequiredFieldsAt(value reflect.Value, filter modelSchemaFilter, path string) error {
+	if !value.IsValid() {
+		return nil
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil
+		}
+		value = value.Elem()
+	}
+	if marshaled, ok := preserveCustomJSONValue(value); ok && marshaled != nil {
+		return nil
+	}
+
+	switch value.Kind() {
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < value.Len(); i++ {
+			if err := validateModelSchemaRequiredFieldsAt(value.Index(i), filter, path); err != nil {
+				return err
+			}
+		}
+	case reflect.Struct:
+		return validateModelSchemaStructRequiredFields(value, filter, path)
+	}
+	return nil
+}
+
+func validateModelSchemaStructRequiredFields(value reflect.Value, filter modelSchemaFilter, path string) error {
+	t := value.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		fieldValue := value.Field(i)
+		if field.Anonymous {
+			if err := validateModelSchemaRequiredFieldsAt(fieldValue, filter, path); err != nil {
+				return err
+			}
+			continue
+		}
+
+		name := jsonFieldName(field)
+		if name == "-" || !filter.includes(field, name) {
+			continue
+		}
+		fieldPath := modelSchemaFieldPath(path, name)
+		if isRequired(field) && fieldValue.IsZero() {
+			return fmt.Errorf("response schema validation failed: %s is required", fieldPath)
+		}
+		if filter.depth > 0 && modelSchemaNestedField(fieldValue.Type()) {
+			if err := validateModelSchemaRequiredFieldsAt(fieldValue, filter.child(), fieldPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func modelSchemaFieldPath(prefix, name string) string {
+	if prefix == "" {
+		return name
+	}
+	return prefix + "." + name
+}
+
+func validateModelSchemaResponseType(target reflect.Type, output any) error {
+	source := reflect.TypeOf(output)
+	if source == nil {
+		return fmt.Errorf("response value is invalid")
+	}
+	if isModelSchemaResponseType(target, source) {
+		return nil
+	}
+	return fmt.Errorf("cannot serialize response type %s as model schema %s", source, target)
+}
+
+func isModelSchemaResponseType(target, source reflect.Type) bool {
+	if target == nil || source == nil {
+		return false
+	}
+	if source.AssignableTo(target) || source.ConvertibleTo(target) {
+		return true
+	}
+	for source.Kind() == reflect.Ptr {
+		source = source.Elem()
+		if source.AssignableTo(target) || source.ConvertibleTo(target) {
+			return true
+		}
+	}
+
+	target = deref(target)
+	if source.AssignableTo(target) || source.ConvertibleTo(target) {
+		return true
+	}
+	if source.Kind() == reflect.Slice || source.Kind() == reflect.Array {
+		return isModelSchemaResponseType(target, source.Elem())
+	}
+	return false
+}
+
+func bindResponseModel(schemaType reflect.Type, output any) (any, error) {
+	schemaType = deref(schemaType)
+	if value, ok := coerceResponseValue(schemaType, output); ok {
+		return value, nil
+	}
+
+	if schemaType.Kind() == reflect.Slice || schemaType.Kind() == reflect.Array {
+		return bindResponseModelItems(schemaType, output)
+	}
+	if schemaType.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("response model must be a struct, got %s", schemaType.Kind())
+	}
+	if value, ok, err := bindModelSchemaForType(schemaType, output); ok || err != nil {
+		return value, err
+	}
+
+	source := reflect.ValueOf(output)
+	if !source.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	return nil, fmt.Errorf("cannot serialize response type %s as %s", source.Type(), schemaType)
+}
+
+func coerceResponseValue(schemaType reflect.Type, output any) (any, bool) {
+	source := reflect.ValueOf(output)
+	if !source.IsValid() {
+		return nil, false
+	}
+	if source.Type().AssignableTo(schemaType) {
+		return source.Interface(), true
+	}
+	if source.Type().ConvertibleTo(schemaType) {
+		return source.Convert(schemaType).Interface(), true
+	}
+	if source.Kind() == reflect.Ptr && !source.IsNil() {
+		elem := source.Elem()
+		if elem.Type().AssignableTo(schemaType) {
+			return elem.Interface(), true
+		}
+		if elem.Type().ConvertibleTo(schemaType) {
+			return elem.Convert(schemaType).Interface(), true
+		}
+	}
+	return nil, false
+}
+
+func bindResponseModelItems(schemaType reflect.Type, output any) (any, error) {
+	source := reflect.ValueOf(output)
+	if !source.IsValid() {
+		return nil, fmt.Errorf("response value is invalid")
+	}
+	for source.Kind() == reflect.Ptr {
+		if source.IsNil() {
+			return nil, fmt.Errorf("response value is nil")
+		}
+		source = source.Elem()
+	}
+	if source.Kind() != reflect.Slice && source.Kind() != reflect.Array {
+		return nil, fmt.Errorf("cannot serialize response type %s as %s", source.Type(), schemaType)
+	}
+	if schemaType.Kind() == reflect.Array && source.Len() != schemaType.Len() {
+		return nil, fmt.Errorf("cannot serialize response length %d as %s", source.Len(), schemaType)
+	}
+
+	out := reflect.MakeSlice(reflect.SliceOf(schemaType.Elem()), source.Len(), source.Len())
+	for i := 0; i < source.Len(); i++ {
+		item, err := bindResponseModel(schemaType.Elem(), source.Index(i).Interface())
+		if err != nil {
+			return nil, fmt.Errorf("response item %d: %w", i, err)
+		}
+		itemValue, err := responseModelValueForType(schemaType.Elem(), item)
+		if err != nil {
+			return nil, fmt.Errorf("response item %d: %w", i, err)
+		}
+		out.Index(i).Set(itemValue)
+	}
+	if schemaType.Kind() == reflect.Slice {
+		return out.Interface(), nil
+	}
+
+	array := reflect.New(schemaType).Elem()
+	reflect.Copy(array, out)
+	return array.Interface(), nil
+}
+
+func responseModelValueForType(target reflect.Type, value any) (reflect.Value, error) {
+	source := reflect.ValueOf(value)
+	if !source.IsValid() {
+		return reflect.Value{}, fmt.Errorf("response value is invalid")
+	}
+	if source.Type().AssignableTo(target) {
+		return source, nil
+	}
+	if source.Type().ConvertibleTo(target) {
+		return source.Convert(target), nil
+	}
+	if source.Kind() == reflect.Ptr && !source.IsNil() {
+		elem := source.Elem()
+		if elem.Type().AssignableTo(target) {
+			return elem, nil
+		}
+		if elem.Type().ConvertibleTo(target) {
+			return elem.Convert(target), nil
+		}
+	}
+	return reflect.Value{}, fmt.Errorf("cannot serialize response type %s as %s", source.Type(), target)
+}
+
+func validateResponseModel(value any) error {
+	if value == nil {
+		return nil
+	}
+	return validateResponseModelValue(reflect.ValueOf(value))
+}
+
+func validateResponseModelValue(value reflect.Value) error {
+	if !value.IsValid() {
+		return nil
+	}
+	for value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return nil
+		}
+		value = value.Elem()
+	}
+
+	switch value.Kind() {
+	case reflect.Struct:
+		if !value.CanInterface() {
+			return nil
+		}
+		if err := validate.Struct(value.Interface()); err != nil {
+			return fmt.Errorf("response schema validation failed: %w", err)
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < value.Len(); i++ {
+			if err := validateResponseModelValue(value.Index(i)); err != nil {
+				return err
+			}
+		}
+	default:
+		return nil
+	}
+	return nil
 }
 
 func invokeWithContextGuard(c *gin.Context, invoke func() error) error {

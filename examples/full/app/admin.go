@@ -10,6 +10,10 @@ import (
 func NewAdminSite() *admin.Site {
 	site := admin.NewSite(admin.WithPermissionChecker(requireAuthenticatedAdmin))
 	site.MustRegisterModel(&admin.ModelResource{
+		Icon:         "users",
+		Group:        "Identity",
+		Description:  "Manage application users, profile fields, admin flags, and assigned roles.",
+		Order:        10,
 		Model:        User{},
 		Preloads:     []string{"Roles"},
 		ListFields:   []string{"id", "name", "email", "age", "is_admin", "createdAt", "updatedAt"},
@@ -19,8 +23,18 @@ func NewAdminSite() *admin.Site {
 		FilterFields: []string{"is_admin", "age", "createdAt"},
 		SortFields:   []string{"id", "name", "email", "age", "is_admin", "createdAt", "updatedAt"},
 		SearchFields: []string{"name", "email"},
+		FieldOptions: map[string]admin.FieldOptions{
+			"name":     {Placeholder: "Full name", Help: "Shown in admin tables and relation selectors."},
+			"email":    {Placeholder: "user@example.com"},
+			"password": {Placeholder: "Leave blank when editing to keep the current password."},
+			"role_ids": {Help: "Search roles and select one or more memberships.", Width: "full"},
+		},
 	})
 	site.MustRegisterModel(&admin.ModelResource{
+		Icon:         "shield",
+		Group:        "Identity",
+		Description:  "Define role names, codes, status values, and operational notes.",
+		Order:        20,
 		Model:        Role{},
 		ListFields:   []string{"id", "name", "code", "status", "createdAt", "updatedAt"},
 		DetailFields: []string{"id", "name", "code", "status", "remark", "createdAt", "updatedAt"},
@@ -29,8 +43,17 @@ func NewAdminSite() *admin.Site {
 		FilterFields: []string{"status", "name", "code"},
 		SortFields:   []string{"id", "name", "code", "status", "createdAt", "updatedAt"},
 		SearchFields: []string{"name", "code", "remark"},
+		FieldOptions: map[string]admin.FieldOptions{
+			"name":   {Placeholder: "Administrators"},
+			"code":   {Placeholder: "admin"},
+			"remark": {Placeholder: "Internal role notes", Width: "full"},
+		},
 	})
 	site.MustRegisterModel(&admin.ModelResource{
+		Icon:         "briefcase",
+		Group:        "Delivery",
+		Description:  "Review projects scoped to the signed-in owner and maintain ownership metadata.",
+		Order:        30,
 		Model:        Project{},
 		ListFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
 		DetailFields: []string{"id", "title", "summary", "owner_id", "createdAt", "updatedAt"},
@@ -39,6 +62,11 @@ func NewAdminSite() *admin.Site {
 		FilterFields: []string{"id"},
 		SearchFields: []string{"title", "summary"},
 		SortFields:   []string{"id", "title", "owner_id", "createdAt", "updatedAt"},
+		FieldOptions: map[string]admin.FieldOptions{
+			"title":    {Placeholder: "Project title", Width: "full"},
+			"summary":  {Placeholder: "Short project summary", Width: "full"},
+			"owner_id": {Help: "Only users visible to the admin API can be selected as owners."},
+		},
 		RowPermissions: admin.RowPermissionFunc(func(ctx *ninja.Context, action admin.Action, resource *admin.Resource, db *gorm.DB) *gorm.DB {
 			return db.Where("owner_id = ?", ctx.GetUserID())
 		}),

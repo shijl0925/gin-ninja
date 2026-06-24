@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/shijl0925/gin-ninja/internal/contextkeys"
+	"github.com/shijl0925/gin-ninja/pagination"
 )
 
 type BindEmbeddedInput struct {
@@ -57,6 +58,54 @@ type schemaModel struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type requiredSchemaModel struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name" binding:"required"`
+	Email string `json:"email"`
+}
+
+type schemaModeModel struct {
+	ID        uint        `json:"id" gorm:"primaryKey"`
+	Name      string      `json:"name"`
+	Password  string      `json:"password" ninja:"write_only"`
+	Invite    string      `json:"invite_code" ninja:"write_only,create_only"`
+	Status    string      `json:"status_note" ninja:"update_only"`
+	CreatedAt time.Time   `json:"created_at"`
+	Profile   schemaModel `json:"profile"`
+	Tags      []string    `json:"tags"`
+	Computed  string      `json:"computed" gorm:"-"`
+}
+
+type schemaRelationModel struct {
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Secret string `json:"secret" ninja:"write_only"`
+}
+
+type schemaDepthModel struct {
+	ID       uint                  `json:"id"`
+	Name     string                `json:"name"`
+	Owner    schemaRelationModel   `json:"owner"`
+	Members  []schemaRelationModel `json:"members"`
+	Ignored  schemaRelationModel   `json:"ignored" gorm:"-"`
+	Internal string                `json:"internal" ninja:"write_only"`
+}
+
+type schemaHiddenRelationModel struct {
+	ID    uint                `json:"id"`
+	Owner schemaRelationModel `json:"-"`
+}
+
+type schemaDeepRelationModel struct {
+	ID    uint                `json:"id"`
+	Owner schemaRelationModel `json:"owner"`
+}
+
+type schemaDeepModel struct {
+	ID     uint                    `json:"id"`
+	Parent schemaDeepRelationModel `json:"parent"`
 }
 
 type pointerMarshaler string
@@ -882,6 +931,918 @@ func TestModelSchemaSerializationAndBinding(t *testing.T) {
 	}
 	if string(pointerPayload) != `{"value":"wrapped:demo"}` {
 		t.Fatalf("expected pointer marshaler output, got %s", string(pointerPayload))
+	}
+}
+
+func TestBindModelSchemas(t *testing.T) {
+	items, err := BindModelSchemas[publicSchema]([]schemaModel{
+		{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"},
+		{ID: 2, Name: "bob", Email: "bob@example.com", Password: "hidden"},
+	})
+	if err != nil {
+		t.Fatalf("BindModelSchemas: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected two bound schemas, got %d", len(items))
+	}
+	if items[0].Model.Email != "alice@example.com" || items[1].Model.Password != "hidden" {
+		t.Fatalf("expected models to be assigned, got %+v", items)
+	}
+	if got := items[0].Fields; len(got) != 3 || got[0] != "email" || got[1] != "id" || got[2] != "name" {
+		t.Fatalf("expected fields from tags, got %v", got)
+	}
+
+	empty, err := BindModelSchemas[publicSchema]([]schemaModel{})
+	if err != nil {
+		t.Fatalf("BindModelSchemas empty: %v", err)
+	}
+	if empty == nil || len(empty) != 0 {
+		t.Fatalf("expected empty non-nil result for empty input, got %#v", empty)
+	}
+	nilItems, err := BindModelSchemas[publicSchema, schemaModel](nil)
+	if err != nil {
+		t.Fatalf("BindModelSchemas nil: %v", err)
+	}
+	if nilItems != nil {
+		t.Fatalf("expected nil result for nil input, got %#v", nilItems)
+	}
+
+	if _, err := BindModelSchemas[struct{}]([]schemaModel{{ID: 3}}); err == nil {
+		t.Fatalf("expected BindModelSchemas to return binding errors")
+	}
+}
+
+func TestResponseModelBindsModelSchemaAtRuntime(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/user", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{
+			ID:       7,
+			Name:     "alice",
+			Email:    "alice@example.com",
+			Password: "secret",
+		}, nil
+	}, ResponseModel[publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/user", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if _, ok := data["password"]; ok {
+		t.Fatalf("expected response model to prune password, got %+v", data)
+	}
+	if data["email"] != "alice@example.com" || data["id"] != float64(7) {
+		t.Fatalf("expected public response fields, got %+v", data)
+	}
+}
+
+func TestResponseModelBindsModelSchemaSliceAtRuntime(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/users", func(ctx *Context, in *struct{}) (*[]schemaModel, error) {
+		return &[]schemaModel{{
+			ID:       8,
+			Name:     "alice",
+			Email:    "alice@example.com",
+			Password: "secret",
+		}}, nil
+	}, ResponseModel[[]publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/users", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if len(data) != 1 {
+		t.Fatalf("expected one item, got %+v", data)
+	}
+	if _, ok := data[0]["password"]; ok {
+		t.Fatalf("expected response model to prune password, got %+v", data[0])
+	}
+	if data[0]["email"] != "alice@example.com" || data[0]["id"] != float64(8) {
+		t.Fatalf("expected public response fields, got %+v", data[0])
+	}
+}
+
+func TestResponseModelAcceptsAlreadyBoundSchema(t *testing.T) {
+	typed, err := BindModelSchema[publicSchema](schemaModel{
+		ID:       9,
+		Name:     "bob",
+		Email:    "bob@example.com",
+		Password: "secret",
+	})
+	if err != nil {
+		t.Fatalf("BindModelSchema: %v", err)
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/bound", func(ctx *Context, in *struct{}) (*publicSchema, error) {
+		return typed, nil
+	}, ResponseModel[publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/bound", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "password") {
+		t.Fatalf("expected already-bound schema to preserve filtering, got %s", w.Body.String())
+	}
+}
+
+func TestResponseModelOverridesOpenAPISuccessSchema(t *testing.T) {
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/user", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{}, nil
+	}, nil)
+	ResponseModel[publicSchema]()(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	response := built.Paths["/user"].Get.Responses["200"]
+	schema := response.Content["application/json"].Schema
+	if schema == nil || !strings.Contains(schema.Ref, "publicSchema") {
+		t.Fatalf("expected publicSchema response ref, got %+v", schema)
+	}
+	component := built.Components.Schemas["publicSchema"]
+	if component == nil {
+		t.Fatalf("expected publicSchema component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := component.Properties["password"]; ok {
+		t.Fatalf("expected password to be omitted from response schema, got %+v", component.Properties)
+	}
+}
+
+func TestResponseModelValidatesPlainResponseSchema(t *testing.T) {
+	type requiredOutput struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/invalid", func(ctx *Context, in *struct{}) (*requiredOutput, error) {
+		return &requiredOutput{}, nil
+	}, ResponseModel[requiredOutput]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected response validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResponseModelValidatesPlainResponseSchemaSlice(t *testing.T) {
+	type requiredOutput struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/invalid-list", func(ctx *Context, in *struct{}) (*[]requiredOutput, error) {
+		return &[]requiredOutput{{}}, nil
+	}, ResponseModel[[]requiredOutput]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/invalid-list", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected response validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResponseSchemaDescriptorSerializesModelAtRuntime(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email", "password").
+		Exclude("password").
+		ComponentName("PublicUser")
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/descriptor", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{
+			ID:       11,
+			Name:     "carol",
+			Email:    "carol@example.com",
+			Password: "secret",
+		}, nil
+	}, ResponseSchema(userSchema))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/descriptor", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if _, ok := data["password"]; ok {
+		t.Fatalf("expected descriptor to prune password, got %+v", data)
+	}
+	if _, ok := data["name"]; ok {
+		t.Fatalf("expected descriptor fields to omit name, got %+v", data)
+	}
+	if data["email"] != "carol@example.com" || data["id"] != float64(11) {
+		t.Fatalf("expected descriptor response fields, got %+v", data)
+	}
+}
+
+func TestResponseSchemaDescriptorValidatesRequiredFields(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/descriptor-invalid", func(ctx *Context, in *struct{}) (*requiredSchemaModel, error) {
+		return &requiredSchemaModel{ID: 15, Email: "missing-name@example.com"}, nil
+	}, ResponseSchema(ModelSchemaOf[requiredSchemaModel]().Fields("id", "name", "email")))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/descriptor-invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected response schema validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResponseSchemaDescriptorSkipsExcludedRequiredFields(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/descriptor-excluded-required", func(ctx *Context, in *struct{}) (*requiredSchemaModel, error) {
+		return &requiredSchemaModel{ID: 16, Email: "missing-name@example.com"}, nil
+	}, ResponseSchema(ModelSchemaOf[requiredSchemaModel]().Fields("id", "email")))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/descriptor-excluded-required", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected excluded required field to be ignored, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestResponseSchemaDescriptorOverridesOpenAPI(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUser")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/descriptor", func(ctx *Context, in *struct{}) (*schemaModel, error) {
+		return &schemaModel{}, nil
+	}, nil)
+	ResponseSchema(userSchema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	schema := built.Paths["/descriptor"].Get.Responses["200"].Content["application/json"].Schema
+	if schema == nil || schema.Ref != "#/components/schemas/PublicUser" {
+		t.Fatalf("expected PublicUser response ref, got %+v", schema)
+	}
+	component := built.Components.Schemas["PublicUser"]
+	if component == nil {
+		t.Fatalf("expected PublicUser component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := component.Properties["email"]; !ok {
+		t.Fatalf("expected email field, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["password"]; ok {
+		t.Fatalf("expected password to be omitted, got %+v", component.Properties)
+	}
+}
+
+func TestResponseSchemaDescriptorDocumentsSliceOutput(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUserListItem")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/descriptors", func(ctx *Context, in *struct{}) (*[]schemaModel, error) {
+		return &[]schemaModel{}, nil
+	}, nil)
+	ResponseSchema(userSchema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	schema := built.Paths["/descriptors"].Get.Responses["200"].Content["application/json"].Schema
+	if schema == nil || schema.Type != "array" || schema.Items == nil || schema.Items.Ref != "#/components/schemas/PublicUserListItem" {
+		t.Fatalf("expected array response with PublicUserListItem items, got %+v", schema)
+	}
+}
+
+func TestPaginatedSchemaValidatesRequiredItemFields(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/page-invalid", func(ctx *Context, in *struct{}) (*pagination.Page[requiredSchemaModel], error) {
+		return pagination.NewPage([]requiredSchemaModel{{
+			ID:    17,
+			Email: "missing-name@example.com",
+		}}, 1, pagination.PageInput{Page: 1, Size: 10}), nil
+	}, PaginatedSchema(ModelSchemaOf[requiredSchemaModel]().Fields("id", "name", "email")))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/page-invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected paginated item validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUserPageItem")
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/page", func(ctx *Context, in *struct{}) (*pagination.Page[schemaModel], error) {
+		return pagination.NewPage([]schemaModel{{
+			ID:       13,
+			Name:     "eve",
+			Email:    "eve@example.com",
+			Password: "secret",
+		}}, 1, pagination.PageInput{Page: 1, Size: 10}), nil
+	}, PaginatedSchema(userSchema))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/page", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	items, ok := data["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one paginated item, got %+v", data["items"])
+	}
+	item := items[0].(map[string]any)
+	if _, ok := item["password"]; ok {
+		t.Fatalf("expected paginated schema to prune password, got %+v", item)
+	}
+	if _, ok := item["name"]; ok {
+		t.Fatalf("expected paginated schema fields to omit name, got %+v", item)
+	}
+	if item["email"] != "eve@example.com" || data["total"] != float64(1) {
+		t.Fatalf("expected serialized page item and metadata, got %+v", data)
+	}
+}
+
+func TestPaginatedResponseModelBindsItemsAtRuntime(t *testing.T) {
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/page-model", func(ctx *Context, in *struct{}) (*pagination.Page[schemaModel], error) {
+		return pagination.NewPage([]schemaModel{{
+			ID:       18,
+			Name:     "grace",
+			Email:    "grace@example.com",
+			Password: "secret",
+		}}, 1, pagination.PageInput{Page: 1, Size: 10}), nil
+	}, Paginated[publicSchema]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/page-model", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var data map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &data); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	items, ok := data["items"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one paginated item, got %+v", data["items"])
+	}
+	item := items[0].(map[string]any)
+	if _, ok := item["password"]; ok {
+		t.Fatalf("expected paginated response model to prune password, got %+v", item)
+	}
+	if item["email"] != "grace@example.com" || item["id"] != float64(18) {
+		t.Fatalf("expected paginated response model fields, got %+v", item)
+	}
+}
+
+func TestCursorPaginatedSchemaSerializesItemsAtRuntime(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().Fields("id", "email")
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/cursor-page", func(ctx *Context, in *struct{}) (*pagination.CursorPage[schemaModel], error) {
+		return pagination.NewCursorPage([]schemaModel{{
+			ID:       14,
+			Name:     "frank",
+			Email:    "frank@example.com",
+			Password: "secret",
+		}}, pagination.CursorPagination{Size: 5}, "next"), nil
+	}, CursorPaginatedSchema(userSchema))
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/cursor-page", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "password") || strings.Contains(w.Body.String(), "frank\"") {
+		t.Fatalf("expected cursor paginated schema to prune fields, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "next_cursor") {
+		t.Fatalf("expected cursor metadata to remain, got %s", w.Body.String())
+	}
+}
+
+func TestCursorPaginatedResponseModelValidatesItemsAtRuntime(t *testing.T) {
+	type requiredOutput struct {
+		Name string `json:"name" binding:"required"`
+	}
+
+	api := New(Config{DisableDocs: true, DisableHomepage: true})
+	router := NewRouter("/runtime")
+	Get(router, "/cursor-page-invalid", func(ctx *Context, in *struct{}) (*pagination.CursorPage[requiredOutput], error) {
+		return pagination.NewCursorPage([]requiredOutput{{}}, pagination.CursorPagination{Size: 5}, "next"), nil
+	}, CursorPaginated[requiredOutput]())
+	api.AddRouter(router)
+
+	w := httptest.NewRecorder()
+	api.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/runtime/cursor-page-invalid", nil))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("expected cursor paginated item validation to fail with 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPaginatedSchemaOverridesOpenAPI(t *testing.T) {
+	userSchema := ModelSchemaOf[schemaModel]().
+		Fields("id", "email").
+		ComponentName("PublicUserPageItem")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/page", func(ctx *Context, in *struct{}) (*pagination.Page[schemaModel], error) {
+		return pagination.NewPage([]schemaModel{}, 0, pagination.PageInput{}), nil
+	}, nil)
+	PaginatedSchema(userSchema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	items := built.Paths["/page"].Get.Responses["200"].Content["application/json"].Schema.Properties["items"]
+	if items == nil || items.Items == nil || items.Items.Ref != "#/components/schemas/PublicUserPageItem" {
+		t.Fatalf("expected paginated item schema ref, got %+v", items)
+	}
+	component := built.Components.Schemas["PublicUserPageItem"]
+	if component == nil {
+		t.Fatalf("expected PublicUserPageItem component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := component.Properties["password"]; ok {
+		t.Fatalf("expected password to be omitted, got %+v", component.Properties)
+	}
+}
+
+func TestModelSchemaDescriptorWrap(t *testing.T) {
+	wrapped := ModelSchemaOf[schemaModel]().
+		Fields("id", "name").
+		Wrap(schemaModel{ID: 12, Name: "dave", Email: "dave@example.com"})
+
+	payload, err := json.Marshal(wrapped)
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	if strings.Contains(string(payload), "email") {
+		t.Fatalf("expected descriptor wrapped schema to omit email, got %s", string(payload))
+	}
+	if !strings.Contains(string(payload), `"name":"dave"`) {
+		t.Fatalf("expected descriptor wrapped schema to include name, got %s", string(payload))
+	}
+}
+
+func TestModelSchemaDescriptorModesUseAccessAndGORMConventions(t *testing.T) {
+	model := schemaModeModel{
+		ID:        21,
+		Name:      "erin",
+		Password:  "secret",
+		Invite:    "invite-1",
+		Status:    "pending",
+		CreatedAt: time.Date(2026, 6, 19, 9, 0, 0, 0, time.UTC),
+		Profile:   schemaModel{Name: "nested"},
+		Tags:      []string{"admin"},
+		Computed:  "derived",
+	}
+
+	readPayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().Read().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal read schema: %v", err)
+	}
+	var readData map[string]any
+	if err := json.Unmarshal(readPayload, &readData); err != nil {
+		t.Fatalf("Unmarshal read schema: %v", err)
+	}
+	if _, ok := readData["password"]; ok {
+		t.Fatalf("expected read mode to omit top-level password, got %s", string(readPayload))
+	}
+	if _, ok := readData["invite_code"]; ok {
+		t.Fatalf("expected read mode to omit top-level invite_code, got %s", string(readPayload))
+	}
+	if _, ok := readData["profile"]; !ok {
+		t.Fatalf("expected read mode to keep detail fields, got %s", string(readPayload))
+	}
+
+	listPayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().List().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal list schema: %v", err)
+	}
+	if strings.Contains(string(listPayload), "profile") || strings.Contains(string(listPayload), "tags") {
+		t.Fatalf("expected list mode to omit non-scalar fields, got %s", string(listPayload))
+	}
+	if !strings.Contains(string(listPayload), "created_at") {
+		t.Fatalf("expected list mode to keep marshaler scalar fields, got %s", string(listPayload))
+	}
+
+	createPayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().Create().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal create schema: %v", err)
+	}
+	var createData map[string]any
+	if err := json.Unmarshal(createPayload, &createData); err != nil {
+		t.Fatalf("Unmarshal create schema: %v", err)
+	}
+	for _, field := range []string{"id", "created_at", "status_note", "computed"} {
+		if _, ok := createData[field]; ok {
+			t.Fatalf("expected create mode to omit top-level %s, got %s", field, string(createPayload))
+		}
+	}
+	if _, ok := createData["password"]; !ok {
+		t.Fatalf("expected create mode to keep writable password, got %s", string(createPayload))
+	}
+	if _, ok := createData["invite_code"]; !ok {
+		t.Fatalf("expected create mode to keep writable create fields, got %s", string(createPayload))
+	}
+
+	updatePayload, err := json.Marshal(ModelSchemaOf[schemaModeModel]().Update().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal update schema: %v", err)
+	}
+	var updateData map[string]any
+	if err := json.Unmarshal(updatePayload, &updateData); err != nil {
+		t.Fatalf("Unmarshal update schema: %v", err)
+	}
+	for _, field := range []string{"id", "created_at", "invite_code", "computed"} {
+		if _, ok := updateData[field]; ok {
+			t.Fatalf("expected update mode to omit top-level %s, got %s", field, string(updatePayload))
+		}
+	}
+	if _, ok := updateData["password"]; !ok {
+		t.Fatalf("expected update mode to keep writable password, got %s", string(updatePayload))
+	}
+	if _, ok := updateData["status_note"]; !ok {
+		t.Fatalf("expected update mode to keep writable status_note, got %s", string(updatePayload))
+	}
+}
+
+func TestModelSchemaConvenienceConstructors(t *testing.T) {
+	model := schemaModeModel{
+		ID:       22,
+		Name:     "gina",
+		Password: "secret",
+		Invite:   "invite-2",
+		Status:   "approved",
+		Profile:  schemaModel{Name: "nested"},
+		Tags:     []string{"ops"},
+		Computed: "derived",
+	}
+
+	createPayload, err := json.Marshal(ModelCreateSchemaOf[schemaModeModel]().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal create schema: %v", err)
+	}
+	var createData map[string]any
+	if err := json.Unmarshal(createPayload, &createData); err != nil {
+		t.Fatalf("Unmarshal create schema: %v", err)
+	}
+	if _, ok := createData["id"]; ok {
+		t.Fatalf("expected create constructor to omit id, got %s", string(createPayload))
+	}
+	if _, ok := createData["invite_code"]; !ok {
+		t.Fatalf("expected create constructor to keep create-only field, got %s", string(createPayload))
+	}
+	if _, ok := createData["status_note"]; ok {
+		t.Fatalf("expected create constructor to omit update-only field, got %s", string(createPayload))
+	}
+
+	updatePayload, err := json.Marshal(ModelUpdateSchemaOf[schemaModeModel]().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal update schema: %v", err)
+	}
+	var updateData map[string]any
+	if err := json.Unmarshal(updatePayload, &updateData); err != nil {
+		t.Fatalf("Unmarshal update schema: %v", err)
+	}
+	if _, ok := updateData["invite_code"]; ok {
+		t.Fatalf("expected update constructor to omit create-only field, got %s", string(updatePayload))
+	}
+	if _, ok := updateData["status_note"]; !ok {
+		t.Fatalf("expected update constructor to keep update-only field, got %s", string(updatePayload))
+	}
+
+	listPayload, err := json.Marshal(ModelListSchemaOf[schemaModeModel]().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal list schema: %v", err)
+	}
+	if strings.Contains(string(listPayload), "profile") || strings.Contains(string(listPayload), "tags") {
+		t.Fatalf("expected list constructor to omit relation fields, got %s", string(listPayload))
+	}
+
+	detailPreloads := ModelDetailSchemaOf[schemaDepthModel](Depth(1)).Preloads()
+	if !reflect.DeepEqual(detailPreloads, []string{"Owner", "Members"}) {
+		t.Fatalf("expected detail constructor to support depth preloads, got %v", detailPreloads)
+	}
+}
+
+func TestModelSchemaDescriptorBindInputUsesCreateRules(t *testing.T) {
+	type createInput struct {
+		ID        uint      `json:"id"`
+		Name      string    `json:"name"`
+		Password  string    `json:"password"`
+		Invite    string    `json:"invite_code"`
+		Status    string    `json:"status_note"`
+		CreatedAt time.Time `json:"created_at"`
+		Computed  string    `json:"computed"`
+	}
+
+	model, err := ModelCreateSchemaOf[schemaModeModel]().BindInput(createInput{
+		ID:        99,
+		Name:      "helen",
+		Password:  "secret",
+		Invite:    "invite-3",
+		Status:    "ignored",
+		CreatedAt: time.Date(2026, 6, 19, 10, 0, 0, 0, time.UTC),
+		Computed:  "ignored",
+	})
+	if err != nil {
+		t.Fatalf("BindInput: %v", err)
+	}
+	if model.ID != 0 || !model.CreatedAt.IsZero() || model.Status != "" || model.Computed != "" {
+		t.Fatalf("expected create input to skip read/update-only fields, got %+v", model)
+	}
+	if model.Name != "helen" || model.Password != "secret" || model.Invite != "invite-3" {
+		t.Fatalf("expected create input to copy writable fields, got %+v", model)
+	}
+}
+
+func TestModelSchemaDescriptorApplyInputUsesUpdateRules(t *testing.T) {
+	type updateInput struct {
+		ID       *uint   `json:"id"`
+		Name     *string `json:"name"`
+		Password *string `json:"password"`
+		Invite   *string `json:"invite_code"`
+		Status   *string `json:"status_note"`
+		Computed *string `json:"computed"`
+	}
+
+	id := uint(99)
+	password := "changed-secret"
+	invite := "ignored"
+	status := "approved"
+	computed := "ignored"
+	model := schemaModeModel{
+		ID:       1,
+		Name:     "old-name",
+		Password: "old-secret",
+		Invite:   "old-invite",
+		Status:   "pending",
+		Computed: "old-computed",
+	}
+
+	err := ModelUpdateSchemaOf[schemaModeModel]().ApplyInput(&model, updateInput{
+		ID:       &id,
+		Name:     nil,
+		Password: &password,
+		Invite:   &invite,
+		Status:   &status,
+		Computed: &computed,
+	})
+	if err != nil {
+		t.Fatalf("ApplyInput: %v", err)
+	}
+	if model.ID != 1 || model.Name != "old-name" || model.Invite != "old-invite" || model.Computed != "old-computed" {
+		t.Fatalf("expected update input to skip nil/read/create-only fields, got %+v", model)
+	}
+	if model.Password != "changed-secret" || model.Status != "approved" {
+		t.Fatalf("expected update input to copy writable fields, got %+v", model)
+	}
+}
+
+func TestModelSchemaModeAffectsOpenAPIComponents(t *testing.T) {
+	type createSchema struct {
+		ModelSchema[schemaModeModel] `mode:"create"`
+	}
+
+	registry := newSchemaRegistry()
+	ref := registry.schemaForType(reflect.TypeOf(createSchema{}))
+	if ref.Ref == "" {
+		t.Fatalf("expected create schema ref, got %+v", ref)
+	}
+	component := registry.schemas["createSchema"]
+	if component == nil {
+		t.Fatalf("expected createSchema component, got %+v", registry.schemas)
+	}
+	if _, ok := component.Properties["id"]; ok {
+		t.Fatalf("expected create mode to omit id, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["status_note"]; ok {
+		t.Fatalf("expected create mode to omit update-only field, got %+v", component.Properties)
+	}
+	if _, ok := component.Properties["password"]; !ok {
+		t.Fatalf("expected create mode to keep write-only password input, got %+v", component.Properties)
+	}
+}
+
+func TestModelSchemaDescriptorDepthSerializesNestedModels(t *testing.T) {
+	model := schemaDepthModel{
+		ID:   31,
+		Name: "team",
+		Owner: schemaRelationModel{
+			ID:     1,
+			Name:   "owner",
+			Secret: "owner-secret",
+		},
+		Members: []schemaRelationModel{{
+			ID:     2,
+			Name:   "member",
+			Secret: "member-secret",
+		}},
+		Internal: "hidden",
+	}
+
+	shallowPayload, err := json.Marshal(ModelSchemaOf[schemaDepthModel]().Read().Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal shallow schema: %v", err)
+	}
+	if !strings.Contains(string(shallowPayload), "owner-secret") {
+		t.Fatalf("expected depth 0 to preserve existing nested serialization, got %s", string(shallowPayload))
+	}
+
+	deepPayload, err := json.Marshal(ModelSchemaOf[schemaDepthModel]().Read().Depth(1).Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal depth schema: %v", err)
+	}
+	if strings.Contains(string(deepPayload), "owner-secret") || strings.Contains(string(deepPayload), "member-secret") {
+		t.Fatalf("expected depth 1 to prune nested write-only fields, got %s", string(deepPayload))
+	}
+	if strings.Contains(string(deepPayload), "internal") {
+		t.Fatalf("expected read mode to prune top-level write-only fields, got %s", string(deepPayload))
+	}
+	if !strings.Contains(string(deepPayload), `"owner"`) || !strings.Contains(string(deepPayload), `"members"`) {
+		t.Fatalf("expected depth schema to keep nested relation fields, got %s", string(deepPayload))
+	}
+}
+
+func TestModelSchemaDepthAffectsOpenAPIComponents(t *testing.T) {
+	schema := ModelSchemaOf[schemaDepthModel]().
+		Read().
+		Depth(1).
+		ComponentName("DepthParent")
+
+	spec := newOpenAPISpec(Config{})
+	op := newOperation(http.MethodGet, "/depth", func(ctx *Context, in *struct{}) (*schemaDepthModel, error) {
+		return &schemaDepthModel{}, nil
+	}, nil)
+	ResponseSchema(schema)(op)
+
+	spec.addOperation(op)
+	built := spec.build()
+	parent := built.Components.Schemas["DepthParent"]
+	if parent == nil {
+		t.Fatalf("expected DepthParent component, got %+v", built.Components.Schemas)
+	}
+	if _, ok := parent.Properties["internal"]; ok {
+		t.Fatalf("expected read mode to omit parent write-only field, got %+v", parent.Properties)
+	}
+	owner := parent.Properties["owner"]
+	if owner == nil || owner.Ref == "" {
+		t.Fatalf("expected owner relation ref, got %+v", owner)
+	}
+	childName := strings.TrimPrefix(owner.Ref, "#/components/schemas/")
+	child := built.Components.Schemas[childName]
+	if child == nil {
+		t.Fatalf("expected child component %q, got %+v", childName, built.Components.Schemas)
+	}
+	if _, ok := child.Properties["secret"]; ok {
+		t.Fatalf("expected depth schema to omit child write-only field, got %+v", child.Properties)
+	}
+	if _, ok := child.Properties["name"]; !ok {
+		t.Fatalf("expected depth schema to keep child public field, got %+v", child.Properties)
+	}
+}
+
+func TestModelSchemaExplicitFieldsCanExposeHiddenRelations(t *testing.T) {
+	model := schemaHiddenRelationModel{
+		ID: 41,
+		Owner: schemaRelationModel{
+			ID:     7,
+			Name:   "owner",
+			Secret: "hidden",
+		},
+	}
+	schema := ModelSchemaOf[schemaHiddenRelationModel]().
+		Read().
+		Depth(1).
+		Fields("id", "owner")
+
+	payload, err := json.Marshal(schema.Wrap(model))
+	if err != nil {
+		t.Fatalf("Marshal hidden relation schema: %v", err)
+	}
+	var data map[string]any
+	if err := json.Unmarshal(payload, &data); err != nil {
+		t.Fatalf("Unmarshal hidden relation schema: %v", err)
+	}
+	owner, ok := data["owner"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected hidden relation to serialize as owner, got %s", string(payload))
+	}
+	if owner["name"] != "owner" {
+		t.Fatalf("expected nested owner fields, got %+v", owner)
+	}
+	if _, ok := owner["secret"]; ok {
+		t.Fatalf("expected nested write-only field to be pruned, got %+v", owner)
+	}
+	if preloads := schema.Preloads(); !reflect.DeepEqual(preloads, []string{"Owner"}) {
+		t.Fatalf("expected hidden relation preload from explicit field, got %v", preloads)
+	}
+
+	registry := newSchemaRegistry()
+	ref := registry.schemaForDescriptor(schema.ComponentName("HiddenRelationOut").schemaDescriptor())
+	if ref.Ref != "#/components/schemas/HiddenRelationOut" {
+		t.Fatalf("expected hidden relation schema ref, got %+v", ref)
+	}
+	component := registry.schemas["HiddenRelationOut"]
+	if component == nil {
+		t.Fatalf("expected HiddenRelationOut component, got %+v", registry.schemas)
+	}
+	if _, ok := component.Properties["owner"]; !ok {
+		t.Fatalf("expected hidden relation field in schema, got %+v", component.Properties)
+	}
+}
+
+func TestModelSchemaDescriptorPreloadsFollowDepthAndFieldFilters(t *testing.T) {
+	all := ModelSchemaOf[schemaDepthModel]().Read().Depth(1).Preloads()
+	if !reflect.DeepEqual(all, []string{"Owner", "Members"}) {
+		t.Fatalf("expected top-level relation preloads, got %v", all)
+	}
+
+	filtered := ModelSchemaOf[schemaDepthModel]().
+		Read().
+		Depth(1).
+		Fields("id", "owner", "members").
+		Exclude("members").
+		Preloads()
+	if !reflect.DeepEqual(filtered, []string{"Owner"}) {
+		t.Fatalf("expected filtered relation preloads, got %v", filtered)
+	}
+
+	if got := ModelSchemaOf[schemaDepthModel]().Read().Preloads(); got != nil {
+		t.Fatalf("expected depth 0 to have no preloads, got %v", got)
+	}
+	if got := ModelSchemaOf[schemaDepthModel]().List().Depth(1).Preloads(); got != nil {
+		t.Fatalf("expected list mode to omit relation preloads, got %v", got)
+	}
+}
+
+func TestModelSchemaDescriptorPreloadsIncludeNestedPaths(t *testing.T) {
+	preloads := ModelSchemaOf[schemaDeepModel]().Read().Depth(2).Preloads()
+	want := []string{"Parent", "Parent.Owner"}
+	if !reflect.DeepEqual(preloads, want) {
+		t.Fatalf("Preloads() = %v, want %v", preloads, want)
+	}
+}
+
+func TestModelSchemaPreloadsFromSchemaType(t *testing.T) {
+	type deepSchema struct {
+		ModelSchema[schemaDeepModel] `mode:"read" depth:"2"`
+	}
+
+	preloads := ModelSchemaPreloads[deepSchema]()
+	want := []string{"Parent", "Parent.Owner"}
+	if !reflect.DeepEqual(preloads, want) {
+		t.Fatalf("ModelSchemaPreloads() = %v, want %v", preloads, want)
+	}
+	if got := ModelSchemaPreloads[schemaDeepModel](); got != nil {
+		t.Fatalf("expected plain model type to have no schema preloads, got %v", got)
 	}
 }
 

@@ -33,6 +33,12 @@ site.MustRegisterModel(&admin.ModelResource{
     // Model 是 GORM Model 结构体（值类型，非指针）
     Model: User{},
 
+    // 可选：内置 UI 使用这些元数据进行分组、排序和说明展示
+    Icon:        "users",
+    Group:       "Identity",
+    Description: "管理后台用户、管理员标记和角色关系。",
+    Order:       10,
+
     // Preloads 列出每次查询时需要 Preload 的 GORM 关联名
     Preloads: []string{"Roles"},
 
@@ -48,6 +54,9 @@ site.MustRegisterModel(&admin.ModelResource{
     // 可选：字段级显示和组件覆盖
     FieldOptions: map[string]admin.FieldOptions{
         "is_admin": {Label: "管理员？", Component: "switch"},
+        "age": {Format: "integer"},
+        "createdAt": {Format: "relative"},
+        "role_ids": {Help: "搜索并选择一个或多个角色。", Width: "full"},
     },
 
     // 可选：资源级权限钩子，每次操作前调用
@@ -70,6 +79,8 @@ site.MustRegisterModel(&admin.ModelResource{
 
 指向另一个已注册 Model 的关联字段会被自动解析：框架会从目标资源推断 `value_field`、`label_field` 与 `search_fields`。
 
+字段需要显式组件、标签、placeholder、帮助文案、宽度或展示格式时，可以使用 `FieldOptions`。内置 UI 目前支持 `title`、`uppercase`、`lowercase`、`mono`、`number`、`integer`、`percent`、`currency:USD`、`date`、`datetime`、`relative` 等展示格式。
+
 ### 3. 注册 Admin API 路由
 
 `site.Mount` 会为每个资源在指定的 `*ninja.Router` 下注册 REST 端点。该 Router 是标准的 gin-ninja Router，可以附加 JWT 中间件或其他任意 Gin 中间件。
@@ -91,8 +102,11 @@ api.AddRouter(adminRouter)
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `GET` | `/resources` | 列出所有已注册资源 |
+| `GET` | `/resources/stats` | 获取当前可见资源的记录数聚合统计 |
+| `GET` | `/search?q=关键词` | 跨当前可见且可搜索的资源执行聚合搜索 |
 | `GET` | `/resources/{path}/meta` | 获取资源字段元数据 |
 | `GET` | `/resources/{path}` | 分页列表（支持搜索 / 过滤 / 排序） |
+| `GET` | `/resources/{path}/export` | 按当前搜索 / 过滤 / 排序条件导出 CSV；可用 `fields=id,name` 限制导出的列表字段 |
 | `GET` | `/resources/{path}/{id}` | 获取单条记录详情 |
 | `POST` | `/resources/{path}` | 创建记录 |
 | `PUT` | `/resources/{path}/{id}` | 更新记录 |
@@ -111,6 +125,11 @@ admin.MountUI(api.Engine(), admin.DefaultUIConfig())
 // 或自定义路径和标题：
 admin.MountUI(api.Engine(), admin.UIConfig{
     Title:         "My App Admin",
+    BrandName:     "My App",
+    LogoText:      "MA",
+    Locale:        "zh-CN",
+    DefaultTheme:  "system",
+    TokenStorage:  "session",
     APIBasePath:   "/api/v1/admin",
     AuthLoginPath: "/api/v1/auth/login",
     AdminPath:     "/admin",
@@ -123,6 +142,11 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
 | `Title` | `"Gin Ninja Admin"` | 浏览器标签标题 |
+| `BrandName` | `"Gin Ninja"` | Admin 页面品牌名 |
+| `LogoText` | `"G"` | 文本 Logo，最多显示 3 个字符 |
+| `Locale` | `"en"` | HTML 语言和本地化格式化提示 |
+| `DefaultTheme` | `"light"` | 默认主题，可选 `light` / `dark` / `system` |
+| `TokenStorage` | `"local"` | token 和会话身份信息的存储位置，可选 `local` / `session` |
 | `APIBasePath` | `"/api/v1/admin"` | Admin API 根路径（用于资源导航） |
 | `AuthLoginPath` | `"/api/v1/auth/login"` | 登录表单调用的接口路径 |
 | `AdminPath` | `"/admin"` | Admin 工作台页面路径 |
@@ -143,7 +167,7 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-该表达式是一段原始 JS 表达式，接收解析后的 `payload` 对象，返回 token 字符串（失败时返回假值）。同样，`UserNameExtractExpr` 和 `UserIDExtractExpr` 用于自定义展示名和用户 ID 的读取路径：
+该表达式会作为字符串配置传入内置的受限路径解析器，目前只支持 `payload.foo.bar` 这样的路径，以及用 `&&` / `||` 组合的兜底表达式；它不会被作为任意 JavaScript 代码执行。同样，`UserNameExtractExpr` 和 `UserIDExtractExpr` 用于自定义展示名和用户 ID 的读取路径：
 
 ```go
 admin.MountUI(router, admin.UIConfig{
@@ -154,7 +178,9 @@ admin.MountUI(router, admin.UIConfig{
 })
 ```
 
-> **安全说明：** 这些表达式会被直接注入为 JavaScript 函数体，必须来自可信的开发者配置，绝不能接受用户输入。
+当登录响应包含展示名或用户 ID 时，Admin 壳会把这份会话身份信息和 token 一起保存，刷新页面后侧边栏与顶栏仍能显示同一个用户标签。手动修改 token 会清除已保存的身份信息，避免展示过期用户名。
+
+> **安全说明：** 这些表达式仍应只来自可信的开发者配置，绝不能接受用户输入；不符合受限路径语法的表达式会解析失败。
 
 ## 完整示例
 
@@ -188,8 +214,28 @@ admin.MountUI(router, admin.UIConfig{
 - 独立登录页：`/admin/login`
 - 独立后台工作台：`/admin`
 - 由 `/api/v1/admin/resources` 驱动的资源导航
-- 支持搜索、元数据过滤、排序、分页大小和翻页的记录列表
+- 由 `/api/v1/admin/resources/stats` 一次性加载的 dashboard 资源记录数
+- 由 `/api/v1/admin/search` 驱动的顶部全局聚合搜索，并支持键盘导航结果
+- 按资源 `Group` / `Order` 分组排序的侧边栏导航
+- 资源级 action chips 展示当前允许的列表、详情和写操作
+- 支持搜索、元数据过滤、排序、分页大小、分页范围和刷新时间提示的记录列表
+- 空列表状态支持快速清除列表条件或创建首条记录
+- 用状态 chip 展示当前搜索、排序、筛选与分页大小
+- 切换资源时会在本地记住各资源自己的列表状态
+- 支持按资源保存命名视图，复用常用搜索 / 筛选 / 排序状态
+- 弹窗自动聚焦关键控件，提升键盘优先的创建、编辑和详情流转体验
+- 支持复制当前视图链接，便于分享或收藏列表状态
+- 按当前搜索 / 过滤 / 排序条件和当前可见表格列导出 CSV
+- 删除或批量删除清空当前页时，会自动回退到上一页重新加载
+- 表格密度切换与列显隐设置，包含可见列数量、显示全部和重置操作
+- 搜索、排序、分页与筛选会同步到 URL query，刷新或分享链接后可恢复当前列表状态
+- 筛选区支持折叠，会记住折叠状态并展示活跃筛选数量
 - 详情、创建、更新、删除与批量删除流程
+- 详情弹窗支持快速编辑所选记录、从字段值区域复制字段值和 JSON payload
+- 创建 / 更新表单支持内联校验、提交中状态和未保存变更提醒
+- 表单提交失败后会自动聚焦第一个高亮错误字段
+- 批量选择区展示已选数量，并支持一键复制 ID 和清空选择
+- 表格行支持点击和键盘 Enter 快速打开记录详情
 - 带关系字段选项搜索预览的 selector 交互
 - 更紧凑的 “Admin Workspace” 头部布局，后台观感更集中
 

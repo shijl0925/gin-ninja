@@ -5,11 +5,33 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sort"
 	"testing"
 
 	ninja "github.com/shijl0925/gin-ninja"
 	"gorm.io/gorm"
 )
+
+type modelSchemaPreloadProfile struct {
+	ID uint `json:"id"`
+}
+
+type modelSchemaPreloadUser struct {
+	ID      uint                      `json:"id"`
+	Profile modelSchemaPreloadProfile `json:"profile"`
+}
+
+type modelSchemaPreloadProject struct {
+	ID      uint                     `json:"id"`
+	Owner   modelSchemaPreloadUser   `json:"owner"`
+	Members []modelSchemaPreloadUser `json:"members"`
+	Secret  string                   `json:"secret" ninja:"write_only"`
+}
+
+type modelSchemaPreloadProjectOut struct {
+	ninja.ModelSchema[modelSchemaPreloadProject] `fields:"id,owner,members" mode:"read" depth:"2"`
+}
 
 func TestNinjaTransactionHelpersValidateNilContext(t *testing.T) {
 	t.Parallel()
@@ -60,6 +82,60 @@ func TestRegisterDefaultErrorMappersAdditional(t *testing.T) {
 		}()
 		RegisterDefaultErrorMappers(nil)
 	})
+}
+
+func TestApplyModelSchemaPreloads(t *testing.T) {
+	db := testDB(t)
+	descriptor := ninja.ModelSchemaOf[modelSchemaPreloadProject]().
+		Read().
+		Depth(2).
+		Fields("id", "owner", "members")
+
+	scoped := ApplyModelSchemaPreloads(db, descriptor)
+	if scoped == nil {
+		t.Fatal("expected scoped db")
+	}
+	got := make([]string, 0, len(scoped.Statement.Preloads))
+	for preload := range scoped.Statement.Preloads {
+		got = append(got, preload)
+	}
+	sort.Strings(got)
+	want := []string{"Owner", "Owner.Profile", "Members", "Members.Profile"}
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("preloads = %v, want %v", got, want)
+	}
+
+	unchanged := ApplyModelSchemaPreloads(db, ninja.ModelSchemaOf[modelSchemaPreloadProject]().Read())
+	if unchanged != db {
+		t.Fatalf("expected depth 0 to return original db")
+	}
+	if got := ApplyModelSchemaPreloads(nil, descriptor); got != nil {
+		t.Fatalf("expected nil db to stay nil, got %v", got)
+	}
+}
+
+func TestApplyResponseModelPreloads(t *testing.T) {
+	db := testDB(t)
+	scoped := ApplyResponseModelPreloads[modelSchemaPreloadProjectOut](db)
+	if scoped == nil {
+		t.Fatal("expected scoped db")
+	}
+	got := make([]string, 0, len(scoped.Statement.Preloads))
+	for preload := range scoped.Statement.Preloads {
+		got = append(got, preload)
+	}
+	sort.Strings(got)
+	want := []string{"Owner", "Owner.Profile", "Members", "Members.Profile"}
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("preloads = %v, want %v", got, want)
+	}
+
+	unchanged := ApplyResponseModelPreloads[modelSchemaPreloadProject](db)
+	if unchanged != db {
+		t.Fatalf("expected non-schema type to return original db")
+	}
 }
 
 func TestTransactionEdgeCases(t *testing.T) {

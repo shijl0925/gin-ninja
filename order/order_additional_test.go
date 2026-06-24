@@ -15,7 +15,7 @@ func TestSortSchemaAndResolveEdges(t *testing.T) {
 	}
 
 	schema := (&SortSchema{}).Allow("alias")
-	if schema.allowed["alias"] != "alias" {
+	if schema.allowed["alias"].value != "alias" {
 		t.Fatalf("expected alias to map to itself, got %+v", schema.allowed)
 	}
 

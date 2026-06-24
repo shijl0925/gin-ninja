@@ -144,12 +144,15 @@ func (r *schemaRegistry) buildStructSchemaWithFilter(t reflect.Type, filter mode
 			continue
 		}
 
-		fieldName := jsonFieldName(f)
-		if fieldName == "-" || !filter.includes(f, fieldName) {
+		fieldName, ok := modelSchemaFieldName(f, filter)
+		if !ok {
 			continue
 		}
 
 		fieldSchema := r.schemaForType(f.Type)
+		if filter.depth > 0 && modelSchemaNestedField(f.Type) {
+			fieldSchema = r.schemaForTypeWithFilter(f.Type, filter.child())
+		}
 
 		// Copy so we can annotate without mutating the shared instance.
 		s.Properties[fieldName] = annotateSchema(fieldSchema, f)
@@ -169,6 +172,12 @@ func modelSchemaComponentName(t reflect.Type, filter modelSchemaFilter) string {
 		return name
 	}
 	parts := []string{name}
+	if filter.mode != "" {
+		parts = append(parts, "mode", string(filter.mode))
+	}
+	if filter.depth > 0 {
+		parts = append(parts, "depth", fmt.Sprintf("%d", filter.depth))
+	}
 	if len(filter.fields) > 0 {
 		parts = append(parts, "fields", strings.Join(filter.fields, "_"))
 	}

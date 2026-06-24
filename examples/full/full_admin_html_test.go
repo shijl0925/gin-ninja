@@ -1,31 +1,21 @@
 package main
 
 import (
-	"io"
 	"net/http"
 	"strings"
 	"testing"
 )
 
 func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
-	server := newFullTestServer(t)
-	defer server.Close()
+	client := newFullTestClient(t)
 
 	fetchHTML := func(path string) string {
 		t.Helper()
-		resp, err := http.Get(server.URL + path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", path, err)
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			t.Fatalf("read %s body: %v", path, err)
-		}
+		resp := client.Get(path)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s: expected 200, got %d", path, resp.StatusCode)
 		}
-		return string(body)
+		return resp.String()
 	}
 
 	loginHTML := fetchHTML("/admin/login")
@@ -38,6 +28,10 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 		for _, marker := range []string{
 			`id="loginForm"`,
 			`id="resources"`,
+			`id="tableDensity"`,
+			`id="columnToggle"`,
+			`id="columnMenu"`,
+			`id="toggleFilters"`,
 			`id="openCreateModal"`,
 			`id="createModal"`,
 			`id="toastContainer"`,

@@ -1,26 +1,20 @@
 package main
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 )
 
 func TestFullExampleOpenAPIContracts(t *testing.T) {
-	server := newFullTestServer(t)
-	defer server.Close()
+	client := newFullTestClient(t)
 
-	openAPIResp, err := http.Get(server.URL + "/openapi.json")
-	if err != nil {
-		t.Fatalf("GET /openapi.json: %v", err)
-	}
-	defer openAPIResp.Body.Close()
+	openAPIResp := client.Get("/openapi.json")
 	if openAPIResp.StatusCode != http.StatusOK {
 		t.Fatalf("expected /openapi.json 200, got %d", openAPIResp.StatusCode)
 	}
 
 	var spec map[string]any
-	if err := json.NewDecoder(openAPIResp.Body).Decode(&spec); err != nil {
+	if err := openAPIResp.DecodeJSON(&spec); err != nil {
 		t.Fatalf("decode openapi: %v", err)
 	}
 
@@ -62,19 +56,14 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 		{path: "/openapi/v1.json", wantPath: "/api/v1/users/", missingPath: "/api/v0/examples/versioned/info"},
 		{path: "/openapi/v0.json", wantPath: "/api/v0/examples/versioned/info", missingPath: "/api/v1/users/"},
 	} {
-		resp, err := http.Get(server.URL + tc.path)
-		if err != nil {
-			t.Fatalf("GET %s: %v", tc.path, err)
-		}
+		resp := client.Get(tc.path)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s: expected 200, got %d", tc.path, resp.StatusCode)
 		}
 		var versionedSpec map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&versionedSpec); err != nil {
-			resp.Body.Close()
+		if err := resp.DecodeJSON(&versionedSpec); err != nil {
 			t.Fatalf("decode %s: %v", tc.path, err)
 		}
-		resp.Body.Close()
 
 		versionedPaths := versionedSpec["paths"].(map[string]any)
 		if _, ok := versionedPaths[tc.wantPath]; !ok {

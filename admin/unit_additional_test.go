@@ -32,6 +32,43 @@ type resolvedResourceTestModel struct {
 	Secret string
 }
 
+type unsafeAdminColumnModel struct {
+	ID   uint
+	Name string `gorm:"column:name desc"`
+}
+
+func TestPrepareRejectsUnsafeColumnMetadata(t *testing.T) {
+	resource := &Resource{Model: unsafeAdminColumnModel{}}
+
+	if err := resource.prepare(); err == nil || !strings.Contains(err.Error(), "unsafe column") {
+		t.Fatalf("expected unsafe column error, got %v", err)
+	}
+}
+
+func TestListQueryRejectsRuntimeUnsafeColumnMetadata(t *testing.T) {
+	resource := &Resource{
+		Model:        resolvedResourceTestModel{},
+		SearchFields: []string{"name"},
+		FieldPermissions: func(ctx *ninja.Context, resource *Resource, meta *FieldMeta) {
+			if meta.Name == "name" {
+				meta.Column = "name desc"
+			}
+		},
+	}
+	if err := resource.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	_, err = resource.applyListQueryFor(resource.resolved(nil), db.Model(&resolvedResourceTestModel{}), nil, &listInput{Search: "alice"})
+	if err == nil || !strings.Contains(err.Error(), "unsafe column") {
+		t.Fatalf("expected unsafe runtime column error, got %v", err)
+	}
+}
+
 func TestResolvedResourceUsesImmutableBaseMetadata(t *testing.T) {
 	t.Run("without field permissions reuses prepared view", func(t *testing.T) {
 		resource := &Resource{

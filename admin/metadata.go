@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/jinzhu/inflection"
+	"github.com/shijl0925/gin-ninja/internal/sqlident"
 	"gorm.io/gorm"
 )
 
@@ -69,6 +70,9 @@ func (r *Resource) prepare() error {
 	if len(r.fields) == 0 {
 		return fmt.Errorf("admin resource %q has no exported fields", r.Name)
 	}
+	if err := r.validateFieldColumns(); err != nil {
+		return err
+	}
 	r.fieldByName = map[string]*fieldMeta{}
 	for _, field := range r.fields {
 		r.fieldByName[field.Meta.Name] = field
@@ -106,6 +110,10 @@ func (r *Resource) prepare() error {
 		Name:         r.Name,
 		Label:        r.Label,
 		Path:         r.Path,
+		Icon:         strings.TrimSpace(r.Icon),
+		Group:        strings.TrimSpace(r.Group),
+		Description:  strings.TrimSpace(r.Description),
+		Order:        r.Order,
 		Fields:       make([]FieldMeta, 0, len(r.fields)),
 		ListFields:   visibleFields(r.fields, fieldModeList),
 		DetailFields: visibleFields(r.fields, fieldModeDetail),
@@ -128,6 +136,18 @@ func (r *Resource) prepare() error {
 		fieldByName: r.fieldByName,
 		metadata:    r.metadata,
 		primaryKey:  r.primaryKey,
+	}
+	return nil
+}
+
+func (r *Resource) validateFieldColumns() error {
+	for _, field := range r.fields {
+		if field == nil {
+			continue
+		}
+		if !sqlident.IsSafeFieldName(field.Meta.Column) {
+			return fmt.Errorf("admin resource %q field %q uses unsafe column %q", r.Name, field.Meta.Name, field.Meta.Column)
+		}
 	}
 	return nil
 }
@@ -293,6 +313,18 @@ func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
 	if opts.Component != "" {
 		meta.Meta.Component = opts.Component
 		meta.componentExplicit = true
+	}
+	if opts.Placeholder != "" {
+		meta.Meta.Placeholder = opts.Placeholder
+	}
+	if opts.Help != "" {
+		meta.Meta.Help = opts.Help
+	}
+	if opts.Width != "" {
+		meta.Meta.Width = opts.Width
+	}
+	if opts.Format != "" {
+		meta.Meta.Format = opts.Format
 	}
 	if len(opts.Enum) > 0 {
 		meta.Meta.Enum = cloneSlice(opts.Enum)
