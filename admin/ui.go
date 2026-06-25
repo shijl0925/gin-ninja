@@ -132,6 +132,7 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_API_BASE__", jsonString(cfg.APIBasePath),
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_HINT__", html.EscapeString(cfg.AuthLoginPath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH_ATTR__", html.EscapeString(cfg.AdminPath),
+		"__GIN_NINJA_ADMIN_DASHBOARD_PATH_ATTR__", html.EscapeString(adminDashboardPath(cfg.AdminPath)),
 		"__GIN_NINJA_ADMIN_AUTH_LOGIN_PATH__", jsonString(cfg.AuthLoginPath),
 		"__GIN_NINJA_ADMIN_AUTH_ME_PATH__", jsonString(cfg.AuthMePath),
 		"__GIN_NINJA_ADMIN_PAGE_PATH__", jsonString(cfg.AdminPath),
@@ -141,6 +142,13 @@ func renderUIHTML(cfg UIConfig) string {
 		"__GIN_NINJA_ADMIN_USER_ID_EXTRACT_EXPR__", jsonString(cfg.UserIDExtractExpr),
 	)
 	return replacer.Replace(template)
+}
+
+func adminDashboardPath(adminPath string) string {
+	if strings.Contains(adminPath, "?") {
+		return adminPath + "&view=dashboard"
+	}
+	return adminPath + "?view=dashboard"
 }
 
 func shortLogoText(value string) string {
