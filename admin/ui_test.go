@@ -36,6 +36,7 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 			`const authMePath = "/custom/api/auth/me";`,
 			`const adminPagePath = "/console";`,
 			`const adminLoginPath = "/console/login";`,
+			`<a class="topbar-link nav-link" href="/console?view=dashboard"><span>Home</span></a>`,
 			`await request("/custom/api/auth/login", {`,
 			`Paste a token from /custom/api/auth/login`,
 			// default extract expressions
