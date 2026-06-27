@@ -22,7 +22,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
         <div class="topbar-copy">
           <span id="shellEyebrow" class="eyebrow">Admin Console</span>
           <h1 id="pageTitle">__GIN_NINJA_ADMIN_TITLE__</h1>
-          <p id="pageIntro" class="muted">A metadata-driven admin UI for the example admin APIs.</p>
+          <p id="pageIntro" class="muted">Resources, records, and secure operations.</p>
         </div>
       </div>
     </div>
@@ -74,13 +74,13 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           </div>
         </div>
         <div class="login-marketing-copy">
-          <h2>Fast operations with a cleaner control center.</h2>
-          <p>Inspect resources, manage records, and verify secure API flows from one metadata-driven workspace.</p>
+          <h2>Everything important, quietly within reach.</h2>
+          <p>A focused workspace for resources, records, and trusted admin flows.</p>
         </div>
         <ul class="login-highlights">
-          <li>Unified dashboard, detail views, and CRUD actions in one lightweight workspace.</li>
-          <li>JWT sign-in support for quick manual verification during local development.</li>
-          <li>Responsive shell that stays usable from desktop admin screens down to narrow viewports.</li>
+          <li>Dashboard, records, and detail views stay in one continuous surface.</li>
+          <li>JWT-aware requests keep local verification close to the work.</li>
+          <li>The layout remains compact, clear, and ready for daily operations.</li>
         </ul>
         <div class="login-metrics" aria-label="Admin highlights">
           <div class="login-metric">
@@ -101,6 +101,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
         <div class="login-lead">
           <h2>Welcome back</h2>
         </div>
+        <p id="loginFeedback" class="login-feedback" hidden></p>
         <form id="loginForm" class="two-col">
           <label>Email
             <input id="loginEmail" class="form-control" type="email" placeholder="alice@example.com" autocomplete="username email">
@@ -152,7 +153,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           <div class="resource-strip-copy sidebar-heading">
             <span class="eyebrow subtle">Resource navigation</span>
             <h2>Switch workspaces</h2>
-            <p class="muted">Move between admin resources from a left-hand menu while keeping the workspace focused.</p>
+            <p class="muted">Move between resource workspaces.</p>
           </div>
         </div>
         <div class="sidebar-nav-shell">
@@ -194,7 +195,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           <div class="workspace-header-main">
             <div class="workspace-header-copy">
               <h2 id="resourceTitle">Select a resource</h2>
-              <p id="resourcePath" class="workspace-path muted">Sign in to open a resource workspace.</p>
+              <p id="resourcePath" class="workspace-path muted">Sign in to open a workspace.</p>
               <div id="resourceActionSummary" class="resource-action-summary" aria-label="Allowed resource actions" hidden></div>
             </div>
             <div class="resource-header-actions">
@@ -206,7 +207,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           <div class="card-header section-card-header">
             <div class="section-heading">
               <h3 class="section-title">Resources</h3>
-              <p class="section-copy muted">Select a resource below to open its workspace.</p>
+              <p class="section-copy muted">Choose a workspace.</p>
             </div>
             <div class="section-card-tools">
               <span class="eyebrow subtle">Dashboard cards</span>
@@ -222,7 +223,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
               <div class="card-header section-card-header">
                 <div class="section-heading">
                   <h3 class="section-title">Records</h3>
-                  <p class="section-copy muted">Search, filter, sort, and bulk manage the current resource.</p>
+                  <p class="section-copy muted">Browse and refine the current resource.</p>
                 </div>
                 <div class="row-actions">
                   <span id="selectedCountBadge" class="badge">0 selected</span>
@@ -234,7 +235,7 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
                 <div class="toolbar">
                   <div class="section-heading">
                     <span class="eyebrow subtle">Table tools</span>
-                    <p class="section-copy muted">Apply fast filters, reload data, and run bulk actions from the record list.</p>
+                    <p class="section-copy muted">Filter, reload, export, and act on selected rows.</p>
                   </div>
                   <div class="row-actions">
                     <button id="reloadList" class="secondary btn btn-default" type="button">Refresh list</button>
