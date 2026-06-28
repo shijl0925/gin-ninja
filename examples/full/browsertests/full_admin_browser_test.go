@@ -137,7 +137,7 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	clickBrowser(t, ctx, "#confirmModalConfirm")
 
 	waitForBrowserText(t, ctx, "#status", "Bulk deleted 1 record(s).")
-	waitForBrowserText(t, ctx, "#list", "No records matched the current filters.")
+	waitForBrowserText(t, ctx, "#list", "No records yet")
 	// Toast should appear for successful bulk delete
 	waitForBrowserCondition(t, ctx, "bulk delete toast appears", `(() => {
 		const container = document.querySelector("#toastContainer");
