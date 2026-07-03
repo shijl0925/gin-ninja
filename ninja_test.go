@@ -3,6 +3,8 @@ package ninja_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net"
@@ -1608,7 +1610,7 @@ func TestGet_CacheETagAndCacheControl(t *testing.T) {
 	if got := first.Header().Get("Cache-Control"); got != "private, max-age=60" {
 		t.Fatalf("expected cache-control header, got %q", got)
 	}
-	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language" {
+	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language, Cookie" {
 		t.Fatalf("expected Vary header, got %q", got)
 	}
 	etag := first.Header().Get("ETag")
@@ -1769,7 +1771,7 @@ func TestGet_CacheWithCustomKey(t *testing.T) {
 	}
 }
 
-func TestGet_DefaultCacheKeyVariesByAuthorizationAndLanguage(t *testing.T) {
+func TestGet_DefaultCacheKeyVariesByAuthorizationLanguageAndCookie(t *testing.T) {
 	api := newTestAPI()
 	r := ninja.NewRouter("/cache-vary")
 	calls := 0
@@ -1797,21 +1799,55 @@ func TestGet_DefaultCacheKeyVariesByAuthorizationAndLanguage(t *testing.T) {
 		req.Header.Set("Authorization", "auth-b")
 		req.Header.Set("Accept-Language", "en")
 	})
+	fifth := doRequestWithHeaders(api, http.MethodGet, "/cache-vary/", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+		req.Header.Set("Accept-Language", "en")
+		req.AddCookie(&http.Cookie{Name: "session", Value: "user-b"})
+	})
 
-	if first.Code != http.StatusOK || second.Code != http.StatusOK || third.Code != http.StatusOK || fourth.Code != http.StatusOK {
-		t.Fatalf("expected 200 responses, got %d/%d/%d/%d", first.Code, second.Code, third.Code, fourth.Code)
+	if first.Code != http.StatusOK || second.Code != http.StatusOK || third.Code != http.StatusOK || fourth.Code != http.StatusOK || fifth.Code != http.StatusOK {
+		t.Fatalf("expected 200 responses, got %d/%d/%d/%d/%d", first.Code, second.Code, third.Code, fourth.Code, fifth.Code)
 	}
-	if calls != 3 {
-		t.Fatalf("expected auth/language variants to be cached separately, calls=%d", calls)
+	if calls != 4 {
+		t.Fatalf("expected auth/language/cookie variants to be cached separately, calls=%d", calls)
 	}
 	if second.Body.String() != first.Body.String() {
 		t.Fatalf("expected matching auth/language variant to reuse response, got %q vs %q", second.Body.String(), first.Body.String())
 	}
-	if third.Body.String() == first.Body.String() || fourth.Body.String() == first.Body.String() {
-		t.Fatalf("expected distinct auth/language variants to bypass cached response")
+	if third.Body.String() == first.Body.String() || fourth.Body.String() == first.Body.String() || fifth.Body.String() == first.Body.String() {
+		t.Fatalf("expected distinct auth/language/cookie variants to bypass cached response")
 	}
-	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language" {
+	if got := first.Header().Get("Vary"); got != "Authorization, Accept-Language, Cookie" {
 		t.Fatalf("expected Vary header, got %q", got)
+	}
+}
+
+func TestGet_DefaultCacheKeyResistsDelimiterCollision(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/cache-poison")
+	calls := 0
+	store := &externalCacheStore{}
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, _ *struct{}) (*cacheOutput, error) {
+		calls++
+		return &cacheOutput{Count: calls}, nil
+	}, ninja.Cache(time.Minute, ninja.CacheWithStore(store)))
+	api.AddRouter(r)
+
+	authHash := sha256.Sum256([]byte("auth-a"))
+	first := doRequest(api, http.MethodGet, "/cache-poison/?x=1|Authorization="+hex.EncodeToString(authHash[:]), nil)
+	second := doRequestWithHeaders(api, http.MethodGet, "/cache-poison/?x=1", nil, func(req *http.Request) {
+		req.Header.Set("Authorization", "auth-a")
+	})
+
+	if first.Code != http.StatusOK || second.Code != http.StatusOK {
+		t.Fatalf("expected 200 responses, got %d/%d", first.Code, second.Code)
+	}
+	if calls != 2 {
+		t.Fatalf("expected crafted URL and authorization header to use distinct cache keys, calls=%d", calls)
+	}
+	if second.Body.String() == first.Body.String() {
+		t.Fatalf("expected crafted URL not to reuse authorized response cache entry")
 	}
 	for key := range store.items {
 		if strings.Contains(key, "auth-a") || strings.Contains(key, "auth-b") {
