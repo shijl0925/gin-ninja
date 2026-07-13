@@ -10,6 +10,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	ninja "github.com/shijl0925/gin-ninja"
 	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+	rediscache "github.com/shijl0925/gin-ninja/cache/redis"
 	"github.com/shijl0925/gin-ninja/settings"
 	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"go.uber.org/zap"
@@ -91,7 +92,7 @@ func TestFullappInitCacheStoreCoverage(t *testing.T) {
 		Prefix:  "fullapp:",
 	}
 	store, shutdown = initCacheStore(cfg)
-	if _, ok := store.(*ninja.RedisCacheStore); !ok {
+	if _, ok := store.(*rediscache.RedisCacheStore); !ok {
 		t.Fatalf("expected redis cache store, got %T", store)
 	}
 	if shutdown == nil {

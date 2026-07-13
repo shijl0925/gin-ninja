@@ -789,7 +789,7 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
-Settings:          &cfg,
+Startup:           settings.StartupConfig(cfg),
 TransactionHandlers: orm.TransactionHandlers(),
 })
 
@@ -885,7 +885,7 @@ Title:             cfg.App.Name,
 Version:           cfg.App.Version,
 Prefix:            "/api/v1",
 DisableGinDefault: true,
-Settings:          &cfg,
+Startup:           settings.StartupConfig(cfg),
 TransactionHandlers: orm.TransactionHandlers(),
 {{- if .Options.WithAuth }}
 SecuritySchemes: map[string]ninja.SecurityScheme{

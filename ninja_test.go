@@ -13,11 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
-	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/pagination"
 )
 
@@ -53,6 +51,19 @@ func doRequestWithHeaders(api *ninja.NinjaAPI, method, path string, body interfa
 	w := httptest.NewRecorder()
 	api.Handler().ServeHTTP(w, req)
 	return w
+}
+
+const authTestPrincipalKey = "auth_test_principal"
+
+func apiKeyTestAuth(name, principal string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader(name) != "supersecret" {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.Set(authTestPrincipalKey, principal)
+		c.Next()
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1081,11 +1092,10 @@ func TestRouterAuthMiddlewareBindsSecurityAndRuntime(t *testing.T) {
 			"apiKeyAuth": ninja.APIKeyHeaderSecurityScheme("X-API-Key"),
 		},
 	})
-	r := ninja.NewRouter("/internal", ninja.WithAPIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(_ *gin.Context, key string) (any, bool) {
-		return "api-user", key == "supersecret"
-	})))
+	r := ninja.NewRouter("/internal", ninja.WithAPIKeyAuth("apiKeyAuth", apiKeyTestAuth("X-API-Key", "api-user")))
 	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*map[string]string, error) {
-		principal, _ := middleware.GetAuthPrincipal(ctx.Context).(string)
+		value, _ := ctx.Get(authTestPrincipalKey)
+		principal, _ := value.(string)
 		return &map[string]string{"principal": principal}, nil
 	})
 	api.AddRouter(r)
@@ -1126,11 +1136,10 @@ func TestOperationAuthMiddlewareBindsSecurityAndRuntime(t *testing.T) {
 	})
 	r := ninja.NewRouter("/internal")
 	ninja.Get(r, "/", func(ctx *ninja.Context, in *struct{}) (*map[string]string, error) {
-		principal, _ := middleware.GetAuthPrincipal(ctx.Context).(string)
+		value, _ := ctx.Get(authTestPrincipalKey)
+		principal, _ := value.(string)
 		return &map[string]string{"principal": principal}, nil
-	}, ninja.APIKeyAuth("apiKeyAuth", middleware.APIKeyHeader("X-API-Key", func(_ *gin.Context, key string) (any, bool) {
-		return "operation-user", key == "supersecret"
-	})))
+	}, ninja.APIKeyAuth("apiKeyAuth", apiKeyTestAuth("X-API-Key", "operation-user")))
 	api.AddRouter(r)
 
 	w := doRequest(api, http.MethodGet, "/internal/", nil)
@@ -1883,49 +1892,6 @@ func TestGet_CacheWithTagsSupportsInvalidation(t *testing.T) {
 	third := doRequest(api, http.MethodGet, "/cache-tags/42", nil)
 	if third.Code != http.StatusOK || calls != 2 {
 		t.Fatalf("expected cache miss after invalidation, code=%d calls=%d", third.Code, calls)
-	}
-}
-
-func TestRedisCacheStore_GetTagInvalidateAndLock(t *testing.T) {
-	mr := miniredis.RunT(t)
-	store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-		Addr:   mr.Addr(),
-		Prefix: "test:",
-	})
-	if err != nil {
-		t.Fatalf("NewRedisCacheStore: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	store.Set("users:1", &ninja.CachedResponse{
-		Status:  http.StatusOK,
-		Header:  http.Header{"Content-Type": []string{"application/json"}},
-		Body:    []byte(`{"count":1}`),
-		Expires: time.Now().Add(time.Minute),
-	})
-	store.AddTags("users:1", "users", "users:1")
-
-	cached, ok := store.Get("users:1")
-	if !ok || cached == nil || cached.Status != http.StatusOK {
-		t.Fatalf("expected cached redis response, got ok=%v cached=%+v", ok, cached)
-	}
-	if removed := store.InvalidateTags("users:1"); removed != 1 {
-		t.Fatalf("expected one invalidated redis key, got %d", removed)
-	}
-	if _, ok := store.Get("users:1"); ok {
-		t.Fatal("expected redis key to be removed after tag invalidation")
-	}
-
-	unlock, ok := store.AcquireLock("users:1", time.Second)
-	if !ok || unlock == nil {
-		t.Fatal("expected first redis lock acquisition to succeed")
-	}
-	if _, ok := store.AcquireLock("users:1", time.Second); ok {
-		t.Fatal("expected second redis lock acquisition to fail while held")
-	}
-	unlock()
-	if _, ok := store.AcquireLock("users:1", time.Second); !ok {
-		t.Fatal("expected redis lock acquisition to succeed after unlock")
 	}
 }
 
