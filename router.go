@@ -272,15 +272,12 @@ func Delete[TIn any](r *Router, path string, handler func(*Context, *TIn) error,
 }
 
 func (r *Router) assertNotMounted(action string) {
-	if r != nil && r.mounted {
+	if r.mounted {
 		panic("gin-ninja: cannot " + action + " after router has been mounted")
 	}
 }
 
 func (r *Router) markMounted() {
-	if r == nil {
-		return
-	}
 	r.mounted = true
 	for _, sub := range r.subrouters {
 		sub.markMounted()

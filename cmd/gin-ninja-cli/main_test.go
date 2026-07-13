@@ -74,7 +74,7 @@ func TestRunGenerateCRUDWithTests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read generated test file: %v", err)
 	}
-	if !strings.Contains(string(content), "TestUserCRUDHandlersSkeleton") {
+	if !strings.Contains(string(content), "TestUserCRUDRoutesRegister") {
 		t.Fatalf("unexpected generated test content\n%s", content)
 	}
 }
