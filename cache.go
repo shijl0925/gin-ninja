@@ -56,7 +56,7 @@ type ResponseCacheLockStore interface {
 type CacheKeyFunc func(*Context) string
 type CacheTagFunc func(*Context) []string
 
-var defaultCacheVaryHeaders = []string{"Authorization", "Accept-Language"}
+var defaultCacheVaryHeaders = []string{"Authorization", "Accept-Language", "Cookie"}
 
 type CacheInvalidator struct {
 	store ResponseCacheStore
@@ -580,13 +580,20 @@ func defaultCacheKey(ctx *Context) string {
 	if ctx == nil || ctx.Request == nil || ctx.Request.URL == nil {
 		return ""
 	}
-	key := ctx.Request.Method + ":" + ctx.Request.URL.RequestURI()
+	digest := sha256.New()
+	writeCacheKeyComponent(digest, ctx.Request.Method)
+	writeCacheKeyComponent(digest, ctx.Request.URL.RequestURI())
 	for _, header := range defaultCacheVaryHeaders {
-		if value := ctx.Request.Header.Get(header); value != "" {
-			key += "|" + http.CanonicalHeaderKey(header) + "=" + hashCacheKeyValue(value)
-		}
+		writeCacheKeyComponent(digest, http.CanonicalHeaderKey(header))
+		writeCacheKeyComponent(digest, ctx.Request.Header.Get(header))
 	}
-	return key
+	return "v2:" + hex.EncodeToString(digest.Sum(nil))
+}
+
+func writeCacheKeyComponent(w interface{ Write([]byte) (int, error) }, value string) {
+	_, _ = fmt.Fprintf(w, "%d:", len(value))
+	_, _ = w.Write([]byte(value))
+	_, _ = w.Write([]byte{0})
 }
 
 func hashCacheKeyValue(value string) string {
