@@ -28,7 +28,7 @@ jobs:
           if [ -z "$BIN_DIR" ]; then
             BIN_DIR="$(go env GOPATH)/bin"
           fi
-          GOTOOLCHAIN=go1.26.0 go install honnef.co/go/tools/cmd/staticcheck@latest
+          GOTOOLCHAIN=go1.27.0 go install honnef.co/go/tools/cmd/staticcheck@latest
           "$BIN_DIR/staticcheck" ./...
           (
             cd cmd/gin-ninja-cli

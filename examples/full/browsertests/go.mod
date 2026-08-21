@@ -1,6 +1,6 @@
 module github.com/shijl0925/gin-ninja/examples/full/browsertests
 
-go 1.26
+go 1.27
 
 require (
 	github.com/chromedp/chromedp v0.15.1
