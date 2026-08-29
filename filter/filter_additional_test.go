@@ -22,6 +22,26 @@ func TestParseNilInput(t *testing.T) {
 	}
 }
 
+func TestParseSkipsUnexportedTaggedFields(t *testing.T) {
+	t.Parallel()
+
+	type input struct {
+		hidden string `filter:"name,eq"`
+		Age    int    `filter:"age,ge"`
+	}
+
+	clauses, err := Parse(input{hidden: "alice", Age: 18})
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(clauses) != 1 {
+		t.Fatalf("expected one exported-field clause, got %+v", clauses)
+	}
+	if clauses[0].Field != "age" || clauses[0].Value != 18 {
+		t.Fatalf("unexpected clause: %+v", clauses[0])
+	}
+}
+
 func TestApplyAndBuildOptionEdgeCases(t *testing.T) {
 	t.Parallel()
 
