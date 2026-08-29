@@ -146,6 +146,10 @@ func parseInto(value reflect.Value, clauses *Set) error {
 		field := typ.Field(i)
 		fieldValue := value.Field(i)
 
+		if !field.IsExported() && !field.Anonymous {
+			continue
+		}
+
 		if field.Anonymous {
 			if err := parseInto(fieldValue, clauses); err != nil {
 				return err
@@ -167,9 +171,16 @@ func parseInto(value reflect.Value, clauses *Set) error {
 			return err
 		}
 
+		if !fieldValue.CanInterface() {
+			continue
+		}
+
 		value := fieldValue.Interface()
 		if fieldValue.Kind() == reflect.Ptr {
 			if fieldValue.IsNil() {
+				continue
+			}
+			if !fieldValue.Elem().CanInterface() {
 				continue
 			}
 			value = fieldValue.Elem().Interface()
