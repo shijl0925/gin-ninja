@@ -779,7 +779,6 @@ db, err := ginbootstrap.InitDB(cfg)
 if err != nil {
 return nil, fmt.Errorf("init db: %w", err)
 }
-orm.Init(db)
 return db, nil
 }
 
@@ -875,7 +874,6 @@ db, err := projectbootstrap.InitDB(cfg)
 if err != nil {
 return nil, fmt.Errorf("init db: %w", err)
 }
-orm.Init(db)
 return db, nil
 }
 
@@ -1415,10 +1413,10 @@ return &{{ .ServiceName }}{repo: New{{ .RepoName }}()}
 }
 
 func repoDB(ctx *ninja.Context) *gorm.DB {
-if ctx != nil && ctx.Context != nil {
-return orm.WithContext(ctx.Context)
-}
-return gormx.GetDb()
+	if ctx != nil && ctx.Context != nil {
+		return orm.WithContext(ctx.Context)
+	}
+	return nil
 }
 
 func to{{ .ModelName }}Out(item {{ .ModelName }}) {{ .OutName }} {
@@ -1638,10 +1636,10 @@ ninja "github.com/shijl0925/gin-ninja"
 )
 
 func repoDB(ctx *ninja.Context) *gorm.DB {
-if ctx != nil && ctx.Context != nil {
-return orm.WithContext(ctx.Context)
-}
-return gormx.GetDb()
+	if ctx != nil && ctx.Context != nil {
+		return orm.WithContext(ctx.Context)
+	}
+	return nil
 }
 
 func to{{ .ModelName }}Out(item {{ .ModelName }}) {{ .OutName }} {

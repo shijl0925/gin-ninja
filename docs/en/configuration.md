@@ -177,9 +177,11 @@ Only keys present in the override file are changed; all other keys keep their ba
 
 ```go
 import (
+    ninja "github.com/shijl0925/gin-ninja"
     "github.com/shijl0925/gin-ninja/bootstrap"
     _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
+    "github.com/shijl0925/gin-ninja/settings"
 )
 
 cfg := settings.MustLoad("config.yaml")
@@ -189,7 +191,9 @@ defer func() { _ = log.Sync() }()
 
 // Initialise database.
 db := bootstrap.MustInitDB(&cfg.Database)
-orm.Init(db)
+
+api := ninja.New(ninja.Config{Settings: cfg})
+api.UseGin(orm.Middleware(db))
 ```
 
 `bootstrap.MustInitDB` resolves drivers through registration packages. Import the matching package for the driver you configure, for example:

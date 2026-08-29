@@ -33,7 +33,6 @@ func newExampleAdminAPI(t *testing.T) (*ninja.NinjaAPI, *gorm.DB) {
 	if err := db.AutoMigrate(&User{}, &Role{}, &Project{}, &userRole{}); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
-	orm.Init(db)
 
 	api := ninja.New(ninja.Config{Title: "admin example", DisableGinDefault: true, TransactionHandlers: orm.TransactionHandlers()})
 	api.UseGin(orm.Middleware(db))

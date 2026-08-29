@@ -11,7 +11,6 @@
 //
 //	func main() {
 //	    db, _ := gorm.Open(sqlite.Open("app.db"), &gorm.Config{})
-//	    orm.Init(db)
 //
 //	    api := ninja.New(ninja.Config{Title: "My API"})
 //	    api.Engine().Use(orm.Middleware(db))
@@ -28,8 +27,13 @@ import (
 const dbContextKey = "gin_ninja_db"
 const txContextKey = "gin_ninja_db_tx"
 
-// Init initialises the global gormx database instance.
-// This is equivalent to calling gormx.Init directly.
+// Init initialises the process-wide gormx database instance.
+//
+// Deprecated: prefer Middleware, GetDB, WithContext, and TransactionHandlers
+// so each NinjaAPI instance and request carries its own explicit database.
+// Process-wide database state is hard to reason about in parallel tests,
+// multiple API instances, and multi-tenant applications. Call gormx.Init
+// directly only when integrating legacy code that requires gormx's global DB.
 func Init(db *gorm.DB) {
 	gormx.Init(db)
 }

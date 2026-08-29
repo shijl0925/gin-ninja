@@ -24,7 +24,7 @@ func userDB(ctx *ninja.Context) *gorm.DB {
 	if ctx != nil && ctx.Context != nil {
 		return orm.WithContext(ctx.Context)
 	}
-	return gormx.GetDb()
+	return nil
 }
 
 // LoginHandler returns a login handler bound to explicit JWT settings.

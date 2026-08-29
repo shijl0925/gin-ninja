@@ -438,7 +438,6 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 		if err := db.Create(&adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"}).Error; err != nil {
 			t.Fatalf("Create(user): %v", err)
 		}
-		orm.Init(db)
 
 		adminResource := &Resource{Name: "users", Model: adminUser{}}
 		if err := adminResource.prepare(); err != nil {
@@ -471,7 +470,6 @@ func TestAdminRuntimeEdgeCoverage(t *testing.T) {
 		if err := db.Create(&adminUser{Name: "Alice", Email: "alice@example.com", Password: "p1"}).Error; err != nil {
 			t.Fatalf("Create(user): %v", err)
 		}
-		orm.Init(db)
 
 		makeCtx := func() *ninja.Context {
 			recorder := httptest.NewRecorder()
@@ -699,7 +697,6 @@ func TestAdminMetadataEdgeHelpers(t *testing.T) {
 		if err := db.AutoMigrate(&adminUser{}); err != nil {
 			t.Fatalf("AutoMigrate: %v", err)
 		}
-		orm.Init(db)
 
 		resource := &Resource{Name: "users", Model: adminUser{}}
 		if err := resource.prepare(); err != nil {

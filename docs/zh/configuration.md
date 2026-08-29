@@ -167,9 +167,11 @@ cfg := settings.MustLoadForEnv("config.yaml")
 
 ```go
 import (
+    ninja "github.com/shijl0925/gin-ninja"
     "github.com/shijl0925/gin-ninja/bootstrap"
     _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
     "github.com/shijl0925/gin-ninja/orm"
+    "github.com/shijl0925/gin-ninja/settings"
 )
 
 cfg := settings.MustLoad("config.yaml")
@@ -179,7 +181,9 @@ defer func() { _ = log.Sync() }()
 
 // 初始化数据库。
 db := bootstrap.MustInitDB(&cfg.Database)
-orm.Init(db)
+
+api := ninja.New(ninja.Config{Settings: cfg})
+api.UseGin(orm.Middleware(db))
 ```
 
 `bootstrap.MustInitDB` 通过注册包解析数据库驱动。请按配置的驱动导入对应包，例如：

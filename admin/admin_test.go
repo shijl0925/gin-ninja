@@ -123,7 +123,6 @@ func newAdminAPIWithDB(t *testing.T, site *Site, seed ...adminUser) (*ninja.Ninj
 			t.Fatalf("seed: %v", err)
 		}
 	}
-	orm.Init(db)
 
 	api := ninja.New(ninja.Config{Title: "admin test", DisableGinDefault: true, TransactionHandlers: orm.TransactionHandlers()})
 	api.UseGin(orm.Middleware(db))

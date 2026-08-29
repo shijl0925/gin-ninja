@@ -189,7 +189,6 @@ func initDB(dsn string) (*gorm.DB, error) {
 		return nil, err
 	}
 	basicDB = db
-	orm.Init(db)
 	return db, nil
 }
 

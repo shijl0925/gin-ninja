@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/shijl0925/gin-ninja/examples/full/app"
-	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/settings"
 	ninjatest "github.com/shijl0925/gin-ninja/testing"
 	"go.uber.org/zap"
@@ -24,7 +23,6 @@ func TestBuildCompactAPI(t *testing.T) {
 	if err := db.AutoMigrate(&app.User{}, &app.Role{}, &app.Project{}); err != nil {
 		t.Fatalf("AutoMigrate: %v", err)
 	}
-	orm.Init(db)
 
 	cfg := settings.Config{
 		App: settings.AppConfig{

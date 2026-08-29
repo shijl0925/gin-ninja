@@ -14,6 +14,7 @@ import (
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/gin-ninja/settings"
 	ninjatest "github.com/shijl0925/gin-ninja/testing"
+	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -30,7 +31,6 @@ func newRegisterTestAPI(t *testing.T) *ninja.NinjaAPI {
 	if err := db.AutoMigrate(&User{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
-	orm.Init(db)
 
 	api := ninja.New(ninja.Config{Title: "Test", Version: "0.0.1"})
 	api.UseGin(orm.Middleware(db))
@@ -52,8 +52,17 @@ func setupAppTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&User{}); err != nil {
 		t.Fatalf("auto migrate: %v", err)
 	}
-	orm.Init(db)
 	return db
+}
+
+func appTestContextWithDB(t *testing.T, db *gorm.DB) *ninja.Context {
+	t.Helper()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	orm.Middleware(db)(c)
+	return &ninja.Context{Context: c}
 }
 
 func registerRequest(t *testing.T, api *ninja.NinjaAPI, body interface{}) *ninjatest.Response {
@@ -159,7 +168,8 @@ func TestRegister_DuplicateEmailReturnsConflict(t *testing.T) {
 }
 
 func TestUserHelpersAndAuthFlow(t *testing.T) {
-	setupAppTestDB(t)
+	db := setupAppTestDB(t)
+	ctx := appTestContextWithDB(t, db)
 
 	if NewUserRepo() == nil {
 		t.Fatal("expected repo instance")
@@ -170,7 +180,7 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 		t.Fatal("expected bcrypt helper functions to work")
 	}
 
-	registered, err := Register(nil, &RegisterInput{
+	registered, err := Register(ctx, &RegisterInput{
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Password: "password123",
@@ -185,7 +195,7 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 
 	jwtCfg := settings.JWTConfig{Secret: "test-secret", ExpireHours: 24, Issuer: "gin-ninja"}
 	login := LoginHandler(jwtCfg)
-	loginOut, err := login(nil, &LoginInput{Email: "alice@example.com", Password: "password123"})
+	loginOut, err := login(ctx, &LoginInput{Email: "alice@example.com", Password: "password123"})
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
@@ -193,14 +203,14 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 		t.Fatalf("unexpected login output: %+v", loginOut)
 	}
 
-	if _, err := login(nil, &LoginInput{Email: "alice@example.com", Password: "wrong"}); err == nil {
+	if _, err := login(ctx, &LoginInput{Email: "alice@example.com", Password: "wrong"}); err == nil {
 		t.Fatal("expected invalid password error")
 	}
-	if _, err := login(nil, &LoginInput{Email: "missing@example.com", Password: "password123"}); err == nil {
+	if _, err := login(ctx, &LoginInput{Email: "missing@example.com", Password: "password123"}); err == nil {
 		t.Fatal("expected missing user error")
 	}
 
-	duplicate, err := Register(nil, &RegisterInput{
+	duplicate, err := Register(ctx, &RegisterInput{
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Password: "password123",
@@ -212,9 +222,10 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 }
 
 func TestUserCRUDFunctions(t *testing.T) {
-	setupAppTestDB(t)
+	db := setupAppTestDB(t)
+	ctx := appTestContextWithDB(t, db)
 
-	created, err := CreateUser(nil, &CreateUserInput{
+	created, err := CreateUser(ctx, &CreateUserInput{
 		Name:     "Alice",
 		Email:    "alice@example.com",
 		Password: "password123",
@@ -227,7 +238,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("expected created id, got %+v", created)
 	}
 
-	second, err := CreateUser(nil, &CreateUserInput{
+	second, err := CreateUser(ctx, &CreateUserInput{
 		Name:     "Bob",
 		Email:    "bob@example.com",
 		Password: "password123",
@@ -237,16 +248,16 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("CreateUser second: %v", err)
 	}
 	repo := NewUserRepo()
-	if err := repo.UpdateById(int(second.Model.ID), map[string]interface{}{"is_admin": true}); err != nil {
+	if err := repo.UpdateById(int(second.Model.ID), map[string]interface{}{"is_admin": true}, gormx.UseDB(userDB(ctx))); err != nil {
 		t.Fatalf("set second user admin: %v", err)
 	}
 
-	got, err := GetUser(nil, &GetUserInput{UserID: created.Model.ID})
+	got, err := GetUser(ctx, &GetUserInput{UserID: created.Model.ID})
 	if err != nil || got.Email != "alice@example.com" {
 		t.Fatalf("GetUser: result=%+v err=%v", got, err)
 	}
 
-	page, err := ListUsers(nil, &ListUsersInput{
+	page, err := ListUsers(ctx, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		Search:    "Ali",
 	})
@@ -257,7 +268,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected list result: %+v", page)
 	}
 
-	emailPage, err := ListUsers(nil, &ListUsersInput{
+	emailPage, err := ListUsers(ctx, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		Search:    "bob@example.com",
 	})
@@ -269,7 +280,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	adminOnly := true
-	adminPage, err := ListUsers(nil, &ListUsersInput{
+	adminPage, err := ListUsers(ctx, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		IsAdmin:   &adminOnly,
 	})
@@ -280,7 +291,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected admin list result: %+v", adminPage)
 	}
 
-	adminSearchPage, err := ListUsers(nil, &ListUsersInput{
+	adminSearchPage, err := ListUsers(ctx, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		Search:    "example.com",
 		IsAdmin:   &adminOnly,
@@ -292,7 +303,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected admin search result: %+v", adminSearchPage)
 	}
 
-	sortedPage, err := ListUsers(nil, &ListUsersInput{
+	sortedPage, err := ListUsers(ctx, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		Sort:      "-age",
 	})
@@ -303,14 +314,14 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected sorted list result: %+v", sortedPage)
 	}
 
-	if _, err := ListUsers(nil, &ListUsersInput{
+	if _, err := ListUsers(ctx, &ListUsersInput{
 		PageInput: pagination.PageInput{Page: 1, Size: 10},
 		Sort:      "-password",
 	}); err == nil {
 		t.Fatal("expected invalid sort to fail")
 	}
 
-	updated, err := UpdateUser(nil, &UpdateUserInput{
+	updated, err := UpdateUser(ctx, &UpdateUserInput{
 		UserID: second.Model.ID,
 		Name:   "Bobby",
 		Email:  "bobby@example.com",
@@ -323,11 +334,11 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected updated user: %+v", updated)
 	}
 
-	if err := DeleteUser(nil, &DeleteUserInput{UserID: second.Model.ID}); err != nil {
+	if err := DeleteUser(ctx, &DeleteUserInput{UserID: second.Model.ID}); err != nil {
 		t.Fatalf("DeleteUser: %v", err)
 	}
 
-	deleted, err := GetUser(nil, &GetUserInput{UserID: second.Model.ID})
+	deleted, err := GetUser(ctx, &GetUserInput{UserID: second.Model.ID})
 	if !ninja.IsNotFound(err) || deleted != nil {
 		t.Fatalf("expected deleted user to be missing, got result=%+v err=%v", deleted, err)
 	}
@@ -412,10 +423,11 @@ func TestUsersV2CacheHelperCoverage(t *testing.T) {
 }
 
 func TestUserDirectHelpers(t *testing.T) {
-	setupAppTestDB(t)
+	db := setupAppTestDB(t)
+	ctx := appTestContextWithDB(t, db)
 
 	repo := NewUserRepo()
-	created, err := createUser(repo, userDB(nil), "Alice", "alice@example.com", "password123", 18)
+	created, err := createUser(repo, userDB(ctx), "Alice", "alice@example.com", "password123", 18)
 	if err != nil {
 		t.Fatalf("createUser helper: %v", err)
 	}
@@ -423,7 +435,7 @@ func TestUserDirectHelpers(t *testing.T) {
 		t.Fatalf("unexpected created helper output: %+v", created)
 	}
 
-	updated, err := UpdateUser(nil, &UpdateUserInput{UserID: created.Model.ID})
+	updated, err := UpdateUser(ctx, &UpdateUserInput{UserID: created.Model.ID})
 	if err != nil {
 		t.Fatalf("UpdateUser empty update: %v", err)
 	}
@@ -435,20 +447,20 @@ func TestUserDirectHelpers(t *testing.T) {
 		t.Fatal("expected password helpers to round-trip")
 	}
 
-	if err := DeleteUser(nil, &DeleteUserInput{UserID: created.Model.ID}); err != nil {
+	if err := DeleteUser(ctx, &DeleteUserInput{UserID: created.Model.ID}); err != nil {
 		t.Fatalf("DeleteUser helper: %v", err)
 	}
 
-	if _, err := createUser(repo, userDB(nil), "Alice", "alice@example.com", "password123", 18); err == nil {
+	if _, err := createUser(repo, userDB(ctx), "Alice", "alice@example.com", "password123", 18); err == nil {
 		t.Fatal("expected duplicate helper create to fail")
 	}
 
-	if _, err := UpdateUser(nil, &UpdateUserInput{UserID: created.Model.ID + 100}); !ninja.IsNotFound(err) {
+	if _, err := UpdateUser(ctx, &UpdateUserInput{UserID: created.Model.ID + 100}); !ninja.IsNotFound(err) {
 		t.Fatalf("expected missing user error, got %v", err)
 	}
 
 	misconfiguredLogin := LoginHandler(settings.JWTConfig{})
-	if _, err := misconfiguredLogin(nil, &LoginInput{Email: "alice@example.com", Password: "password123"}); err == nil {
+	if _, err := misconfiguredLogin(ctx, &LoginInput{Email: "alice@example.com", Password: "password123"}); err == nil {
 		t.Fatal("expected Login to fail when token generation is misconfigured")
 	}
 }
