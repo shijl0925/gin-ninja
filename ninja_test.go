@@ -116,6 +116,9 @@ func TestNew_HomepageRouteExists(t *testing.T) {
 	if !strings.Contains(body, "Test") || !strings.Contains(body, "Server is running") {
 		t.Fatalf("expected homepage title and status in body: %q", body)
 	}
+	if !strings.Contains(body, `class="logo-stage"`) || !strings.Contains(body, `class="logo-lens"`) || !strings.Contains(body, `class="logo-core"`) {
+		t.Fatalf("expected refreshed homepage icon markup in body: %q", body)
+	}
 	if !strings.Contains(body, `class="meta-band"`) || !strings.Contains(body, `class="status-panel"`) || !strings.Contains(body, `class="quicklinks-panel"`) {
 		t.Fatalf("expected balanced homepage meta layout in body: %q", body)
 	}

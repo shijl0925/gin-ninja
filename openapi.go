@@ -764,25 +764,89 @@ func homepageHTML(title, docsURL, adminURL string) string {
       gap: 22px;
     }
     .logo-ring {
-      width: 68px;
-      height: 68px;
+      width: 92px;
+      height: 92px;
       flex-shrink: 0;
-      border-radius: 18px;
+      border-radius: 28px;
+      padding: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,242,248,0.96));
+      border: 1px solid rgba(255,255,255,0.88);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.92),
+        0 18px 36px rgba(15, 23, 42, 0.10),
+        0 3px 10px rgba(15, 23, 42, 0.06);
+    }
+    .logo-stage {
+      position: relative;
+      width: 100%%;
+      height: 100%%;
+      border-radius: 22px;
+      overflow: hidden;
       background:
-        linear-gradient(135deg, rgba(255,255,255,0.98), rgba(244,244,245,0.92)),
-        linear-gradient(135deg, rgba(99,91,255,0.08), rgba(59,130,246,0.04));
-      border: 1px solid rgba(15, 23, 42, 0.08);
+        radial-gradient(circle at 30%% 18%%, rgba(255,255,255,0.78), transparent 34%%),
+        linear-gradient(145deg, #7fd1ff 0%%, #5ea8ff 42%%, #6a86ff 72%%, #9b79ff 100%%);
+      box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.48),
+        inset 0 -18px 28px rgba(67, 97, 238, 0.18);
+    }
+    .logo-stage::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 24%% 80%%, rgba(255,200,255,0.38), transparent 34%%),
+        radial-gradient(circle at 78%% 22%%, rgba(255,255,255,0.28), transparent 24%%);
+    }
+    .logo-aura {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      width: 54px;
+      height: 54px;
+      border-radius: 50%%;
+      background:
+        radial-gradient(circle at 35%% 30%%, rgba(255,255,255,0.96), rgba(255,255,255,0.36) 46%%, rgba(255,255,255,0) 76%%);
+      filter: blur(0.3px);
+      opacity: 0.95;
+    }
+    .logo-lens {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%%;
+      background: linear-gradient(145deg, #1a1b21 0%%, #3d404b 48%%, #d6dae6 100%%);
+      box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.18),
+        0 8px 20px rgba(15, 23, 42, 0.28);
+    }
+    .logo-lens::before {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      border-radius: 50%%;
+      background: linear-gradient(160deg, rgba(255,255,255,0.10), rgba(0,0,0,0.42));
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.14);
+    }
+    .logo-core {
+      position: absolute;
+      inset: 13px;
+      border-radius: 50%%;
       display: flex;
       align-items: center;
       justify-content: center;
+      background:
+        radial-gradient(circle at 35%% 30%%, #ffd7f7 0%%, #c2c5ff 34%%, #8fc5ff 58%%, #7f67ff 100%%);
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.85),
-        0 8px 20px rgba(15, 23, 42, 0.04);
+        inset 0 1px 1px rgba(255,255,255,0.44),
+        0 0 0 1px rgba(255,255,255,0.18);
     }
     .logo-svg {
-      width: 30px;
-      height: 30px;
-      fill: var(--accent);
+      width: 16px;
+      height: 16px;
+      fill: rgba(255,255,255,0.96);
+      filter: drop-shadow(0 1px 1px rgba(90, 63, 189, 0.32));
     }
     .hero-copy {
       min-width: 0;
@@ -966,9 +1030,30 @@ func homepageHTML(title, docsURL, adminURL string) string {
         flex-direction: column;
       }
       .logo-ring {
-        width: 58px;
-        height: 58px;
-        border-radius: 16px;
+        width: 74px;
+        height: 74px;
+        border-radius: 22px;
+        padding: 7px;
+      }
+      .logo-stage {
+        border-radius: 18px;
+      }
+      .logo-aura {
+        width: 44px;
+        height: 44px;
+      }
+      .logo-lens {
+        width: 36px;
+        height: 36px;
+        right: 9px;
+        bottom: 9px;
+      }
+      .logo-core {
+        inset: 11px;
+      }
+      .logo-svg {
+        width: 13px;
+        height: 13px;
       }
       h1 {
         font-size: 2rem;
@@ -995,9 +1080,16 @@ func homepageHTML(title, docsURL, adminURL string) string {
   <div class="eyebrow">Gin Ninja</div>
   <div class="hero">
     <div class="logo-ring" aria-hidden="true">
-      <svg class="logo-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-        <path d="M32 4 L40 28 L64 32 L40 36 L32 60 L24 36 L0 32 L24 28 Z"/>
-      </svg>
+      <div class="logo-stage">
+        <div class="logo-aura"></div>
+        <div class="logo-lens">
+          <div class="logo-core">
+            <svg class="logo-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <path d="M32 12 L37 27 L52 32 L37 37 L32 52 L27 37 L12 32 L27 27 Z"/>
+            </svg>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="hero-copy">
       <h1>%s</h1>
