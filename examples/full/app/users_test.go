@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	ninja "github.com/shijl0925/gin-ninja"
+	"github.com/shijl0925/gin-ninja/internal/contextkeys"
+	"github.com/shijl0925/gin-ninja/middleware"
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/gin-ninja/settings"
@@ -218,6 +221,61 @@ func TestUserHelpersAndAuthFlow(t *testing.T) {
 	})
 	if err == nil || duplicate != nil {
 		t.Fatalf("expected duplicate email error, got result=%+v err=%v", duplicate, err)
+	}
+}
+
+func TestCurrentUserScenarios(t *testing.T) {
+	db := setupAppTestDB(t)
+	ctx := appTestContextWithDB(t, db)
+
+	if _, err := CurrentUser(ctx, &CurrentUserInput{}); !ninja.IsUnauthorized(err) {
+		t.Fatalf("expected unauthorized without claims, got %v", err)
+	}
+
+	ctx.Set(contextkeys.JWTClaims, &middleware.Claims{UserID: 999})
+	if _, err := CurrentUser(ctx, &CurrentUserInput{}); !ninja.IsUnauthorized(err) {
+		t.Fatalf("expected unauthorized for missing user, got %v", err)
+	}
+
+	role := Role{Name: "Admin", Code: "admin", Status: 2}
+	if err := db.Create(&role).Error; err != nil {
+		t.Fatalf("Create(role): %v", err)
+	}
+	user := User{
+		Name:     "Alice",
+		Email:    "alice@example.com",
+		Password: "password123",
+		Age:      18,
+		IsAdmin:  true,
+		RoleIDs:  []uint{role.ID},
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("Create(user): %v", err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	expiresAt := now.Add(2 * time.Hour)
+	ctx.Set(contextkeys.JWTClaims, &middleware.Claims{
+		UserID:   user.ID,
+		Username: user.Name,
+	})
+	claims := ctx.MustGet(contextkeys.JWTClaims).(*middleware.Claims)
+	claims.Issuer = "gin-ninja"
+	claims.IssuedAt = jwt.NewNumericDate(now)
+	claims.ExpiresAt = jwt.NewNumericDate(expiresAt)
+
+	out, err := CurrentUser(ctx, &CurrentUserInput{})
+	if err != nil {
+		t.Fatalf("CurrentUser: %v", err)
+	}
+	if out.UserID != user.ID || out.Email != user.Email || !out.IsAdmin {
+		t.Fatalf("unexpected current user output: %+v", out)
+	}
+	if len(out.Roles) != 1 || out.Roles[0].ID != role.ID || out.Roles[0].Code != role.Code {
+		t.Fatalf("unexpected current user roles: %+v", out.Roles)
+	}
+	if out.Issuer != "gin-ninja" || out.IssuedAt != now.Format(time.RFC3339) || out.ExpiresAt != expiresAt.Format(time.RFC3339) {
+		t.Fatalf("unexpected claims metadata: %+v", out)
 	}
 }
 

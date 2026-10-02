@@ -83,6 +83,58 @@ func TestGetDBUsesRequestDBAndWithContext(t *testing.T) {
 	}
 }
 
+func TestBaseDBHelpersAndInit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	baseDB := testDB(t)
+	txDB := testDB(t)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	Middleware(baseDB)(c)
+	c.Set(txContextKey, txDB)
+
+	if got, ok := RequestBaseDB(c); !ok || got != baseDB {
+		t.Fatalf("expected base db, got %v ok=%v", got, ok)
+	}
+	if got := GetBaseDB(c); got != baseDB {
+		t.Fatalf("expected GetBaseDB to return base db, got %v", got)
+	}
+	if got, ok := RequestDB(c); !ok || got != txDB {
+		t.Fatalf("expected request db to prefer tx db, got %v ok=%v", got, ok)
+	}
+
+	Init(baseDB)
+}
+
+func TestDBHelpersHandleNilAndWrongTypes(t *testing.T) {
+	if got, ok := RequestBaseDB(nil); ok || got != nil {
+		t.Fatalf("expected nil base db, got %v ok=%v", got, ok)
+	}
+	if got := GetBaseDB(nil); got != nil {
+		t.Fatalf("expected nil base db from GetBaseDB, got %v", got)
+	}
+	if got := WithContext(nil); got != nil {
+		t.Fatalf("expected nil db from WithContext(nil), got %v", got)
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+	c.Set(dbContextKey, "wrong")
+	c.Set(txContextKey, "wrong")
+
+	if got, ok := RequestBaseDB(c); ok || got != nil {
+		t.Fatalf("expected wrong-typed base db to be ignored, got %v ok=%v", got, ok)
+	}
+	if got, ok := RequestDB(c); ok || got != nil {
+		t.Fatalf("expected wrong-typed request db to be ignored, got %v ok=%v", got, ok)
+	}
+	if got := GetBaseDB(c); got != nil {
+		t.Fatalf("expected nil base db for wrong type, got %v", got)
+	}
+}
+
 func TestRegisterDefaultErrorMappers(t *testing.T) {
 	api := ninja.New(ninja.Config{})
 	RegisterDefaultErrorMappers(api)
