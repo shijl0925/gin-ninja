@@ -15,6 +15,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -57,11 +60,9 @@ jobs:
           } > coverage.out
 
       - name: Install DeepSource CLI
-        if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
         run: curl -fsSL https://cli.deepsource.com/install | BINDIR=./bin sh
 
       - name: Upload coverage to DeepSource
-        if: ${{ github.event_name == 'pull_request' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
         run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage.out
         env:
           DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
