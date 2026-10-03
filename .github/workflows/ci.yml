@@ -59,10 +59,14 @@ jobs:
             tail -n +2 cmd/gin-ninja-cli/coverage-cli.out
           } > coverage.out
 
+      # DeepSource rejects direct coverage uploads for default-branch merge
+      # commits when coverage report inference is enabled.
       - name: Install DeepSource CLI
+        if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
         run: curl -fsSL https://cli.deepsource.com/install | BINDIR=./bin sh
 
       - name: Upload coverage to DeepSource
+        if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, 'Merge pull request ') }}
         run: ./bin/deepsource report --analyzer test-coverage --key go --value-file ./coverage.out
         env:
           DEEPSOURCE_DSN: ${{ secrets.DEEPSOURCE_DSN }}
