@@ -29,7 +29,6 @@ type noPrimaryFields struct {
 }
 
 type unexportedOnly struct {
-	name string
 }
 
 type metadataShape struct {
