@@ -3,7 +3,6 @@ package defaults
 import "time"
 
 const (
-	RedisCachePrefix            = "gin-ninja:"
 	MemoryCacheMaxEntries       = 1024
 	CacheMaxBodyBytes     int64 = 1 << 20
 

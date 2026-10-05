@@ -2,7 +2,6 @@ package ninja
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"net"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -408,58 +406,14 @@ func TestOpenAPICacheConcurrentAccess(t *testing.T) {
 	}
 }
 
-func TestMemoryCacheStoreConcurrentLockingAndBoundaryInputs(t *testing.T) {
+func TestMemoryCacheStoreDeleteManyBoundaryInputs(t *testing.T) {
 	t.Parallel()
 
 	store := NewMemoryCacheStore()
 	store.Set("users:1", &CachedResponse{Status: http.StatusOK, Expires: time.Now().Add(time.Minute)})
-	store.AddTags("users:1", "", "users", " users ", "users")
-
-	if removed := store.InvalidateTags("", " ", "users", "users"); removed != 1 {
-		t.Fatalf("InvalidateTags() removed %d keys, want 1", removed)
-	}
+	store.DeleteMany("", " ", "users:1", "users:1")
 	if _, ok := store.Get("users:1"); ok {
-		t.Fatal("expected tagged key to be deleted")
-	}
-	if _, ok := store.AcquireLock("   ", 0); ok {
-		t.Fatal("expected blank cache key lock acquisition to fail")
-	}
-	if _, ok := store.AcquireLock("", 0); ok {
-		t.Fatal("expected empty cache key lock acquisition to fail")
-	}
-
-	const contenders = 32
-	start := make(chan struct{})
-	var wg sync.WaitGroup
-	var wins int32
-	unlocks := make(chan func(), contenders)
-
-	for range contenders {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			unlock, ok := store.AcquireLock("shared", 0)
-			if !ok {
-				return
-			}
-			atomic.AddInt32(&wins, 1)
-			unlocks <- unlock
-		}()
-	}
-
-	close(start)
-	wg.Wait()
-	close(unlocks)
-
-	if got := atomic.LoadInt32(&wins); got != 1 {
-		t.Fatalf("expected one lock winner, got %d", got)
-	}
-
-	unlock := <-unlocks
-	unlock()
-	if unlock, ok := store.AcquireLock("shared", 0); !ok || unlock == nil {
-		t.Fatal("expected lock acquisition to succeed after releasing default-ttl lock")
+		t.Fatal("expected matching key to be deleted")
 	}
 }
 
@@ -558,66 +512,6 @@ func TestWrapCacheStreamsAndSkipsOversizedResponses(t *testing.T) {
 	}
 	if _, ok := store.Get("GET:/large"); ok {
 		t.Fatal("expected oversized response not to be cached")
-	}
-}
-
-func TestMemoryCacheStoreEvictionCleansTagIndexes(t *testing.T) {
-	t.Parallel()
-
-	store := NewMemoryCacheStoreWithLimit(1)
-	store.Set("old", &CachedResponse{Status: http.StatusOK})
-	store.AddTags("old", "users")
-	store.Set("new", &CachedResponse{Status: http.StatusCreated})
-
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-	if _, ok := store.items["old"]; ok {
-		t.Fatal("expected old cache entry to be evicted")
-	}
-	if _, ok := store.keyTags["old"]; ok {
-		t.Fatal("expected evicted key tags to be removed")
-	}
-	if len(store.tags["users"]) != 0 {
-		t.Fatalf("expected evicted tag index to be empty, got %+v", store.tags["users"])
-	}
-}
-
-type contextAwareStore struct {
-	ctx      context.Context
-	response *CachedResponse
-}
-
-func (s *contextAwareStore) Get(key string) (*CachedResponse, bool) { return nil, false }
-func (s *contextAwareStore) Set(key string, value *CachedResponse)  {}
-func (s *contextAwareStore) GetContext(ctx context.Context, key string) (*CachedResponse, bool) {
-	s.ctx = ctx
-	return s.response, s.response != nil
-}
-func (s *contextAwareStore) SetContext(ctx context.Context, key string, value *CachedResponse) {
-	s.ctx = ctx
-	s.response = value
-}
-
-func TestCacheStoreHelpersPreferRequestContext(t *testing.T) {
-	t.Parallel()
-
-	c, _ := newTestContext(http.MethodGet, "/cache", "")
-	reqCtx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	c.Request = c.Request.WithContext(reqCtx)
-	ctx := newContext(c)
-
-	store := &contextAwareStore{response: &CachedResponse{Status: http.StatusAccepted}}
-	if cached, ok := cacheStoreGet(ctx, store, "users:1"); !ok || cached.Status != http.StatusAccepted {
-		t.Fatalf("cacheStoreGet() = (%+v, %v)", cached, ok)
-	}
-	if store.ctx != reqCtx {
-		t.Fatal("expected cacheStoreGet to receive request context")
-	}
-
-	cacheStoreSet(ctx, store, "users:1", &CachedResponse{Status: http.StatusCreated})
-	if store.ctx != reqCtx || store.response == nil || store.response.Status != http.StatusCreated {
-		t.Fatalf("expected cacheStoreSet to receive request context and value, got ctx=%v response=%+v", store.ctx, store.response)
 	}
 }
 

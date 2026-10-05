@@ -57,9 +57,6 @@
 //	    user:     "${DB_USER:postgres}"
 //	    password: "${DB_PASSWORD}"
 //
-//	redis:
-//	  password: "${REDIS_PASSWORD}"
-//
 //	jwt:
 //	  secret: "${JWT_SECRET}"
 //
@@ -90,7 +87,6 @@ type Config struct {
 	App      AppConfig      `mapstructure:"app"`
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
-	Redis    RedisConfig    `mapstructure:"redis"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	CORS     CORSConfig     `mapstructure:"cors"`
 	Log      LogConfig      `mapstructure:"log"`
@@ -190,16 +186,6 @@ type PostgresConfig struct {
 	SSLMode  string            `mapstructure:"sslmode"`
 	TimeZone string            `mapstructure:"time_zone"`
 	Params   map[string]string `mapstructure:"params"`
-}
-
-// RedisConfig holds Redis connection settings used by distributed cache features.
-type RedisConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Addr     string `mapstructure:"addr"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	DB       int    `mapstructure:"db"`
-	Prefix   string `mapstructure:"prefix"`
 }
 
 // JWTConfig holds JSON Web Token settings.
@@ -498,13 +484,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.max_open_conns", 100)
 	v.SetDefault("database.conn_max_lifetime_minutes", 60)
-
-	v.SetDefault("redis.enabled", false)
-	v.SetDefault("redis.addr", "127.0.0.1:6379")
-	v.SetDefault("redis.username", "")
-	v.SetDefault("redis.password", "")
-	v.SetDefault("redis.db", 0)
-	v.SetDefault("redis.prefix", "gin-ninja:")
 
 	v.SetDefault("jwt.secret", "")
 	v.SetDefault("jwt.expire_hours", 24)

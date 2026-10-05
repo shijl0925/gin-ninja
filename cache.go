@@ -3,7 +3,6 @@ package ninja
 import (
 	"bufio"
 	"container/list"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -12,7 +11,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -22,18 +20,11 @@ import (
 type CacheOption func(*routeCacheConfig)
 
 // ResponseCacheStore stores serialized route responses for cacheable endpoints.
-// Implementations receive fully-exported CachedResponse values and may store
-// them in any backend (in-process memory, Redis, Memcached, etc.).
+// Implementations receive fully-exported CachedResponse values so applications
+// can provide a small custom store when the built-in memory store is not enough.
 type ResponseCacheStore interface {
 	Get(key string) (*CachedResponse, bool)
 	Set(key string, value *CachedResponse)
-}
-
-// ResponseCacheContextStore optionally supports request-scoped cache I/O.
-// Implementations should honor cancellation and deadlines carried by ctx.
-type ResponseCacheContextStore interface {
-	GetContext(ctx context.Context, key string) (*CachedResponse, bool)
-	SetContext(ctx context.Context, key string, value *CachedResponse)
 }
 
 // ResponseCacheDeleteStore optionally supports cache-key invalidation.
@@ -42,19 +33,7 @@ type ResponseCacheDeleteStore interface {
 	DeleteMany(keys ...string)
 }
 
-// ResponseCacheTagStore optionally supports assigning tags to keys and invalidating by tag.
-type ResponseCacheTagStore interface {
-	AddTags(key string, tags ...string)
-	InvalidateTags(tags ...string) int
-}
-
-// ResponseCacheLockStore optionally supports short-lived distributed or local locks.
-type ResponseCacheLockStore interface {
-	AcquireLock(key string, ttl time.Duration) (unlock func(), ok bool)
-}
-
 type CacheKeyFunc func(*Context) string
-type CacheTagFunc func(*Context) []string
 
 var defaultCacheVaryHeaders = []string{"Authorization", "Accept-Language"}
 
@@ -66,7 +45,6 @@ type routeCacheConfig struct {
 	ttl          time.Duration
 	store        ResponseCacheStore
 	keyFn        CacheKeyFunc
-	tagFn        CacheTagFunc
 	maxBodyBytes int64
 }
 
@@ -86,20 +64,11 @@ type MemoryCacheStore struct {
 	items      map[string]*CachedResponse
 	order      *list.List
 	entries    map[string]*list.Element
-	tags       map[string]map[string]struct{}
-	keyTags    map[string]map[string]struct{}
-	locks      map[string]memoryCacheLock
 	maxEntries int
-	lockSeq    uint64
 }
 
 type memoryCacheEntry struct {
 	key string
-}
-
-type memoryCacheLock struct {
-	token   uint64
-	expires time.Time
 }
 
 func newRouteCacheConfig(ttl time.Duration) *routeCacheConfig {
@@ -129,15 +98,6 @@ func CacheWithKey(fn CacheKeyFunc) CacheOption {
 	}
 }
 
-// CacheWithTags assigns one or more tags to stored responses so they can be invalidated later.
-func CacheWithTags(fn CacheTagFunc) CacheOption {
-	return func(cfg *routeCacheConfig) {
-		if fn != nil {
-			cfg.tagFn = fn
-		}
-	}
-}
-
 // CacheWithMaxBodyBytes limits how much response body data a cached route will
 // buffer for ETag generation and cache storage. Responses larger than max are
 // streamed to the client and are not cached. Use a negative value to disable the
@@ -148,7 +108,8 @@ func CacheWithMaxBodyBytes(max int64) CacheOption {
 	}
 }
 
-// NewCacheInvalidator provides a unified invalidation entry point for any cache store.
+// NewCacheInvalidator provides explicit cache-key invalidation for stores that
+// implement ResponseCacheDeleteStore.
 func NewCacheInvalidator(store ResponseCacheStore) *CacheInvalidator {
 	return &CacheInvalidator{store: store}
 }
@@ -162,49 +123,12 @@ func (i *CacheInvalidator) Delete(keys ...string) int {
 	if !ok {
 		return 0
 	}
-	normalized := normalizeCacheTags(keys)
+	normalized := normalizeCacheKeys(keys)
 	if len(normalized) == 0 {
 		return 0
 	}
 	store.DeleteMany(normalized...)
 	return len(normalized)
-}
-
-// Tag associates one cache key with one or more invalidation tags.
-func (i *CacheInvalidator) Tag(key string, tags ...string) bool {
-	if i == nil || i.store == nil || strings.TrimSpace(key) == "" {
-		return false
-	}
-	store, ok := i.store.(ResponseCacheTagStore)
-	if !ok {
-		return false
-	}
-	store.AddTags(key, tags...)
-	return true
-}
-
-// InvalidateTags removes all keys currently associated with the provided tags.
-func (i *CacheInvalidator) InvalidateTags(tags ...string) int {
-	if i == nil || i.store == nil {
-		return 0
-	}
-	store, ok := i.store.(ResponseCacheTagStore)
-	if !ok {
-		return 0
-	}
-	return store.InvalidateTags(tags...)
-}
-
-// AcquireLock tries to obtain a short-lived lock for the given cache key.
-func (i *CacheInvalidator) AcquireLock(key string, ttl time.Duration) (func(), bool) {
-	if i == nil || i.store == nil || strings.TrimSpace(key) == "" {
-		return nil, false
-	}
-	store, ok := i.store.(ResponseCacheLockStore)
-	if !ok {
-		return nil, false
-	}
-	return store.AcquireLock(key, ttl)
 }
 
 // NewMemoryCacheStore creates an in-memory route cache store.
@@ -221,9 +145,6 @@ func NewMemoryCacheStoreWithLimit(maxEntries int) *MemoryCacheStore {
 		items:      map[string]*CachedResponse{},
 		order:      list.New(),
 		entries:    map[string]*list.Element{},
-		tags:       map[string]map[string]struct{}{},
-		keyTags:    map[string]map[string]struct{}{},
-		locks:      map[string]memoryCacheLock{},
 		maxEntries: maxEntries,
 	}
 }
@@ -289,7 +210,7 @@ func (s *MemoryCacheStore) Delete(key string) {
 }
 
 func (s *MemoryCacheStore) DeleteMany(keys ...string) {
-	normalized := normalizeCacheTags(keys)
+	normalized := normalizeCacheKeys(keys)
 	if len(normalized) == 0 {
 		return
 	}
@@ -298,81 +219,6 @@ func (s *MemoryCacheStore) DeleteMany(keys ...string) {
 		s.deleteKeyLocked(key)
 	}
 	s.mu.Unlock()
-}
-
-func (s *MemoryCacheStore) AddTags(key string, tags ...string) {
-	if strings.TrimSpace(key) == "" {
-		return
-	}
-	normalized := normalizeCacheTags(tags)
-	if len(normalized) == 0 {
-		return
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.items[key]; !ok {
-		return
-	}
-	for _, tag := range normalized {
-		if s.tags[tag] == nil {
-			s.tags[tag] = map[string]struct{}{}
-		}
-		s.tags[tag][key] = struct{}{}
-		if s.keyTags[key] == nil {
-			s.keyTags[key] = map[string]struct{}{}
-		}
-		s.keyTags[key][tag] = struct{}{}
-	}
-}
-
-func (s *MemoryCacheStore) InvalidateTags(tags ...string) int {
-	normalized := normalizeCacheTags(tags)
-	if len(normalized) == 0 {
-		return 0
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	keys := map[string]struct{}{}
-	for _, tag := range normalized {
-		for key := range s.tags[tag] {
-			keys[key] = struct{}{}
-		}
-		delete(s.tags, tag)
-	}
-	for key := range keys {
-		s.deleteKeyLocked(key)
-	}
-	return len(keys)
-}
-
-func (s *MemoryCacheStore) AcquireLock(key string, ttl time.Duration) (func(), bool) {
-	if strings.TrimSpace(key) == "" {
-		return nil, false
-	}
-	if ttl <= 0 {
-		ttl = 5 * time.Second
-	}
-	now := time.Now()
-	token := atomic.AddUint64(&s.lockSeq, 1)
-
-	s.mu.Lock()
-	if existing, ok := s.locks[key]; ok && now.Before(existing.expires) {
-		s.mu.Unlock()
-		return nil, false
-	}
-	s.locks[key] = memoryCacheLock{
-		token:   token,
-		expires: now.Add(ttl),
-	}
-	s.mu.Unlock()
-
-	return func() {
-		s.mu.Lock()
-		if existing, ok := s.locks[key]; ok && existing.token == token {
-			delete(s.locks, key)
-		}
-		s.mu.Unlock()
-	}, true
 }
 
 func (s *MemoryCacheStore) pruneExpiredLocked(now time.Time) {
@@ -399,7 +245,6 @@ func (s *MemoryCacheStore) evictOldestLocked() {
 
 func (s *MemoryCacheStore) deleteKeyLocked(key string) {
 	delete(s.items, key)
-	s.deleteKeyTagsLocked(key)
 	if element := s.entries[key]; element != nil {
 		s.order.Remove(element)
 		delete(s.entries, key)
@@ -415,18 +260,6 @@ func (s *MemoryCacheStore) promoteKeyLocked(key string) {
 	}
 }
 
-func (s *MemoryCacheStore) deleteKeyTagsLocked(key string) {
-	tags := s.keyTags[key]
-	delete(s.keyTags, key)
-	for tag := range tags {
-		keys := s.tags[tag]
-		delete(keys, key)
-		if len(keys) == 0 {
-			delete(s.tags, tag)
-		}
-	}
-}
-
 func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !isCacheableMethod(c.Request.Method) || op.stream.config != nil {
@@ -437,7 +270,7 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		ctx := newContext(c)
 		cacheKey, cacheStore := cacheLookup(op, ctx)
 		if cacheStore != nil && cacheKey != "" {
-			if cached, ok := cacheStoreGet(ctx, cacheStore, cacheKey); ok {
+			if cached, ok := cacheStoreGet(cacheStore, cacheKey); ok {
 				if !isExpiredCachedResponse(cached, time.Now()) {
 					writeCachedResponse(c, cached, op.cache.control, defaultCacheVaryHeaders...)
 					return
@@ -492,16 +325,13 @@ func wrapCache(op *operation, next gin.HandlerFunc) gin.HandlerFunc {
 		}
 
 		if cacheStore != nil && cacheKey != "" && op.cache.config != nil && recorder.status >= 200 && recorder.status < 300 {
-			cacheStoreSet(ctx, cacheStore, cacheKey, &CachedResponse{
+			cacheStoreSet(cacheStore, cacheKey, &CachedResponse{
 				Status:  recorder.status,
 				Header:  cloneHeader(recorder.header),
 				Body:    append([]byte(nil), recorder.body...),
 				Expires: time.Now().Add(op.cache.config.ttl),
 				ETag:    etag,
 			})
-			if tagStore, ok := cacheStore.(ResponseCacheTagStore); ok && op.cache.config.tagFn != nil {
-				tagStore.AddTags(cacheKey, op.cache.config.tagFn(ctx)...)
-			}
 		}
 	}
 }
@@ -517,30 +347,15 @@ func cacheLookup(op *operation, ctx *Context) (string, ResponseCacheStore) {
 	return keyFn(ctx), op.cache.config.store
 }
 
-func cacheStoreGet(ctx *Context, store ResponseCacheStore, key string) (*CachedResponse, bool) {
+func cacheStoreGet(store ResponseCacheStore, key string) (*CachedResponse, bool) {
 	if store == nil {
 		return nil, false
-	}
-	if contextual, ok := store.(ResponseCacheContextStore); ok {
-		stdctx := context.Background()
-		if ctx != nil && ctx.Request != nil {
-			stdctx = ctx.Request.Context()
-		}
-		return contextual.GetContext(stdctx, key)
 	}
 	return store.Get(key)
 }
 
-func cacheStoreSet(ctx *Context, store ResponseCacheStore, key string, value *CachedResponse) {
+func cacheStoreSet(store ResponseCacheStore, key string, value *CachedResponse) {
 	if store == nil {
-		return
-	}
-	if contextual, ok := store.(ResponseCacheContextStore); ok {
-		stdctx := context.Background()
-		if ctx != nil && ctx.Request != nil {
-			stdctx = ctx.Request.Context()
-		}
-		contextual.SetContext(stdctx, key, value)
 		return
 	}
 	store.Set(key, value)
@@ -664,7 +479,7 @@ func splitCommaValues(value string) []string {
 	return out
 }
 
-func normalizeCacheTags(values []string) []string {
+func normalizeCacheKeys(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}

@@ -102,9 +102,6 @@ database:
     user:     "${DB_USER:postgres}"
     password: "${DB_PASSWORD}"          # 无默认值 → 未设置时为空字符串
 
-redis:
-  password: "${REDIS_PASSWORD}"
-
 jwt:
   secret: "${JWT_SECRET:change-me-in-production}"
 ```

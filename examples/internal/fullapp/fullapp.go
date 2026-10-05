@@ -151,28 +151,9 @@ func InitDB(cfg *settings.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
-func initCacheStore(cfg settings.Config) (ninja.ResponseCacheStore, func(context.Context) error) {
+func initCacheStore() (ninja.ResponseCacheStore, func(context.Context) error) {
 	cacheStore := ninja.ResponseCacheStore(ninja.NewMemoryCacheStore())
-	var cacheStoreShutdown func(context.Context) error
-	if cfg.Redis.Enabled {
-		redisStore, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-			Addr:     cfg.Redis.Addr,
-			Username: cfg.Redis.Username,
-			Password: cfg.Redis.Password,
-			DB:       cfg.Redis.DB,
-			Prefix:   cfg.Redis.Prefix,
-		})
-		if err != nil {
-			log.Printf("cache: falling back to in-memory store: %v", err)
-		} else if err := redisStore.Ping(context.Background()); err != nil {
-			log.Printf("cache: redis unavailable, falling back to in-memory store: %v", err)
-			_ = redisStore.Close()
-		} else {
-			cacheStore = redisStore
-			cacheStoreShutdown = func(context.Context) error { return redisStore.Close() }
-			log.Printf("cache: using redis store at %s", cfg.Redis.Addr)
-		}
-	}
+	cacheStoreShutdown := func(context.Context) error { return nil }
 	return cacheStore, cacheStoreShutdown
 }
 
@@ -201,7 +182,7 @@ func BuildAPI(cfg settings.Config, db *gorm.DB, log_ *zap.Logger, opts Options) 
 	var cacheStore ninja.ResponseCacheStore
 	if opts.IncludeUsersV2 || opts.IncludeFeatureDemos {
 		cacheStoreShutdown := func(context.Context) error { return nil }
-		cacheStore, cacheStoreShutdown = initCacheStore(cfg)
+		cacheStore, cacheStoreShutdown = initCacheStore()
 		api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 			return cacheStoreShutdown(ctx)
 		})
@@ -339,27 +320,22 @@ func addUsersV2Routes(api *ninja.NinjaAPI, jwtCfg settings.JWTConfig, cacheStore
 	)
 
 	ninja.Get(usersV2Router, "/", app.ListUsersV2,
-		ninja.Summary("List users (cached CRUD demo)"),
-		ninja.Description("Demonstrates cached list responses plus tag-based invalidation after create, update, and delete operations."),
+		ninja.Summary("List users"),
+		ninja.Description("Lists users without route-level caching so writes are visible immediately."),
 		ninja.Paginated[app.UserOut](),
-		ninja.Cache(time.Minute,
-			ninja.CacheWithStore(cacheStore),
-			ninja.CacheWithTags(app.UsersV2ListCacheTags),
-		),
 	)
 	ninja.Get(usersV2Router, "/:id", app.GetUserV2,
-		ninja.Summary("Get user (cached CRUD demo)"),
+		ninja.Summary("Get user (cached detail demo)"),
 		ninja.Description("Demonstrates detail response caching with a stable cache key and explicit invalidation after update or delete."),
 		ninja.ResponseModel[app.UserOut](),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(cacheStore),
 			ninja.CacheWithKey(app.UsersV2DetailCacheKey),
-			ninja.CacheWithTags(app.UsersV2DetailCacheTags),
 		),
 	)
 	ninja.Post(usersV2Router, "/", app.CreateUserV2,
-		ninja.Summary("Create user (invalidates cached lists)"),
-		ninja.Description("Creates a user and invalidates cached list queries so subsequent reads observe the new record."),
+		ninja.Summary("Create user"),
+		ninja.Description("Creates a user; list responses are not route-cached in the simplified cache demo."),
 		ninja.ResponseModel[app.UserOut](),
 		ninja.WithTransaction(),
 	)
@@ -409,10 +385,9 @@ func addFeatureRoutes(api *ninja.NinjaAPI, cacheStore ninja.ResponseCacheStore) 
 	)
 	ninja.Get(exampleRouter, "/cache", app.CachedFeatureDemo,
 		ninja.Summary("Cache + ETag endpoint"),
-		ninja.Description("Demonstrates route-level response caching with pluggable memory/Redis stores, Cache-Control, and conditional requests with ETag."),
+		ninja.Description("Demonstrates route-level response caching with an in-memory store, Cache-Control, and conditional requests with ETag."),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(cacheStore),
-			ninja.CacheWithTags(func(ctx *ninja.Context) []string { return []string{"examples", "examples:cache"} }),
 		),
 	)
 	ninja.Get(exampleRouter, "/limited", app.LimitedOperation,

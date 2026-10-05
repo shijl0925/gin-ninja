@@ -124,29 +124,6 @@ cors:
 	}
 }
 
-func TestLoad_RedisConfig(t *testing.T) {
-	yaml := `
-redis:
-  enabled: true
-  addr: "127.0.0.1:6380"
-  username: "cache-user"
-  password: "cache-pass"
-  db: 3
-  prefix: "demo:"
-`
-	path := writeTempConfig(t, yaml)
-	cfg, err := settings.Load(path)
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if !cfg.Redis.Enabled || cfg.Redis.Addr != "127.0.0.1:6380" || cfg.Redis.Username != "cache-user" {
-		t.Fatalf("unexpected redis config: %+v", cfg.Redis)
-	}
-	if cfg.Redis.Password != "cache-pass" || cfg.Redis.DB != 3 || cfg.Redis.Prefix != "demo:" {
-		t.Fatalf("unexpected redis config values: %+v", cfg.Redis)
-	}
-}
-
 func TestLoad_DatabaseStructuredConfig(t *testing.T) {
 	yaml := `
 database:
@@ -280,7 +257,6 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	t.Setenv("SERVER__PORT", "7070")
 	t.Setenv("DATABASE__MYSQL__PASSWORD", "env:p@ss+word")
 	t.Setenv("DATABASE__POSTGRES__TIME_ZONE", "Asia/Shanghai")
-	t.Setenv("REDIS__ADDR", "cache.internal:6379")
 	t.Setenv("CORS__ALLOW_ORIGINS", "https://app.example.com,https://admin.example.com")
 
 	path := writeTempConfig(t, "{}")
@@ -296,9 +272,6 @@ func TestLoad_EnvironmentOverride(t *testing.T) {
 	}
 	if cfg.Database.Postgres.TimeZone != "Asia/Shanghai" {
 		t.Fatalf("expected env override postgres timezone, got %q", cfg.Database.Postgres.TimeZone)
-	}
-	if cfg.Redis.Addr != "cache.internal:6379" {
-		t.Fatalf("expected env override redis addr, got %q", cfg.Redis.Addr)
 	}
 	if got, want := cfg.CORS.AllowOrigins, []string{"https://app.example.com", "https://admin.example.com"}; !slices.Equal(got, want) {
 		t.Fatalf("expected CORS origins env override, got %#v", got)
@@ -605,16 +578,13 @@ database:
     host:     "${NINJA_IT_DB_HOST:127.0.0.1}"
     user:     "${NINJA_IT_DB_USER:pguser}"
     password: "${NINJA_IT_DB_PASS}"
-redis:
-  enabled: true
-  password: "${NINJA_IT_REDIS_PASS:redissecret}"
 jwt:
   secret: "${NINJA_IT_JWT_SECRET:fallback-secret}"
 `
 	// Set some variables; leave others unset so defaults kick in.
 	t.Setenv("NINJA_IT_DB_PASS", "hunter2")
 	t.Setenv("NINJA_IT_JWT_SECRET", "env-jwt-secret")
-	// NINJA_IT_DSN, NINJA_IT_DB_HOST, NINJA_IT_DB_USER, NINJA_IT_REDIS_PASS unset → defaults
+	// NINJA_IT_DSN, NINJA_IT_DB_HOST, and NINJA_IT_DB_USER unset -> defaults.
 
 	path := writeTempConfig(t, yaml)
 	cfg, err := settings.Load(path)
@@ -635,10 +605,6 @@ jwt:
 	}
 	if cfg.Database.Postgres.Password != "hunter2" {
 		t.Errorf("unexpected postgres password: %q", cfg.Database.Postgres.Password)
-	}
-	// Redis password uses default (env var not set).
-	if cfg.Redis.Password != "redissecret" {
-		t.Errorf("unexpected redis password: %q", cfg.Redis.Password)
 	}
 	// JWT secret comes from env.
 	if cfg.JWT.Secret != "env-jwt-secret" {
@@ -664,23 +630,22 @@ jwt:
 
 func TestLoad_PlaceholderEnvOverridesDefault(t *testing.T) {
 	yaml := `
-redis:
-  password: "${NINJA_IT_REDIS_PW:default-pass}"
+jwt:
+  secret: "${NINJA_IT_JWT_SECRET:default-secret}"
 `
-	t.Setenv("NINJA_IT_REDIS_PW", "real-pass")
+	t.Setenv("NINJA_IT_JWT_SECRET", "real-secret")
 	path := writeTempConfig(t, yaml)
 	cfg, err := settings.Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Redis.Password != "real-pass" {
-		t.Errorf("expected env value to win over default, got %q", cfg.Redis.Password)
+	if cfg.JWT.Secret != "real-secret" {
+		t.Errorf("expected env value to win over default, got %q", cfg.JWT.Secret)
 	}
 }
 
 func TestPlaceholderTypedFields(t *testing.T) {
 	t.Setenv("NINJA_IT_DB_HOST", "db.example.test")
-	t.Setenv("NINJA_IT_REDIS_DB", "3")
 
 	configYAML := `
 database:
@@ -697,12 +662,6 @@ database:
   max_idle_conns: 10
   max_open_conns: 100
   conn_max_lifetime_minutes: 60
-
-redis:
-  enabled: ${NINJA_IT_REDIS_ENABLED:false}
-  addr: "${NINJA_IT_REDIS_ADDR:127.0.0.1:6379}"
-  password: "${NINJA_IT_REDIS_PASSWORD}"
-  db: ${NINJA_IT_REDIS_DB:0}
 `
 	path := writeTempConfig(t, configYAML)
 	cfg, err := settings.Load(path)
@@ -721,11 +680,5 @@ redis:
 	}
 	if cfg.Database.MySQL.Name != "vben_go" {
 		t.Fatalf("expected mysql name vben_go, got %q", cfg.Database.MySQL.Name)
-	}
-	if cfg.Redis.Enabled {
-		t.Fatal("expected redis enabled false by default")
-	}
-	if cfg.Redis.DB != 3 {
-		t.Fatalf("expected redis db 3, got %d", cfg.Redis.DB)
 	}
 }

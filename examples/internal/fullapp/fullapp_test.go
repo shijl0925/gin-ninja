@@ -1,13 +1,11 @@
 package fullapp
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/alicebob/miniredis/v2"
 	ninja "github.com/shijl0925/gin-ninja"
 	_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
 	"github.com/shijl0925/gin-ninja/settings"
@@ -74,50 +72,16 @@ func TestFullappOptionsAndHelpers(t *testing.T) {
 }
 
 func TestFullappInitCacheStoreCoverage(t *testing.T) {
-	cfg := testConfig("file:cache?mode=memory&cache=shared")
-
-	store, shutdown := initCacheStore(cfg)
+	store, shutdown := initCacheStore()
 	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
 		t.Fatalf("expected memory cache store by default, got %T", store)
 	}
 	if shutdown != nil {
-		t.Fatalf("expected nil shutdown for default memory store, got nil=%t", shutdown == nil)
+		if err := shutdown(t.Context()); err != nil {
+			t.Fatalf("memory shutdown(): %v", err)
+		}
 	}
 
-	redisServer := miniredis.RunT(t)
-	cfg.Redis = settings.RedisConfig{
-		Enabled: true,
-		Addr:    redisServer.Addr(),
-		Prefix:  "fullapp:",
-	}
-	store, shutdown = initCacheStore(cfg)
-	if _, ok := store.(*ninja.RedisCacheStore); !ok {
-		t.Fatalf("expected redis cache store, got %T", store)
-	}
-	if shutdown == nil {
-		t.Fatal("expected redis shutdown hook")
-	}
-	if err := shutdown(context.Background()); err != nil {
-		t.Fatalf("shutdown(): %v", err)
-	}
-
-	cfg.Redis.Addr = ""
-	store, shutdown = initCacheStore(cfg)
-	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
-		t.Fatalf("expected memory fallback store, got %T", store)
-	}
-	if shutdown != nil {
-		t.Fatalf("expected nil shutdown after fallback, got nil=%t", shutdown == nil)
-	}
-
-	cfg.Redis.Addr = "127.0.0.1:1"
-	store, shutdown = initCacheStore(cfg)
-	if _, ok := store.(*ninja.MemoryCacheStore); !ok {
-		t.Fatalf("expected ping failure fallback store, got %T", store)
-	}
-	if shutdown != nil {
-		t.Fatalf("expected nil shutdown after ping failure fallback, got nil=%t", shutdown == nil)
-	}
 }
 
 func TestFullappBuildAPIAndRunCoverage(t *testing.T) {

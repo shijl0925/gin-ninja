@@ -582,14 +582,10 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 	t.Run("memory cache delete and cache helpers", func(t *testing.T) {
 		store := NewMemoryCacheStore()
 		store.Set("users:1", &CachedResponse{Status: http.StatusOK, Body: []byte("one")})
-		store.AddTags("users:1", "users")
 		store.Delete("")
 		store.Delete("users:1")
 		if _, ok := store.Get("users:1"); ok {
 			t.Fatal("expected Delete to remove item")
-		}
-		if removed := store.InvalidateTags("users"); removed != 0 {
-			t.Fatalf("expected no tagged items after delete, got %d", removed)
 		}
 
 		if key, cacheStore := cacheLookup(&operation{}, nil); key != "" || cacheStore != nil {
@@ -600,19 +596,15 @@ func TestCoreHelperAdditionalCoverage(t *testing.T) {
 			t.Fatalf("unexpected cache lookup result key=%q store=%v", key, cacheStore)
 		}
 
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ginCtx.Request = req
-		ctx := &Context{Context: ginCtx}
-		cacheStoreSet(ctx, store, "users:2", &CachedResponse{Status: http.StatusCreated, Body: []byte("two")})
-		value, ok := cacheStoreGet(ctx, store, "users:2")
+		cacheStoreSet(store, "users:2", &CachedResponse{Status: http.StatusCreated, Body: []byte("two")})
+		value, ok := cacheStoreGet(store, "users:2")
 		if !ok || value == nil || string(value.Body) != "two" {
 			t.Fatalf("cacheStoreGet() = (%+v, %v), want cached value", value, ok)
 		}
-		if value, ok := cacheStoreGet(nil, nil, "users:2"); ok || value != nil {
+		if value, ok := cacheStoreGet(nil, "users:2"); ok || value != nil {
 			t.Fatalf("expected nil store lookup miss, got value=%v ok=%v", value, ok)
 		}
-		cacheStoreSet(nil, nil, "users:3", &CachedResponse{Status: http.StatusOK})
+		cacheStoreSet(nil, "users:3", &CachedResponse{Status: http.StatusOK})
 	})
 
 	t.Run("capture writer and upload helper", func(t *testing.T) {

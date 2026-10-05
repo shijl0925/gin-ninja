@@ -40,41 +40,28 @@ Behavior:
 - when `CacheControl(...)` is not set explicitly, `Cache(ttl)` emits `Cache-Control: private, max-age=<ttl>`
 - default cache keys and `Vary` headers include `Authorization` and `Accept-Language`; use `CacheWithKey(...)` for additional request-specific dimensions
 - requests with `If-None-Match` return `304 Not Modified` when the cached entity tag matches
-- the same API can target Redis by passing `CacheWithStore(...)`
+- use `CacheWithStore(...)` to plug in a small custom store
 
 Useful options:
 
 ```go
 store := ninja.NewMemoryCacheStore()
 
+articleCacheKey := func(ctx *ninja.Context) string {
+    return "article:" + ctx.Param("slug")
+}
+
 ninja.Get(articles, "/:slug", getArticle,
     ninja.Cache(5*time.Minute,
         ninja.CacheWithStore(store),
-        ninja.CacheWithKey(func(ctx *ninja.Context) string {
-            return "article:" + ctx.Param("slug")
-        }),
-        ninja.CacheWithTags(func(ctx *ninja.Context) []string {
-            return []string{"articles", "article:" + ctx.Param("slug")}
-        }),
+        ninja.CacheWithKey(articleCacheKey),
     ),
     ninja.CacheControl("public, max-age=300, stale-while-revalidate=60"),
     ninja.ETag(),
 )
-```
-
-Redis-backed store:
-
-```go
-store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-    Addr:   "127.0.0.1:6379",
-    Prefix: "myapp:",
-})
-if err != nil {
-    panic(err)
-}
 
 invalidator := ninja.NewCacheInvalidator(store)
-invalidator.InvalidateTags("article:welcome")
+invalidator.Delete("article:welcome")
 ```
 
 Notes:
@@ -82,7 +69,7 @@ Notes:
 - cache support is intended for safe read endpoints
 - use explicit `CacheControl("public, ...")` only for responses that are safe for shared proxies/CDNs
 - SSE / WebSocket routes are not cached
-- `NewCacheInvalidator(store)` provides a unified delete / tag-invalidation / lock entry point
+- `NewCacheInvalidator(store)` only deletes explicit keys; for list endpoints whose variants cannot be enumerated, prefer short TTLs or application-level invalidation
 - OpenAPI automatically documents `ETag` and `Cache-Control` response headers
 
 ---

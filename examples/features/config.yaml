@@ -16,14 +16,6 @@ database:
   max_idle_conns: 5
   max_open_conns: 10
 
-redis:
-  enabled: false
-  addr: "127.0.0.1:6379"
-  username: ""
-  password: ""
-  db: 0
-  prefix: "gin-ninja:features:"
-
 cors:
   # 生产环境请改成你的前端/Admin 域名，避免使用宽松的 allow-all CORS。
   allow_origins:
