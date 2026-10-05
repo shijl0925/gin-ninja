@@ -416,7 +416,7 @@ func (s *Site) MustRegisterModel(resource *ModelResource) {
 }
 
 func (s *Site) registerModel(resource *Resource) {
-	if s == nil || resource == nil || resource.modelType == nil {
+	if resource == nil || resource.modelType == nil {
 		return
 	}
 	modelType := resource.modelType
@@ -432,9 +432,6 @@ func (s *Site) registerModel(resource *Resource) {
 }
 
 func (s *Site) resolveAutoRelations() {
-	if s == nil {
-		return
-	}
 	for _, resource := range s.resources {
 		if resource == nil {
 			continue
@@ -496,9 +493,6 @@ func cloneRelationMeta(meta *RelationMeta) *RelationMeta {
 }
 
 func resetAutoRelation(field *fieldMeta) {
-	if field == nil || field.autoRelation == nil {
-		return
-	}
 	field.Meta.Relation = &RelationMeta{ValueField: "id"}
 	if !field.componentExplicit {
 		field.Meta.Component = "select"

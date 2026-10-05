@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shijl0925/gin-ninja/internal/defaults"
 	"github.com/shijl0925/gin-ninja/settings"
 )
 
@@ -40,14 +41,14 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.JWT.ExpireHours != 24 {
 		t.Errorf("expected default expire_hours 24, got %d", cfg.JWT.ExpireHours)
 	}
-	if got, want := cfg.CORS.AllowOrigins, []string{"http://localhost:3000", "http://localhost:5173"}; !slices.Equal(got, want) {
+	if got, want := cfg.CORS.AllowOrigins, defaults.CORSAllowOrigins(); !slices.Equal(got, want) {
 		t.Errorf("expected safe default CORS origins, got %#v", cfg.CORS.AllowOrigins)
 	}
 	if cfg.CORS.AllowCredentials {
 		t.Error("expected default CORS credentials to be false")
 	}
-	if cfg.CORS.MaxAgeSecs != 43200 {
-		t.Errorf("expected default CORS max_age_secs 43200, got %d", cfg.CORS.MaxAgeSecs)
+	if cfg.CORS.MaxAgeSecs != defaults.CORSMaxAgeSecs {
+		t.Errorf("expected default CORS max_age_secs %d, got %d", defaults.CORSMaxAgeSecs, cfg.CORS.MaxAgeSecs)
 	}
 	if cfg.Log.Level != "info" {
 		t.Errorf("expected default log level info, got %s", cfg.Log.Level)
@@ -249,17 +250,17 @@ func TestJWTConfig_ExpireDuration(t *testing.T) {
 
 func TestCORSConfigWithDefaults(t *testing.T) {
 	defaulted := (settings.CORSConfig{}).WithDefaults()
-	if !slices.Equal(defaulted.AllowOrigins, []string{"http://localhost:3000", "http://localhost:5173"}) {
+	if !slices.Equal(defaulted.AllowOrigins, defaults.CORSAllowOrigins()) {
 		t.Fatalf("default origins = %#v", defaulted.AllowOrigins)
 	}
-	if !slices.Equal(defaulted.AllowMethods, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}) {
+	if !slices.Equal(defaulted.AllowMethods, defaults.CORSAllowMethods()) {
 		t.Fatalf("default methods = %#v", defaulted.AllowMethods)
 	}
-	if !slices.Equal(defaulted.AllowHeaders, []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"}) {
+	if !slices.Equal(defaulted.AllowHeaders, defaults.CORSAllowHeaders()) {
 		t.Fatalf("default headers = %#v", defaulted.AllowHeaders)
 	}
-	if defaulted.MaxAgeSecs != 43200 {
-		t.Fatalf("default max age = %d, want 43200", defaulted.MaxAgeSecs)
+	if defaulted.MaxAgeSecs != defaults.CORSMaxAgeSecs {
+		t.Fatalf("default max age = %d, want %d", defaulted.MaxAgeSecs, defaults.CORSMaxAgeSecs)
 	}
 
 	custom := (settings.CORSConfig{

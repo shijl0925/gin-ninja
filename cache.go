@@ -595,9 +595,6 @@ func hashCacheKeyValue(value string) string {
 }
 
 func addVary(header http.Header, fields ...string) {
-	if header == nil {
-		return
-	}
 	values := splitCommaValues(header.Get("Vary"))
 	for _, value := range values {
 		if value == "*" {

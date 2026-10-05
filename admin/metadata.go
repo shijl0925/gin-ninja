@@ -153,9 +153,6 @@ func (r *Resource) validateFieldColumns() error {
 }
 
 func (r *Resource) syncMetadataFields() {
-	if r == nil {
-		return
-	}
 	r.metadata.Fields = r.metadata.Fields[:0]
 	for _, field := range r.fields {
 		r.metadata.Fields = append(r.metadata.Fields, cloneFieldMetaValue(field.Meta))
@@ -304,9 +301,6 @@ func hasWriteModeOverride(access fieldAccess) bool {
 }
 
 func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
-	if meta == nil {
-		return
-	}
 	if opts.Label != "" {
 		meta.Meta.Label = opts.Label
 	}

@@ -138,9 +138,9 @@ type User struct {
 	generated := string(content)
 	for _, want := range []string{
 		"package demo",
-		"func TestUserCRUDHandlersSkeleton",
-		"func TestUserCRUDInputSkeleton",
-		"_ = RegisterUserCRUDRoutes",
+		"func TestUserCRUDRoutesRegister",
+		"func TestUserCRUDInputTypes",
+		"RegisterUserCRUDRoutes(router)",
 	} {
 		if !strings.Contains(generated, want) {
 			t.Fatalf("generated test file missing %q\n%s", want, generated)
@@ -274,16 +274,22 @@ type User struct {
 	generated := string(content)
 
 	checks := []string{
-		"func TestUserCRUDHandlersSkeleton(t *testing.T)",
-		"_ = RegisterUserCRUDRoutes",
-		"_ = ListUsers",
-		"_ = CreateUserInput{}",
-		`TODO: configure a test database and exercise the generated CRUD handlers`,
+		"func TestUserCRUDRoutesRegister(t *testing.T)",
+		"RegisterUserCRUDRoutes(router)",
+		`httptest.NewRequest(http.MethodGet, "/openapi.json", nil)`,
+		`assertUserCRUDOpenAPIMethod(t, spec.Paths, "/Users/", "get")`,
+		`assertUserCRUDOpenAPIMethod(t, spec.Paths, "/Users/{id}", "delete")`,
+		"func TestUserCRUDInputTypes(t *testing.T)",
+		"CreateUserInput{}",
+		"func assertUserCRUDOpenAPIMethod(t *testing.T, paths map[string]map[string]any, path string, method string)",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
 			t.Fatalf("generated test content missing %q\n%s", check, generated)
 		}
+	}
+	if strings.Contains(generated, "t.Skip") || strings.Contains(generated, "TODO") {
+		t.Fatalf("generated test content should be executable without TODO skips\n%s", generated)
 	}
 	if got := DefaultTestOutputName("User"); got != "user_crud_gen_test.go" {
 		t.Fatalf("DefaultTestOutputName = %q", got)

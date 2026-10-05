@@ -120,9 +120,6 @@ func cloneFieldMetaValue(meta FieldMeta) FieldMeta {
 }
 
 func normalizeResolvedField(meta *FieldMeta) {
-	if meta == nil {
-		return
-	}
 	if meta.Relation != nil && strings.TrimSpace(meta.Component) == "" {
 		meta.Component = "select"
 	}

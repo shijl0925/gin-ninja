@@ -12,8 +12,11 @@
 - 请求参数和请求体绑定开销与原生 Gin 对比。
 - 同时包含 path、query、header、cookie、JSON body 的多来源绑定。
 - Response cache 命中与等价 Gin middleware 的对比。
-
-OpenAPI 生成缓存效果、route cache miss 行为、中间件链路深度、高并发内存分配、Redis tag invalidation 在大 key 数量下的表现，已在下方列为后续基准测试项。
+- 大型合成 API 下 OpenAPI 冷生成/热缓存。
+- Response cache miss、条件 `ETag`、大响应体缓存路径。
+- 0、1、5、10、20 层中间件链路深度。
+- 路由、绑定、cache hit 的 `RunParallel` 并发覆盖。
+- 100、1k、10k、100k cached keys 的 Redis tag invalidation。
 
 ## 复现方式
 
@@ -29,7 +32,11 @@ go test -run '^$' -bench '^BenchmarkHotpaths' -benchmem -count=5 .
 go test -run '^$' -bench '^BenchmarkHotpathsRouting$' -benchmem -count=5 .
 go test -run '^$' -bench '^BenchmarkHotpathsBinding$' -benchmem -count=5 .
 go test -run '^$' -bench '^BenchmarkHotpathsCacheHit$' -benchmem -count=5 .
+go test -run '^$' -bench '^BenchmarkHotpathsOpenAPI$' -benchmem -count=5 .
+go test -run '^$' -bench '^BenchmarkHotpathsRedisTagInvalidation/keys-1000$' -benchmem -count=5 .
 ```
+
+Redis invalidation 基准刻意覆盖大基数场景。需要 10k 和 100k 信号时建议单独运行，因为 setup 时间和 Redis 命令量会显著影响完整 benchmark sweep 的耗时。
 
 比较不同版本时，应固定 Go 版本、CPU 型号、`GOMAXPROCS`、基准测试命令和仓库 commit，并优先比较多次运行的中位数。
 
@@ -74,11 +81,11 @@ go test -run '^$' -bench '^BenchmarkHotpathsCacheHit$' -benchmem -count=5 .
 | --- | --- | --- |
 | 和原生 Gin 相比的 overhead | 已通过路由、绑定、cache hit Gin 对照覆盖 | 修改 routing、binding、cache、response writing 时跟踪中位数 ns/op、B/op、allocs/op |
 | 参数绑定开销 | 已覆盖 query + JSON 和多来源绑定 | 优化 binder 时补充 path-only、query-only、JSON-only、form/file 基准 |
-| OpenAPI 生成缓存效果 | 暂无基准测试覆盖 | 对大路由集合分别测量冷生成和热缓存 `OpenAPI()`/`/openapi.json` 访问 |
-| route cache hit/miss 性能 | 已覆盖 response cache hit；miss 路径未单独隔离 | 增加相同 payload 和 TTL 下的 cache-hit/cache-miss 成对基准 |
-| middleware 链路开销 | 暂无基准测试覆盖 | 测量 0、1、5、10、20 层 middleware 包裹 no-op endpoint 的固定成本 |
-| 高并发下内存分配 | 暂无基准测试覆盖 | 对路由、绑定、cache hit 增加 `RunParallel` 基准，报告 allocs/op 和 pprof heap 变化 |
-| Redis cache tag invalidation 大 key 数量表现 | 已有功能测试；暂无大基数性能测试 | 针对 100、1k、10k、100k keys 的 `InvalidateTags` 进行 Redis/miniredis 基准，记录操作次数和延迟 |
+| OpenAPI 生成缓存效果 | 已由 `BenchmarkHotpathsOpenAPI` 冷/热子基准覆盖 | 对合成 200-route API 比较冷生成与热缓存 `openAPIBytes()` |
+| route cache hit/miss 性能 | 已覆盖 cache-hit 对照，以及 `BenchmarkHotpathsCacheMiss`、`BenchmarkHotpathsCacheETag`、`BenchmarkHotpathsCacheLargeBody` | 跟踪相同 TTL/cache-key 行为下的 hit/miss 和条件响应 |
+| middleware 链路开销 | 已由 `BenchmarkHotpathsMiddlewareDepth` 覆盖 | 测量 0、1、5、10、20 层 middleware 包裹 no-op endpoint 的固定成本 |
+| 高并发下内存分配 | 已由 `BenchmarkHotpathsParallelRouting`、`BenchmarkHotpathsParallelBinding`、`BenchmarkHotpathsParallelCacheHit` 覆盖 | 报告 allocs/op，出现回归时考虑补充 pprof heap delta |
+| Redis cache tag invalidation 大 key 数量表现 | 已由 `BenchmarkHotpathsRedisTagInvalidation` 覆盖 | 针对 100、1k、10k、100k keys 的 `InvalidateTags` 进行 Redis/miniredis 基准，记录操作次数和延迟 |
 
 ## 报告模板
 
@@ -94,8 +101,6 @@ go test -run '^$' -bench '^BenchmarkHotpathsCacheHit$' -benchmem -count=5 .
 
 ## 后续基准测试优先级
 
-1. 增加大 API 下 OpenAPI 冷生成/热缓存基准。
-2. 将 response cache 拆分为 hit、miss、条件 `ETag`、大响应体场景。
-3. 增加 middleware 深度基准，明确每层固定成本。
-4. 为路由分发、绑定、cache hit 增加 `RunParallel` 基准。
-5. 增加 Redis tag invalidation 大 tag set 和多 tag/key 场景基准。
+1. 在 release 硬件上为扩展后的 benchmark suite 采集新基线。
+2. 如计划优化 binder，补充 path-only、query-only、JSON-only、form/file 绑定基准。
+3. 如生产负载依赖高密度 tag fan-out，补充多 tag/key Redis invalidation 基准。
