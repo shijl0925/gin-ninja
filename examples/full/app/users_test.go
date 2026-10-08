@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 	"time"
 
@@ -96,17 +95,12 @@ func newUsersV2CacheTestAPI(t *testing.T) *ninja.NinjaAPI {
 	router := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithVersion("v2"))
 	ninja.Get(router, "/", ListUsersV2,
 		ninja.Paginated[UserOut](),
-		ninja.Cache(time.Minute,
-			ninja.CacheWithStore(store),
-			ninja.CacheWithTags(UsersV2ListCacheTags),
-		),
 	)
 	ninja.Get(router, "/:id", GetUserV2,
 		ninja.ResponseModel[UserOut](),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(store),
 			ninja.CacheWithKey(UsersV2DetailCacheKey),
-			ninja.CacheWithTags(UsersV2DetailCacheTags),
 		),
 	)
 	ninja.Post(router, "/", CreateUserV2, ninja.ResponseModel[UserOut]())
@@ -384,9 +378,6 @@ func TestUsersV2CacheHelperCoverage(t *testing.T) {
 	if key := UsersV2DetailCacheKey(nil); key != "" {
 		t.Fatalf("UsersV2DetailCacheKey(nil) = %q", key)
 	}
-	if tags := UsersV2DetailCacheTags(nil); !reflect.DeepEqual(tags, []string{usersV2CacheNamespace}) {
-		t.Fatalf("UsersV2DetailCacheTags(nil) = %v", tags)
-	}
 
 	gin.SetMode(gin.TestMode)
 	ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -397,19 +388,9 @@ func TestUsersV2CacheHelperCoverage(t *testing.T) {
 	if key := UsersV2DetailCacheKey(ctx); key != usersV2DetailCacheKeyByID("7") {
 		t.Fatalf("unexpected detail cache key %q", key)
 	}
-	if tags := UsersV2DetailCacheTags(ctx); !reflect.DeepEqual(tags, []string{usersV2CacheNamespace, usersV2DetailCacheTagByID("7")}) {
-		t.Fatalf("unexpected detail cache tags %v", tags)
-	}
 
-	store.Set("list-cache", &ninja.CachedResponse{Status: http.StatusOK, Body: []byte("list")})
-	store.AddTags("list-cache", usersV2ListCacheTag)
 	store.Set(usersV2DetailCacheKeyByID(7), &ninja.CachedResponse{Status: http.StatusOK, Body: []byte("detail")})
-	store.AddTags(usersV2DetailCacheKeyByID(7), usersV2ListCacheTag, usersV2DetailCacheTagByID(7))
 
-	invalidateUsersV2ListCache()
-	if _, ok := store.Get("list-cache"); ok {
-		t.Fatal("expected list cache to be invalidated")
-	}
 	invalidateUsersV2UserCache(7)
 	if _, ok := store.Get(usersV2DetailCacheKeyByID(7)); ok {
 		t.Fatal("expected detail cache to be invalidated")
@@ -418,7 +399,6 @@ func TestUsersV2CacheHelperCoverage(t *testing.T) {
 	usersV2Cache.mu.Lock()
 	usersV2Cache.invalidator = nil
 	usersV2Cache.mu.Unlock()
-	invalidateUsersV2ListCache()
 	invalidateUsersV2UserCache(7)
 }
 
@@ -465,7 +445,7 @@ func TestUserDirectHelpers(t *testing.T) {
 	}
 }
 
-func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
+func TestUsersV2CachedCRUDRoutesInvalidateDetailCache(t *testing.T) {
 	api := newUsersV2CacheTestAPI(t)
 
 	created := userRequest(t, api, http.MethodPost, "/api/v2/users/", CreateUserInput{
@@ -482,23 +462,12 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 	if listFirst.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", listFirst.StatusCode, listFirst.String())
 	}
-	if got := listFirst.Header.Get("Cache-Control"); got != "private, max-age=60" {
-		t.Fatalf("expected cache-control header, got %q", got)
-	}
 	var listPage map[string]any
 	if err := json.Unmarshal(listFirst.Body, &listPage); err != nil {
 		t.Fatalf("unmarshal list response: %v", err)
 	}
 	if got := listPage["total"]; got != float64(1) {
 		t.Fatalf("expected total 1, got %+v", listPage)
-	}
-
-	listCached := userRequest(t, api, http.MethodGet, "/api/v2/users/", nil)
-	if listCached.StatusCode != http.StatusOK {
-		t.Fatalf("expected cached 200, got %d: %s", listCached.StatusCode, listCached.String())
-	}
-	if listCached.String() != listFirst.String() {
-		t.Fatalf("expected cached list body, got %q vs %q", listCached.String(), listFirst.String())
 	}
 
 	created = userRequest(t, api, http.MethodPost, "/api/v2/users/", CreateUserInput{
@@ -516,7 +485,7 @@ func TestUsersV2CachedCRUDRoutesInvalidateListAndDetailCache(t *testing.T) {
 		t.Fatalf("unmarshal list after create: %v", err)
 	}
 	if got := listPage["total"]; got != float64(2) {
-		t.Fatalf("expected total 2 after invalidation, got %+v", listPage)
+		t.Fatalf("expected total 2 after create, got %+v", listPage)
 	}
 
 	detailFirst := userRequest(t, api, http.MethodGet, "/api/v2/users/1", nil)

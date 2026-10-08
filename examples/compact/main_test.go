@@ -54,22 +54,12 @@ func TestBuildCompactAPI(t *testing.T) {
 }
 
 func TestCompactInitHelpersAndMain(t *testing.T) {
-	store, shutdown := initCacheStore(settings.Config{})
+	store, shutdown := initCacheStore()
 	if store == nil {
 		t.Fatal("expected memory cache store")
 	}
 	if err := shutdown(t.Context()); err != nil {
 		t.Fatalf("memory cache shutdown: %v", err)
-	}
-
-	store, shutdown = initCacheStore(settings.Config{
-		Redis: settings.RedisConfig{Enabled: true, Addr: "127.0.0.1:1"},
-	})
-	if store == nil {
-		t.Fatal("expected fallback memory cache store")
-	}
-	if err := shutdown(t.Context()); err != nil {
-		t.Fatalf("fallback cache shutdown: %v", err)
 	}
 
 	dbPath := filepath.Join(t.TempDir(), "compact.db")

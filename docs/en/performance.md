@@ -13,7 +13,7 @@ The current benchmark suite in `hotpaths_benchmark_test.go` covers:
 - Multi-source binding across path, query, header, cookie, and JSON body.
 - Response cache hit overhead compared with an equivalent Gin middleware.
 
-OpenAPI generation cache, route cache miss behavior, middleware-chain depth, high-concurrency allocation pressure, and Redis tag invalidation at large key counts are explicitly tracked as follow-up benchmark areas below.
+OpenAPI generation cache, route cache miss behavior, middleware-chain depth, and high-concurrency allocation pressure are explicitly tracked as follow-up benchmark areas below.
 
 ## How to Reproduce
 
@@ -66,7 +66,7 @@ The benchmark suite should be treated as a regression guard:
 - Route dispatch overhead should not grow without a feature-specific explanation.
 - Binding allocations are the most important signal for high-QPS JSON APIs.
 - Cache-hit latency should remain close to the native Gin comparison because it runs on read-heavy endpoints.
-- Any benchmark that adds locking, reflection, schema generation, or Redis I/O should include `-benchmem` output and a clear workload size.
+- Any benchmark that adds locking, reflection, schema generation, or external I/O should include `-benchmem` output and a clear workload size.
 
 ## Benchmark Coverage Matrix
 
@@ -78,7 +78,6 @@ The benchmark suite should be treated as a regression guard:
 | Route cache hit/miss performance | Response cache hit is covered; miss path is not isolated | Add paired cache-hit/cache-miss benchmarks with identical payload size and TTL |
 | Middleware chain overhead | Not yet covered by a benchmark | Measure 0, 1, 5, 10, and 20 middleware layers around a no-op endpoint |
 | High-concurrency memory allocation | Not yet covered by a benchmark | Add `RunParallel` benchmarks for routing, binding, and cache hits; report allocs/op and pprof heap deltas |
-| Redis cache tag invalidation at large key counts | Functional behavior is tested; large-cardinality performance is not benchmarked | Benchmark `InvalidateTags` with 100, 1k, 10k, and 100k keys against Redis/miniredis and record operation count and latency |
 
 ## Reporting Template
 
@@ -100,4 +99,3 @@ Priority order:
 2. Split response cache benchmarks into hit, miss, conditional `ETag`, and large body scenarios.
 3. Add middleware depth benchmarks to document the fixed per-layer cost.
 4. Add `RunParallel` benchmarks for route dispatch, binding, and cache hits.
-5. Add Redis tag invalidation benchmarks for large tag sets and multiple tags per key.

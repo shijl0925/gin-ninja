@@ -40,41 +40,28 @@ ninja.Get(articles, "/:slug", getArticle,
 - 未显式设置 `CacheControl(...)` 时，`Cache(ttl)` 会输出 `Cache-Control: private, max-age=<ttl>`
 - 默认缓存键与 `Vary` 响应头包含 `Authorization` 和 `Accept-Language`；如需加入更多请求维度，请使用 `CacheWithKey(...)`
 - 当缓存实体标签匹配时，携带 `If-None-Match` 的请求会返回 `304 Not Modified`
-- 可通过传入 `CacheWithStore(...)` 让同一套 API 使用 Redis
+- 可通过传入 `CacheWithStore(...)` 使用自定义轻量存储
 
 常用选项：
 
 ```go
 store := ninja.NewMemoryCacheStore()
 
+articleCacheKey := func(ctx *ninja.Context) string {
+    return "article:" + ctx.Param("slug")
+}
+
 ninja.Get(articles, "/:slug", getArticle,
     ninja.Cache(5*time.Minute,
         ninja.CacheWithStore(store),
-        ninja.CacheWithKey(func(ctx *ninja.Context) string {
-            return "article:" + ctx.Param("slug")
-        }),
-        ninja.CacheWithTags(func(ctx *ninja.Context) []string {
-            return []string{"articles", "article:" + ctx.Param("slug")}
-        }),
+        ninja.CacheWithKey(articleCacheKey),
     ),
     ninja.CacheControl("public, max-age=300, stale-while-revalidate=60"),
     ninja.ETag(),
 )
-```
-
-Redis 后端存储：
-
-```go
-store, err := ninja.NewRedisCacheStore(ninja.RedisCacheConfig{
-    Addr:   "127.0.0.1:6379",
-    Prefix: "myapp:",
-})
-if err != nil {
-    panic(err)
-}
 
 invalidator := ninja.NewCacheInvalidator(store)
-invalidator.InvalidateTags("article:welcome")
+invalidator.Delete("article:welcome")
 ```
 
 说明：
@@ -82,7 +69,7 @@ invalidator.InvalidateTags("article:welcome")
 - 缓存支持面向安全的只读端点
 - 只有确认响应可被共享代理/CDN 缓存时，才显式使用 `CacheControl("public, ...")`
 - SSE / WebSocket 路由不会被缓存
-- `NewCacheInvalidator(store)` 提供统一的删除 / 标签失效 / 锁入口
+- `NewCacheInvalidator(store)` 只提供显式 key 删除；列表类接口如果无法穷举 key，建议依赖短 TTL 或应用层失效策略
 - OpenAPI 会自动记录 `ETag` 和 `Cache-Control` 响应头
 
 ---

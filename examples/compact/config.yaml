@@ -16,14 +16,6 @@ database:
   max_idle_conns: 5
   max_open_conns: 10
 
-redis:
-  enabled: false
-  addr: "127.0.0.1:6379"
-  username: ""
-  password: ""
-  db: 0
-  prefix: "gin-ninja:compact:"
-
 cors:
   # Keep origins explicit in production.
   allow_origins:

@@ -44,7 +44,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
 - **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
 - **ModelSchema-style responses** – use `ResponseModel` / `ResponseSchema` to bind, validate, and prune output fields at runtime while generating matching OpenAPI schemas.
-- **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, cache tags, and pluggable memory/Redis stores for read-heavy endpoints.
+- **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, and a lightweight memory store for read-heavy endpoints.
 - **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
 - **Streaming endpoints** – first-class SSE and WebSocket route registration helpers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.

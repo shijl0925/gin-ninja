@@ -108,9 +108,6 @@ database:
     user:     "${DB_USER:postgres}"
     password: "${DB_PASSWORD}"          # no default → empty string when unset
 
-redis:
-  password: "${REDIS_PASSWORD}"
-
 jwt:
   secret: "${JWT_SECRET:change-me-in-production}"
 ```

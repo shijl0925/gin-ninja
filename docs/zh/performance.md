@@ -13,7 +13,7 @@
 - 同时包含 path、query、header、cookie、JSON body 的多来源绑定。
 - Response cache 命中与等价 Gin middleware 的对比。
 
-OpenAPI 生成缓存效果、route cache miss 行为、中间件链路深度、高并发内存分配、Redis tag invalidation 在大 key 数量下的表现，已在下方列为后续基准测试项。
+OpenAPI 生成缓存效果、route cache miss 行为、中间件链路深度、高并发内存分配，已在下方列为后续基准测试项。
 
 ## 复现方式
 
@@ -66,7 +66,7 @@ go test -run '^$' -bench '^BenchmarkHotpathsCacheHit$' -benchmem -count=5 .
 - 路由分发开销不应在没有明确功能原因的情况下增长。
 - 对高 QPS JSON API，绑定分配次数是最重要的观察指标之一。
 - Cache hit 延迟应接近原生 Gin 对照，因为它面向读多写少接口。
-- 新增涉及锁、反射、schema 生成或 Redis I/O 的基准测试时，应始终包含 `-benchmem`，并明确工作负载规模。
+- 新增涉及锁、反射、schema 生成或外部 I/O 的基准测试时，应始终包含 `-benchmem`，并明确工作负载规模。
 
 ## 基准覆盖矩阵
 
@@ -78,7 +78,6 @@ go test -run '^$' -bench '^BenchmarkHotpathsCacheHit$' -benchmem -count=5 .
 | route cache hit/miss 性能 | 已覆盖 response cache hit；miss 路径未单独隔离 | 增加相同 payload 和 TTL 下的 cache-hit/cache-miss 成对基准 |
 | middleware 链路开销 | 暂无基准测试覆盖 | 测量 0、1、5、10、20 层 middleware 包裹 no-op endpoint 的固定成本 |
 | 高并发下内存分配 | 暂无基准测试覆盖 | 对路由、绑定、cache hit 增加 `RunParallel` 基准，报告 allocs/op 和 pprof heap 变化 |
-| Redis cache tag invalidation 大 key 数量表现 | 已有功能测试；暂无大基数性能测试 | 针对 100、1k、10k、100k keys 的 `InvalidateTags` 进行 Redis/miniredis 基准，记录操作次数和延迟 |
 
 ## 报告模板
 
@@ -98,4 +97,3 @@ go test -run '^$' -bench '^BenchmarkHotpathsCacheHit$' -benchmem -count=5 .
 2. 将 response cache 拆分为 hit、miss、条件 `ETag`、大响应体场景。
 3. 增加 middleware 深度基准，明确每层固定成本。
 4. 为路由分发、绑定、cache hit 增加 `RunParallel` 基准。
-5. 增加 Redis tag invalidation 大 tag set 和多 tag/key 场景基准。
