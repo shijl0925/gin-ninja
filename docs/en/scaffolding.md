@@ -180,7 +180,7 @@ gin-ninja-cli generate crud \
 The generator:
 
 - reads a Go model struct from the provided file
-- creates request/response schemas and CRUD handlers in the same package
+- creates request structs, explicit response DTOs, and CRUD handlers in the same package
 - generates a `Register<Model>CRUDRoutes(router)` helper for route registration
 - uses `PATCH /:id` for generated partial-update handlers instead of advertising partial updates as `PUT`
 - can generate list filter / sort / keyword-search inputs from model `crud:"..."` tags

@@ -46,7 +46,10 @@ type User struct {
 // ---------------------------------------------------------------------------
 
 type UserOut struct {
-	ninja.ModelSchema[User] `fields:"id,name,email,age"`
+	ID    uint   `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Age   int    `json:"age"`
 }
 
 type ListUsersInput struct {
@@ -79,6 +82,26 @@ type DeleteUserInput struct {
 // Data access
 // ---------------------------------------------------------------------------
 
+func toUserOut(u User) UserOut {
+	return UserOut{
+		ID:    u.ID,
+		Name:  u.Name,
+		Email: u.Email,
+		Age:   u.Age,
+	}
+}
+
+func toUserOuts(users []User) []UserOut {
+	if users == nil {
+		return []UserOut{}
+	}
+	out := make([]UserOut, 0, len(users))
+	for _, u := range users {
+		out = append(out, toUserOut(u))
+	}
+	return out
+}
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -103,7 +126,7 @@ func escapeLike(value string) string {
 	return replacer.Replace(value)
 }
 
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	db := userDB(ctx)
 	query := db.Model(&User{})
 	if in.Search != "" {
@@ -118,10 +141,10 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], 
 	if err := query.Limit(in.GetSize()).Offset(in.Offset()).Find(&items).Error; err != nil {
 		return nil, err
 	}
-	return pagination.NewPage(items, total, in.PageInput), nil
+	return pagination.NewPage(toUserOuts(items), total, in.PageInput), nil
 }
 
-func getUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
+func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 	db := userDB(ctx)
 	u, err := loadUserByID(db, in.UserID)
 	if err != nil {
@@ -130,19 +153,21 @@ func getUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
 		}
 		return nil, err
 	}
-	return &u, nil
+	out := toUserOut(u)
+	return &out, nil
 }
 
-func createUser(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
+func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
 	db := userDB(ctx)
 	u := &User{Name: in.Name, Email: in.Email, Age: in.Age}
 	if err := db.Create(u).Error; err != nil {
 		return nil, err
 	}
-	return u, nil
+	out := toUserOut(*u)
+	return &out, nil
 }
 
-func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
+func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 	db := userDB(ctx)
 	if _, err := loadUserByID(db, in.UserID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -172,7 +197,8 @@ func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
 		}
 		return nil, err
 	}
-	return &u, nil
+	out := toUserOut(u)
+	return &out, nil
 }
 
 func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
@@ -212,9 +238,9 @@ func buildAPI(db *gorm.DB) *ninja.NinjaAPI {
 
 	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
 	ninja.Get(r, "/", listUsers, ninja.Summary("List users"), ninja.Paginated[UserOut]())
-	ninja.Get(r, "/:id", getUser, ninja.Summary("Get user"), ninja.ResponseModel[UserOut]())
-	ninja.Post(r, "/", createUser, ninja.Summary("Create user"), ninja.ResponseModel[UserOut](), ninja.WithTransaction())
-	ninja.Put(r, "/:id", updateUser, ninja.Summary("Update user"), ninja.ResponseModel[UserOut](), ninja.WithTransaction())
+	ninja.Get(r, "/:id", getUser, ninja.Summary("Get user"))
+	ninja.Post(r, "/", createUser, ninja.Summary("Create user"), ninja.WithTransaction())
+	ninja.Put(r, "/:id", updateUser, ninja.Summary("Update user"), ninja.WithTransaction())
 	ninja.Delete(r, "/:id", deleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())
 	api.AddRouter(r)
 
