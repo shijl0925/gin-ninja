@@ -16,7 +16,7 @@ gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层
 - 需要严格请求/响应契约的 REST API
 - 需要快速迭代且接口文档始终最新的内部平台
 - 需要内置认证、安全头、请求日志和配置加载的服务
-- 需要版本化 API、可缓存读端点或实时 SSE / WebSocket 路由的应用
+- 需要版本化 API、可缓存读端点和清晰 HTTP 接口文档的应用
 
 ## 架构概览
 
@@ -26,7 +26,7 @@ gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层
 2. 引擎级和路由级中间件先执行。
 3. gin-ninja 将 path/query/header/cookie/body/file 输入绑定到类型化结构体。
 4. 类型化处理器通过 `*ninja.Context` 执行。
-5. 框架写出 JSON、下载、SSE 或 WebSocket 响应。
+5. 框架写出 JSON 或下载响应。
 6. 路由元数据会复用于生成 OpenAPI 文档和 Swagger UI。
 
 ## 主要特性
@@ -46,7 +46,6 @@ gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层
 - **ModelSchema 风格响应** – 使用 `ResponseModel` / `ResponseSchema` 在运行时绑定、校验、裁剪输出字段，并生成一致的 OpenAPI schema。
 - **路由级缓存** – 内置 `Cache(...)`、`ETag()`、`CacheControl(...)` 和轻量内存存储，适合读多端点。
 - **API 版本隔离** – 版本感知路由、按版本输出 OpenAPI/Swagger，以及弃用响应头。
-- **流式端点** – 一等支持 SSE 和 WebSocket 路由注册辅助函数。
 - **分页** – 可复用 `PageInput` 和 `Page[T]` 类型，统一列表响应。
 - **ORM 集成** – 基于 [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) 的 repository/service 模式薄封装。
 - **内置中间件** – CORS、JWT 认证、结构化请求日志（Zap）、请求 ID、panic 恢复、i18n 语言协商、**HMAC 签名 Cookie session**、**CSRF 防护**、**安全响应头**、**上传大小/内容类型限制**。
@@ -73,7 +72,6 @@ gin-ninja/
 ├── cache.go          ← 路由缓存、ETag、缓存失效辅助函数
 ├── openapi.go        ← OpenAPI 3.0 spec 生成 + Swagger UI
 ├── schema.go         ← JSON Schema 生成
-├── stream.go         ← SSE 与 WebSocket 支持
 ├── transfer.go       ← 上传/下载抽象
 ├── versioning.go     ← 版本感知文档与弃用响应头
 │
@@ -121,7 +119,7 @@ gin-ninja/
 | `operation.go` | 包装类型化处理器、绑定输入、执行选项并写出类型化响应 |
 | `binding.go` | 将 path/query/header/cookie/json/multipart 输入映射到结构体 |
 | `middleware/` | 提供生产级认证、日志、i18n、安全、session 和上传中间件 |
-| `cache.go` / `versioning.go` / `stream.go` | 添加缓存、API 版本/弃用、SSE 和 WebSocket 能力 |
+| `cache.go` / `versioning.go` | 添加缓存和 API 版本/弃用能力 |
 
 ---
 

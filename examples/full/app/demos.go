@@ -76,8 +76,6 @@ func ListFeatureDemos(ctx *ninja.Context, in *FeatureListInput) (*pagination.Pag
 		{Code: "route-cache", Title: "Route-level cache and ETag", Enabled: true},
 		{Code: "cached-crud-v2", Title: "Versioned users CRUD cache invalidation", Enabled: true},
 		{Code: "api-versioning", Title: "Versioned routers and docs", Enabled: true},
-		{Code: "sse", Title: "Server-sent events", Enabled: true},
-		{Code: "websocket", Title: "WebSocket streaming", Enabled: true},
 		{Code: "cookie-binding", Title: "Cookie binding", Enabled: true},
 		{Code: "extra-responses", Title: "Extra OpenAPI responses", Enabled: true},
 		{Code: "hidden-route", Title: "Exclude from OpenAPI", Enabled: true},
@@ -114,33 +112,6 @@ func ListFeatureDemos(ctx *ninja.Context, in *FeatureListInput) (*pagination.Pag
 func containsFeature(item FeatureItemOut, search string) bool {
 	search = strings.ToLower(search)
 	return strings.Contains(strings.ToLower(item.Code), search) || strings.Contains(strings.ToLower(item.Title), search)
-}
-
-// StreamEventsDemo demonstrates server-sent event responses.
-func StreamEventsDemo(ctx *ninja.Context, in *StreamDemoInput, stream *ninja.SSEStream) error {
-	if err := stream.Send(ninja.SSEEvent{
-		Event: "hello",
-		Data: map[string]string{
-			"name":      in.Name,
-			"transport": "sse",
-		},
-	}); err != nil {
-		return err
-	}
-
-	return stream.Send(ninja.SSEEvent{
-		Event: "done",
-		Data:  "stream completed",
-	})
-}
-
-// WebSocketEchoDemo demonstrates bidirectional WebSocket communication.
-func WebSocketEchoDemo(ctx *ninja.Context, in *StreamDemoInput, conn *ninja.WebSocketConn) error {
-	message, err := conn.ReceiveText()
-	if err != nil {
-		return err
-	}
-	return conn.SendText(in.Name + ":" + message)
 }
 
 // UploadSingleDemo demonstrates single-file upload with mixed multipart fields.

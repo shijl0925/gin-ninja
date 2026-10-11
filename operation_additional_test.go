@@ -28,9 +28,6 @@ func TestOperationCoverageForResponseHelperEdges(t *testing.T) {
 	if (&operation{}).usesDirectResponseWriter() {
 		t.Fatal("expected empty operation not to use direct response writer")
 	}
-	if !(&operation{stream: operationStream{config: &streamConfig{}}}).usesDirectResponseWriter() {
-		t.Fatal("expected stream operation to use direct response writer")
-	}
 	if !(&operation{route: operationRoute{outputType: reflect.TypeOf(Download{})}}).usesDirectResponseWriter() {
 		t.Fatal("expected Download value output to use direct response writer")
 	}

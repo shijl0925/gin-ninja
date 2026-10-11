@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	ninja "github.com/shijl0925/gin-ninja"
 	ninjatest "github.com/shijl0925/gin-ninja/testing"
 )
@@ -52,8 +51,6 @@ func newDemoAPI() *ninja.NinjaAPI {
 	ninja.Get(router, "/limited", LimitedOperation, ninja.RateLimit(1, 1))
 	ninja.Get(router, "/slow", SlowOperation, ninja.Timeout(150*time.Millisecond))
 	ninja.Get(router, "/hidden", HiddenOperation, ninja.ExcludeFromDocs())
-	ninja.SSE(router, "/events", StreamEventsDemo)
-	ninja.WebSocket(router, "/ws", WebSocketEchoDemo)
 	ninja.Post(router, "/upload-single", UploadSingleDemo)
 	ninja.Post(router, "/upload-many", UploadManyDemo)
 	ninja.Get(router, "/download", DownloadDemo)
@@ -255,7 +252,7 @@ func TestDemoEndpoints_FileUploadAndDownload(t *testing.T) {
 	}
 }
 
-func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
+func TestDemoEndpoints_Versioning(t *testing.T) {
 	api := newDemoAPI()
 
 	v1 := doDemoRequest(api, http.MethodGet, "/api/v1/examples/versioned/info", nil)
@@ -280,38 +277,6 @@ func TestDemoEndpoints_VersioningSSEAndWebSocket(t *testing.T) {
 		t.Fatalf("expected sunset and link headers, got %v", v0.Header)
 	}
 
-	sse := doDemoRequest(api, http.MethodGet, "/api/v1/examples/events?name=bot", nil)
-	if sse.StatusCode != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", sse.StatusCode, sse.String())
-	}
-	if got := sse.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
-		t.Fatalf("expected SSE content type, got %q", got)
-	}
-	if body := sse.String(); !strings.Contains(body, "event: hello") || !strings.Contains(body, `"name":"bot"`) || !strings.Contains(body, `"transport":"sse"`) {
-		t.Fatalf("unexpected SSE body %q", body)
-	}
-
-	server := httptest.NewServer(api.Handler())
-	defer server.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/v1/examples/ws?name=bot"
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatalf("dial websocket: %v", err)
-	}
-	defer conn.Close()
-
-	if err := conn.WriteMessage(websocket.TextMessage, []byte("ping")); err != nil {
-		t.Fatalf("send websocket message: %v", err)
-	}
-	_, payload, err := conn.ReadMessage()
-	if err != nil {
-		t.Fatalf("receive websocket message: %v", err)
-	}
-	message := string(payload)
-	if message != "bot:ping" {
-		t.Fatalf("unexpected websocket message %q", message)
-	}
 }
 
 func TestDemoDirectHelpers(t *testing.T) {
