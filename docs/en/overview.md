@@ -16,7 +16,7 @@ Typical use cases:
 - REST APIs with strict request/response contracts
 - internal platforms that need fast iteration plus always-up-to-date docs
 - services that want built-in auth, security headers, request logging, and config loading
-- applications that need versioned APIs, cacheable read endpoints, or realtime SSE / WebSocket routes
+- applications that need versioned APIs, cacheable read endpoints, and well-documented HTTP APIs
 
 ## Architecture at a Glance
 
@@ -26,7 +26,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 2. Engine-level and router-level middleware run first.
 3. gin-ninja binds path/query/header/cookie/body/file inputs into typed structs.
 4. The typed handler executes with `*ninja.Context`.
-5. The framework writes JSON, download, SSE, or WebSocket responses.
+5. The framework writes JSON or download responses.
 6. Route metadata is reused to generate OpenAPI documents and Swagger UI.
 
 ## Features
@@ -46,7 +46,6 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **ModelSchema-style responses** – use `ResponseModel` / `ResponseSchema` to bind, validate, and prune output fields at runtime while generating matching OpenAPI schemas.
 - **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, and a lightweight memory store for read-heavy endpoints.
 - **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
-- **Streaming endpoints** – first-class SSE and WebSocket route registration helpers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
 - **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
 - **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, panic recovery, i18n locale negotiation, **HMAC-signed cookie sessions**, **CSRF protection**, **security response headers**, and **upload size/content-type limits**.
@@ -73,7 +72,6 @@ gin-ninja/
 ├── cache.go          ← route cache, ETag, cache invalidation helpers
 ├── openapi.go        ← OpenAPI 3.0 spec generation + Swagger UI
 ├── schema.go         ← JSON Schema generation
-├── stream.go         ← SSE and WebSocket support
 ├── transfer.go       ← upload/download abstractions
 ├── versioning.go     ← version-aware docs and deprecation headers
 │
@@ -121,7 +119,7 @@ Core module responsibilities:
 | `operation.go` | Wraps typed handlers, binds input, enforces options, and writes typed responses |
 | `binding.go` | Maps request data from path/query/header/cookie/json/multipart inputs into structs |
 | `middleware/` | Provides production-ready auth, logging, i18n, security, session, and upload middleware |
-| `cache.go` / `versioning.go` / `stream.go` | Adds caching, API versioning/deprecation, SSE, and WebSocket capabilities |
+| `cache.go` / `versioning.go` | Adds caching and API versioning/deprecation capabilities |
 
 ---
 

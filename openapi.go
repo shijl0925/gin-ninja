@@ -259,16 +259,7 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	successResponse := responseSpec{
 		Description: http.StatusText(op.spec.successStatus),
 	}
-	if op.stream.config != nil {
-		if op.stream.config.kind == streamKindSSE {
-			successResponse.Content = map[string]mediaTypeSpec{
-				"text/event-stream": {Schema: &Schema{Type: "string"}},
-			}
-			successResponse.Description = "Server-Sent Events stream"
-		} else {
-			successResponse.Description = http.StatusText(http.StatusSwitchingProtocols)
-		}
-	} else if op.spec.paginatedResponseSchema != nil {
+	if op.spec.paginatedResponseSchema != nil {
 		successResponse.Content = map[string]mediaTypeSpec{
 			"application/json": {Schema: paginatedSchema(s.registry.schemaForDescriptor(*op.spec.paginatedResponseSchema))},
 		}
@@ -296,10 +287,6 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	}
 	successResponse.Headers = s.responseHeadersForOperation(op)
 	spec.Responses[successCode] = successResponse
-	if op.stream.config != nil && op.stream.config.kind == streamKindWebSocket && successCode != "101" {
-		spec.Responses["101"] = successResponse
-		delete(spec.Responses, successCode)
-	}
 
 	// Standard error responses.
 	spec.Responses["422"] = responseSpec{Description: "Validation Error"}

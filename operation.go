@@ -338,10 +338,6 @@ type operationVersion struct {
 	info *VersionConfig
 }
 
-type operationStream struct {
-	config *streamConfig
-}
-
 // operation holds all metadata about a single API endpoint and the
 // gin-compatible handler function that wraps the user-supplied typed handler.
 type operation struct {
@@ -350,7 +346,6 @@ type operation struct {
 	behavior operationBehavior
 	cache    operationCache
 	version  operationVersion
-	stream   operationStream
 }
 
 // WithTransaction wraps the operation in a request-scoped database transaction.
@@ -542,9 +537,6 @@ func (op *operation) finalize() {
 }
 
 func (op *operation) usesDirectResponseWriter() bool {
-	if op.stream.config != nil {
-		return true
-	}
 	if op.route.outputType == nil {
 		return false
 	}

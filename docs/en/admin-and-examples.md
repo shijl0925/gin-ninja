@@ -189,7 +189,7 @@ When a login response includes a display name or user ID, the admin shell stores
 Split examples are available by feature:
 
 - [examples/users](../../examples/users/) — auth register/login plus JWT-protected users CRUD and the cached v2 users API
-- [examples/features](../../examples/features/) — request metadata, cache / ETag, rate limit, timeout, versioned routing, SSE, WebSocket, upload, and download demos
+- [examples/features](../../examples/features/) — request metadata, cache / ETag, rate limit, timeout, versioned routing, upload, and download demos
 - [examples/admin](../../examples/admin/) — JWT-protected admin resource APIs plus the standalone admin pages
 - [examples/full](../../examples/full/) — the combined application with every feature above in one app
 - [examples/compact](../../examples/compact/) — a compact counterpart to `examples/full` that shows the same feature set with fewer local files
@@ -202,7 +202,6 @@ The combined [examples/full](../../examples/full/) application includes:
 - Structured Zap logging
 - Route-level cache / ETag / Cache-Control demos
 - Versioned API routing and per-version docs demos
-- SSE / WebSocket demos
 - Multipart single-file and multi-file upload demos
 - Binary download and reader-backed download demos
 

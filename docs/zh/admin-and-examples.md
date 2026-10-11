@@ -187,7 +187,7 @@ admin.MountUI(router, admin.UIConfig{
 按功能拆分后的示例：
 
 - [examples/users](../../examples/users/)：登录 / 注册、JWT 保护的 users CRUD，以及带缓存失效演示的 v2 users API
-- [examples/features](../../examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、SSE、WebSocket、上传、下载等能力演示
+- [examples/features](../../examples/features/)：请求元数据、缓存 / ETag、限流、超时、版本化路由、上传、下载等能力演示
 - [examples/admin](../../examples/admin/)：JWT 保护的 admin 资源 API 与独立 admin 页面
 - [examples/full](../../examples/full/)：把以上能力组合到一个完整应用中
 - [examples/compact](../../examples/compact/)：`examples/full` 的压缩版对照实现，用更少的本地文件展示同一套能力
@@ -201,7 +201,6 @@ admin.MountUI(router, admin.UIConfig{
 - 结构化日志
 - 缓存 / ETag / Cache-Control 示例
 - 版本化 API 与版本化文档
-- SSE / WebSocket 示例
 - 单文件、多文件上传
 - 二进制下载与流式下载
 

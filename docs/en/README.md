@@ -11,7 +11,7 @@ Use this page as the starting point for the English documentation. The root READ
 3. [Project and CRUD Scaffolding](./scaffolding.md) — create projects, apps, migrations, and CRUD code with `gin-ninja-cli`.
 4. [Data, Binding, and Responses](./data-and-responses.md) — define request inputs, response schemas, pagination, filtering, and sorting.
 5. [Middleware and Security](./middleware-security.md) — add auth, sessions, CSRF, security headers, logging, i18n, and upload limits.
-6. [Advanced Features](./advanced-features.md) — add caching, API versioning, SSE, and WebSocket endpoints.
+6. [Advanced Features](./advanced-features.md) — add caching and API versioning.
 7. [Testing APIs with TestClient](./testing.md) — test routers and APIs without manual `httptest` setup.
 8. [Performance and Stability Report](./performance.md) — review benchmark baselines, reproduction commands, and follow-up coverage.
 
@@ -26,7 +26,7 @@ Use this page as the starting point for the English documentation. The root READ
 | Middleware, authentication, sessions, CSRF, security | [Middleware and Security](./middleware-security.md) |
 | ModelSchema, response envelope, binding, filtering, sorting | [Data, Binding, and Responses](./data-and-responses.md) |
 | Upload/download and OpenAPI operation options | [File Transfer and OpenAPI Controls](./files-and-openapi.md) |
-| Cache, API versions, SSE, WebSocket | [Advanced Features](./advanced-features.md) |
+| Cache, API versions | [Advanced Features](./advanced-features.md) |
 | TestClient and API testing | [Testing APIs with TestClient](./testing.md) |
 | Performance, benchmark baselines, stability reporting | [Performance and Stability Report](./performance.md) |
 | Admin package and full application examples | [Admin and Full Example](./admin-and-examples.md) |
