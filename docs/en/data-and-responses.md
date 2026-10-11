@@ -2,7 +2,9 @@
 
 [Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
 
-## ModelSchema-style Responses
+## DTO Responses
+
+Prefer explicit DTO structs for public API responses. They keep the wire contract easy to read, avoid accidentally exposing model fields, and let OpenAPI derive the response schema directly from the handler return type.
 
 ```go
 type User struct {
@@ -13,16 +15,61 @@ type User struct {
 }
 
 type UserOut struct {
-    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+    ID    uint   `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
 }
 
-func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
-    return &User{
+func toUserOut(user User) UserOut {
+    return UserOut{
+        ID:    user.ID,
+        Name:  user.Name,
+        Email: user.Email,
+    }
+}
+
+func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
+    user := User{
         ID:       1,
         Name:     "alice",
         Email:    "alice@example.com",
         Password: "secret",
-    }, nil
+    }
+    out := toUserOut(user)
+    return &out, nil
+}
+
+ninja.Get(router, "/users/:id", getUser)
+```
+
+For list endpoints, return DTO items inside the pagination envelope and keep `Paginated[UserOut]()` on the route:
+
+```go
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+    users, total := findUsers(in)
+    items := make([]UserOut, 0, len(users))
+    for _, user := range users {
+        items = append(items, toUserOut(user))
+    }
+    return pagination.NewPage(items, total, in.PageInput), nil
+}
+
+ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
+```
+
+This is the default style used by the examples and CRUD generator.
+
+### Optional: ModelSchema
+
+`ModelSchema` is still available as an advanced helper when a project deliberately wants runtime field pruning from model values. It is useful for admin-style tooling, highly repetitive CRUD shapes, or relation preload discovery, but it is no longer the recommended default for application-facing API contracts.
+
+```go
+type UserOut struct {
+    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+}
+
+func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
+    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
 }
 
 ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserOut]())
@@ -48,7 +95,7 @@ ninja.Get(router, "/users/:id", getUser, ninja.ResponseSchema(userSchema))
 
 If you only need ad-hoc filtering without defining a response type or route-level schema, use `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`. If you explicitly need a schema value, `ninja.BindModelSchema[UserOut](model)` and `ninja.BindModelSchemas[UserOut](models)` are still available.
 
-### Relation Depth and GORM Preloads
+#### Relation Depth and GORM Preloads
 
 `Depth(n)` continues the same model schema mode into nested models, which is useful for detail responses:
 
@@ -72,7 +119,7 @@ ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
 
 With descriptor-style schemas, inspect preload paths with `descriptor.Preloads()` or apply them directly to GORM with `orm.ApplyModelSchemaPreloads(db, descriptor)`.
 
-### Binding Inputs to Models
+#### Binding Inputs to Models
 
 Request input is still handled by ordinary structs and `binding:"..."` tags. Once an input struct has been bound, you can reuse ModelSchema field rules to apply it to a GORM model and reduce repetitive assignment code:
 

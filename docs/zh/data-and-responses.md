@@ -2,7 +2,9 @@
 
 [文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
 
-## ModelSchema 风格响应
+## DTO 响应
+
+默认建议使用显式 DTO 作为公开 API 响应结构。这样响应契约更容易阅读，也能避免把 model 字段意外暴露给客户端；OpenAPI 会直接根据处理器返回类型生成 schema。
 
 ```go
 type User struct {
@@ -13,16 +15,61 @@ type User struct {
 }
 
 type UserOut struct {
-    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+    ID    uint   `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
 }
 
-func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
-    return &User{
+func toUserOut(user User) UserOut {
+    return UserOut{
+        ID:    user.ID,
+        Name:  user.Name,
+        Email: user.Email,
+    }
+}
+
+func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
+    user := User{
         ID:       1,
         Name:     "alice",
         Email:    "alice@example.com",
         Password: "secret",
-    }, nil
+    }
+    out := toUserOut(user)
+    return &out, nil
+}
+
+ninja.Get(router, "/users/:id", getUser)
+```
+
+列表接口也建议在分页信封里直接返回 DTO item，并在路由上保留 `Paginated[UserOut]()`：
+
+```go
+func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
+    users, total := findUsers(in)
+    items := make([]UserOut, 0, len(users))
+    for _, user := range users {
+        items = append(items, toUserOut(user))
+    }
+    return pagination.NewPage(items, total, in.PageInput), nil
+}
+
+ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
+```
+
+这是当前示例和 CRUD 生成器采用的默认风格。
+
+### 可选高级能力：ModelSchema
+
+`ModelSchema` 仍然保留，适合作为高级辅助工具使用：例如内部 admin 工具、高度重复的 CRUD 形态，或需要从响应 schema 推导 GORM preload 的场景。面向业务客户端的公开 API，默认仍建议显式 DTO。
+
+```go
+type UserOut struct {
+    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+}
+
+func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
+    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
 }
 
 ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserOut]())
@@ -48,7 +95,7 @@ ninja.Get(router, "/users/:id", getUser, ninja.ResponseSchema(userSchema))
 
 如果只需要临时过滤而不想定义响应类型或路由级 schema，可以使用 `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`。如果需要显式得到一个 schema 值，也可以继续使用 `ninja.BindModelSchema[UserOut](model)` 或 `ninja.BindModelSchemas[UserOut](models)`。
 
-### 关系深度与 GORM preload
+#### 关系深度与 GORM preload
 
 `Depth(n)` 会把嵌套 model 按同一模式继续裁剪，适合 detail 响应：
 
@@ -72,7 +119,7 @@ ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
 
 如果使用描述符风格，可以用 `descriptor.Preloads()` 查看 preload 路径，或者用 `orm.ApplyModelSchemaPreloads(db, descriptor)` 直接应用到 GORM 查询。
 
-### 输入绑定到 model
+#### 输入绑定到 model
 
 请求输入仍然由普通 struct 和 `binding:"..."` 标签负责。对于已经绑定好的 create/update input，可以复用 ModelSchema 的字段规则把它应用到 GORM model，减少重复赋值代码：
 

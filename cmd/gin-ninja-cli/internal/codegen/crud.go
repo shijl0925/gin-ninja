@@ -102,31 +102,32 @@ func GenerateCRUDTest(cfg CRUDConfig) ([]byte, error) {
 }
 
 type modelSpec struct {
-	packageName    string
-	modelName      string
-	tag            string
-	fields         []fieldSpec
-	outputFields   []string
-	responseFields []string
-	createFields   []fieldSpec
-	updateFields   []fieldSpec
-	listFields     []listFieldSpec
-	sortFields     []sortFieldSpec
-	searchFields   []string
-	relations      []relationSpec
-	relationOuts   []relationOutSpec
-	imports        []importSpec
-	idTypeExpr     string
-	idField        string
-	idColumn       string
-	pluralModel    string
-	singularLabel  string
-	pluralLabel    string
-	repoIfaceName  string
-	repoImplName   string
-	toOutFuncName  string
-	useByIDMethods bool
-	useGormX       bool
+	packageName     string
+	modelName       string
+	tag             string
+	fields          []fieldSpec
+	outputFields    []string
+	outputDTOFields []fieldSpec
+	responseFields  []string
+	createFields    []fieldSpec
+	updateFields    []fieldSpec
+	listFields      []listFieldSpec
+	sortFields      []sortFieldSpec
+	searchFields    []string
+	relations       []relationSpec
+	relationOuts    []relationOutSpec
+	imports         []importSpec
+	idTypeExpr      string
+	idField         string
+	idColumn        string
+	pluralModel     string
+	singularLabel   string
+	pluralLabel     string
+	repoIfaceName   string
+	repoImplName    string
+	toOutFuncName   string
+	useByIDMethods  bool
+	useGormX        bool
 }
 
 type fieldSpec struct {
@@ -137,6 +138,7 @@ type fieldSpec struct {
 	ColumnName  string
 	Binding     string
 	Description string
+	DerefUpdate bool
 }
 
 type fieldAccess struct {
@@ -197,13 +199,15 @@ type relationOutSpec struct {
 	TypeName          string
 	ModelName         string
 	OutputFieldsValue string
+	OutputDTOFields   []fieldSpec
 }
 
 type structModelSpec struct {
-	idField      string
-	idTypeExpr   string
-	idColumn     string
-	outputFields []string
+	idField         string
+	idTypeExpr      string
+	idColumn        string
+	outputFields    []string
+	outputDTOFields []fieldSpec
 }
 
 type crudSettings struct {
@@ -223,6 +227,7 @@ type templateData struct {
 	PluralLabel         string
 	OutputFieldsValue   string
 	ResponseFieldsValue string
+	OutputDTOFields     []fieldSpec
 	IDTypeExpr          string
 	IDField             string
 	IDColumn            string
@@ -251,6 +256,7 @@ func buildTemplateData(model modelSpec) templateData {
 		PluralLabel:         model.pluralLabel,
 		OutputFieldsValue:   strings.Join(model.outputFields, ","),
 		ResponseFieldsValue: strings.Join(model.responseFields, ","),
+		OutputDTOFields:     model.outputDTOFields,
 		IDTypeExpr:          model.idTypeExpr,
 		IDField:             model.idField,
 		IDColumn:            model.idColumn,
@@ -338,6 +344,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	}
 	fields := make([]fieldSpec, 0, len(structType.Fields.List))
 	var outputFields []string
+	var outputDTOFields []fieldSpec
 
 	var createFields []fieldSpec
 
@@ -370,6 +377,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				hasEmbeddedGormModel = true
 				if !contains(outputFields, "id") {
 					outputFields = append(outputFields, "id")
+					outputDTOFields = append(outputDTOFields, fieldSpec{Name: "ID", TypeExpr: "uint", JSONName: "id"})
 				}
 				if !idResolved {
 					idTypeExpr = "uint"
@@ -384,7 +392,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				continue
 			}
 
-			if rel, ok := buildRelationSpec(fset, cfg.Model, name.Name, field, tags, gormTag, structTypes, importPaths, targetCache, rootFieldNames); ok {
+			if rel, ok := buildRelationSpec(fset, cfg.Model, name.Name, field, tags, gormTag, structTypes, importPaths, collector, targetCache, rootFieldNames); ok {
 				relations = append(relations, rel)
 				if rel.TargetOutType != "" && !containsRelationOut(relationOuts, rel.TargetOutType) {
 					target := targetCache[rel.TargetModel]
@@ -392,6 +400,7 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 						TypeName:          rel.TargetOutType,
 						ModelName:         rel.TargetModel,
 						OutputFieldsValue: strings.Join(target.outputFields, ","),
+						OutputDTOFields:   target.outputDTOFields,
 					})
 				}
 				continue
@@ -423,11 +432,16 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 				ColumnName:  resolveColumnName(name.Name, gormTag),
 				Binding:     binding,
 				Description: description,
+				DerefUpdate: !strings.HasPrefix(strings.TrimSpace(typeExpr), "*"),
 			}
 			fields = append(fields, fieldSpec)
 			fieldByName[name.Name] = fieldSpec
 			if !hidden && !access.WriteOnly && !shouldSkipOutputField(gormTag) {
 				outputFields = append(outputFields, jsonName)
+				outputField := fieldSpec
+				outputField.JSONName = jsonName
+				outputDTOFields = append(outputDTOFields, outputField)
+				collector.addExpr(field.Type)
 			}
 
 			if isWritableField(field.Type, gormTag, importPaths) {
@@ -467,8 +481,10 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 
 	if hasEmbeddedGormModel && !contains(outputFields, "id") {
 		outputFields = append([]string{"id"}, outputFields...)
+		outputDTOFields = append([]fieldSpec{{Name: "ID", TypeExpr: "uint", JSONName: "id"}}, outputDTOFields...)
 	}
 	outputFields = uniqueStrings(outputFields)
+	outputDTOFields = uniqueFieldSpecs(outputDTOFields)
 	responseFields := append([]string(nil), outputFields...)
 	for _, relation := range relations {
 		if relation.JSONName != "" {
@@ -516,31 +532,32 @@ func loadModelSpec(cfg CRUDConfig) (modelSpec, error) {
 	}
 
 	return modelSpec{
-		packageName:    packageName,
-		modelName:      cfg.Model,
-		tag:            tag,
-		fields:         fields,
-		outputFields:   outputFields,
-		responseFields: responseFields,
-		createFields:   createFields,
-		updateFields:   updateFields,
-		listFields:     listFields,
-		sortFields:     sortFields,
-		searchFields:   searchFields,
-		relations:      relations,
-		relationOuts:   relationOuts,
-		imports:        imports,
-		idTypeExpr:     idTypeExpr,
-		idField:        idField,
-		idColumn:       idColumn,
-		pluralModel:    pluralModel,
-		singularLabel:  lowerLabel(cfg.Model),
-		pluralLabel:    lowerLabel(pluralModel),
-		repoIfaceName:  "I" + cfg.Model + "Repo",
-		repoImplName:   lowerCamel(cfg.Model) + "Repo",
-		toOutFuncName:  "to" + cfg.Model + "Out",
-		useByIDMethods: isIntConvertibleIDType(idTypeExpr),
-		useGormX:       useGormX,
+		packageName:     packageName,
+		modelName:       cfg.Model,
+		tag:             tag,
+		fields:          fields,
+		outputFields:    outputFields,
+		outputDTOFields: outputDTOFields,
+		responseFields:  responseFields,
+		createFields:    createFields,
+		updateFields:    updateFields,
+		listFields:      listFields,
+		sortFields:      sortFields,
+		searchFields:    searchFields,
+		relations:       relations,
+		relationOuts:    relationOuts,
+		imports:         imports,
+		idTypeExpr:      idTypeExpr,
+		idField:         idField,
+		idColumn:        idColumn,
+		pluralModel:     pluralModel,
+		singularLabel:   lowerLabel(cfg.Model),
+		pluralLabel:     lowerLabel(pluralModel),
+		repoIfaceName:   "I" + cfg.Model + "Repo",
+		repoImplName:    lowerCamel(cfg.Model) + "Repo",
+		toOutFuncName:   "to" + cfg.Model + "Out",
+		useByIDMethods:  isIntConvertibleIDType(idTypeExpr),
+		useGormX:        useGormX,
 	}, nil
 }
 
@@ -654,6 +671,7 @@ func buildRelationSpec(
 	gormTag string,
 	structTypes map[string]*ast.StructType,
 	imports map[string]string,
+	collector *importCollector,
 	cache map[string]structModelSpec,
 	rootFieldNames map[string]struct{},
 ) (relationSpec, bool) {
@@ -669,7 +687,7 @@ func buildRelationSpec(
 		return relationSpec{}, false
 	}
 	targetStruct := structTypes[targetModel]
-	targetSpec, ok := buildStructModelSpec(fset, targetStruct, structTypes, imports)
+	targetSpec, ok := buildStructModelSpec(fset, targetStruct, structTypes, imports, collector)
 	if !ok {
 		return relationSpec{}, false
 	}
@@ -744,9 +762,13 @@ func looksLikeBelongsToRelation(fieldName, gormTag string, rootFieldNames map[st
 	return ok
 }
 
-func buildStructModelSpec(fset *token.FileSet, structType *ast.StructType, structTypes map[string]*ast.StructType, imports map[string]string) (structModelSpec, bool) {
+func buildStructModelSpec(fset *token.FileSet, structType *ast.StructType, structTypes map[string]*ast.StructType, imports map[string]string, collectorOpt ...*importCollector) (structModelSpec, bool) {
 	if structType == nil {
 		return structModelSpec{}, false
+	}
+	var collector *importCollector
+	if len(collectorOpt) > 0 {
+		collector = collectorOpt[0]
 	}
 	spec := structModelSpec{idField: "ID", idTypeExpr: "uint", idColumn: "id"}
 	hasEmbeddedGormModel := false
@@ -756,6 +778,10 @@ func buildStructModelSpec(fset *token.FileSet, structType *ast.StructType, struc
 		if len(field.Names) == 0 {
 			if isEmbeddedGormModel(field.Type, imports) {
 				hasEmbeddedGormModel = true
+				if !contains(spec.outputFields, "id") {
+					spec.outputFields = append(spec.outputFields, "id")
+					spec.outputDTOFields = append(spec.outputDTOFields, fieldSpec{Name: "ID", TypeExpr: "uint", JSONName: "id"})
+				}
 			}
 			continue
 		}
@@ -777,12 +803,22 @@ func buildStructModelSpec(fset *token.FileSet, structType *ast.StructType, struc
 				continue
 			}
 			spec.outputFields = append(spec.outputFields, jsonName)
+			spec.outputDTOFields = append(spec.outputDTOFields, fieldSpec{
+				Name:     name.Name,
+				TypeExpr: typeExpr,
+				JSONName: jsonName,
+			})
+			if collector != nil {
+				collector.addExpr(field.Type)
+			}
 		}
 	}
 	if hasEmbeddedGormModel && !contains(spec.outputFields, "id") {
 		spec.outputFields = append([]string{"id"}, spec.outputFields...)
+		spec.outputDTOFields = append([]fieldSpec{{Name: "ID", TypeExpr: "uint", JSONName: "id"}}, spec.outputDTOFields...)
 	}
 	spec.outputFields = uniqueStrings(spec.outputFields)
+	spec.outputDTOFields = uniqueFieldSpecs(spec.outputDTOFields)
 	return spec, true
 }
 
@@ -1268,6 +1304,23 @@ func uniqueStrings(values []string) []string {
 	return out
 }
 
+func uniqueFieldSpecs(values []fieldSpec) []fieldSpec {
+	seen := map[string]struct{}{}
+	out := make([]fieldSpec, 0, len(values))
+	for _, value := range values {
+		key := value.JSONName
+		if key == "" {
+			key = value.Name
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
 func uniqueImports(values []importSpec) []importSpec {
 	seen := map[string]struct{}{}
 	out := make([]importSpec, 0, len(values))
@@ -1297,9 +1350,85 @@ import (
 {{ end }}
 )
 
-// {{ .ModelName }}Out is the default public response schema generated from {{ .ModelName }}.
+// {{ .ModelName }}Out is the default public DTO generated from {{ .ModelName }}.
 type {{ .ModelName }}Out struct {
-ninja.ModelSchema[{{ .ModelName }}] ` + "`fields:\"{{ .ResponseFieldsValue }}\"{{ if .Relations }} mode:\"read\" depth:\"1\"{{ end }}`" + `
+{{- range .OutputDTOFields }}
+	{{ .Name }} {{ .TypeExpr }} ` + "`json:\"{{ .JSONName }}\"`" + `
+{{- end }}
+{{- range .Relations }}
+	{{- if .Collection }}
+	{{ .FieldName }} []{{ .TargetOutType }} ` + "`json:\"{{ .JSONName }},omitempty\"`" + `
+	{{- else }}
+	{{ .FieldName }} *{{ .TargetOutType }} ` + "`json:\"{{ .JSONName }},omitempty\"`" + `
+	{{- end }}
+{{- end }}
+}
+
+{{- range .RelationOuts }}
+// {{ .TypeName }} is the public DTO for {{ .ModelName }} relation responses.
+type {{ .TypeName }} struct {
+{{- range .OutputDTOFields }}
+	{{ .Name }} {{ .TypeExpr }} ` + "`json:\"{{ .JSONName }}\"`" + `
+{{- end }}
+}
+
+func to{{ .TypeName }}(item {{ .ModelName }}) {{ .TypeName }} {
+	return {{ .TypeName }}{
+{{- range .OutputDTOFields }}
+		{{ .Name }}: item.{{ .Name }},
+{{- end }}
+	}
+}
+
+{{- end }}
+func to{{ .ModelName }}Out(item {{ .ModelName }}) {{ .ModelName }}Out {
+	out := {{ .ModelName }}Out{
+{{- range .OutputDTOFields }}
+		{{ .Name }}: item.{{ .Name }},
+{{- end }}
+	}
+{{- range .Relations }}
+	{{- if .Collection }}
+	if item.{{ .FieldName }} != nil {
+		out.{{ .FieldName }} = make([]{{ .TargetOutType }}, 0, len(item.{{ .FieldName }}))
+		for _, related := range item.{{ .FieldName }} {
+			{{- if .Pointer }}
+			if related == nil {
+				continue
+			}
+			out.{{ .FieldName }} = append(out.{{ .FieldName }}, to{{ .TargetOutType }}(*related))
+			{{- else }}
+			out.{{ .FieldName }} = append(out.{{ .FieldName }}, to{{ .TargetOutType }}(related))
+			{{- end }}
+		}
+	}
+	{{- else if .Pointer }}
+	if item.{{ .FieldName }} != nil {
+		related := to{{ .TargetOutType }}(*item.{{ .FieldName }})
+		out.{{ .FieldName }} = &related
+	}
+	{{- else }}
+	{
+		var zero {{ .TargetIDType }}
+		if item.{{ .FieldName }}.{{ .TargetIDField }} != zero {
+			related := to{{ .TargetOutType }}(item.{{ .FieldName }})
+			out.{{ .FieldName }} = &related
+		}
+	}
+	{{- end }}
+{{- end }}
+	return out
+}
+
+func to{{ .ModelName }}Outs(items []{{ .ModelName }}) []{{ .ModelName }}Out {
+	if items == nil {
+		return []{{ .ModelName }}Out{}
+	}
+	out := make([]{{ .ModelName }}Out, 0, len(items))
+	for _, item := range items {
+		out = append(out, to{{ .ModelName }}Out(item))
+	}
+	return out
 }
 
 {{- if .UseGormX }}
@@ -1370,15 +1499,18 @@ ID {{ .IDTypeExpr }} ` + "`path:\"id\" json:\"-\" binding:\"required\"`" + `
 // Register{{ .ModelName }}CRUDRoutes wires the generated CRUD handlers onto a router.
 func Register{{ .ModelName }}CRUDRoutes(router *ninja.Router) {
 ninja.Get(router, "/", List{{ .PluralModel }}, ninja.Summary("List {{ .PluralLabel }}"), ninja.Paginated[{{ .ModelName }}Out]())
-ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .SingularLabel }}"), ninja.ResponseModel[{{ .ModelName }}Out]())
-ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"), ninja.ResponseModel[{{ .ModelName }}Out](), ninja.WithTransaction())
-ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"), ninja.ResponseModel[{{ .ModelName }}Out](), ninja.WithTransaction())
+ninja.Get(router, "/:id", Get{{ .ModelName }}, ninja.Summary("Get {{ .SingularLabel }}"))
+ninja.Post(router, "/", Create{{ .ModelName }}, ninja.Summary("Create {{ .SingularLabel }}"), ninja.WithTransaction())
+ninja.Patch(router, "/:id", Update{{ .ModelName }}, ninja.Summary("Patch {{ .SingularLabel }}"), ninja.WithTransaction())
 ninja.Delete(router, "/:id", Delete{{ .ModelName }}, ninja.Summary("Delete {{ .SingularLabel }}"), ninja.WithTransaction())
 }
 
 // List{{ .PluralModel }} returns a paginated list of {{ .PluralLabel }}.
-func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}], error) {
-	db := {{ if .Relations }}orm.ApplyResponseModelPreloads[{{ .ModelName }}Out](orm.WithContext(ctx.Context)){{ else }}orm.WithContext(ctx.Context){{ end }}
+func List{{ .PluralModel }}(ctx *ninja.Context, in *List{{ .PluralModel }}Input) (*pagination.Page[{{ .ModelName }}Out], error) {
+	db := orm.WithContext(ctx.Context)
+{{- if .Relations }}
+	db = preload{{ .ModelName }}Relations(db)
+{{- end }}
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
 query, _ := gormx.NewQuery[{{ .ModelName }}]()
@@ -1427,11 +1559,11 @@ return nil, err
 		return nil, err
 	}
 {{- end }}
-return pagination.NewPage(items, total, in.PageInput), nil
+return pagination.NewPage(to{{ .ModelName }}Outs(items), total, in.PageInput), nil
 }
 
 // Get{{ .ModelName }} retrieves a single {{ .SingularLabel }} by primary key.
-func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}, error) {
+func Get{{ .ModelName }}(ctx *ninja.Context, in *Get{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 item, err := load{{ .ModelName }}ByID(orm.WithContext(ctx.Context), in.ID)
 if err != nil {
 if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1439,18 +1571,20 @@ return nil, ninja.NotFoundError()
 }
 return nil, err
 }
-return &item, nil
+out := to{{ .ModelName }}Out(item)
+return &out, nil
 }
 
 // Create{{ .ModelName }} inserts a new {{ .SingularLabel }} record.
-func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input) (*{{ .ModelName }}, error) {
+func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 	db := orm.WithContext(ctx.Context)
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()
 {{- end }}
-	item, err := ninja.ModelCreateSchemaOf[{{ .ModelName }}]().BindInput(in)
-	if err != nil {
-		return nil, err
+	item := &{{ .ModelName }}{
+{{- range .CreateFields }}
+		{{ .Name }}: in.{{ .Name }},
+{{- end }}
 	}
 {{- if .UseGormX }}
 	if err := repo.Insert(item, gormx.UseDB(db)); err != nil {
@@ -1481,11 +1615,12 @@ func Create{{ .ModelName }}(ctx *ninja.Context, in *Create{{ .ModelName }}Input)
 	if err != nil {
 		return nil, err
 	}
-	return &loaded, nil
+	out := to{{ .ModelName }}Out(loaded)
+	return &out, nil
 }
 
 // Update{{ .ModelName }} partially updates a {{ .SingularLabel }} record by primary key.
-func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}, error) {
+func Update{{ .ModelName }}(ctx *ninja.Context, in *Update{{ .ModelName }}Input) (*{{ .ModelName }}Out, error) {
 db := orm.WithContext(ctx.Context)
 item, err := load{{ .ModelName }}ByID(db, in.ID)
 	if err != nil {
@@ -1494,12 +1629,14 @@ item, err := load{{ .ModelName }}ByID(db, in.ID)
 		}
 		return nil, err
 	}
-	if err := ninja.ModelUpdateSchemaOf[{{ .ModelName }}]().ApplyInput(&item, in); err != nil {
-		return nil, err
-	}
 	updateColumns := []string{}
 {{ range .UpdateFields }}
 	if in.{{ .Name }} != nil {
+		{{- if .DerefUpdate }}
+		item.{{ .Name }} = *in.{{ .Name }}
+		{{- else }}
+		item.{{ .Name }} = in.{{ .Name }}
+		{{- end }}
 		updateColumns = append(updateColumns, "{{ .ColumnName }}")
 	}
 {{ end }}
@@ -1529,18 +1666,29 @@ item, err := load{{ .ModelName }}ByID(db, in.ID)
 {{- end }}
 {{- end }}
 	if len(updateColumns) == 0{{ if .Relations }} && !relationsChanged{{ end }} {
-		return &item, nil
+		out := to{{ .ModelName }}Out(item)
+		return &out, nil
 	}
 	item, err = load{{ .ModelName }}ByID(db, in.ID)
 	if err != nil {
 		return nil, err
 	}
-return &item, nil
+out := to{{ .ModelName }}Out(item)
+return &out, nil
 }
 
+{{- if .Relations }}
+func preload{{ .ModelName }}Relations(db *gorm.DB) *gorm.DB {
+{{- range .Relations }}
+	db = db.Preload("{{ .Preload }}")
+{{- end }}
+	return db
+}
+
+{{- end }}
 func load{{ .ModelName }}ByID(db *gorm.DB, id {{ .IDTypeExpr }}) ({{ .ModelName }}, error) {
 {{- if .Relations }}
-	db = orm.ApplyResponseModelPreloads[{{ .ModelName }}Out](db)
+	db = preload{{ .ModelName }}Relations(db)
 {{- end }}
 {{- if .UseGormX }}
 	repo := New{{ .ModelName }}Repo()

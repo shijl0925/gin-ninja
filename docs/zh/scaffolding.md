@@ -178,7 +178,7 @@ gin-ninja-cli generate crud \
 该生成器会：
 
 - 读取指定文件中的 Go 模型结构体
-- 在同一 package 下生成请求/响应结构和 CRUD handler
+- 在同一 package 下生成请求结构、显式响应 DTO 和 CRUD handler
 - 生成 `Register<Model>CRUDRoutes(router)` 路由注册辅助函数
 - 对“部分更新”生成 `PATCH /:id` 路由，而不是用 `PUT` 表达部分更新语义
 - 可从模型字段的 `crud:"..."` tag 自动生成列表过滤 / 排序 / 关键字搜索输入

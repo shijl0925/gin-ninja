@@ -34,7 +34,7 @@ func newRegisterTestAPI(t *testing.T) *ninja.NinjaAPI {
 	api := ninja.New(ninja.Config{Title: "Test", Version: "0.0.1"})
 	api.UseGin(orm.Middleware(db))
 	authRouter := ninja.NewRouter("/auth", ninja.WithTags("Auth"))
-	ninja.Post(authRouter, "/register", Register, ninja.ResponseModel[UserOut]())
+	ninja.Post(authRouter, "/register", Register)
 	api.AddRouter(authRouter)
 	return api
 }
@@ -97,14 +97,13 @@ func newUsersV2CacheTestAPI(t *testing.T) *ninja.NinjaAPI {
 		ninja.Paginated[UserOut](),
 	)
 	ninja.Get(router, "/:id", GetUserV2,
-		ninja.ResponseModel[UserOut](),
 		ninja.Cache(time.Minute,
 			ninja.CacheWithStore(store),
 			ninja.CacheWithKey(UsersV2DetailCacheKey),
 		),
 	)
-	ninja.Post(router, "/", CreateUserV2, ninja.ResponseModel[UserOut]())
-	ninja.Put(router, "/:id", UpdateUserV2, ninja.ResponseModel[UserOut]())
+	ninja.Post(router, "/", CreateUserV2)
+	ninja.Put(router, "/:id", UpdateUserV2)
 	ninja.Delete(router, "/:id", DeleteUserV2)
 	api.AddRouter(router)
 	return api
@@ -228,7 +227,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	if created.Model.ID == 0 {
+	if created.ID == 0 {
 		t.Fatalf("expected created id, got %+v", created)
 	}
 
@@ -242,11 +241,11 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("CreateUser second: %v", err)
 	}
 	repo := NewUserRepo()
-	if err := repo.UpdateById(int(second.Model.ID), map[string]interface{}{"is_admin": true}, gormx.UseDB(userDB(ctx))); err != nil {
+	if err := repo.UpdateById(int(second.ID), map[string]interface{}{"is_admin": true}, gormx.UseDB(userDB(ctx))); err != nil {
 		t.Fatalf("set second user admin: %v", err)
 	}
 
-	got, err := GetUser(ctx, &GetUserInput{UserID: created.Model.ID})
+	got, err := GetUser(ctx, &GetUserInput{UserID: created.ID})
 	if err != nil || got.Email != "alice@example.com" {
 		t.Fatalf("GetUser: result=%+v err=%v", got, err)
 	}
@@ -316,7 +315,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 	}
 
 	updated, err := UpdateUser(ctx, &UpdateUserInput{
-		UserID: second.Model.ID,
+		UserID: second.ID,
 		Name:   "Bobby",
 		Email:  "bobby@example.com",
 		Age:    21,
@@ -328,20 +327,17 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("unexpected updated user: %+v", updated)
 	}
 
-	if err := DeleteUser(ctx, &DeleteUserInput{UserID: second.Model.ID}); err != nil {
+	if err := DeleteUser(ctx, &DeleteUserInput{UserID: second.ID}); err != nil {
 		t.Fatalf("DeleteUser: %v", err)
 	}
 
-	deleted, err := GetUser(ctx, &GetUserInput{UserID: second.Model.ID})
+	deleted, err := GetUser(ctx, &GetUserInput{UserID: second.ID})
 	if !ninja.IsNotFound(err) || deleted != nil {
 		t.Fatalf("expected deleted user to be missing, got result=%+v err=%v", deleted, err)
 	}
 
-	out, err := toUserOut(User{Model: gorm.Model{ID: 7}, Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true, Password: "secret"})
-	if err != nil {
-		t.Fatalf("toUserOut: %v", err)
-	}
-	if out.Model.Email != "x@example.com" || !out.Model.IsAdmin {
+	out := toUserOut(User{Model: gorm.Model{ID: 7}, Email: "x@example.com", Name: "X", Age: 9, IsAdmin: true, Password: "secret"})
+	if out.Email != "x@example.com" || !out.IsAdmin {
 		t.Fatalf("unexpected toUserOut result: %+v", out)
 	}
 
@@ -419,7 +415,7 @@ func TestUserDirectHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateUser empty update: %v", err)
 	}
-	if updated.Model.ID != created.Model.ID {
+	if updated.ID != created.Model.ID {
 		t.Fatalf("expected user to remain unchanged, got %+v", updated)
 	}
 

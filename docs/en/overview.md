@@ -31,7 +31,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 
 ## Features
 
-- **Type-safe handlers** – use plain Go structs for request input and response output.
+- **Type-safe handlers** – use plain Go structs for request input and explicit DTO response output.
 - **Automatic parameter binding** – path params (`path:`), query params (`query:`), headers (`header:`), cookies (`cookie:`), and JSON/form bodies (`json:` / `form:`) are all bound via struct tags.
 - **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
 - **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
@@ -43,7 +43,7 @@ At runtime, gin-ninja adds a typed API layer on top of Gin:
 - **Gin middleware support** – `UseGin()` on both the API and individual routers.
 - **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
 - **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
-- **ModelSchema-style responses** – use `ResponseModel` / `ResponseSchema` to bind, validate, and prune output fields at runtime while generating matching OpenAPI schemas.
+- **Advanced ModelSchema helpers** – optionally use `ResponseModel` / `ResponseSchema` when runtime field pruning is a better fit than explicit DTO mapping.
 - **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, and a lightweight memory store for read-heavy endpoints.
 - **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
 - **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.

@@ -50,7 +50,10 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 
 	checks := []string{
 		"type UserOut struct",
-		"ninja.ModelSchema[User] `fields:\"id,name,email,invite_code,status_note,age,is_admin,created\"`",
+		"Name       string    `json:\"name\"`",
+		"Created    time.Time `json:\"created\"`",
+		"func toUserOut(item User) UserOut",
+		"func toUserOuts(items []User) []UserOut",
 		"type IUserRepo interface",
 		"func NewUserRepo() IUserRepo",
 		"type CreateUserInput struct",
@@ -64,16 +67,17 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"LegacySecret *string `json:\"legacySecret\"`",
 		"Created *time.Time `json:\"created\"`",
 		"func RegisterUserCRUDRoutes(router *ninja.Router)",
-		"func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error)",
-		"func GetUser(ctx *ninja.Context, in *GetUserInput)",
-		`ninja.Get(router, "/:id", GetUser, ninja.Summary("Get user"), ninja.ResponseModel[UserOut]())`,
-		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.ResponseModel[UserOut](), ninja.WithTransaction())`,
-		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.ResponseModel[UserOut](), ninja.WithTransaction())`,
+		"func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error)",
+		"func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error)",
+		`ninja.Get(router, "/:id", GetUser, ninja.Summary("Get user"))`,
+		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.WithTransaction())`,
+		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.WithTransaction())`,
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
 		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
-		"return pagination.NewPage(items, total, in.PageInput), nil",
-		"item, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)",
-		"if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&item, in); err != nil {",
+		"return pagination.NewPage(toUserOuts(items), total, in.PageInput), nil",
+		"item := &User{",
+		"Name:         in.Name,",
+		"item.Name = *in.Name",
 		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
 		"if err := db.Model(&User{}).Where(\"id = ?\", in.ID).Select(updateColumns).Updates(item).Error; err != nil {",
@@ -93,8 +97,10 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"InviteCode *string `json:\"invite_code\"`",
 		"StatusNote string `json:\"status_note\"`",
 		"PasswordHash string `json:\"passwordHash\"`",
-		"item.Name = in.Name",
-		"func toUserOut(",
+		"ninja.ModelSchema[User]",
+		"ninja.ResponseModel[UserOut]()",
+		"ninja.ModelCreateSchemaOf[User]().BindInput(in)",
+		"ninja.ModelUpdateSchemaOf[User]().ApplyInput(&item, in)",
 	} {
 		if strings.Contains(generated, unexpected) {
 			t.Fatalf("generated content unexpectedly contained %q\n%s", unexpected, generated)
@@ -691,13 +697,18 @@ type Project struct {
 		`OwnerID *uint   ` + "`query:\"owner_id\" filter:\"owner_id,eq\"`" + ``,
 		`Sort    string  ` + "`query:\"sort\" order:\"name|status|owner_id\" description:\"Validated sort fields\"`" + ``,
 		`Search  string  ` + "`query:\"search\" filter:\"name|status,like\" description:\"Keyword search\"`" + ``,
-		`ninja.ModelSchema[Project] ` + "`fields:\"id,name,status,owner_id,owner,tasks,tags\" mode:\"read\" depth:\"1\"`" + ``,
+		`Owner   *ProjectOwnerOut  ` + "`json:\"owner,omitempty\"`" + ``,
+		`Tasks   []ProjectTasksOut ` + "`json:\"tasks,omitempty\"`" + ``,
+		`Tags    []ProjectTagsOut  ` + "`json:\"tags,omitempty\"`" + ``,
 		`TagsIDs []uint ` + "`json:\"tags_ids\"`" + ``,
 		`TasksIDs []uint ` + "`json:\"tasks_ids\"`" + ``,
-		`db := orm.ApplyResponseModelPreloads[ProjectOut](orm.WithContext(ctx.Context))`,
-		`db = orm.ApplyResponseModelPreloads[ProjectOut](db)`,
+		`db = preloadProjectRelations(db)`,
+		`db = db.Preload("Owner")`,
+		`db = db.Preload("Tasks")`,
+		`db = db.Preload("Tags")`,
 		`filterOpts, err := filter.BuildOptions(in)`,
 		`if err := order.ApplyOrder(query, in); err != nil {`,
+		`return pagination.NewPage(toProjectOuts(items), total, in.PageInput), nil`,
 		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,
 		`func syncProjectTasksRelations(db *gorm.DB, item *Project, ids []uint) error {`,
 	}
@@ -707,15 +718,11 @@ type Project struct {
 		}
 	}
 	for _, unexpected := range []string{
-		`query.Preload("Owner")`,
-		`query.Preload("Tasks")`,
-		`query.Preload("Tags")`,
 		`for i, item := range items`,
 		`BindModelSchemas[ProjectTasksOut]`,
 		`BindModelSchemas[ProjectTagsOut]`,
-		`ProjectOwnerOut`,
-		`ProjectTasksOut`,
-		`ProjectTagsOut`,
+		`ninja.ModelSchema[Project]`,
+		`orm.ApplyResponseModelPreloads[ProjectOut]`,
 	} {
 		if strings.Contains(generated, unexpected) {
 			t.Fatalf("generated content unexpectedly contained %q\n%s", unexpected, generated)
@@ -758,8 +765,9 @@ type Project struct {
 	checks := []string{
 		`Slug string ` + "`json:\"slug\"`" + ``,
 		`Slug *string ` + "`json:\"slug\"`" + ``,
-		`ninja.ModelSchema[Project] ` + "`fields:\"id,owner_id,slug,owner\" mode:\"read\" depth:\"1\"`" + ``,
-		`db = orm.ApplyResponseModelPreloads[ProjectOut](db)`,
+		`Owner   *ProjectOwnerOut ` + "`json:\"owner,omitempty\"`" + ``,
+		`func toProjectOut(item Project) ProjectOut`,
+		`db = preloadProjectRelations(db)`,
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {

@@ -31,7 +31,7 @@ gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层
 
 ## 主要特性
 
-- **类型安全处理器** – 使用普通 Go 结构体定义请求输入和响应输出。
+- **类型安全处理器** – 使用普通 Go 结构体定义请求输入和显式 DTO 响应输出。
 - **自动参数绑定** – path 参数（`path:`）、query 参数（`query:`）、请求头（`header:`）、Cookie（`cookie:`）以及 JSON/form 请求体（`json:` / `form:`）都通过结构体标签绑定。
 - **默认参数值** – `default:"..."` 适用于 query/header/cookie 字段，并会反映到 OpenAPI。
 - **校验** – 基于 [go-playground/validator](https://github.com/go-playground/validator)，使用标准 `binding:` 标签。
@@ -43,7 +43,7 @@ gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层
 - **Gin 中间件支持** – API 和单个 Router 都支持 `UseGin()`。
 - **OpenAPI 控制** – 从文档中隐藏内部端点，并为操作声明额外响应。
 - **操作级控制** – 每端点超时、内存限流和标准分页响应声明。
-- **ModelSchema 风格响应** – 使用 `ResponseModel` / `ResponseSchema` 在运行时绑定、校验、裁剪输出字段，并生成一致的 OpenAPI schema。
+- **高级 ModelSchema 辅助能力** – 当运行时字段裁剪比显式 DTO 映射更合适时，可选使用 `ResponseModel` / `ResponseSchema`。
 - **路由级缓存** – 内置 `Cache(...)`、`ETag()`、`CacheControl(...)` 和轻量内存存储，适合读多端点。
 - **API 版本隔离** – 版本感知路由、按版本输出 OpenAPI/Swagger，以及弃用响应头。
 - **分页** – 可复用 `PageInput` 和 `Page[T]` 类型，统一列表响应。

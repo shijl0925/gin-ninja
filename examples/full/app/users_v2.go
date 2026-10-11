@@ -33,17 +33,17 @@ func UsersV2DetailCacheKey(ctx *ninja.Context) string {
 }
 
 // ListUsersV2 reuses the regular users query logic behind the v2 routes.
-func ListUsersV2(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
+func ListUsersV2(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	return ListUsers(ctx, in)
 }
 
 // GetUserV2 reuses the regular detail query logic behind the cached detail demo.
-func GetUserV2(ctx *ninja.Context, in *GetUserInput) (*User, error) {
+func GetUserV2(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 	return GetUser(ctx, in)
 }
 
 // CreateUserV2 creates a user and invalidates cached list responses.
-func CreateUserV2(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
+func CreateUserV2(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
 	out, err := CreateUser(ctx, in)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func CreateUserV2(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
 }
 
 // UpdateUserV2 updates a user and invalidates cached list/detail responses.
-func UpdateUserV2(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
+func UpdateUserV2(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 	out, err := UpdateUser(ctx, in)
 	if err != nil {
 		return nil, err

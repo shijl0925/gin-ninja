@@ -49,7 +49,9 @@ type Book struct {
 // ---------------------------------------------------------------------------
 
 type BookOut struct {
-	ninja.ModelSchema[Book] `fields:"id,title,author"`
+	ID     uint   `json:"id"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
 }
 
 type ListBooksInput struct {
@@ -75,6 +77,25 @@ type DeleteBookInput struct {
 	BookID uint `path:"id" binding:"required"`
 }
 
+func toBookOut(book Book) BookOut {
+	return BookOut{
+		ID:     book.ID,
+		Title:  book.Title,
+		Author: book.Author,
+	}
+}
+
+func toBookOuts(books []Book) []BookOut {
+	if books == nil {
+		return []BookOut{}
+	}
+	out := make([]BookOut, 0, len(books))
+	for _, book := range books {
+		out = append(out, toBookOut(book))
+	}
+	return out
+}
+
 // ---------------------------------------------------------------------------
 // BookController — implements ninja.Controller
 // ---------------------------------------------------------------------------
@@ -94,22 +115,19 @@ func (c *BookController) Register(r *ninja.Router) {
 	)
 	ninja.Get(r, "/:id", c.Get,
 		ninja.Summary("Get book"),
-		ninja.ResponseModel[BookOut](),
 	)
 	ninja.Post(r, "/", c.Create,
 		ninja.Summary("Create book"),
-		ninja.ResponseModel[BookOut](),
 	)
 	ninja.Put(r, "/:id", c.Update,
 		ninja.Summary("Update book"),
-		ninja.ResponseModel[BookOut](),
 	)
 	ninja.Delete(r, "/:id", c.Delete,
 		ninja.Summary("Delete book"),
 	)
 }
 
-func (c *BookController) List(_ *ninja.Context, in *ListBooksInput) (*pagination.Page[Book], error) {
+func (c *BookController) List(_ *ninja.Context, in *ListBooksInput) (*pagination.Page[BookOut], error) {
 	var books []Book
 	if err := c.db.Find(&books).Error; err != nil {
 		return nil, err
@@ -120,16 +138,16 @@ func (c *BookController) List(_ *ninja.Context, in *ListBooksInput) (*pagination
 	size := in.GetSize()
 	start := (page - 1) * size
 	if start >= int(total) {
-		return pagination.NewPage([]Book{}, total, in.PageInput), nil
+		return pagination.NewPage([]BookOut{}, total, in.PageInput), nil
 	}
 	end := start + size
 	if end > int(total) {
 		end = int(total)
 	}
-	return pagination.NewPage(books[start:end], total, in.PageInput), nil
+	return pagination.NewPage(toBookOuts(books[start:end]), total, in.PageInput), nil
 }
 
-func (c *BookController) Get(_ *ninja.Context, in *GetBookInput) (*Book, error) {
+func (c *BookController) Get(_ *ninja.Context, in *GetBookInput) (*BookOut, error) {
 	var book Book
 	if err := c.db.First(&book, in.BookID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -137,18 +155,20 @@ func (c *BookController) Get(_ *ninja.Context, in *GetBookInput) (*Book, error) 
 		}
 		return nil, err
 	}
-	return &book, nil
+	out := toBookOut(book)
+	return &out, nil
 }
 
-func (c *BookController) Create(_ *ninja.Context, in *CreateBookInput) (*Book, error) {
+func (c *BookController) Create(_ *ninja.Context, in *CreateBookInput) (*BookOut, error) {
 	book := Book{Title: in.Title, Author: in.Author}
 	if err := c.db.Create(&book).Error; err != nil {
 		return nil, err
 	}
-	return &book, nil
+	out := toBookOut(book)
+	return &out, nil
 }
 
-func (c *BookController) Update(_ *ninja.Context, in *UpdateBookInput) (*Book, error) {
+func (c *BookController) Update(_ *ninja.Context, in *UpdateBookInput) (*BookOut, error) {
 	var book Book
 	if err := c.db.First(&book, in.BookID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -165,7 +185,8 @@ func (c *BookController) Update(_ *ninja.Context, in *UpdateBookInput) (*Book, e
 	if err := c.db.Save(&book).Error; err != nil {
 		return nil, err
 	}
-	return &book, nil
+	out := toBookOut(book)
+	return &out, nil
 }
 
 func (c *BookController) Delete(_ *ninja.Context, in *DeleteBookInput) error {
