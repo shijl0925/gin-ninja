@@ -129,4 +129,4 @@ api.AddRouter(v2Users)
 - 对属于特定 API 代际的路由使用 `WithVersion("v1")`、`WithVersion("v2")`
 - 当版本语义发生分化时，使用独立的处理器 / schema 类型
 
-上一篇: [文件传输与 OpenAPI 控制](./files-and-openapi.md) | 下一篇: [Admin 与完整示例](./admin-and-examples.md)
+上一篇: [文件传输与 OpenAPI 控制](./files-and-openapi.md) | 下一篇: [可选 Admin 与完整示例](./admin-and-examples.md)

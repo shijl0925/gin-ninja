@@ -10,7 +10,7 @@ gin-ninja 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Web/API �
 - 自动绑定 path、query、header、cookie、JSON、form、file 参数
 - 默认生成 `/openapi.json` 与 `/docs` Swagger UI
 - 支持 Router 分组、API Controller、操作级选项、中间件与生命周期钩子
-- 内置分页、过滤、排序、缓存、版本管理、上传下载、settings、bootstrap 与 admin 能力
+- 内置分页、过滤、排序、缓存、版本管理、上传下载、settings 与 bootstrap 能力
 
 ## 安装
 
@@ -74,13 +74,13 @@ func main() {
 - [高级功能](./docs/zh/advanced-features.md)
 - [使用 TestClient 测试 API](./docs/zh/testing.md)
 - [性能与稳定性报告](./docs/zh/performance.md)
-- [Admin 与完整示例](./docs/zh/admin-and-examples.md)
+- [可选 Admin 与完整示例](./docs/zh/admin-and-examples.md)
 
 英文文档从 [README.md](./README.md) 或 [English documentation index](./docs/en/README.md) 开始。
 
 ## 示例
 
-可运行示例位于 [`examples/`](./examples/)，包括 `basic`、`users`、`features`、`admin` 和 `full`。
+可运行示例位于 [`examples/`](./examples/)，包括 `basic`、`users`、`features` 和 `full`。`admin` 子包和示例仍保留，作为显式开启的可选能力。
 
 ## License
 

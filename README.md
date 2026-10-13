@@ -13,7 +13,7 @@ A **django-ninja** inspired web framework built on top of [Gin](https://github.c
 - Automatic binding for path, query, header, cookie, JSON, form, and file inputs
 - Generated OpenAPI JSON and Swagger UI at `/openapi.json` and `/docs`
 - Router groups, API controllers, operation options, middleware, and lifecycle hooks
-- Built-in support for pagination, filtering, sorting, caching, versioning, upload/download, settings, bootstrap helpers, and admin APIs
+- Built-in support for pagination, filtering, sorting, caching, versioning, upload/download, settings, and bootstrap helpers
 
 ## Installation
 
@@ -77,13 +77,13 @@ Detailed documentation has been split by feature area. Start with the [English d
 - [Advanced Features](./docs/en/advanced-features.md)
 - [Testing APIs with TestClient](./docs/en/testing.md)
 - [Performance and Stability Report](./docs/en/performance.md)
-- [Admin and Full Example](./docs/en/admin-and-examples.md)
+- [Optional Admin and Full Example](./docs/en/admin-and-examples.md)
 
 Chinese documentation starts at [README-zh.md](./README-zh.md) or the [中文文档索引](./docs/zh/README.md).
 
 ## Examples
 
-Runnable examples live under [`examples/`](./examples/), including `basic`, `users`, `features`, `admin`, and `full`.
+Runnable examples live under [`examples/`](./examples/), including `basic`, `users`, `features`, and `full`. The `admin` subpackage and example remain available for explicit opt-in use.
 
 ## License
 

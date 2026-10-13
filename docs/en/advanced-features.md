@@ -129,4 +129,4 @@ Recommended pattern:
 - use `WithVersion("v1")`, `WithVersion("v2")` on routers that belong to a specific API generation
 - use separate handlers/schema types when versions diverge semantically
 
-Previous: [File Transfer and OpenAPI Controls](./files-and-openapi.md) | Next: [Admin and Full Example](./admin-and-examples.md)
+Previous: [File Transfer and OpenAPI Controls](./files-and-openapi.md) | Next: [Optional Admin and Full Example](./admin-and-examples.md)

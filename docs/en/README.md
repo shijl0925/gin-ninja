@@ -29,4 +29,4 @@ Use this page as the starting point for the English documentation. The root READ
 | Cache, API versions | [Advanced Features](./advanced-features.md) |
 | TestClient and API testing | [Testing APIs with TestClient](./testing.md) |
 | Performance, benchmark baselines, stability reporting | [Performance and Stability Report](./performance.md) |
-| Admin package and full application examples | [Admin and Full Example](./admin-and-examples.md) |
+| Optional admin package and full application examples | [Optional Admin and Full Example](./admin-and-examples.md) |

@@ -107,7 +107,7 @@ gin-ninja/
 ├── pagination/       ← pagination types
 │   └── pagination.go ← PageInput, Page[T]
 │
-└── examples/         ← runnable basic, users, features, admin, and full applications
+└── examples/         ← runnable basic, users, features, and full applications; admin is opt-in
 ```
 
 Core module responsibilities:

@@ -1216,9 +1216,9 @@ This scaffold does not preselect a database driver. Choose one later and import 
 - JWT login scaffold at {{ bt }}POST /api/v1/auth/login{{ bt }}
 {{- end }}
 {{- if .Options.WithAdmin }}
-- Admin resource scaffold at {{ bt }}/api/v1/admin{{ bt }}
+- Optional admin resource scaffold at {{ bt }}/api/v1/admin{{ bt }}
 {{- if .Options.WithAuth }}
-- Default admin UI at {{ bt }}/admin{{ bt }}
+- Optional admin UI at {{ bt }}/admin{{ bt }}
 {{- end }}
 {{- end }}
 `

@@ -46,7 +46,7 @@ gin-ninja-cli migrate
 # richer templates / optional features (opt in only when you need them)
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
-  -template admin \
+  -template standard \
   -database postgres \
   -app-dir internal/app \
   -with-tests
@@ -73,7 +73,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `app/apis.go`
 - `app/routers.go`
 
-When you opt into `-template standard`, `-template auth`, `-template admin`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
+When you opt into `-template standard`, `-template auth`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
 
 - `.air.toml`
 - `cmd/server/main.go`
@@ -96,21 +96,22 @@ When you opt into `-template standard`, `-template auth`, `-template admin`, or 
 - `migrations.go`
 - `scaffold_test.go`
 - `auth.go`
-- `admin.go`
+- `admin.go` (only with `-template admin` or `-with-admin`)
 - `permissions.go`
 
 In practice:
 
 - `minimal` keeps the shortest CRUD path
 - `standard` mainly adds project-level infrastructure; when `auth/admin` are not enabled it no longer forces `services.go` / `errors.go`
-- `auth` / `admin` templates add the fuller service, error, and permission scaffolding
+- `auth` adds the fuller service, error, and permission scaffolding
+- `admin` is an explicit opt-in advanced scaffold for admin resource/API integration
 
 Useful scaffold flags:
 
-- `-template minimal|standard|auth|admin`
+- `-template minimal|standard|auth|admin` (`admin` is optional advanced scaffolding)
 - `-with-tests`
 - `-with-auth`
-- `-with-admin`
+- `-with-admin` (explicitly opt into admin scaffold files)
 - `-database <sqlite|mysql|postgres|none>` (`startproject` defaults to `sqlite`; `startapp` defaults to `none`; selecting a driver wires the matching registration import)
 - `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
 - `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
@@ -125,7 +126,7 @@ module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
 database: postgres
-template: admin
+template: standard
 with_tests: true
 with_gormx: false
 ```

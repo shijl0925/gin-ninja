@@ -40,7 +40,7 @@ var scaffoldTemplateChoices = []helpItem{
 	{name: "minimal", usage: "Basic CRUD structure"},
 	{name: "standard", usage: "Broader starter structure for everyday development"},
 	{name: "auth", usage: "Adds auth-oriented scaffold files"},
-	{name: "admin", usage: "Adds admin-oriented scaffold files"},
+	{name: "admin", usage: "Optional advanced admin-oriented scaffold files"},
 }
 
 func runGenerate(stdout, stderr io.Writer, args []string) int {
@@ -122,7 +122,7 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
-	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	withAdmin := fs.Bool("with-admin", false, "Opt into admin scaffold files")
 	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
@@ -193,7 +193,7 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	templateName := fs.String("template", "", "Scaffold template: minimal, standard, auth, admin")
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
-	withAdmin := fs.Bool("with-admin", false, "Include admin scaffold files")
+	withAdmin := fs.Bool("with-admin", false, "Opt into admin scaffold files")
 	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
@@ -441,7 +441,6 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -module github.com/acme/mysite"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template standard"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template auth"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -template admin"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startproject mysite -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template choices"))
@@ -457,7 +456,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template options"))
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or optional admin (default: minimal)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
@@ -465,7 +464,7 @@ func printStartProjectUsage(w io.Writer) {
 	printFlagGroup(w, []flagHelp{
 		{name: "-app-dir <path>", usage: fmt.Sprintf("Relative app package directory inside the project (default: %s)", defaultScaffoldAppDir)},
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
-		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
+		{name: "-with-admin", usage: "Opt into admin scaffold files"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
@@ -473,6 +472,7 @@ func printStartProjectUsage(w io.Writer) {
 	fmt.Fprintln(w, p.section("Tips"))
 	fmt.Fprintln(w, "  CLI flags override values loaded from -config.")
 	fmt.Fprintln(w, "  Use startapp later to add more domain packages inside the generated project.")
+	fmt.Fprintln(w, "  Use -template admin or -with-admin only when you explicitly want the optional admin scaffold.")
 }
 
 func printStartAppUsage(w io.Writer) {
@@ -490,7 +490,6 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp blog"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template standard"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template auth"))
-	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -template admin"))
 	fmt.Fprintf(w, "  %s\n", p.command("gin-ninja-cli startapp accounts -config ./scaffold.yaml"))
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template choices"))
@@ -507,14 +506,14 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Template options"))
 	printFlagGroup(w, []flagHelp{
-		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or admin (default: minimal)"},
+		{name: "-template <preset>", usage: "Choose minimal, standard, auth, or optional admin (default: minimal)"},
 		{name: "-with-tests", usage: "Add starter tests on top of the selected template"},
 	})
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, p.section("Advanced options"))
 	printFlagGroup(w, []flagHelp{
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
-		{name: "-with-admin", usage: "Force-enable admin scaffold files"},
+		{name: "-with-admin", usage: "Opt into admin scaffold files"},
 		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
@@ -522,6 +521,7 @@ func printStartAppUsage(w io.Writer) {
 	fmt.Fprintln(w, p.section("Tips"))
 	fmt.Fprintln(w, "  CLI flags override values loaded from -config.")
 	fmt.Fprintln(w, "  Use generate crud after scaffolding when you already have a model and want CRUD handlers.")
+	fmt.Fprintln(w, "  Use -template admin or -with-admin only when you explicitly want the optional admin scaffold.")
 }
 
 func printInitUsage(w io.Writer) {

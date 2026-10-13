@@ -107,7 +107,7 @@ gin-ninja/
 ├── pagination/       ← 分页类型
 │   └── pagination.go ← PageInput、Page[T]
 │
-└── examples/         ← 可运行的 basic、users、features、admin 和 full 应用
+└── examples/         ← 可运行的 basic、users、features 和 full 应用；admin 为可选开启
 ```
 
 核心模块职责：

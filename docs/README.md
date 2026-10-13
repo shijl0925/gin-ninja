@@ -20,7 +20,7 @@ The root README files are intentionally short. Detailed documentation is split b
 - [File Transfer and OpenAPI Controls](./en/files-and-openapi.md)
 - [Advanced Features](./en/advanced-features.md)
 - [Performance and Stability Report](./en/performance.md)
-- [Admin and Full Example](./en/admin-and-examples.md)
+- [Optional Admin and Full Example](./en/admin-and-examples.md)
 
 ## 中文指南
 
@@ -33,4 +33,4 @@ The root README files are intentionally short. Detailed documentation is split b
 - [文件传输与 OpenAPI 控制](./zh/files-and-openapi.md)
 - [高级功能](./zh/advanced-features.md)
 - [性能与稳定性报告](./zh/performance.md)
-- [Admin 与完整示例](./zh/admin-and-examples.md)
+- [可选 Admin 与完整示例](./zh/admin-and-examples.md)

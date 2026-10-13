@@ -1,8 +1,8 @@
-# Admin 与完整示例
+# 可选 Admin 与完整示例
 
 [文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
 
-## Admin 后台
+## 可选 Admin 后台
 
 `admin` 子包提供了元数据驱动的后台管理 API 层，以及一个与该 API 配套的内置单页后台 UI Shell。Site（注册中心）、API 路由、UI 页面三者独立挂载，可按需组合使用。
 
