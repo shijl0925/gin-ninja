@@ -29,4 +29,4 @@
 | 缓存、API 版本 | [高级功能](./advanced-features.md) |
 | TestClient 与 API 测试 | [使用 TestClient 测试 API](./testing.md) |
 | 性能、基准测试基线、稳定性报告 | [性能与稳定性报告](./performance.md) |
-| Admin 后台与完整示例 | [Admin 与完整示例](./admin-and-examples.md) |
+| 可选 Admin 后台与完整示例 | [可选 Admin 与完整示例](./admin-and-examples.md) |

@@ -1,8 +1,8 @@
-# Admin and Full Example
+# Optional Admin and Full Example
 
 [Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
 
-## Admin Package
+## Optional Admin Package
 
 The `admin` sub-package provides a metadata-driven back-office API layer plus a built-in single-page admin UI shell that talks to that API.  All three pieces — Site, API routes, and UI pages — are wired up independently so you can use any subset.
 

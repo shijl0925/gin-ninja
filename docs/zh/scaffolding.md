@@ -46,7 +46,7 @@ gin-ninja-cli migrate
 # 更丰富的模板 / 可选功能（只有确实需要时再开启）
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
-  -template admin \
+  -template standard \
   -database postgres \
   -app-dir internal/app \
   -with-tests
@@ -73,7 +73,7 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `app/apis.go`
 - `app/routers.go`
 
-当你启用 `-template standard`、`-template auth`、`-template admin`，或 `-with-tests` 等功能开关时，脚手架还会额外生成更完整的起步文件，例如：
+当你启用 `-template standard`、`-template auth`，或 `-with-tests` 等功能开关时，脚手架还会额外生成更完整的起步文件，例如：
 
 - `.air.toml`
 - `cmd/server/main.go`
@@ -96,21 +96,22 @@ gin-ninja-cli startapp -config ./scaffold.yaml
 - `migrations.go`
 - `scaffold_test.go`
 - `auth.go`
-- `admin.go`
+- `admin.go`（仅在 `-template admin` 或 `-with-admin` 时生成）
 - `permissions.go`
 
 其中：
 
 - 默认 `minimal` 只保留最短 CRUD 路径
 - `standard` 主要增加项目级基础设施文件；当未启用 `auth/admin` 时，不再强制生成 `services.go` / `errors.go`
-- `auth` / `admin` 模板会额外生成更完整的 service / error / 权限相关代码
+- `auth` 模板会额外生成更完整的 service / error / 权限相关代码
+- `admin` 是显式开启的高级脚手架，用于 admin 资源/API 集成
 
 常用脚手架参数：
 
-- `-template minimal|standard|auth|admin`
+- `-template minimal|standard|auth|admin`（`admin` 是可选高级脚手架）
 - `-with-tests`
 - `-with-auth`
-- `-with-admin`
+- `-with-admin`（显式开启 admin 脚手架文件）
 - `-database <sqlite|mysql|postgres|none>`（`startproject` 默认 `sqlite`；`startapp` 默认 `none`；选中驱动时会自动生成对应注册导入）
 - `-with-gormx`（默认 `false`；显式开启后生成基于 gormx 的 repo/service，而不是原生 GORM 代码）
 - `-config <path>`（从 YAML/JSON preset 加载脚手架参数；命令行参数优先生效）
@@ -125,7 +126,7 @@ module: github.com/acme/mysite
 output: ./mysite
 app_dir: internal/app
 database: postgres
-template: admin
+template: standard
 with_tests: true
 with_gormx: false
 ```
