@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -313,19 +312,3 @@ func sessionHMAC(payload, secret string) string {
 	mac.Write([]byte(payload)) //nolint:errcheck
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
-
-// generateSessionID generates a random 32-byte URL-safe token.
-func generateSessionID() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		// crypto/rand failure is a system-level error (e.g. /dev/urandom unavailable).
-		// Using a predictable fallback would be insecure, so panic instead.
-		panic("session: crypto/rand unavailable: " + err.Error())
-	}
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-// NewSessionID generates a fresh random session ID string.
-// This is a convenience helper for applications that use the session to store
-// a session ID that references server-side state.
-func NewSessionID() string { return generateSessionID() }

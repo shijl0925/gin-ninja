@@ -187,9 +187,6 @@ session := middleware.GetSession(c)
 session.Set("user_id", "42")          // 变更会自动保存
 v, ok := session.Get("user_id")
 session.Delete("user_id")
-
-// 生成新的 session ID（用于服务端 session 存储）：
-id := middleware.NewSessionID()
 ```
 
 ### CSRF 防护

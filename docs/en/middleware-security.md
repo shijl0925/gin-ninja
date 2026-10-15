@@ -194,9 +194,6 @@ session := middleware.GetSession(c)
 session.Set("user_id", "42")          // mutations are saved automatically
 v, ok := session.Get("user_id")
 session.Delete("user_id")
-
-// Generate a fresh session ID (for server-side session stores):
-id := middleware.NewSessionID()
 ```
 
 ### CSRF Protection
