@@ -1,17 +1,68 @@
-# Data, Binding, and Responses
+# Responses, Errors, and Schemas
 
-[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/data-and-responses.md)
 
-## DTO Responses
+Request input belongs in input structs. Public output should usually be represented by DTO structs. gin-ninja writes typed handler return values as JSON and reflects the same types into OpenAPI response schemas.
 
-Prefer explicit DTO structs for public API responses. They keep the wire contract easy to read, avoid accidentally exposing model fields, and let OpenAPI derive the response schema directly from the handler return type.
+This page focuses only on returning data. For request bodies, read [Request Body and Form Data](./request-body-and-forms.md). For list query parameters, read [Query Schemas: Pagination, Filtering, and Ordering](./query-schemas.md). For a complete CRUD flow, read [CRUD Tutorial: Users](./crud-tutorial.md).
+
+## Typed Responses
+
+A regular handler returns `(*Out, error)`:
+
+```go
+type UserOut struct {
+    ID    uint   `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
+    Age   int    `json:"age"`
+}
+
+func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
+    user, err := service.GetUser(ctx.Request.Context(), in.UserID)
+    if err != nil {
+        return nil, err
+    }
+    out := toUserOut(user)
+    return &out, nil
+}
+
+ninja.Get(router, "/:id", getUser,
+    ninja.Summary("Get user"),
+)
+```
+
+On success, gin-ninja writes JSON with the operation's success status code. Returning `nil, nil` writes `204 No Content`.
+
+## Default Success Status
+
+| Registration helper | Default success status | Body |
+| --- | --- | --- |
+| `ninja.Get` | `200 OK` | handler `*Out` |
+| `ninja.Post` | `201 Created` | handler `*Out` |
+| `ninja.Put` | `200 OK` | handler `*Out` |
+| `ninja.Patch` | `200 OK` | handler `*Out` |
+| `ninja.Delete` | `204 No Content` | no body |
+
+Use `SuccessStatus` when you need a different success status:
+
+```go
+ninja.Post(router, "/exports", createExport,
+    ninja.Summary("Create export job"),
+    ninja.SuccessStatus(202),
+)
+```
+
+## Prefer DTOs
+
+Avoid exposing GORM models directly from public APIs. Use DTOs to make response fields explicit:
 
 ```go
 type User struct {
-    ID       uint   `json:"id"`
-    Name     string `json:"name"`
-    Email    string `json:"email"`
-    Password string `json:"password"`
+    ID       uint
+    Name     string
+    Email    string
+    Password string
 }
 
 type UserOut struct {
@@ -20,351 +71,157 @@ type UserOut struct {
     Email string `json:"email"`
 }
 
-func toUserOut(user User) UserOut {
-    return UserOut{
-        ID:    user.ID,
-        Name:  user.Name,
-        Email: user.Email,
-    }
+func toUserOut(u User) UserOut {
+    return UserOut{ID: u.ID, Name: u.Name, Email: u.Email}
 }
-
-func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
-    user := User{
-        ID:       1,
-        Name:     "alice",
-        Email:    "alice@example.com",
-        Password: "secret",
-    }
-    out := toUserOut(user)
-    return &out, nil
-}
-
-ninja.Get(router, "/users/:id", getUser)
 ```
 
-For list endpoints, return DTO items inside the pagination envelope and keep `Paginated[UserOut]()` on the route:
+Benefits:
+
+- Sensitive fields such as `Password` are not exposed accidentally.
+- OpenAPI response schemas remain stable.
+- Public API contracts can evolve separately from database models.
+
+## Paginated Responses
+
+List endpoints usually return `*pagination.Page[T]`:
 
 ```go
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    users, total := findUsers(in)
-    items := make([]UserOut, 0, len(users))
-    for _, user := range users {
-        items = append(items, toUserOut(user))
+    items, total, err := service.ListUsers(ctx.Request.Context(), in)
+    if err != nil {
+        return nil, err
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
 
-ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
+ninja.Get(router, "/", listUsers,
+    ninja.Summary("List users"),
+    ninja.Paginated[UserOut](),
+)
 ```
 
-This is the default style used by the examples and CRUD generator.
+Response shape:
 
-### Optional: ModelSchema
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "size": 20,
+  "pages": 0
+}
+```
 
-`ModelSchema` is still available as an advanced helper when a project deliberately wants runtime field pruning from model values. It is useful for admin-style tooling, highly repetitive CRUD shapes, or relation preload discovery, but it is no longer the recommended default for application-facing API contracts.
+`ninja.Paginated[UserOut]()` declares the paginated OpenAPI response schema. Pagination input, filtering, and ordering are covered in [Query Schemas: Pagination, Filtering, and Ordering](./query-schemas.md).
+
+Cursor pagination uses `*pagination.CursorPage[T]` with `ninja.CursorPaginated[T]()`.
+
+## Extra Response Documentation
+
+Use `Response` to document additional OpenAPI responses such as `404` or `409`:
 
 ```go
-type UserOut struct {
-    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+type ErrorOut struct {
+    Code    int    `json:"code"`
+    Message string `json:"message"`
 }
 
-func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
-    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
-}
-
-ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserOut]())
+ninja.Get(router, "/:id", getUser,
+    ninja.Summary("Get user"),
+    ninja.Response(404, "User not found", &ErrorOut{}),
+)
 ```
 
-`ResponseModel[UserOut]()` binds the handler's returned `User` value to `UserOut` at runtime, then applies response validation and field pruning. `fields:"..."` keeps only the listed serializable fields, while `exclude:"..."` removes sensitive fields from both the JSON response and generated OpenAPI schema.
+`Response` adds documentation only. Runtime errors are still written from handler-returned `error` values and framework error handling.
 
-If you prefer a reusable descriptor instead of a dedicated `UserOut` struct, use `ResponseSchema`:
+## Error Responses
+
+When a handler returns `error`, gin-ninja writes a standard error shape:
+
+```json
+{"code":404,"message":"not found","data":null}
+```
+
+Common built-in errors:
 
 ```go
-userSchema := ninja.ModelReadSchemaOf[User]().
-    Fields("id", "name", "email").
-    ComponentName("UserOut")
-
-func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
-    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
-}
-
-ninja.Get(router, "/users/:id", getUser, ninja.ResponseSchema(userSchema))
+return nil, ninja.BadRequestError()
+return nil, ninja.UnauthorizedError()
+return nil, ninja.ForbiddenError()
+return nil, ninja.NotFoundError()
+return nil, ninja.ConflictError()
 ```
 
-`ResponseSchema(...)` prunes fields at runtime and documents the same schema in OpenAPI. For slices, `pagination.Page[T]`, and `pagination.CursorPage[T]`, use `ResponseModel[[]UserOut]()`, `Paginated[UserOut]()` / `PaginatedSchema(...)`, and `CursorPaginated[UserOut]()` / `CursorPaginatedSchema(...)`; paginated `items` are bound and validated item by item.
-
-If you only need ad-hoc filtering without defining a response type or route-level schema, use `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`. If you explicitly need a schema value, `ninja.BindModelSchema[UserOut](model)` and `ninja.BindModelSchemas[UserOut](models)` are still available.
-
-#### Relation Depth and GORM Preloads
-
-`Depth(n)` continues the same model schema mode into nested models, which is useful for detail responses:
+Custom status and message:
 
 ```go
-type UserDetailOut struct {
-    ninja.ModelSchema[User] `mode:"read" depth:"1"`
-}
-
-func getUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
-    db := orm.ApplyResponseModelPreloads[UserDetailOut](orm.WithContext(ctx.Context))
-
-    var user User
-    if err := db.First(&user, in.ID).Error; err != nil {
-        return nil, err
-    }
-    return &user, nil
-}
-
-ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
+return nil, ninja.NewError(422, "email already exists")
 ```
 
-With descriptor-style schemas, inspect preload paths with `descriptor.Preloads()` or apply them directly to GORM with `orm.ApplyModelSchemaPreloads(db, descriptor)`.
+When request binding or `binding:"..."` validation fails, the handler is not called and the framework returns `422 Unprocessable Entity`:
 
-#### Binding Inputs to Models
+```json
+{
+  "code": 422,
+  "message": "request validation failed",
+  "data": {
+    "errors": [
+      {"field": "email", "message": "must be a valid email"}
+    ]
+  }
+}
+```
 
-Request input is still handled by ordinary structs and `binding:"..."` tags. Once an input struct has been bound, you can reuse ModelSchema field rules to apply it to a GORM model and reduce repetitive assignment code:
+Invalid JSON bodies return `400 Bad Request`; JSON bodies over the size limit return `413 Request Entity Too Large`. OpenAPI automatically includes `422 Validation Error` and `500 Internal Server Error` response descriptions for operations. To map common repository/service errors into HTTP errors, see [Error Mapping](./api-and-configuration.md#error-mapping).
+
+For delete endpoints, `ninja.Delete` handlers return only `error`:
 
 ```go
-type CreateUserInput struct {
-    Name     string `json:"name" binding:"required"`
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=8"`
-}
-
-func createUser(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
-    user, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)
-    if err != nil {
-        return nil, err
+func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
+    if err := service.DeleteUser(ctx.Request.Context(), in.UserID); err != nil {
+        return err
     }
-    if err := orm.WithContext(ctx.Context).Create(user).Error; err != nil {
-        return nil, err
-    }
-    return user, nil
+    return nil
 }
 ```
 
-For PATCH-style partial updates, use pointer fields to represent omitted values, then apply the input to an existing model:
+Success writes `204 No Content`.
 
-```go
-type UpdateUserInput struct {
-    ID    uint    `path:"id" json:"-"`
-    Name  *string `json:"name"`
-    Email *string `json:"email" binding:"omitempty,email"`
-}
+## Raw Gin Responses
 
-func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
-    var user User
-    db := orm.WithContext(ctx.Context)
-    if err := db.First(&user, in.ID).Error; err != nil {
-        return nil, err
-    }
-    if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&user, in); err != nil {
-        return nil, err
-    }
-    if err := db.Save(&user).Error; err != nil {
-        return nil, err
-    }
-    return &user, nil
-}
-```
-
-`BindInput` / `ApplyInput` reuse `fields`, `exclude`, `mode`, GORM tags, and `ninja:"create_only"` / `ninja:"update_only"` / `ninja:"write_only"` field rules; nil pointer fields in update inputs are skipped.
-
----
-
-## Standard Response Envelope
+Typed handlers should usually return DTOs directly. If you are writing a raw Gin handler, use `pkg/response`:
 
 ```go
 import "github.com/shijl0925/gin-ninja/pkg/response"
 
-// Success: {"code": 200, "message": "success", "data": {...}}
-response.Success(c, users)
+func health(c *gin.Context) {
+    response.Success(c, gin.H{"status": "ok"})
+}
+```
 
-// Error:   {"code": 404, "message": "not found", "data": null}
+Common helpers:
+
+```go
+response.Success(c, data)
 response.NotFound(c, "user not found")
-
-// Custom:  {"code": 200, "message": "created", "data": {...}}
-response.JSON(c, response.OKWithMessage("created", user))
+response.JSON(c, response.OKWithMessage("created", data))
 ```
 
-Framework errors use the same root-level envelope:
+## Optional Advanced Usage: ModelSchema
 
-```json
-{"code": 404, "message": "not found", "data": null}
-```
+Public APIs should still usually prefer explicit DTOs. If you are building internal admin tools, repetitive CRUD, generated code, or a route that intentionally derives response fields from model rules, use advanced APIs such as `ModelSchema`, `ResponseModel`, `ResponseSchema`, and `PaginatedSchema`.
 
----
+These APIs affect both runtime JSON output and OpenAPI schemas, and can use `Depth(n)` to derive GORM preload paths. Read [ModelSchema Advanced Usage](./model-schema.md) for the full guide.
 
-## Parameter Binding
+## Choosing A Response Style
 
-| Tag          | Source                         | Methods            |
-|--------------|--------------------------------|--------------------|
-| `path:"x"`   | URL path parameter             | all                |
-| `query:"x"`  | URL query string               | all                |
-| `form:"x"`   | Form body field                | POST / PUT / PATCH |
-| `header:"x"` | Request header                 | all                |
-| `cookie:"x"` | Request cookie                 | all                |
-| `json:"x"`   | JSON request body              | POST / PUT / PATCH |
-| `file:"x"`   | Multipart uploaded file(s)     | POST / PUT / PATCH |
+| Case | Recommended shape |
+| --- | --- |
+| Public business API | Explicit DTO struct |
+| List endpoint | `pagination.Page[T]` + `ninja.Paginated[T]()` |
+| Document extra error responses | `ninja.Response(...)` |
+| Internal CRUD wants reusable model-derived schemas | [ModelSchema Advanced Usage](./model-schema.md) |
+| Raw Gin handler | `pkg/response` |
 
-`binding:"..."` uses [go-playground/validator](https://github.com/go-playground/validator).
-
-`default:"..."` applies to `query`, `form`, `header`, and `cookie` fields when the client omits the value.
-
----
-
-## Declarative Filtering & Safe Sorting
-
-### Declarative filtering
-
-Embed `pagination.PageInput` in a list input struct, then add `filter:"column,op"` to query fields that should become database filters. To match one input field against multiple columns, separate the columns with `|`:
-
-```go
-type ListUsersInput struct {
-    pagination.PageInput
-    Search  string `query:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-    IsAdmin *bool  `query:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
-}
-```
-
-Supported operators:
-
-- `eq`
-- `ne`
-- `gt`
-- `ge`
-- `lt`
-- `le`
-- `like`
-- `in`
-
-Apply the declared filters in the handler:
-
-```go
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
-    query, _ := gormx.NewQuery[User]()
-
-    filterOpts, err := filter.BuildOptions(in)
-    if err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    opts := append(filterOpts, query.ToOptions()...)
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
-    if err != nil {
-        return nil, err
-    }
-    return pagination.NewPage(items, total, in.PageInput), nil
-}
-
-ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
-```
-
-Behavior notes:
-
-- only fields tagged with `filter:"..."` participate in filtering
-- zero values are ignored, so omitted query params do not add conditions
-- `like` is suitable for contains-style fuzzy matching
-- `filter:"name|email,like"` means `(name LIKE ? OR email LIKE ?)`; multi-field declarative filters use OR semantics
-- for logic that cannot be represented by tags, the input may implement `FilterExpression() clause.Expression`; the returned expression is applied with `AND` alongside tagged filters by `filter.BuildOptions(...)` and `filter.ApplyDB(...)`
-- invalid filter declarations return a 400 error when you surface `filter.BuildOptions(...)` or `filter.Apply(...)` errors
-
-### Safe sorting
-
-Use a `sort` query parameter with an `order:"..."` allowlist. Prefix a field with `-` for descending or `+` for ascending:
-
-- `sort=name`
-- `sort=-created_at`
-- `sort=name,-age`
-
-For paginated handlers, keep using `pagination.PageInput` for page/size and declare `Sort` separately:
-
-```go
-import "github.com/shijl0925/gin-ninja/order"
-
-type ListUsersInput struct {
-    pagination.PageInput
-    Sort   string `query:"sort" order:"id|name|email|age|is_admin|created_at"`
-    Search string `query:"search" filter:"name|email,like"`
-}
-
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
-    query, _ := gormx.NewQuery[User]()
-
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
-    if err != nil {
-        return nil, err
-    }
-    return pagination.NewPage(items, total, in.PageInput), nil
-}
-
-ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
-```
-
-### Cursor pagination
-
-Use `pagination.CursorPagination` when list endpoints need stable pagination over
-large or frequently changing datasets. The cursor is opaque to gin-ninja; encode
-the ordered field values your storage layer needs, then return the next cursor
-in `pagination.CursorPage[T]`:
-
-```go
-type ListEventsInput struct {
-    pagination.CursorPagination
-}
-
-func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[Event], error) {
-    items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
-    if err != nil {
-        return nil, err
-    }
-    return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
-}
-```
-
-Document the response envelope and runtime item schema with `ninja.CursorPaginated[EventOut]()`.
-
-For simple single-column keyset pagination with GORM, use `orm.SelectCursorPage`:
-
-```go
-items, nextCursor, err := orm.SelectCursorPage(
-    db,
-    in.CursorPagination,
-    "id",
-    strconv.Atoi,
-    func(item Event) string { return strconv.Itoa(item.ID) },
-)
-if err != nil {
-    return nil, err
-}
-return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
-```
-
-If you need a public alias that maps to a different database column, use `alias:column` or `alias=column`:
-
-```go
-type ListUsersInput struct {
-    Sort string `query:"sort" order:"name|created:created_at"`
-}
-```
-
-Any sort field outside the allowlist is rejected with an error instead of being passed through to the query layer.
-
-### Example
-
-The full example app uses declarative sorting on paginated users:
-
-- `GET /api/v1/users` → paginated filtering + sorting
-- `sort` → validated by `order:"..."` allowlists before reaching the query layer
-
-Try requests like:
-
-- `/api/v1/users?search=ali`
-- `/api/v1/users?is_admin=true&sort=-age`
-
----
-
-Previous: [Middleware and Security](./middleware-security.md) | Next: [File Transfer and OpenAPI Controls](./files-and-openapi.md)
+Previous: [Query Schemas: Pagination, Filtering, and Ordering](./query-schemas.md) | Next: [CRUD Tutorial: Users](./crud-tutorial.md)

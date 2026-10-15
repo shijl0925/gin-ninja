@@ -1,216 +1,225 @@
 # 配置、Bootstrap 与生命周期
 
-[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+[文档首页](../README.md) | [中文索引](./README.md) | [English](../en/configuration.md)
 
-## 配置管理（settings）
+项目从 demo 走向真实应用时，通常需要把端口、数据库、JWT、CORS、日志等配置从代码里挪出来。gin-ninja 提供 `settings` 负责加载配置，`bootstrap` 负责初始化日志和数据库。
 
-```go
-import "github.com/shijl0925/gin-ninja/settings"
+## 最小配置文件
 
-cfg := settings.MustLoad("config.yaml")
-// 或
-cfg, err := settings.Load("config.yaml")
-```
-
-示例 `config.yaml`：
+创建 `config.yaml`：
 
 ```yaml
 app:
   name: "My API"
   version: "1.0.0"
-  env: "production"
-  debug: false
+  env: "development"
+  debug: true
 
 server:
   host: "0.0.0.0"
   port: 8080
+  read_timeout: 60
+  write_timeout: 60
 
 database:
   driver: "sqlite"
   dsn: "app.db"
 
+jwt:
+  secret: "${JWT_SECRET:change-me-in-development}"
+  expire_hours: 24
+  issuer: "gin-ninja"
+
 cors:
-  # 生产环境请保持 origins 显式配置。
-  allow_origins:
-    - "https://app.example.com"
+  allow_origins: ["http://localhost:3000", "http://localhost:5173"]
   allow_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
   allow_headers: ["Origin", "Content-Type", "Authorization", "X-Request-ID"]
   allow_credentials: false
   max_age_secs: 43200
 
-jwt:
-  secret: "change-me-in-production"
-  expire_hours: 24
-
 log:
   level: "info"
   format: "json"
-  output: "stdout"      # 改成文件路径即可启用文件日志，如 "logs/app.log"
-  max_size_mb: 100      # 单文件达到 100 MB 后滚动
-  max_age_days: 7       # 旧日志保留 7 天
-  max_backups: 3        # 最多保留 3 个滚动文件
-  compress: false       # 为 true 时压缩旧日志
+  output: "stdout"
 ```
 
-MySQL / PostgreSQL 可以使用同一个 `database` 配置块：
-
-```yaml
-database:
-  # MySQL
-  driver: "mysql"
-  dsn: "root:p%40ss%3Aword@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
-
-  # 或使用结构化字段，密码中的特殊字符会被安全转义：
-  # mysql:
-  #   host: "127.0.0.1"
-  #   port: 3306
-  #   user: "root"
-  #   password: "p@ss:word+plus"
-  #   name: "gin_ninja"
-  #   charset: "utf8mb4"
-  #   parse_time: true
-  #   loc: "Local"
-
-  # PostgreSQL
-  # driver: "postgres"
-  # dsn: "host=127.0.0.1 user=postgres password=postgres dbname=gin_ninja port=5432 sslmode=disable TimeZone=Asia/Shanghai"
-  # postgres:
-  #   host: "127.0.0.1"
-  #   port: 5432
-  #   user: "postgres"
-  #   password: "p@ss word"
-  #   name: "gin_ninja"
-  #   sslmode: "disable"
-  #   time_zone: "Asia/Shanghai"
-```
-
-如果仍然提供原始 MySQL DSN，且密码包含 `@`、`:`、`/`、`?`、`#` 或 `+` 等保留字符，请先对密码片段进行 URL 编码。结构化的 `database.mysql` / `database.postgres` 字段可以避免手动转义。
-
-### 配置值中的密码与环境变量占位符
-
-将明文密码写入 `config.yaml` 存在安全风险，尤其在容器化或云部署中文件可能被提交到代码仓库。gin-ninja 支持在任意字符串配置值中使用 Spring 风格的 `${VAR}` / `${VAR:default}` 占位符。YAML 文件解析完成后，每个 token 都会替换为对应环境变量的值。如果变量未设置或为空，则使用第一个 `:` 后面的默认值；省略默认值会让字段变为空字符串。
-
-```yaml
-database:
-  driver: "postgres"
-  # 整条 DSN 来自环境变量，未设置时回退到本地开发连接。
-  dsn: "${DATASOURCE_URL:host=localhost user=postgres dbname=myapp sslmode=disable}"
-
-  # 或使用结构化字段，每个凭证对应独立环境变量。
-  postgres:
-    host:     "${DB_HOST:localhost}"
-    user:     "${DB_USER:postgres}"
-    password: "${DB_PASSWORD}"          # 无默认值 → 未设置时为空字符串
-
-jwt:
-  secret: "${JWT_SECRET:change-me-in-production}"
-```
-
-单个值中可同时使用多个占位符：
-
-```yaml
-database:
-  dsn: "${DB_USER:root}:${DB_PASSWORD}@tcp(${DB_HOST:127.0.0.1}:3306)/${DB_NAME:app}"
-```
-
-**优先级（由低到高）**
-
-| 来源 | 示例 |
-|---|---|
-| `config.yaml` 中的字面值 | `password: "fallback"` |
-| `${VAR:default}` 中的默认值 | `password: "${DB_PASSWORD:fallback}"` |
-| 占位符对应的环境变量 | `DB_PASSWORD=real-pass` |
-| 双下划线环境变量覆盖 | `DATABASE__POSTGRES__PASSWORD=top` |
-
-双下划线覆盖（Viper `AutomaticEnv`）最后应用，因此优先级高于占位符。对于没有占位符的字段，也可以用它直接覆盖。
-
-环境变量使用双下划线分隔符覆盖文件配置：
-
-```bash
-export SERVER__PORT=9090
-export JWT__SECRET=my-secret
-```
-
-### 多环境配置合并
-
-对于有环境差异配置的项目，使用 `LoadWithOverrides` 或 `LoadForEnv`。
-
-**`LoadWithOverrides`** – 先加载基础文件，再合并一个或多个覆盖文件。后面的文件优先生效。缺失的覆盖文件会被静默跳过，因此即使某些环境才有该文件，也可以安全地提交覆盖路径。
+加载配置：
 
 ```go
-// 如果存在 config.local.yaml，则合并到 config.yaml 之上。
-cfg := settings.MustLoadWithOverrides("config.yaml", "config.local.yaml")
+cfg := settings.MustLoad("config.yaml")
 ```
 
-**`LoadForEnv`** – 根据 `app.env`（或 `APP__ENV` 环境变量）自动发现并合并对应环境的覆盖文件。
-
-```
-config.yaml             ← 基础配置（总是加载）
-config.production.yaml  ← app.env=production 时合并
-config.staging.yaml     ← app.env=staging 时合并
-config.development.yaml ← app.env=development（默认）时合并
-```
+如果你想自己处理错误：
 
 ```go
-// 从 config.yaml 读取 app.env，然后合并 config.<env>.yaml。
-cfg := settings.MustLoadForEnv("config.yaml")
+cfg, err := settings.Load("config.yaml")
+if err != nil {
+    return err
+}
 ```
 
-只有覆盖文件中出现的键会被修改；其他键保持基础配置或默认值。
-
----
-
-## Bootstrap
+## 接入应用
 
 ```go
 import (
+    "fmt"
+    "log"
+    "time"
+
     ninja "github.com/shijl0925/gin-ninja"
     "github.com/shijl0925/gin-ninja/bootstrap"
     _ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+    "github.com/shijl0925/gin-ninja/middleware"
     "github.com/shijl0925/gin-ninja/orm"
     "github.com/shijl0925/gin-ninja/settings"
 )
 
-cfg := settings.MustLoad("config.yaml")
+func main() {
+    cfg := settings.MustLoad("config.yaml")
 
-log := bootstrap.InitLogger(&cfg.Log)
-defer func() { _ = log.Sync() }()
+    logger := bootstrap.InitLogger(&cfg.Log)
+    defer func() { _ = logger.Sync() }()
 
-// 初始化数据库。
-db := bootstrap.MustInitDB(&cfg.Database)
+    db := bootstrap.MustInitDB(&cfg.Database)
 
-api := ninja.New(ninja.Config{Settings: cfg})
-api.UseGin(orm.Middleware(db))
+    api := ninja.New(ninja.Config{
+        Title:        cfg.App.Name,
+        Version:      cfg.App.Version,
+        Settings:     cfg,
+        ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+        WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+    })
+
+    api.UseGin(
+        middleware.RequestID(),
+        middleware.CORSFromConfig(cfg.CORS),
+        orm.Middleware(db),
+    )
+
+    log.Fatal(api.Run(fmt.Sprintf(":%d", cfg.Server.Port)))
+}
 ```
 
-`bootstrap.MustInitDB` 通过注册包解析数据库驱动。请按配置的驱动导入对应包，例如：
+数据库驱动通过空导入注册。按实际配置选择一个或多个：
 
-- `github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite`
-- `github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql`
-- `github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres`
+```go
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/sqlite"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/mysql"
+_ "github.com/shijl0925/gin-ninja/bootstrap/drivers/postgres"
+```
 
-`examples/full/config.yaml` 已包含可直接复制的 MySQL 和 PostgreSQL DSN 示例。
+## 数据库配置
 
-### 解析器变更的边界用例清单
+SQLite：
 
-对于任何解析外部字符串的代码（DSN、请求头、query/form 值、filter/sort DSL、版本参数），请验证：
+```yaml
+database:
+  driver: "sqlite"
+  dsn: "app.db"
+```
 
-- 协议字符串应作为结构化输入处理，而不是普通文本
-- 覆盖特殊字符：`@ : / ? # % + = , ;` 和空格
-- 覆盖空值、格式错误、重复输入和大小写混合输入
-- 文档示例有对应测试
-- 纯解析辅助函数有 fuzz/property 覆盖，避免 panic 和静默重新解释
+MySQL 可以写 DSN：
 
----
+```yaml
+database:
+  driver: "mysql"
+  dsn: "root:password@tcp(127.0.0.1:3306)/gin_ninja?charset=utf8mb4&parseTime=True&loc=Local"
+```
+
+也可以写结构化字段，密码里的特殊字符会安全处理：
+
+```yaml
+database:
+  driver: "mysql"
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    user: "root"
+    password: "${DB_PASSWORD}"
+    name: "gin_ninja"
+    charset: "utf8mb4"
+    parse_time: true
+    loc: "Local"
+```
+
+PostgreSQL：
+
+```yaml
+database:
+  driver: "postgres"
+  postgres:
+    host: "127.0.0.1"
+    port: 5432
+    user: "postgres"
+    password: "${DB_PASSWORD}"
+    name: "gin_ninja"
+    sslmode: "disable"
+    time_zone: "Asia/Shanghai"
+```
+
+## 环境变量
+
+任意字符串配置都支持 `${VAR}` 和 `${VAR:default}`：
+
+```yaml
+database:
+  dsn: "${DATASOURCE_URL:app.db}"
+
+jwt:
+  secret: "${JWT_SECRET}"
+```
+
+也可以用双下划线覆盖任意配置项：
+
+```bash
+export SERVER__PORT=9090
+export JWT__SECRET=real-secret
+export DATABASE__POSTGRES__PASSWORD=top-secret
+```
+
+优先级从低到高：
+
+| 来源 | 示例 |
+| --- | --- |
+| YAML 字面值 | `secret: "dev"` |
+| 占位符默认值 | `${JWT_SECRET:dev}` |
+| 占位符环境变量 | `JWT_SECRET=real` |
+| 双下划线覆盖 | `JWT__SECRET=real` |
+
+生产环境不要把真实密码和 JWT secret 提交到仓库。
+
+## 多环境配置
+
+如果你有本地、测试、生产三套配置，可以把基础配置和环境差异拆开：
+
+```text
+config.yaml
+config.development.yaml
+config.staging.yaml
+config.production.yaml
+```
+
+按 `app.env` 自动合并：
+
+```go
+cfg := settings.MustLoadForEnv("config.yaml")
+```
+
+或者手动指定覆盖文件：
+
+```go
+cfg := settings.MustLoadWithOverrides("config.yaml", "config.local.yaml")
+```
+
+后面的文件优先级更高；不存在的覆盖文件会被跳过。
 
 ## 生命周期钩子
+
+启动时预热缓存、关闭时释放资源，可以使用生命周期钩子：
 
 ```go
 api := ninja.New(ninja.Config{
     GracefulShutdownTimeout: 15 * time.Second,
-    ReadTimeout:             15 * time.Second,
-    WriteTimeout:            30 * time.Second,
-    IdleTimeout:             60 * time.Second,
 })
 
 api.OnStartup(func(ctx context.Context, api *ninja.NinjaAPI) error {
@@ -224,9 +233,15 @@ api.OnShutdown(func(ctx context.Context, api *ninja.NinjaAPI) error {
 log.Fatal(api.Run(":8080"))
 ```
 
-`Run()` 会在 `SIGINT` / `SIGTERM` 时执行优雅关闭，并且只执行一次 shutdown hooks。
-`Serve(listener)` 可用于自定义嵌入和手动关闭编排。
+`Run()` 收到 `SIGINT` 或 `SIGTERM` 时会执行优雅关闭，并只执行一次 shutdown hooks。需要嵌入自定义 server 时，可以使用 `Serve(listener)` 和 `Shutdown(ctx)`。
 
----
+## 排查配置解析问题
 
-上一篇: [项目与 CRUD 脚手架](./scaffolding.md) | 下一篇: [中间件与安全](./middleware-security.md)
+改动 DSN、请求头、query/form、filter/sort 或版本参数解析时，建议覆盖这些情况：
+
+- 特殊字符：`@ : / ? # % + = , ;` 和空格
+- 空值、重复值、格式错误和大小写混合
+- 密码字段是否经过正确转义
+- 示例配置是否有测试或可运行示例覆盖
+
+上一篇：[项目与 CRUD 脚手架](./scaffolding.md) | 下一篇：[中间件与安全](./middleware-security.md)

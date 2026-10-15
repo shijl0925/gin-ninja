@@ -1,141 +1,84 @@
 # 概览
 
-[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+[文档首页](../README.md) | [中文索引](./README.md) | [English](../en/overview.md)
 
-## gin-ninja 是什么？
+gin-ninja 是一个构建在 Gin 之上的 API 框架。它保留 Gin 的路由性能和生态，同时补上类型化输入输出、自动 OpenAPI 文档、常用中间件、分页过滤、配置加载、脚手架和测试工具。
 
-gin-ninja 适合希望保留 Gin 路由性能，同时获得更结构化 API 层的 Go 团队：
+## 适合什么项目
 
-- 使用普通 Go 结构体定义处理器输入，避免手写绑定样板代码
-- 从同一套路由定义自动生成 OpenAPI 和 Swagger UI
-- 将横切能力放在可复用中间件和操作选项中
-- 从小型 CRUD 服务扩展到版本化、有文档、面向生产的 API
+gin-ninja 适合这些场景：
 
-典型使用场景：
+- 你想继续使用 Gin，但不想在每个接口里手写 `ShouldBindQuery`、`ShouldBindJSON` 和响应 schema。
+- 你希望接口代码和 Swagger/OpenAPI 文档来自同一份路由定义。
+- 你在写 CRUD、后台、内部平台或服务端 API，需要请求校验、分页、过滤、认证和测试工具。
+- 你希望小项目可以很轻，项目变大后也能拆成 router、controller、app package 和脚手架生成代码。
 
-- 需要严格请求/响应契约的 REST API
-- 需要快速迭代且接口文档始终最新的内部平台
-- 需要内置认证、安全头、请求日志和配置加载的服务
-- 需要版本化 API、可缓存读端点和清晰 HTTP 接口文档的应用
+如果只是写一个极小的 Gin demo，直接用 Gin 也很好；当接口开始变多、参数和文档开始重复时，gin-ninja 的价值会更明显。
 
-## 架构概览
+## 请求如何流转
 
-运行时，gin-ninja 在 Gin 之上增加类型化 API 层：
+一次请求进入 gin-ninja 后，大致经历这些步骤：
 
-1. Gin 接收传入的 HTTP 请求。
-2. 引擎级和路由级中间件先执行。
-3. gin-ninja 将 path/query/header/cookie/body/file 输入绑定到类型化结构体。
-4. 类型化处理器通过 `*ninja.Context` 执行。
-5. 框架写出 JSON 或下载响应。
-6. 路由元数据会复用于生成 OpenAPI 文档和 Swagger UI。
+1. Gin 接收 HTTP 请求。
+2. 全局或路由级中间件先运行，例如日志、CORS、JWT。
+3. gin-ninja 根据输入结构体标签绑定 `path`、`query`、`header`、`cookie`、`json`、`form`、`file`。
+4. `binding:"..."` 校验失败时自动返回错误响应。
+5. 处理函数执行业务逻辑并返回 Go 结构体。
+6. 框架把结果写成 JSON、分页响应或下载响应。
+7. 同一份路由和结构体元数据用于生成 `/openapi.json` 和 `/docs`。
 
-## 主要特性
+## 核心模块地图
 
-- **类型安全处理器** – 使用普通 Go 结构体定义请求输入和显式 DTO 响应输出。
-- **自动参数绑定** – path 参数（`path:`）、query 参数（`query:`）、请求头（`header:`）、Cookie（`cookie:`）以及 JSON/form 请求体（`json:` / `form:`）都通过结构体标签绑定。
-- **默认参数值** – `default:"..."` 适用于 query/header/cookie 字段，并会反映到 OpenAPI。
-- **校验** – 基于 [go-playground/validator](https://github.com/go-playground/validator)，使用标准 `binding:` 标签。
-- **文件传输抽象** – 一等支持 multipart 上传绑定和二进制下载响应。
-- **自动生成 OpenAPI 3.0 文档** – 作为 `/openapi.json` 提供。
-- **Swagger UI** – 开箱即用地提供 `/docs`。
-- **路由分组** – 使用共享前缀、OpenAPI 标签和路由级中间件嵌套路由。
-- **API Controller** – 通过 `Controller` 接口和 `api.AddController` 将资源路由组织到支持依赖注入的结构体中。
-- **Gin 中间件支持** – API 和单个 Router 都支持 `UseGin()`。
-- **OpenAPI 控制** – 从文档中隐藏内部端点，并为操作声明额外响应。
-- **操作级控制** – 每端点超时、内存限流和标准分页响应声明。
-- **高级 ModelSchema 辅助能力** – 当运行时字段裁剪比显式 DTO 映射更合适时，可选使用 `ResponseModel` / `ResponseSchema`。
-- **路由级缓存** – 内置 `Cache(...)`、`ETag()`、`CacheControl(...)` 和轻量内存存储，适合读多端点。
-- **API 版本隔离** – 版本感知路由、按版本输出 OpenAPI/Swagger，以及弃用响应头。
-- **分页** – 可复用 `PageInput` 和 `Page[T]` 类型，统一列表响应。
-- **ORM 集成** – 基于 [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) 的 repository/service 模式薄封装。
-- **内置中间件** – CORS、JWT 认证、结构化请求日志（Zap）、请求 ID、panic 恢复、i18n 语言协商、**HMAC 签名 Cookie session**、**CSRF 防护**、**安全响应头**、**上传大小/内容类型限制**。
-- **生命周期钩子** – 启动和关闭钩子，支持优雅关闭。
-- **配置管理** – 基于 Viper 的 YAML/env 配置管理，支持**多环境覆盖**。
-- **日志** – 基于 Zap 的结构化日志，支持 console/JSON 输出、文件输出和按大小滚动。
-- **标准响应信封** – `{"code": 200, "message": "success", "data": ...}`。
-- **Bootstrap 辅助函数** – 一次调用完成数据库和日志初始化。
-- **i18n / L10n** – 通过 `Accept-Language` 协商语言，支持中英文校验错误和通用消息翻译。
-- **API 版本弃用** – 符合 RFC 的 `Deprecation` 与 `Sunset` 日期头，以及迁移链接。
-
----
-
-## 包结构
-
-```
-gin-ninja/
-├── ninja.go          ← NinjaAPI（核心 API 实例）
-├── router.go         ← Router（路由分组）
-├── operation.go      ← 类型化处理器包装
-├── binding.go        ← 参数绑定（path/query/header/body）
-├── context.go        ← Context（扩展 *gin.Context）
-├── errors.go         ← 类型化错误类型
-├── cache.go          ← 路由缓存、ETag、缓存失效辅助函数
-├── openapi.go        ← OpenAPI 3.0 spec 生成 + Swagger UI
-├── schema.go         ← JSON Schema 生成
-├── transfer.go       ← 上传/下载抽象
-├── versioning.go     ← 版本感知文档与弃用响应头
-│
-├── middleware/       ← 生产级 HTTP 中间件
-│   ├── cors.go       ← CORS（gin-contrib/cors）
-│   ├── csrf.go       ← CSRF double-submit cookie 防护
-│   ├── i18n.go       ← 语言协商（Accept-Language）
-│   ├── jwt.go        ← JWT 认证（golang-jwt/jwt）
-│   ├── logger.go     ← 结构化请求日志（Zap）
-│   ├── recovery.go   ← panic 恢复
-│   ├── requestid.go  ← 注入 X-Request-ID
-│   ├── secure.go     ← 安全响应头
-│   ├── session.go    ← HMAC 签名 Cookie session
-│   └── upload.go     ← 上传大小限制 + content-type 白名单
-│
-├── pkg/
-│   ├── i18n/         ← 语言协商 + 校验错误翻译
-│   │   └── i18n.go
-│   ├── logger/       ← Zap logger bootstrap
-│   └── response/     ← 标准 JSON 响应信封
-│
-├── settings/         ← 基于 Viper 的配置
-│   └── settings.go   ← Config、Load、MustLoad、LoadWithOverrides、LoadForEnv
-│
-├── bootstrap/        ← 应用 bootstrap 辅助函数
-│   └── bootstrap.go  ← InitLogger、InitDB、MustInitDB
-│
-├── filter/           ← 声明式查询过滤构建器
-├── order/            ← 安全排序辅助函数
-├── orm/              ← gormx 集成
-│   └── orm.go        ← Init、Middleware、GetDB、WithContext
-│
-├── pagination/       ← 分页类型
-│   └── pagination.go ← PageInput、Page[T]
-│
-└── examples/         ← 可运行的 basic、users、features 和 full 应用；admin 为可选开启
-```
-
-核心模块职责：
-
-| 模块 | 职责 |
+| 模块 | 你会在什么时候用 |
 | --- | --- |
-| `NinjaAPI` | 管理 Gin 引擎、全局中间件、生命周期钩子和 OpenAPI/Swagger 端点 |
-| `Router` | 按前缀、标签、版本和路由级中间件组织端点 |
-| `operation.go` | 包装类型化处理器、绑定输入、执行选项并写出类型化响应 |
-| `binding.go` | 将 path/query/header/cookie/json/multipart 输入映射到结构体 |
-| `middleware/` | 提供生产级认证、日志、i18n、安全、session 和上传中间件 |
-| `cache.go` / `versioning.go` | 添加缓存和 API 版本/弃用能力 |
+| `ninja.New` / `NinjaAPI` | 创建应用、设置标题、版本、全局前缀、文档地址、生命周期和全局中间件 |
+| `Router` | 按业务资源分组接口，例如 `/users`、`/orders` |
+| `ninja.Get/Post/Put/Patch/Delete` | 注册一个类型化接口 |
+| `Controller` | 把同一个资源的多个接口组织到结构体里，便于注入 DB 或 service |
+| `binding.go` | 自动绑定请求输入；日常使用只需要写 struct tag |
+| `pagination` | 统一 `page`、`size` 输入和分页响应 |
+| `filter` / `order` | 用 tag 声明可过滤、可排序字段，避免拼接不安全 SQL |
+| `middleware` | CORS、JWT、API Key、Session、CSRF、安全头、日志、恢复、i18n、上传限制 |
+| `settings` | 从 YAML 和环境变量加载配置 |
+| `bootstrap` | 初始化日志和数据库连接 |
+| `orm` | 将 GORM DB 放入请求上下文，配合事务和 repository 使用 |
+| `cache.go` | 为读接口开启缓存、ETag 和 Cache-Control |
+| `versioning.go` | 为不同 API 版本生成独立路由和文档 |
+| `testing` | 用 `ninjatest.TestClient` 写内存内 API 测试 |
+| `cmd/gin-ninja-cli` | 创建项目、app、迁移和 CRUD 起步代码 |
+| `admin` | 可选后台 API 和内置 UI shell，适合内部管理工具 |
 
----
+## 目录快速认识
 
-## 安装
-
-```bash
-go get github.com/shijl0925/gin-ninja
+```text
+gin-ninja/
+├── ninja.go              # NinjaAPI 和 Config
+├── router.go             # Router、Controller、路由注册函数
+├── operation.go          # Operation 选项、响应写出、超时/限流/事务
+├── binding.go            # 请求绑定和校验
+├── transfer.go           # UploadedFile 和 Download
+├── openapi.go            # OpenAPI/Swagger/ReDoc
+├── cache.go              # 路由级缓存
+├── versioning.go         # API 版本
+├── middleware/           # 常用 HTTP 中间件
+├── settings/             # 配置加载
+├── bootstrap/            # 日志和数据库初始化
+├── filter/ order/        # 过滤和排序
+├── pagination/           # 分页输入和输出
+├── testing/              # TestClient
+├── admin/                # 可选 Admin
+├── cmd/gin-ninja-cli/    # 脚手架和迁移 CLI
+└── examples/             # 可运行示例
 ```
 
-## Copilot Skill
+## 第一次学习建议
 
-仓库现在内置了工作区 Skill：`.github/skills/gin-ninja/`。
+不要一开始就把所有模块都接上。推荐顺序是：
 
-- 可以用 `/gin-ninja` 显式调用
-- 也可以让智能体在处理 gin-ninja 相关 API、中间件、脚手架和 OpenAPI 任务时自动加载
+1. 只写一个 `NinjaAPI`、一个 `Router`、一个 `GET` 接口。
+2. 再给接口加 `query`、`path`、`json` 输入和 DTO 响应。
+3. 接着把 users 这类资源拆到单独 router 或 controller。
+4. 项目开始需要数据库时，再引入 `settings`、`bootstrap`、`orm` 和迁移。
+5. 上线前补齐 CORS、认证、安全头、日志、测试和必要的缓存。
 
----
-
-下一篇: [快速开始](./getting-started.md)
+下一篇：[快速开始](./getting-started.md)

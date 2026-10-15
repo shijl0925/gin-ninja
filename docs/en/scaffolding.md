@@ -1,124 +1,181 @@
 # Project and CRUD Scaffolding
 
-[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/scaffolding.md)
 
-## Project / App Scaffold Commands
+For a small demo, a handwritten `main.go` is enough. When you need a real project layout, app packages, migrations, or CRUD starter code, use `gin-ninja-cli`.
 
-gin-ninja also includes Django-style bootstrap commands for quickly creating a runnable project and new app packages.
-
-The CLI now follows a progressive-help model:
-
-- `gin-ninja-cli --help` shows command groups and recommended entry points
-- `gin-ninja-cli help startproject` or `gin-ninja-cli startproject -h` shows full command details
-- `gin-ninja-cli init` starts an interactive wizard for new users
-
-The runtime framework stays in the root module, while `cmd/gin-ninja-cli` is maintained as a separate tool module so app builds do not inherit CLI/codegen package boundaries.
-
-Install the CLI into your Go binary directory (`$GOBIN`, or `$GOPATH/bin` when `GOBIN` is unset):
+## Install The CLI
 
 ```bash
 go install github.com/shijl0925/gin-ninja/cmd/gin-ninja-cli@latest
+```
 
-# or install from the cloned repository with Make
+When developing from this repository:
+
+```bash
 make install-cli
-
-# or build only (binary placed at ./bin/gin-ninja-cli)
 make build-cli
 ./bin/gin-ninja-cli --help
 ```
 
+Help is progressive:
+
 ```bash
 gin-ninja-cli --help
 gin-ninja-cli help startproject
+gin-ninja-cli startproject -h
+```
 
-# small/medium CRUD services: default minimal is usually enough
+## Create The First Project
+
+Common starting point:
+
+```bash
 gin-ninja-cli startproject mysite -module github.com/acme/mysite
 cd mysite
-gin-ninja-cli makemigrations
-gin-ninja-cli migrate
 go run .
+```
 
-# add another app / model package later
-gin-ninja-cli startapp blog
-gin-ninja-cli makemigrations -app-dir blog -name add-blog-app
-gin-ninja-cli migrate
+The default template creates a compile-ready minimal project, usually including:
 
-# richer templates / optional features (opt in only when you need them)
+```text
+go.mod
+main.go
+config.yaml
+app/models.go
+app/migrations.go
+app/repos.go
+app/schemas.go
+app/apis.go
+app/routers.go
+```
+
+For small and medium CRUD services, start with the default `minimal` template. Choose `standard` once you want more infrastructure files:
+
+```bash
 gin-ninja-cli startproject mysite \
   -module github.com/acme/mysite \
   -template standard \
   -database postgres \
-  -app-dir internal/app \
   -with-tests
-gin-ninja-cli startapp accounts -template auth -with-tests
-gin-ninja-cli startapp accounts -template standard -with-gormx -database mysql
-
-# interactive wizard
-gin-ninja-cli init
-
-# load a reusable scaffold preset
-gin-ninja-cli startproject -config ./scaffold.yaml
-gin-ninja-cli startapp -config ./scaffold.yaml
 ```
 
-`startproject` creates a new directory with:
+The `standard` template adds local development and deployment files such as `Makefile`, `Dockerfile`, `.air.toml`, `settings/config.*.yaml.example`, and `bootstrap/`.
 
-- `go.mod`
-- `main.go`
-- `config.yaml`
-- `app/models.go`
-- `app/migrations.go`
-- `app/repos.go`
-- `app/schemas.go`
-- `app/apis.go`
-- `app/routers.go`
+## Add An App
 
-When you opt into `-template standard`, `-template auth`, or feature flags such as `-with-tests`, the scaffold also adds richer starter files, including:
+As the project grows, split users, orders, billing, and similar domains into app packages:
 
-- `.air.toml`
-- `cmd/server/main.go`
-- `internal/server/server.go`
-- `bootstrap/db.go`
-- `bootstrap/logger.go`
-- `bootstrap/cache.go`
-- `settings/config.local.yaml.example`
-- `settings/config.prod.yaml.example`
-- `.env.example`
-- `Makefile`
-- `Dockerfile`
-- `docker-compose.yml`
-- `README.md`
-- `migrations/.gitkeep`
-- `scripts/.gitkeep`
+```bash
+gin-ninja-cli startapp blog
+```
 
-`startapp` creates a new app package directory with the same core CRUD files, and richer templates can additionally generate:
+Choose templates or database style:
 
-- `migrations.go`
-- `scaffold_test.go`
-- `auth.go`
-- `admin.go` (only with `-template admin` or `-with-admin`)
-- `permissions.go`
+```bash
+gin-ninja-cli startapp accounts -template auth -with-tests
+gin-ninja-cli startapp inventory -template standard -database mysql
+```
 
-In practice:
+Templates:
 
-- `minimal` keeps the shortest CRUD path
-- `standard` mainly adds project-level infrastructure; when `auth/admin` are not enabled it no longer forces `services.go` / `errors.go`
-- `auth` adds the fuller service, error, and permission scaffolding
-- `admin` is an explicit opt-in advanced scaffold for admin resource/API integration
+| Template | Use when |
+| --- | --- |
+| `minimal` | shortest CRUD path, recommended default |
+| `standard` | fuller project structure and local development files |
+| `auth` | login, JWT, and permission starter code |
+| `admin` | explicit admin resource/API integration |
 
-Useful scaffold flags:
+Common flags:
 
-- `-template minimal|standard|auth|admin` (`admin` is optional advanced scaffolding)
-- `-with-tests`
-- `-with-auth`
-- `-with-admin` (explicitly opt into admin scaffold files)
-- `-database <sqlite|mysql|postgres|none>` (`startproject` defaults to `sqlite`; `startapp` defaults to `none`; selecting a driver wires the matching registration import)
-- `-with-gormx` (default `false`; set it to generate gormx-based repos/services instead of native GORM code)
-- `-config <path>` (load scaffold values from a YAML/JSON preset; CLI flags override preset values)
-- `-app-dir <path>` (`startproject` only)
-- `-force`
+| Flag | Purpose |
+| --- | --- |
+| `-database sqlite|mysql|postgres|none` | generate matching database config and driver imports |
+| `-with-tests` | generate tests |
+| `-with-auth` | generate auth starter code |
+| `-with-admin` | generate admin files |
+| `-with-gormx` | use gormx-style repo/service code |
+| `-app-dir <path>` | choose app directory for `startproject` |
+| `-force` | allow a non-empty output directory |
 
-Example scaffold preset:
+## Migration Workflow
+
+Generated apps include:
+
+```go
+func MigrationModels() []any
+```
+
+Then use Django-like migration commands:
+
+```bash
+gin-ninja-cli makemigrations
+gin-ninja-cli migrate
+gin-ninja-cli showmigrations
+gin-ninja-cli sqlmigrate 20260417120000_add_users
+```
+
+Common usage:
+
+```bash
+gin-ninja-cli makemigrations -app-dir app -name add-users
+gin-ninja-cli migrate
+gin-ninja-cli migrate zero
+```
+
+Notes:
+
+- `makemigrations` reads `MigrationModels()` and uses GORM dry-run SQL to generate migration files.
+- Commit migration files to the repository and run reviewed SQL in production.
+- Generated Down SQL is conservative. When rollback cannot be inferred safely, write it manually.
+
+## Generate CRUD Starter Code
+
+If you already have a model, generate CRUD handlers, schemas, and route registration code:
+
+```bash
+gin-ninja-cli generate crud \
+  -model User \
+  -model-file ./app/models.go \
+  -output ./app/user_crud_gen.go
+```
+
+The generator creates:
+
+- request input structs such as `ListUsersInput` and `CreateUserInput`
+- explicit response DTOs such as `UserOut`
+- List/Get/Create/Update/Delete handlers
+- `RegisterUserCRUDRoutes(router)`
+
+Generated code is a starter skeleton, not final business code. You will usually add permissions, transactions, complex validation, uniqueness checks, events, and domain logic.
+
+## Control Filtering And Sorting With Tags
+
+Add `crud:"..."` to model fields to influence generated list queries:
+
+```go
+type Project struct {
+    ID      uint   `json:"id"`
+    Name    string `json:"name" crud:"filter,sort,search"`
+    Status  string `json:"status" crud:"filter:like,sort"`
+    OwnerID uint   `json:"owner_id" crud:"filter,sort"`
+}
+```
+
+Common directives:
+
+| Tag | Effect |
+| --- | --- |
+| `crud:"filter"` | generate equality filtering |
+| `crud:"filter:like"` | generate partial-match filtering |
+| `crud:"sort"` | add the field to the sort allowlist |
+| `crud:"search"` | add the field to keyword search |
+
+When the generator can identify relation fields in the same model file, it also emits relation output, relation input, `Preload(...)`, and relation synchronization helpers.
+
+## Use A Preset
+
+Put repeated options in YAML/JSON:
 
 ```yaml
 name: mysite
@@ -131,104 +188,13 @@ with_tests: true
 with_gormx: false
 ```
 
-Standard-style project scaffolds also ship with an official [air](https://github.com/air-verse/air) preset for hot reload during development:
+Run:
 
 ```bash
-cd mysite
-make install-air
-make dev
+gin-ninja-cli startproject -config ./scaffold.yaml
+gin-ninja-cli startapp -config ./scaffold.yaml
 ```
 
-The generated code is intended as a starting point and compiles as a minimal CRUD-style template; you can then customize models, validation, middleware, routing, and business logic for your own project.
+Command-line flags take precedence over the config file.
 
-### Database migrations
-
-The CLI also provides Django-style migration commands driven by an app package that exports:
-
-```go
-func MigrationModels() []any
-```
-
-Generated scaffolds include this function automatically.
-
-```bash
-gin-ninja-cli makemigrations [-config ./config.yaml] [-app-dir app] [-name add_users]
-gin-ninja-cli migrate [target|zero]
-gin-ninja-cli showmigrations
-gin-ninja-cli sqlmigrate 20260417120000_add_users
-```
-
-- `makemigrations` captures the SQL emitted by GORM `AutoMigrate` in dry-run mode and writes a timestamped SQL migration under `migrations/`; run it in development or CI because it requires the Go toolchain to inspect `MigrationModels()`
-- `migrate` applies pending migrations, migrates to a target migration, or rolls everything back with `zero`
-- `showmigrations` lists all migration files and whether they have been applied
-- `sqlmigrate` prints the generated SQL for a migration (`-direction up|down|all`)
-
-For production and test deployments, prefer shipping reviewed migration files and running `gin-ninja-cli migrate` against those generated SQL migrations. Automatically generated down SQL is intentionally conservative: when the CLI cannot parse a simple table, index, column, or constraint change with high confidence, it marks the migration as irreversible so you can provide a hand-written rollback. A future app-side migration generator may replace the temporary Go helper used by `makemigrations` to reduce environment sensitivity.
-
----
-
-## CRUD Scaffold Generator
-
-gin-ninja now includes a small scaffolding CLI for generating model-based CRUD boilerplate.
-
-```bash
-gin-ninja-cli generate crud \
-  -model User \
-  -model-file ./examples/full/app/models.go \
-  -output ./examples/full/app/user_crud_gen.go
-```
-
-The generator:
-
-- reads a Go model struct from the provided file
-- creates request structs, explicit response DTOs, and CRUD handlers in the same package
-- generates a `Register<Model>CRUDRoutes(router)` helper for route registration
-- uses `PATCH /:id` for generated partial-update handlers instead of advertising partial updates as `PUT`
-- can generate list filter / sort / keyword-search inputs from model `crud:"..."` tags
-- can detect same-file belongs-to / has-many / many-to-many relations and generate preload, relation input, and relation output scaffolding
-
-Generated code is intended as a starting point. Review the scaffold and adjust validation, persistence rules, permissions, and router composition for your application.
-
-### CRUD generator tags
-
-Use the `crud:"..."` tag on model fields to opt into generated query inputs:
-
-```go
-type Project struct {
-    ID      uint   `json:"id"`
-    Name    string `json:"name" crud:"filter,sort,search"`
-    Status  string `json:"status" crud:"filter:like,sort,search"`
-    OwnerID uint   `json:"owner_id" crud:"filter,sort"`
-    Owner   User   `gorm:"foreignKey:OwnerID" json:"-"`
-    Tasks   []Task `gorm:"foreignKey:ProjectID" json:"-"`
-    Tags    []Tag  `gorm:"many2many:project_tags;" json:"-"`
-}
-```
-
-Supported generator directives:
-
-- `crud:"filter"` → adds a generated list field with `filter:"column,eq"`
-- `crud:"filter:like"` → adds a generated list field with `filter:"column,like"`
-- `crud:"sort"` → includes the field in generated `Sort string \`order:"..."\``
-- `crud:"search"` → includes the field in generated keyword search
-
-The generated list handler wires these into `filter.BuildOptions(...)` and `order.ApplyOrder(...)` automatically.
-
-### Generated relation support
-
-When the generator can resolve related models from the same model file, it now scaffolds relation-aware CRUD output and loading:
-
-- `belongs to` → generates nested relation output plus scalar relation input when needed
-- `has many` / `many2many` → generates nested relation output plus `...IDs` input fields
-- generated list/detail loads automatically include `Preload(...)`
-- generated relation helpers keep association syncing logic out of the handler body
-
-For example, a generated scaffold can now emit:
-
-- nested response fields such as `Owner *ProjectOwnerOut`, `Tasks []ProjectTasksOut`
-- relation inputs such as `TagsIDs []uint`
-- association helpers such as `syncProjectTagsRelations(...)`
-
----
-
-Previous: [Getting Started](./getting-started.md) | Next: [Configuration, Bootstrap, and Lifecycle](./configuration.md)
+Previous: [Routers and Operations](./routers-and-operations.md) | Next: [Configuration, Bootstrap, and Lifecycle](./configuration.md)

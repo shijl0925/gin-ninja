@@ -1,81 +1,149 @@
 # Advanced Features
 
-[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/advanced-features.md)
 
-## Route-Level Cache / ETag / Cache-Control
+These features are optional for a first API, but useful once the service is running in production: response caching, ETag, per-operation timeout, rate limiting, request transactions, and API versioning.
 
-For read-only endpoints, you can enable built-in response caching and conditional requests:
+## Route-Level Cache
+
+Enable response caching on read endpoints:
 
 ```go
-type ArticleInput struct {
-    Slug string `path:"slug" binding:"required"`
+func getArticle(ctx *ninja.Context, in *GetArticleInput) (*ArticleOut, error) {
+    return loadArticle(in.Slug)
 }
 
-type ArticleOutput struct {
-    Slug    string `json:"slug"`
-    Title   string `json:"title"`
-    Content string `json:"content"`
-}
-
-func getArticle(ctx *ninja.Context, in *ArticleInput) (*ArticleOutput, error) {
-    return &ArticleOutput{
-        Slug:    in.Slug,
-        Title:   "gin-ninja cache demo",
-        Content: "This response can be cached",
-    }, nil
-}
-
-articles := ninja.NewRouter("/articles", ninja.WithTags("Articles"))
-
-ninja.Get(articles, "/:slug", getArticle,
-    ninja.Summary("Get article"),
+ninja.Get(router, "/:slug", getArticle,
     ninja.Cache(5*time.Minute),
 )
 ```
 
-Behavior:
+Default behavior:
 
-- `Cache(ttl)` enables route caching with the default in-memory backend
-- successful GET/HEAD responses automatically include `ETag`
-- when `CacheControl(...)` is not set explicitly, `Cache(ttl)` emits `Cache-Control: private, max-age=<ttl>`
-- default cache keys and `Vary` headers include `Authorization` and `Accept-Language`; use `CacheWithKey(...)` for additional request-specific dimensions
-- requests with `If-None-Match` return `304 Not Modified` when the cached entity tag matches
-- use `CacheWithStore(...)` to plug in a small custom store
+- Safe read responses are cached.
+- Successful responses include `ETag`.
+- Without `CacheControl(...)`, `Cache(ttl)` emits `Cache-Control: private, max-age=<ttl>`.
+- Matching `If-None-Match` requests return `304 Not Modified`.
+- The default cache key varies by `Authorization` and `Accept-Language`.
 
-Useful options:
+Custom store and key:
 
 ```go
 store := ninja.NewMemoryCacheStore()
 
-articleCacheKey := func(ctx *ninja.Context) string {
+cacheKey := func(ctx *ninja.Context) string {
     return "article:" + ctx.Param("slug")
 }
 
-ninja.Get(articles, "/:slug", getArticle,
+ninja.Get(router, "/:slug", getArticle,
     ninja.Cache(5*time.Minute,
         ninja.CacheWithStore(store),
-        ninja.CacheWithKey(articleCacheKey),
+        ninja.CacheWithKey(cacheKey),
     ),
-    ninja.CacheControl("public, max-age=300, stale-while-revalidate=60"),
+    ninja.CacheControl("public, max-age=300"),
     ninja.ETag(),
 )
+```
 
+Invalidate a key:
+
+```go
 invalidator := ninja.NewCacheInvalidator(store)
 invalidator.Delete("article:welcome")
 ```
 
-Notes:
+Limit how much response body data is buffered for cache storage and ETag generation:
 
-- cache support is intended for safe read endpoints
-- use explicit `CacheControl("public, ...")` only for responses that are safe for shared proxies/CDNs
-- `NewCacheInvalidator(store)` only deletes explicit keys; for list endpoints whose variants cannot be enumerated, prefer short TTLs or application-level invalidation
-- OpenAPI automatically documents `ETag` and `Cache-Control` response headers
+```go
+ninja.Get(router, "/large-report", report,
+    ninja.Cache(5*time.Minute, ninja.CacheWithMaxBodyBytes(1<<20)),
+)
+```
 
----
+Responses larger than the limit are written to the client but are not cached, and no cache ETag is generated for that response. Use a negative value only for trusted routes with predictably small responses.
 
-## API Version Management
+For list endpoints with many cache keys, prefer a short TTL or an application-level invalidation strategy.
 
-gin-ninja now supports version-aware routing in addition to a global prefix.
+## Operation Timeout
+
+```go
+ninja.Get(router, "/slow", slowHandler,
+    ninja.Timeout(2*time.Second),
+)
+```
+
+`Timeout` cancels the request context and returns early. Handlers should still observe context cancellation:
+
+```go
+func slowHandler(ctx *ninja.Context, _ *struct{}) (*Out, error) {
+    select {
+    case <-time.After(5 * time.Second):
+        return &Out{OK: true}, nil
+    case <-ctx.Done():
+        return nil, ctx.Err()
+    }
+}
+```
+
+## Operation Rate Limit
+
+```go
+ninja.Post(router, "/login", login,
+    ninja.RateLimit(5, 10),
+)
+```
+
+This uses an in-memory token bucket:
+
+- `5` tokens are added per second.
+- burst is `10`.
+- if burst is omitted, it defaults to the requests-per-second value.
+
+For multi-instance deployments, use a gateway, Redis, or a dedicated rate-limit service when you need a global limit.
+
+Buckets are tracked per client IP for the current operation. One client IP shares its operation quota, while different IPs do not consume each other's tokens.
+
+## Request Transactions
+
+With `orm.Middleware(db)` and transaction handlers configured on the API, one operation can run inside a request-scoped transaction:
+
+```go
+api := ninja.New(ninja.Config{
+    TransactionHandlers: orm.TransactionHandlers(),
+})
+
+api.UseGin(orm.Middleware(db))
+
+ninja.Post(router, "/", createUser,
+    ninja.WithTransaction(),
+)
+```
+
+The transaction is rolled back when the handler returns an error or the request context is canceled; otherwise it is committed.
+
+Manual control is also available:
+
+```go
+func createUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
+    if err := ctx.BeginTx(); err != nil {
+        return nil, err
+    }
+    defer ctx.RollbackTx()
+
+    // write database rows
+
+    if err := ctx.CommitTx(); err != nil {
+        return nil, err
+    }
+    return &UserOut{}, nil
+}
+```
+
+For most handlers, `ninja.WithTransaction()` is shorter and less error-prone.
+
+## API Versioning
+
+Use versioned routers when v1 and v2 paths, schemas, or behavior have diverged:
 
 ```go
 api := ninja.New(ninja.Config{
@@ -87,46 +155,45 @@ api := ninja.New(ninja.Config{
             Prefix:       "/v1",
             Description:  "Legacy API",
             Deprecated:   true,
-            SunsetTime:   time.Date(2026, time.December, 31, 23, 59, 59, 0, time.UTC),
+            SunsetTime:   time.Date(2026, 12, 31, 23, 59, 59, 0, time.UTC),
             MigrationURL: "https://example.com/migrate-to-v2",
         },
         "v2": {
             Prefix:      "/v2",
-            Description: "Current stable API",
+            Description: "Current API",
         },
     },
 })
 
-v1Users := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithVersion("v1"))
-v2Users := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithVersion("v2"))
+v1 := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithVersion("v1"))
+v2 := ninja.NewRouter("/users", ninja.WithTags("Users"), ninja.WithVersion("v2"))
 
-ninja.Get(v1Users, "/", listUsersV1, ninja.Summary("List users (v1)"))
-ninja.Get(v2Users, "/", listUsersV2, ninja.Summary("List users (v2)"))
+ninja.Get(v1, "/", listUsersV1, ninja.Summary("List users v1"))
+ninja.Get(v2, "/", listUsersV2, ninja.Summary("List users v2"))
 
-api.AddRouter(v1Users)
-api.AddRouter(v2Users)
+api.AddRouter(v1)
+api.AddRouter(v2)
 ```
 
 This registers:
 
-- `GET /api/v1/users`
-- `GET /api/v2/users`
-- `GET /openapi/v1.json`
-- `GET /openapi/v2.json`
-- `GET /docs/v1`
-- `GET /docs/v2`
+- `/api/v1/users`
+- `/api/v2/users`
+- `/openapi/v1.json`
+- `/openapi/v2.json`
+- `/docs/v1`
+- `/docs/v2`
 
-Deprecation behavior:
+Deprecated versions automatically emit `Deprecation`, `Sunset`, and `Link: <...>; rel="deprecation"` headers when configured, and their versioned OpenAPI operations are marked as deprecated.
 
-- when a version is marked `Deprecated: true`, responses include `Deprecation: true`
-- `Sunset` is emitted when configured
-- `Link: <...>; rel="deprecation"` is emitted when `MigrationURL` is configured
-- versioned OpenAPI output marks operations in deprecated versions as `deprecated: true`
+## When To Use What
 
-Recommended pattern:
+| Feature | Use when |
+| --- | --- |
+| `Cache` / `ETag` | reads are frequent or expensive |
+| `Timeout` | an endpoint has a clear latency budget |
+| `RateLimit` | login, SMS, export, or other abuse-prone endpoints need protection |
+| `WithTransaction` | one request performs multiple database writes atomically |
+| `WithVersion` | an API version has incompatible behavior or schemas |
 
-- keep `Config.Prefix` for a shared top-level namespace such as `/api`
-- use `WithVersion("v1")`, `WithVersion("v2")` on routers that belong to a specific API generation
-- use separate handlers/schema types when versions diverge semantically
-
-Previous: [File Transfer and OpenAPI Controls](./files-and-openapi.md) | Next: [Optional Admin and Full Example](./admin-and-examples.md)
+Previous: [Testing APIs with TestClient](./testing.md) | Next: [Optional Admin and Full Example](./admin-and-examples.md)

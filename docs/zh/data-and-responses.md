@@ -1,17 +1,68 @@
-# 数据、绑定与响应
+# 响应、错误与 Schema
 
-[文档首页](../README.md) | [English](../en/README.md) | [中文索引](./README.md)
+[文档首页](../README.md) | [中文索引](./README.md) | [English](../en/data-and-responses.md)
 
-## DTO 响应
+请求输入由 input struct 负责，业务处理后返回的公开数据建议用 DTO struct 表达。gin-ninja 会把 handler 返回值写成 JSON，并用同一份类型生成 OpenAPI response schema。
 
-默认建议使用显式 DTO 作为公开 API 响应结构。这样响应契约更容易阅读，也能避免把 model 字段意外暴露给客户端；OpenAPI 会直接根据处理器返回类型生成 schema。
+这一页只关注“如何返回数据”。请求体请看 [Request Body 与 Form Data](./request-body-and-forms.md)，列表查询请看 [查询 Schema：分页、过滤与排序](./query-schemas.md)，完整增删改查请看 [CRUD 教程：Users 增删改查](./crud-tutorial.md)。
+
+## 类型化响应
+
+普通 handler 返回 `(*Out, error)`：
+
+```go
+type UserOut struct {
+    ID    uint   `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
+    Age   int    `json:"age"`
+}
+
+func getUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
+    user, err := service.GetUser(ctx.Request.Context(), in.UserID)
+    if err != nil {
+        return nil, err
+    }
+    out := toUserOut(user)
+    return &out, nil
+}
+
+ninja.Get(router, "/:id", getUser,
+    ninja.Summary("Get user"),
+)
+```
+
+成功时框架会按 operation 的成功状态码写出 JSON。返回 `nil, nil` 时，框架写出 `204 No Content`。
+
+## 默认成功状态码
+
+| 注册函数 | 默认成功状态码 | 响应体 |
+| --- | --- | --- |
+| `ninja.Get` | `200 OK` | handler 返回的 `*Out` |
+| `ninja.Post` | `201 Created` | handler 返回的 `*Out` |
+| `ninja.Put` | `200 OK` | handler 返回的 `*Out` |
+| `ninja.Patch` | `200 OK` | handler 返回的 `*Out` |
+| `ninja.Delete` | `204 No Content` | 无响应体 |
+
+需要改成功状态码时使用 `SuccessStatus`：
+
+```go
+ninja.Post(router, "/exports", createExport,
+    ninja.Summary("Create export job"),
+    ninja.SuccessStatus(202),
+)
+```
+
+## DTO 优先
+
+不要直接把 GORM model 暴露给公开 API。推荐用 DTO 明确响应字段：
 
 ```go
 type User struct {
-    ID       uint   `json:"id"`
-    Name     string `json:"name"`
-    Email    string `json:"email"`
-    Password string `json:"password"`
+    ID       uint
+    Name     string
+    Email    string
+    Password string
 }
 
 type UserOut struct {
@@ -20,348 +71,157 @@ type UserOut struct {
     Email string `json:"email"`
 }
 
-func toUserOut(user User) UserOut {
-    return UserOut{
-        ID:    user.ID,
-        Name:  user.Name,
-        Email: user.Email,
-    }
+func toUserOut(u User) UserOut {
+    return UserOut{ID: u.ID, Name: u.Name, Email: u.Email}
 }
-
-func getUser(ctx *ninja.Context, in *struct{}) (*UserOut, error) {
-    user := User{
-        ID:       1,
-        Name:     "alice",
-        Email:    "alice@example.com",
-        Password: "secret",
-    }
-    out := toUserOut(user)
-    return &out, nil
-}
-
-ninja.Get(router, "/users/:id", getUser)
 ```
 
-列表接口也建议在分页信封里直接返回 DTO item，并在路由上保留 `Paginated[UserOut]()`：
+好处是：
+
+- 不会意外暴露 `Password`、内部状态、软删除字段。
+- OpenAPI response schema 更稳定。
+- 公开 API 可以和数据库结构独立演进。
+
+## 分页响应
+
+列表接口通常返回 `*pagination.Page[T]`：
 
 ```go
 func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    users, total := findUsers(in)
-    items := make([]UserOut, 0, len(users))
-    for _, user := range users {
-        items = append(items, toUserOut(user))
+    items, total, err := service.ListUsers(ctx.Request.Context(), in)
+    if err != nil {
+        return nil, err
     }
     return pagination.NewPage(items, total, in.PageInput), nil
 }
 
-ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
+ninja.Get(router, "/", listUsers,
+    ninja.Summary("List users"),
+    ninja.Paginated[UserOut](),
+)
 ```
 
-这是当前示例和 CRUD 生成器采用的默认风格。
+响应结构：
 
-### 可选高级能力：ModelSchema
+```json
+{
+  "items": [],
+  "total": 0,
+  "page": 1,
+  "size": 20,
+  "pages": 0
+}
+```
 
-`ModelSchema` 仍然保留，适合作为高级辅助工具使用：例如内部 admin 工具、高度重复的 CRUD 形态，或需要从响应 schema 推导 GORM preload 的场景。面向业务客户端的公开 API，默认仍建议显式 DTO。
+`ninja.Paginated[UserOut]()` 用于声明 OpenAPI 中的分页响应 schema。分页输入、过滤和排序的完整说明见 [查询 Schema：分页、过滤与排序](./query-schemas.md)。
+
+游标分页使用 `*pagination.CursorPage[T]` 和 `ninja.CursorPaginated[T]()`。
+
+## 额外响应文档
+
+`Response` 用来声明额外的 OpenAPI response，例如 `404` 或 `409`：
 
 ```go
-type UserOut struct {
-    ninja.ModelSchema[User] `fields:"id,name,email" exclude:"password"`
+type ErrorOut struct {
+    Code    int    `json:"code"`
+    Message string `json:"message"`
 }
 
-func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
-    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
-}
-
-ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserOut]())
+ninja.Get(router, "/:id", getUser,
+    ninja.Summary("Get user"),
+    ninja.Response(404, "User not found", &ErrorOut{}),
+)
 ```
 
-`ResponseModel[UserOut]()` 会在运行时把处理器返回的 `User` 绑定到 `UserOut`，再执行响应校验和字段裁剪。`fields:"..."` 只保留列出的可序列化字段，`exclude:"..."` 会从 JSON 响应和生成的 OpenAPI schema 中移除敏感字段。
+`Response` 只补充文档；实际错误仍然由 handler 返回的 `error` 和框架错误处理写出。
 
-如果你更喜欢复用描述符而不是定义单独的 `UserOut` 结构体，可以使用 `ResponseSchema`：
+## 错误响应
+
+handler 返回 `error` 时，gin-ninja 会写出统一错误结构：
+
+```json
+{"code":404,"message":"not found","data":null}
+```
+
+常用内置错误：
 
 ```go
-userSchema := ninja.ModelReadSchemaOf[User]().
-    Fields("id", "name", "email").
-    ComponentName("UserOut")
-
-func getUser(ctx *ninja.Context, in *struct{}) (*User, error) {
-    return &User{ID: 1, Name: "alice", Email: "alice@example.com", Password: "secret"}, nil
-}
-
-ninja.Get(router, "/users/:id", getUser, ninja.ResponseSchema(userSchema))
+return nil, ninja.BadRequestError()
+return nil, ninja.UnauthorizedError()
+return nil, ninja.ForbiddenError()
+return nil, ninja.NotFoundError()
+return nil, ninja.ConflictError()
 ```
 
-`ResponseSchema(...)` 同样会在运行时裁剪字段，并让 OpenAPI 使用同一份 schema。对于切片、`pagination.Page[T]` 和 `pagination.CursorPage[T]`，可以分别使用 `ResponseModel[[]UserOut]()`、`Paginated[UserOut]()` / `PaginatedSchema(...)`、`CursorPaginated[UserOut]()` / `CursorPaginatedSchema(...)`，分页响应的 `items` 也会逐项绑定和校验。
-
-如果只需要临时过滤而不想定义响应类型或路由级 schema，可以使用 `ninja.NewModelSchema(model, ninja.Fields(...), ninja.Exclude(...))`。如果需要显式得到一个 schema 值，也可以继续使用 `ninja.BindModelSchema[UserOut](model)` 或 `ninja.BindModelSchemas[UserOut](models)`。
-
-#### 关系深度与 GORM preload
-
-`Depth(n)` 会把嵌套 model 按同一模式继续裁剪，适合 detail 响应：
+自定义状态码和消息：
 
 ```go
-type UserDetailOut struct {
-    ninja.ModelSchema[User] `mode:"read" depth:"1"`
-}
-
-func getUser(ctx *ninja.Context, in *GetUserInput) (*User, error) {
-    db := orm.ApplyResponseModelPreloads[UserDetailOut](orm.WithContext(ctx.Context))
-
-    var user User
-    if err := db.First(&user, in.ID).Error; err != nil {
-        return nil, err
-    }
-    return &user, nil
-}
-
-ninja.Get(router, "/users/:id", getUser, ninja.ResponseModel[UserDetailOut]())
+return nil, ninja.NewError(422, "email already exists")
 ```
 
-如果使用描述符风格，可以用 `descriptor.Preloads()` 查看 preload 路径，或者用 `orm.ApplyModelSchemaPreloads(db, descriptor)` 直接应用到 GORM 查询。
+请求绑定或 `binding:"..."` 校验失败时，handler 不会执行，框架会返回 `422 Unprocessable Entity`：
 
-#### 输入绑定到 model
+```json
+{
+  "code": 422,
+  "message": "request validation failed",
+  "data": {
+    "errors": [
+      {"field": "email", "message": "must be a valid email"}
+    ]
+  }
+}
+```
 
-请求输入仍然由普通 struct 和 `binding:"..."` 标签负责。对于已经绑定好的 create/update input，可以复用 ModelSchema 的字段规则把它应用到 GORM model，减少重复赋值代码：
+无效 JSON body 返回 `400 Bad Request`；超过 JSON body 限制返回 `413 Request Entity Too Large`。OpenAPI 会自动为 operation 补充 `422 Validation Error` 和 `500 Internal Server Error` 响应说明。若需要把 repository/service 层的通用错误统一映射成 HTTP 错误，见 [错误映射](./api-and-configuration.md#错误映射)。
+
+在删除接口中，`ninja.Delete` 的 handler 只返回 `error`：
 
 ```go
-type CreateUserInput struct {
-    Name     string `json:"name" binding:"required"`
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=8"`
-}
-
-func createUser(ctx *ninja.Context, in *CreateUserInput) (*User, error) {
-    user, err := ninja.ModelCreateSchemaOf[User]().BindInput(in)
-    if err != nil {
-        return nil, err
+func deleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
+    if err := service.DeleteUser(ctx.Request.Context(), in.UserID); err != nil {
+        return err
     }
-    if err := orm.WithContext(ctx.Context).Create(user).Error; err != nil {
-        return nil, err
-    }
-    return user, nil
+    return nil
 }
 ```
 
-对于 PATCH 风格的部分更新，使用指针字段表示“未提供”，然后把输入应用到已有 model：
+成功时返回 `204 No Content`。
 
-```go
-type UpdateUserInput struct {
-    ID    uint    `path:"id" json:"-"`
-    Name  *string `json:"name"`
-    Email *string `json:"email" binding:"omitempty,email"`
-}
+## 原生 Gin 响应
 
-func updateUser(ctx *ninja.Context, in *UpdateUserInput) (*User, error) {
-    var user User
-    db := orm.WithContext(ctx.Context)
-    if err := db.First(&user, in.ID).Error; err != nil {
-        return nil, err
-    }
-    if err := ninja.ModelUpdateSchemaOf[User]().ApplyInput(&user, in); err != nil {
-        return nil, err
-    }
-    if err := db.Save(&user).Error; err != nil {
-        return nil, err
-    }
-    return &user, nil
-}
-```
-
-`BindInput` / `ApplyInput` 会复用 `fields`、`exclude`、`mode`、GORM tag，以及 `ninja:"create_only"` / `ninja:"update_only"` / `ninja:"write_only"` 等字段规则；update 输入中的 nil 指针字段会被跳过。
-
----
-
-## 标准响应信封
+类型化 handler 推荐直接返回 DTO。若你在原生 Gin handler 中工作，可以使用 `pkg/response`：
 
 ```go
 import "github.com/shijl0925/gin-ninja/pkg/response"
 
-// 成功：{"code": 200, "message": "success", "data": {...}}
-response.Success(c, users)
+func health(c *gin.Context) {
+    response.Success(c, gin.H{"status": "ok"})
+}
+```
 
-// 错误：{"code": 404, "message": "not found", "data": null}
+常见 helper：
+
+```go
+response.Success(c, data)
 response.NotFound(c, "user not found")
-
-// 自定义：{"code": 200, "message": "created", "data": {...}}
-response.JSON(c, response.OKWithMessage("created", user))
+response.JSON(c, response.OKWithMessage("created", data))
 ```
 
-框架错误响应使用相同的根级信封：
+## 可选高级用法：ModelSchema
 
-```json
-{"code": 404, "message": "not found", "data": null}
-```
+公开 API 默认仍推荐显式 DTO。如果你在写内部后台、重复 CRUD、生成器代码，或确实希望根据 model 规则裁剪响应字段，可以使用 `ModelSchema`、`ResponseModel`、`ResponseSchema`、`PaginatedSchema` 等高级能力。
 
----
+这部分机制会同时影响运行时 JSON 输出和 OpenAPI schema，也能配合 `Depth(n)` 自动推导 GORM preload。完整说明见 [ModelSchema 高级用法](./model-schema.md)。
 
-## 参数绑定
+## 选择建议
 
-| 标签 | 来源 | 适用方法 |
-| --- | --- | --- |
-| `path:"x"` | URL 路径参数 | 全部 |
-| `query:"x"` | URL 查询参数 | 全部 |
-| `form:"x"` | 表单请求体字段 | POST / PUT / PATCH |
-| `header:"x"` | 请求头 | 全部 |
-| `cookie:"x"` | 请求 Cookie | 全部 |
-| `json:"x"` | JSON 请求体 | POST / PUT / PATCH |
-| `file:"x"` | Multipart 上传文件 | POST / PUT / PATCH |
+| 场景 | 推荐 |
+| --- | --- |
+| 对外业务 API | 显式 DTO struct |
+| 列表接口 | `pagination.Page[T]` + `ninja.Paginated[T]()` |
+| 需要声明额外错误响应 | `ninja.Response(...)` |
+| 内部 CRUD 想复用 model schema | [ModelSchema 高级用法](./model-schema.md) |
+| 原生 Gin handler | `pkg/response` |
 
-`binding:"..."` 使用 [go-playground/validator](https://github.com/go-playground/validator)。
-
-`default:"..."` 适用于客户端省略值时的 `query`、`form`、`header` 和 `cookie` 字段。
-
----
-
-## 声明式过滤与安全排序
-
-### 声明式过滤
-
-在列表输入结构体中嵌入 `pagination.PageInput`，然后为需要转换成数据库过滤条件的查询字段添加 `filter:"column,op"`。如果一个输入字段需要匹配多个列，用 `|` 分隔列名：
-
-```go
-type ListUsersInput struct {
-    pagination.PageInput
-    Search  string `query:"search"   filter:"name|email,like" description:"Filter by name or email (partial match)"`
-    IsAdmin *bool  `query:"is_admin" filter:"is_admin,eq" description:"Filter by admin flag"`
-}
-```
-
-支持的操作符：
-
-- `eq`
-- `ne`
-- `gt`
-- `ge`
-- `lt`
-- `le`
-- `like`
-- `in`
-
-在处理器中应用声明的过滤条件：
-
-```go
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
-    query, _ := gormx.NewQuery[User]()
-
-    filterOpts, err := filter.BuildOptions(in)
-    if err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    opts := append(filterOpts, query.ToOptions()...)
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
-    if err != nil {
-        return nil, err
-    }
-    return pagination.NewPage(items, total, in.PageInput), nil
-}
-
-ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
-```
-
-行为说明：
-
-- 只有带 `filter:"..."` 标签的字段参与过滤
-- 零值会被忽略，因此省略的查询参数不会添加条件
-- `like` 适合包含式模糊匹配
-- `filter:"name|email,like"` 表示 `(name LIKE ? OR email LIKE ?)`；多字段声明式过滤使用 OR 语义
-- 对于标签无法表达的逻辑，输入结构体可以实现 `FilterExpression() clause.Expression`；返回的表达式会由 `filter.BuildOptions(...)` 和 `filter.ApplyDB(...)` 与标签过滤条件按 `AND` 一起应用
-- 无效过滤声明会在你暴露 `filter.BuildOptions(...)` 或 `filter.Apply(...)` 错误时返回 400
-
-### 安全排序
-
-使用带 `order:"..."` 白名单的 `sort` 查询参数。字段前加 `-` 表示降序，加 `+` 表示升序：
-
-- `sort=name`
-- `sort=-created_at`
-- `sort=name,-age`
-
-分页处理器继续使用 `pagination.PageInput` 表示 page/size，并单独声明 `Sort`：
-
-```go
-import "github.com/shijl0925/gin-ninja/order"
-
-type ListUsersInput struct {
-    pagination.PageInput
-    Sort   string `query:"sort" order:"id|name|email|age|is_admin|created_at"`
-    Search string `query:"search" filter:"name|email,like"`
-}
-
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[User], error) {
-    query, _ := gormx.NewQuery[User]()
-
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query.ToOptions()...)
-    if err != nil {
-        return nil, err
-    }
-    return pagination.NewPage(items, total, in.PageInput), nil
-}
-
-ninja.Get(router, "/users", listUsers, ninja.Paginated[UserOut]())
-```
-
-### 游标分页
-
-当列表端点需要在大数据量或频繁变化的数据集上保持稳定分页时，使用 `pagination.CursorPagination`。游标对 gin-ninja 是不透明的；你可以编码存储层需要的有序字段值，然后通过 `pagination.CursorPage[T]` 返回下一页游标：
-
-```go
-type ListEventsInput struct {
-    pagination.CursorPagination
-}
-
-func listEvents(ctx *ninja.Context, in *ListEventsInput) (*pagination.CursorPage[Event], error) {
-    items, nextCursor, err := repo.SelectAfterCursor(in.GetCursor(), in.GetSize(), "-created_at", "-id")
-    if err != nil {
-        return nil, err
-    }
-    return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
-}
-```
-
-使用 `ninja.CursorPaginated[EventOut]()` 声明响应信封文档和运行时 item schema。
-
-对于简单的 GORM 单列 keyset 分页，可以使用 `orm.SelectCursorPage`：
-
-```go
-items, nextCursor, err := orm.SelectCursorPage(
-    db,
-    in.CursorPagination,
-    "id",
-    strconv.Atoi,
-    func(item Event) string { return strconv.Itoa(item.ID) },
-)
-if err != nil {
-    return nil, err
-}
-return pagination.NewCursorPage(items, in.CursorPagination, nextCursor), nil
-```
-
-如果需要把公开别名映射到不同的数据库列，可以使用 `alias:column` 或 `alias=column`：
-
-```go
-type ListUsersInput struct {
-    Sort string `query:"sort" order:"name|created:created_at"`
-}
-```
-
-白名单之外的排序字段会被拒绝，不会直接传到查询层。
-
-### 示例
-
-完整示例应用在分页用户列表中使用了声明式排序：
-
-- `GET /api/v1/users` → 分页过滤 + 排序
-- `sort` → 在进入查询层前由 `order:"..."` 白名单校验
-
-可以尝试这些请求：
-
-- `/api/v1/users?search=ali`
-- `/api/v1/users?is_admin=true&sort=-age`
-
----
-
-上一篇: [中间件与安全](./middleware-security.md) | 下一篇: [文件传输与 OpenAPI 控制](./files-and-openapi.md)
+上一篇：[查询 Schema：分页、过滤与排序](./query-schemas.md) | 下一篇：[CRUD 教程：Users 增删改查](./crud-tutorial.md)

@@ -1,141 +1,84 @@
 # Overview
 
-[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/README.md)
+[Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/overview.md)
 
-## What is gin-ninja?
+gin-ninja is an API framework built on top of Gin. It keeps Gin's routing performance and ecosystem, then adds typed request/response handling, automatic OpenAPI documentation, common middleware, pagination/filtering helpers, configuration loading, scaffolding, and testing tools.
 
-gin-ninja is designed for Go teams that want Gin's routing performance with a more structured API layer:
+## What It Is For
 
-- define handlers with plain Go structs instead of manual binding boilerplate
-- generate OpenAPI and Swagger UI automatically from the same route definitions
-- keep cross-cutting concerns in reusable middleware and operation options
-- scale from small CRUD services to versioned, documented, production-facing APIs
+gin-ninja fits projects where:
 
-Typical use cases:
+- You want to keep using Gin, but do not want to repeat `ShouldBindQuery`, `ShouldBindJSON`, and response schema boilerplate in every handler.
+- You want API code and Swagger/OpenAPI documentation to come from the same route definitions.
+- You are building CRUD services, admin APIs, internal platforms, or backend APIs that need validation, pagination, filtering, authentication, and test helpers.
+- You want small projects to stay light, while larger projects can grow into routers, controllers, app packages, and generated starter code.
 
-- REST APIs with strict request/response contracts
-- internal platforms that need fast iteration plus always-up-to-date docs
-- services that want built-in auth, security headers, request logging, and config loading
-- applications that need versioned APIs, cacheable read endpoints, and well-documented HTTP APIs
+For a tiny Gin-only demo, plain Gin is still a fine choice. gin-ninja becomes more useful as endpoints, parameters, and documentation start to repeat.
 
-## Architecture at a Glance
+## Request Flow
 
-At runtime, gin-ninja adds a typed API layer on top of Gin:
+A request roughly flows through these steps:
 
-1. Gin accepts the incoming HTTP request.
-2. Engine-level and router-level middleware run first.
-3. gin-ninja binds path/query/header/cookie/body/file inputs into typed structs.
-4. The typed handler executes with `*ninja.Context`.
-5. The framework writes JSON or download responses.
-6. Route metadata is reused to generate OpenAPI documents and Swagger UI.
+1. Gin receives the HTTP request.
+2. Global or router-level middleware runs first, such as logging, CORS, or JWT.
+3. gin-ninja binds `path`, `query`, `header`, `cookie`, `json`, `form`, and `file` values into the input struct.
+4. `binding:"..."` validation errors are returned automatically.
+5. The typed handler runs business logic and returns a Go value.
+6. The framework writes JSON, paginated JSON, or a download response.
+7. The same route and struct metadata is used to generate `/openapi.json` and `/docs`.
 
-## Features
+## Module Map
 
-- **Type-safe handlers** – use plain Go structs for request input and explicit DTO response output.
-- **Automatic parameter binding** – path params (`path:`), query params (`query:`), headers (`header:`), cookies (`cookie:`), and JSON/form bodies (`json:` / `form:`) are all bound via struct tags.
-- **Default parameter values** – `default:"..."` works for query/header/cookie fields and is reflected in OpenAPI.
-- **Validation** – powered by [go-playground/validator](https://github.com/go-playground/validator) using the standard `binding:` tag.
-- **File transfer abstractions** – first-class multipart upload binding and binary download responses.
-- **Auto-generated OpenAPI 3.0 docs** – served as `/openapi.json`.
-- **Swagger UI** – available at `/docs` out of the box.
-- **Router groups** – nest routers with shared prefixes, OpenAPI tags, and per-router middleware.
-- **API Controller** – group all routes for a resource into a struct with dependency injection via `Controller` interface and `api.AddController`.
-- **Gin middleware support** – `UseGin()` on both the API and individual routers.
-- **OpenAPI controls** – hide internal endpoints from docs and declare extra documented responses per operation.
-- **Operation controls** – per-endpoint timeout, in-memory rate limiting, and standard paginated response declarations.
-- **Advanced ModelSchema helpers** – optionally use `ResponseModel` / `ResponseSchema` when runtime field pruning is a better fit than explicit DTO mapping.
-- **Route-level caching** – built-in `Cache(...)`, `ETag()`, `CacheControl(...)`, and a lightweight memory store for read-heavy endpoints.
-- **API version isolation** – version-aware routers, per-version OpenAPI/Swagger output, and deprecation headers.
-- **Pagination** – reusable `PageInput` and `Page[T]` types for consistent list responses.
-- **ORM integration** – thin helpers around [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) for repository/service patterns.
-- **Built-in middleware** – CORS, JWT auth, structured request logging (Zap), request ID, panic recovery, i18n locale negotiation, **HMAC-signed cookie sessions**, **CSRF protection**, **security response headers**, and **upload size/content-type limits**.
-- **Lifecycle hooks** – startup and shutdown hooks with graceful server shutdown.
-- **Settings** – Viper-based YAML/env configuration management with **multi-environment override** support.
-- **Logger** – Zap-based structured logger with console/JSON output, file sinks, and size-based log rotation.
-- **Standard response envelope** – `{"code": 200, "message": "success", "data": ...}`.
-- **Bootstrap helpers** – one-call database and logger initialization.
-- **i18n / L10n** – locale negotiation via `Accept-Language`, translated validation errors and general messages in English and Chinese.
-- **API version deprecation** – RFC-compliant `Deprecation` and `Sunset` date headers, migration link.
-
----
-
-## Package Structure
-
-```
-gin-ninja/
-├── ninja.go          ← NinjaAPI (core API instance)
-├── router.go         ← Router (route groups)
-├── operation.go      ← typed handler wrappers
-├── binding.go        ← parameter binding (path/query/header/body)
-├── context.go        ← Context (extends *gin.Context)
-├── errors.go         ← typed error types
-├── cache.go          ← route cache, ETag, cache invalidation helpers
-├── openapi.go        ← OpenAPI 3.0 spec generation + Swagger UI
-├── schema.go         ← JSON Schema generation
-├── transfer.go       ← upload/download abstractions
-├── versioning.go     ← version-aware docs and deprecation headers
-│
-├── middleware/       ← production-ready HTTP middleware
-│   ├── cors.go       ← CORS (gin-contrib/cors)
-│   ├── csrf.go       ← CSRF double-submit cookie protection
-│   ├── i18n.go       ← locale negotiation (Accept-Language)
-│   ├── jwt.go        ← JWT auth (golang-jwt/jwt)
-│   ├── logger.go     ← structured request logger (Zap)
-│   ├── recovery.go   ← panic recovery
-│   ├── requestid.go  ← X-Request-ID injection
-│   ├── secure.go     ← security response headers
-│   ├── session.go    ← HMAC-signed cookie sessions
-│   └── upload.go     ← upload size limit + content-type whitelist
-│
-├── pkg/
-│   ├── i18n/         ← locale negotiation + validation-error translation
-│   │   └── i18n.go
-│   ├── logger/       ← Zap logger bootstrap
-│   └── response/     ← standard JSON response envelope
-│
-├── settings/         ← Viper-based configuration
-│   └── settings.go   ← Config, Load, MustLoad, LoadWithOverrides, LoadForEnv
-│
-├── bootstrap/        ← application bootstrap helpers
-│   └── bootstrap.go  ← InitLogger, InitDB, MustInitDB
-│
-├── filter/           ← declarative query filter builders
-├── order/            ← safe sorting helpers
-├── orm/              ← gormx integration
-│   └── orm.go        ← Init, Middleware, GetDB, WithContext
-│
-├── pagination/       ← pagination types
-│   └── pagination.go ← PageInput, Page[T]
-│
-└── examples/         ← runnable basic, users, features, and full applications; admin is opt-in
-```
-
-Core module responsibilities:
-
-| Module | Responsibility |
+| Module | When you use it |
 | --- | --- |
-| `NinjaAPI` | Owns the Gin engine, global middleware, lifecycle hooks, and OpenAPI/Swagger endpoints |
-| `Router` | Groups endpoints by prefix, tags, version, and router-scoped middleware |
-| `operation.go` | Wraps typed handlers, binds input, enforces options, and writes typed responses |
-| `binding.go` | Maps request data from path/query/header/cookie/json/multipart inputs into structs |
-| `middleware/` | Provides production-ready auth, logging, i18n, security, session, and upload middleware |
-| `cache.go` / `versioning.go` | Adds caching and API versioning/deprecation capabilities |
+| `ninja.New` / `NinjaAPI` | Create the app, set title/version/prefix/docs, configure lifecycle and global middleware |
+| `Router` | Group endpoints by resource, such as `/users` or `/orders` |
+| `ninja.Get/Post/Put/Patch/Delete` | Register one typed endpoint |
+| `Controller` | Group all endpoints for a resource in a struct and inject DB/service dependencies |
+| `binding.go` | Request binding; in daily use you mostly write struct tags |
+| `pagination` | Shared `page`/`size` input and paginated responses |
+| `filter` / `order` | Declare safe filter and sort fields with tags |
+| `middleware` | CORS, JWT, API key, session, CSRF, security headers, logging, recovery, i18n, upload limits |
+| `settings` | Load YAML and environment-variable configuration |
+| `bootstrap` | Initialize logging and database connections |
+| `orm` | Put GORM DB in request context, with transaction helpers |
+| `cache.go` | Route-level cache, ETag, and Cache-Control |
+| `versioning.go` | API versions and versioned docs |
+| `testing` | In-memory API tests with `ninjatest.TestClient` |
+| `cmd/gin-ninja-cli` | Project, app, migration, and CRUD scaffolding |
+| `admin` | Optional admin API and built-in UI shell |
 
----
+## Directory Tour
 
-## Installation
-
-```bash
-go get github.com/shijl0925/gin-ninja
+```text
+gin-ninja/
+├── ninja.go              # NinjaAPI and Config
+├── router.go             # Router, Controller, route registration helpers
+├── operation.go          # Operation options, response writing, timeout/rate limit/transaction behavior
+├── binding.go            # Request binding and validation
+├── transfer.go           # UploadedFile and Download
+├── openapi.go            # OpenAPI/Swagger/ReDoc
+├── cache.go              # Route-level cache
+├── versioning.go         # API versions
+├── middleware/           # Common HTTP middleware
+├── settings/             # Configuration loading
+├── bootstrap/            # Logger and DB initialization
+├── filter/ order/        # Filtering and sorting
+├── pagination/           # Pagination input and output
+├── testing/              # TestClient
+├── admin/                # Optional Admin
+├── cmd/gin-ninja-cli/    # Scaffolding and migration CLI
+└── examples/             # Runnable examples
 ```
 
-## Copilot Skill
+## Suggested First Pass
 
-This repository now includes a workspace Skill at `.github/skills/gin-ninja/`.
+Do not wire every module on day one. A practical learning order is:
 
-- invoke it explicitly with `/gin-ninja`
-- or let the agent auto-load it for gin-ninja-specific API, middleware, scaffold, and OpenAPI tasks
-
----
+1. Build one `NinjaAPI`, one `Router`, and one `GET` endpoint.
+2. Add `query`, `path`, and `json` input plus a DTO response.
+3. Split a resource like users into its own router or controller.
+4. When the project needs a database, add `settings`, `bootstrap`, `orm`, and migrations.
+5. Before production, add CORS, auth, security headers, logging, tests, and any needed cache.
 
 Next: [Getting Started](./getting-started.md)
