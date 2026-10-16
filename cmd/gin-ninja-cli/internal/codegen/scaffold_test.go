@@ -155,16 +155,15 @@ func TestWriteProjectScaffoldStandardTemplate(t *testing.T) {
 	runScaffoldGoTest(t, outputDir)
 }
 
-func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
+func TestWriteProjectScaffoldUsesNativeRepos(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
 	outputDir := filepath.Join(dir, "mysite")
 	if err := WriteProjectScaffold(ProjectScaffoldConfig{
-		Name:      "mysite",
-		Module:    "github.com/acme/mysite",
-		Template:  "standard",
-		WithGormx: boolPtr(false),
+		Name:     "mysite",
+		Module:   "github.com/acme/mysite",
+		Template: "standard",
 	}, outputDir); err != nil {
 		t.Fatalf("WriteProjectScaffold: %v", err)
 	}
@@ -172,9 +171,6 @@ func TestWriteProjectScaffoldWithoutGormx(t *testing.T) {
 	content, err := os.ReadFile(filepath.Join(outputDir, "app", "repos.go"))
 	if err != nil {
 		t.Fatalf("read repos.go: %v", err)
-	}
-	if strings.Contains(string(content), "gormx") {
-		t.Fatalf("expected native gorm repo scaffold, got:\n%s", content)
 	}
 	if !strings.Contains(string(content), "type IExampleRepo interface") {
 		t.Fatalf("expected repo interface scaffold, got:\n%s", content)
@@ -343,7 +339,6 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 		ModelName:   "Post",
 		Template:    "standard",
 		WithTests:   true,
-		WithGormx:   boolPtr(false),
 	}, outputDir); err != nil {
 		t.Fatalf("WriteAppScaffold: %v", err)
 	}
@@ -353,8 +348,8 @@ func TestWriteAppScaffoldWithoutGormx(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", rel, err)
 		}
-		if strings.Contains(string(content), "gormx") {
-			t.Fatalf("expected %s to avoid gormx, got:\n%s", rel, content)
+		if !strings.Contains(string(content), "gorm") {
+			t.Fatalf("expected %s to use native GORM, got:\n%s", rel, content)
 		}
 	}
 	for _, rel := range []string{"services.go", "errors.go"} {

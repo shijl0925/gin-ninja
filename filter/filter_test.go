@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -207,10 +206,10 @@ func TestToColumnSupportsSafeTableColumn(t *testing.T) {
 	}
 }
 
-func TestBuildOptionsMultiFieldLikeUsesORSemantics(t *testing.T) {
-	setupFilterTestDB(t)
+func TestApplyDBMultiFieldLikeUsesORSemantics(t *testing.T) {
+	db := setupFilterTestDB(t)
 
-	if err := gormx.GetDb().Create([]userRecord{
+	if err := db.Create([]userRecord{
 		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
 		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
 		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
@@ -219,106 +218,7 @@ func TestBuildOptionsMultiFieldLikeUsesORSemantics(t *testing.T) {
 	}
 
 	admin := true
-	opts, err := BuildOptions(&listInput{
-		embeddedFilter: embeddedFilter{IsAdmin: &admin},
-		Search:         "example.com",
-	})
-	if err != nil {
-		t.Fatalf("BuildOptions: %v", err)
-	}
-
-	var got []userRecord
-	if err := gormx.GetDb(opts...).Find(&got).Error; err != nil {
-		t.Fatalf("Find: %v", err)
-	}
-	if len(got) != 1 || got[0].Email != "bob@example.com" {
-		t.Fatalf("unexpected filtered users: %+v", got)
-	}
-}
-
-func TestBuildOptionsAppliesCustomFilterExpression(t *testing.T) {
-	setupFilterTestDB(t)
-
-	if err := gormx.GetDb().Create([]userRecord{
-		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
-		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
-		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
-	}).Error; err != nil {
-		t.Fatalf("seed db: %v", err)
-	}
-
-	admin := true
-	opts, err := BuildOptions(customExpressionInput{
-		embeddedFilter: embeddedFilter{IsAdmin: &admin},
-		Name:           "Alice",
-		Email:          "sample.com",
-	})
-	if err != nil {
-		t.Fatalf("BuildOptions: %v", err)
-	}
-
-	var got []userRecord
-	if err := gormx.GetDb(opts...).Find(&got).Error; err != nil {
-		t.Fatalf("Find: %v", err)
-	}
-	if len(got) != 1 || got[0].Email != "carol@sample.com" {
-		t.Fatalf("unexpected filtered users: %+v", got)
-	}
-}
-
-func TestApplyRejectsMultiFieldFilters(t *testing.T) {
-	query, _ := gormx.NewQuery[userRecord]()
-	err := Apply(query, &listInput{Search: "alice"})
-	if err == nil || !strings.Contains(err.Error(), "BuildOptions") {
-		t.Fatalf("expected multi-field apply error, got %v", err)
-	}
-}
-
-func TestApplySingleFieldFilters(t *testing.T) {
-	setupFilterTestDB(t)
-
-	if err := gormx.GetDb().Create([]userRecord{
-		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
-		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
-		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
-	}).Error; err != nil {
-		t.Fatalf("seed db: %v", err)
-	}
-
-	admin := true
-	query, _ := gormx.NewQuery[userRecord]()
-	if err := Apply(query, &embeddedFilter{IsAdmin: &admin}); err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-
-	var got []userRecord
-	if err := query.Find(&got); err != nil {
-		t.Fatalf("Find: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("unexpected filtered users: %+v", got)
-	}
-}
-
-func TestApplyNilQueryReturnsNil(t *testing.T) {
-	if err := Apply[userRecord](nil, &embeddedFilter{}); err != nil {
-		t.Fatalf("Apply(nil) error = %v", err)
-	}
-}
-
-func TestApplyDB(t *testing.T) {
-	setupFilterTestDB(t)
-
-	if err := gormx.GetDb().Create([]userRecord{
-		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
-		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
-		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
-	}).Error; err != nil {
-		t.Fatalf("seed db: %v", err)
-	}
-
-	admin := true
-	db, err := ApplyDB(gormx.GetDb().Model(&userRecord{}), &listInput{
+	query, err := ApplyDB(db.Model(&userRecord{}), &listInput{
 		embeddedFilter: embeddedFilter{IsAdmin: &admin},
 		Search:         "example.com",
 	})
@@ -327,7 +227,66 @@ func TestApplyDB(t *testing.T) {
 	}
 
 	var got []userRecord
-	if err := db.Find(&got).Error; err != nil {
+	if err := query.Find(&got).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 1 || got[0].Email != "bob@example.com" {
+		t.Fatalf("unexpected filtered users: %+v", got)
+	}
+}
+
+func TestApplyDBAppliesCustomFilterExpressionFromInput(t *testing.T) {
+	db := setupFilterTestDB(t)
+
+	if err := db.Create([]userRecord{
+		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
+		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
+		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
+	}).Error; err != nil {
+		t.Fatalf("seed db: %v", err)
+	}
+
+	admin := true
+	query, err := ApplyDB(db.Model(&userRecord{}), customExpressionInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+		Name:           "Alice",
+		Email:          "sample.com",
+	})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+
+	var got []userRecord
+	if err := query.Find(&got).Error; err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if len(got) != 1 || got[0].Email != "carol@sample.com" {
+		t.Fatalf("unexpected filtered users: %+v", got)
+	}
+}
+
+func TestApplyDB(t *testing.T) {
+	db := setupFilterTestDB(t)
+
+	if err := db.Create([]userRecord{
+		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
+		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
+		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
+	}).Error; err != nil {
+		t.Fatalf("seed db: %v", err)
+	}
+
+	admin := true
+	query, err := ApplyDB(db.Model(&userRecord{}), &listInput{
+		embeddedFilter: embeddedFilter{IsAdmin: &admin},
+		Search:         "example.com",
+	})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+
+	var got []userRecord
+	if err := query.Find(&got).Error; err != nil {
 		t.Fatalf("Find: %v", err)
 	}
 	if len(got) != 1 || got[0].Email != "bob@example.com" {
@@ -336,9 +295,9 @@ func TestApplyDB(t *testing.T) {
 }
 
 func TestApplyDBAppliesCustomFilterExpression(t *testing.T) {
-	setupFilterTestDB(t)
+	db := setupFilterTestDB(t)
 
-	if err := gormx.GetDb().Create([]userRecord{
+	if err := db.Create([]userRecord{
 		{Name: "Alice", Email: "alice@example.com", Age: 20, IsAdmin: false},
 		{Name: "Bob", Email: "bob@example.com", Age: 21, IsAdmin: true},
 		{Name: "Carol", Email: "carol@sample.com", Age: 22, IsAdmin: true},
@@ -347,7 +306,7 @@ func TestApplyDBAppliesCustomFilterExpression(t *testing.T) {
 	}
 
 	admin := true
-	db, err := ApplyDB(gormx.GetDb().Model(&userRecord{}), customExpressionInput{
+	query, err := ApplyDB(db.Model(&userRecord{}), customExpressionInput{
 		embeddedFilter: embeddedFilter{IsAdmin: &admin},
 		Name:           "Alice",
 		Email:          "sample.com",
@@ -357,7 +316,7 @@ func TestApplyDBAppliesCustomFilterExpression(t *testing.T) {
 	}
 
 	var got []userRecord
-	if err := db.Find(&got).Error; err != nil {
+	if err := query.Find(&got).Error; err != nil {
 		t.Fatalf("Find: %v", err)
 	}
 	if len(got) != 1 || got[0].Email != "carol@sample.com" {
@@ -377,7 +336,7 @@ func TestApplyDBNilQueryReturnsNil(t *testing.T) {
 
 func TestBuildOptionAndHelperEdges(t *testing.T) {
 	t.Run("unsupported combiner", func(t *testing.T) {
-		_, err := buildOption(Clause{
+		_, err := applyDBClause(nil, Clause{
 			Fields:   []string{"name", "email"},
 			Op:       OpLike,
 			Value:    "alice",
@@ -423,26 +382,27 @@ func TestBuildOptionAndHelperEdges(t *testing.T) {
 
 	t.Run("nil custom expression is ignored", func(t *testing.T) {
 		admin := true
-		opts, err := BuildOptions(nilExpressionInput{embeddedFilter: embeddedFilter{IsAdmin: &admin}})
+		base := setupFilterTestDB(t)
+		db, err := ApplyDB(base.Model(&userRecord{}), nilExpressionInput{embeddedFilter: embeddedFilter{IsAdmin: &admin}})
 		if err != nil {
-			t.Fatalf("BuildOptions: %v", err)
+			t.Fatalf("ApplyDB: %v", err)
 		}
-		if len(opts) != 1 {
-			t.Fatalf("expected only tagged filter option, got %d", len(opts))
+		if db == nil {
+			t.Fatal("expected db to be returned")
 		}
 	})
 }
 
-func setupFilterTestDB(t *testing.T) {
+func setupFilterTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	gormx.Init(db)
 
 	if err := db.AutoMigrate(&userRecord{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	return db
 }

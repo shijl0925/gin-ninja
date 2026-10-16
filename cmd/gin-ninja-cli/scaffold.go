@@ -25,7 +25,6 @@ type scaffoldPreset struct {
 	WithTests   *bool  `json:"with_tests" yaml:"with_tests"`
 	WithAuth    *bool  `json:"with_auth" yaml:"with_auth"`
 	WithAdmin   *bool  `json:"with_admin" yaml:"with_admin"`
-	WithGormx   *bool  `json:"with_gormx" yaml:"with_gormx"`
 	Force       *bool  `json:"force" yaml:"force"`
 }
 
@@ -64,7 +63,6 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 	output := fs.String("output", "", "Output file path (defaults next to the model file)")
 	packageName := fs.String("package", "", "Override generated package name")
 	tag := fs.String("tag", "", "Override generated router tag name")
-	withGormX := fs.Bool("with-gormx", false, "Generate gormx-based CRUD code")
 	withTests := fs.Bool("with-tests", false, "Generate unit-test skeleton alongside CRUD code")
 	if err := fs.Parse(args[1:]); err != nil {
 		if err == flag.ErrHelp {
@@ -78,7 +76,6 @@ func runGenerate(stdout, stderr io.Writer, args []string) int {
 		Model:       strings.TrimSpace(*model),
 		PackageName: strings.TrimSpace(*packageName),
 		Tag:         strings.TrimSpace(*tag),
-		WithGormX:   withGormX,
 		WithTests:   *withTests,
 	}
 	if cfg.ModelFile == "" || cfg.Model == "" {
@@ -123,7 +120,6 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Opt into admin scaffold files")
-	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -167,7 +163,6 @@ func runStartProject(stdout, stderr io.Writer, args []string) int {
 		WithTests: mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:  mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
 		WithAdmin: mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
-		WithGormx: boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, false)),
 		Force:     mergeBoolFlag(*force, set["force"], preset.Force, false),
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
@@ -194,7 +189,6 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 	withTests := fs.Bool("with-tests", false, "Generate starter tests alongside scaffolded files")
 	withAuth := fs.Bool("with-auth", false, "Include JWT auth scaffold files")
 	withAdmin := fs.Bool("with-admin", false, "Opt into admin scaffold files")
-	withGormx := fs.Bool("with-gormx", false, "Generate scaffold code using gormx repositories")
 	force := fs.Bool("force", false, "Allow writing into an existing non-empty output directory")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -236,7 +230,6 @@ func runStartApp(stdout, stderr io.Writer, args []string) int {
 		WithTests:   mergeBoolFlag(*withTests, set["with-tests"], preset.WithTests, false),
 		WithAuth:    mergeBoolFlag(*withAuth, set["with-auth"], preset.WithAuth, false),
 		WithAdmin:   mergeBoolFlag(*withAdmin, set["with-admin"], preset.WithAdmin, false),
-		WithGormx:   boolPtr(mergeBoolFlag(*withGormx, set["with-gormx"], preset.WithGormx, false)),
 		Force:       mergeBoolFlag(*force, set["force"], preset.Force, false),
 	}, out); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
@@ -338,11 +331,6 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		fmt.Fprintf(stderr, "read test preference: %v\n", err)
 		return 1
 	}
-	withGormx, err := promptBool(stdout, reader, "Use gormx repositories/services?", boolValueOrDefault(preset.WithGormx, false))
-	if err != nil {
-		fmt.Fprintf(stderr, "read gormx preference: %v\n", err)
-		return 1
-	}
 	if err := codegen.WriteProjectScaffold(codegen.ProjectScaffoldConfig{
 		Name:      name,
 		Module:    module,
@@ -350,7 +338,6 @@ func runInitProject(reader *bufio.Reader, stdout, stderr io.Writer, preset scaff
 		Database:  database,
 		Template:  templateName,
 		WithTests: withTests,
-		WithGormx: boolPtr(withGormx),
 	}, output); err != nil {
 		fmt.Fprintf(stderr, "create project scaffold: %v\n", err)
 		return 1
@@ -405,11 +392,6 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		fmt.Fprintf(stderr, "read test preference: %v\n", err)
 		return 1
 	}
-	withGormx, err := promptBool(stdout, reader, "Use gormx repositories/services?", boolValueOrDefault(preset.WithGormx, false))
-	if err != nil {
-		fmt.Fprintf(stderr, "read gormx preference: %v\n", err)
-		return 1
-	}
 	if err := codegen.WriteAppScaffold(codegen.AppScaffoldConfig{
 		Name:        name,
 		PackageName: packageName,
@@ -417,7 +399,6 @@ func runInitApp(reader *bufio.Reader, stdout, stderr io.Writer, preset scaffoldP
 		Database:    database,
 		Template:    templateName,
 		WithTests:   withTests,
-		WithGormx:   boolPtr(withGormx),
 	}, output); err != nil {
 		fmt.Fprintf(stderr, "create app scaffold: %v\n", err)
 		return 1
@@ -465,7 +446,6 @@ func printStartProjectUsage(w io.Writer) {
 		{name: "-app-dir <path>", usage: fmt.Sprintf("Relative app package directory inside the project (default: %s)", defaultScaffoldAppDir)},
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Opt into admin scaffold files"},
-		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)
@@ -514,7 +494,6 @@ func printStartAppUsage(w io.Writer) {
 	printFlagGroup(w, []flagHelp{
 		{name: "-with-auth", usage: "Force-enable auth scaffold files"},
 		{name: "-with-admin", usage: "Opt into admin scaffold files"},
-		{name: "-with-gormx", usage: "Generate gormx repositories/services (default: false)"},
 		{name: "-force", usage: "Allow writing into an existing non-empty output directory"},
 	})
 	fmt.Fprintln(w)

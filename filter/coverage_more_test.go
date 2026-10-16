@@ -18,9 +18,6 @@ func TestFilterParseAndBuilderErrorBranches(t *testing.T) {
 	if _, err := Parse(12); err == nil || !strings.Contains(err.Error(), "struct") {
 		t.Fatalf("expected non-struct parse error, got %v", err)
 	}
-	if _, err := BuildOptions(12); err == nil || !strings.Contains(err.Error(), "struct") {
-		t.Fatalf("expected BuildOptions parse error, got %v", err)
-	}
 
 	type badPrivate struct {
 		name string `filter:"name"`
@@ -42,20 +39,17 @@ func TestFilterParseAndBuilderErrorBranches(t *testing.T) {
 		t.Fatalf("expected empty multi field error, got %v", err)
 	}
 
-	if _, err := buildOption(Clause{}); err == nil {
-		t.Fatal("expected missing fields build option error")
+	if _, err := applyDBClause(nil, Clause{}); err == nil {
+		t.Fatal("expected missing fields apply error")
 	}
-	if _, err := buildOption(Clause{Fields: []string{"name", "email"}, Combiner: "and"}); err == nil || !strings.Contains(err.Error(), "combiner") {
+	if _, err := applyDBClause(nil, Clause{Fields: []string{"name", "email"}, Combiner: "and"}); err == nil || !strings.Contains(err.Error(), "combiner") {
 		t.Fatalf("expected unsupported combiner error, got %v", err)
 	}
-	if _, err := buildOption(Clause{Field: "name", Op: OpLike, Value: 12}); err == nil || !strings.Contains(err.Error(), "requires a string") {
+	if _, err := buildExpression("name", OpLike, 12); err == nil || !strings.Contains(err.Error(), "requires a string") {
 		t.Fatalf("expected like type error, got %v", err)
 	}
 	type badLike struct {
 		Name int `filter:"name,like"`
-	}
-	if _, err := BuildOptions(badLike{Name: 12}); err == nil || !strings.Contains(err.Error(), "requires a string") {
-		t.Fatalf("expected BuildOptions clause error, got %v", err)
 	}
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
 	if err != nil {

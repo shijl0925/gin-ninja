@@ -162,7 +162,6 @@ model: PresetModel
 database: none
 template: admin
 with_tests: true
-with_gormx: true
 force: true
 `), 0o600); err != nil {
 		t.Fatalf("write preset: %v", err)

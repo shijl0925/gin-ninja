@@ -2,7 +2,7 @@
 
 [文档首页](../README.md) | [中文索引](./README.md) | [English](../en/crud-tutorial.md)
 
-这一页把前面几章串起来：用 `User` 资源实现一组完整的 CRUD 接口。你会先看到原生 GORM 写法，再看到同一组接口如何改成 gormx repository 写法。
+这一页把前面几章串起来：用 `User` 资源和原生 GORM 实现一组完整的 CRUD 接口。
 
 如果只想了解响应结构，请看 [响应、错误与 Schema](./data-and-responses.md)。如果只想查分页、过滤和排序的标签，请看 [查询 Schema：分页、过滤与排序](./query-schemas.md)。
 
@@ -317,159 +317,40 @@ func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
 }
 ```
 
-## gormx Repository 写法
+## 原生 GORM Repository 写法
 
-当 CRUD 变多后，把数据访问收敛到 repository 会更好维护。`examples/full/app` 中的 users 模块就是这种风格。
-
-先定义 repository：
+当 CRUD 变多后，把数据访问收敛到 repository 会更好维护。`examples/full/app` 中的 users 模块使用这种风格，但不引入额外 ORM 层。
 
 ```go
-import "github.com/shijl0925/go-toolkits/gormx"
-
 type IUserRepo interface {
-    gormx.IBaseRepo[User]
-}
-
-type userRepo struct {
-    gormx.BaseRepo[User]
-}
-
-func NewUserRepo() IUserRepo {
-    return &userRepo{}
+    SelectPage(page, size int, db *gorm.DB) ([]User, int64, error)
+    SelectOneByID(id uint, db *gorm.DB) (User, error)
+    Insert(item *User, db *gorm.DB) error
+    UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error
+    DeleteByID(id uint, db *gorm.DB) error
 }
 ```
 
-### List
-
-在 gormx 写法中：
-
-- `filter.BuildOptions(in)` 把 `filter` tag 和 `FilterExpression()` 转成 `gormx.DBOption`。
-- `order.ApplyOrder(query, in)` 把 `sort` 参数写入 gormx query。
-- `repo.SelectPage(page, size, opts...)` 同时返回列表和总数。
+handler 仍然可以使用 `filter.ApplyDB` 和 `order.ApplyDB` 组装安全查询，再把得到的 `*gorm.DB` 交给 repository：
 
 ```go
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    db := userDB(ctx)
-    repo := NewUserRepo()
+    query := userDB(ctx).Model(&User{})
 
-    query, _ := gormx.NewQuery[User]()
-
-    filterOpts, err := filter.BuildOptions(in)
+    query, err := filter.ApplyDB(query, in)
+    if err != nil {
+        return nil, ninja.NewError(400, err.Error())
+    }
+    query, err = order.ApplyDB(query, in)
     if err != nil {
         return nil, ninja.NewError(400, err.Error())
     }
 
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
+    items, total, err := NewUserRepo().SelectPage(in.GetPage(), in.GetSize(), query)
     if err != nil {
         return nil, err
     }
-
     return pagination.NewPage(toUserOuts(items), total, in.PageInput), nil
-}
-```
-
-### Get
-
-```go
-func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
-    repo := NewUserRepo()
-
-    user, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(userDB(ctx)))
-    if err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return nil, ninja.NotFoundError()
-        }
-        return nil, err
-    }
-
-    out := toUserOut(user)
-    return &out, nil
-}
-```
-
-如果主键不是 `int` 友好的类型，可以使用 `SelectOneByOpts(gormx.Where("id = ?", in.UserID))`。
-
-### Create
-
-```go
-func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
-    db := userDB(ctx)
-    repo := NewUserRepo()
-
-    user := &User{
-        Name:  in.Name,
-        Email: in.Email,
-        Age:   in.Age,
-    }
-    if err := repo.Insert(user, gormx.UseDB(db)); err != nil {
-        return nil, err
-    }
-
-    out := toUserOut(*user)
-    return &out, nil
-}
-```
-
-### Update
-
-```go
-func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
-    db := userDB(ctx)
-    repo := NewUserRepo()
-
-    if _, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db)); err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return nil, ninja.NotFoundError()
-        }
-        return nil, err
-    }
-
-    updates := map[string]interface{}{}
-    if in.Name != nil {
-        updates["name"] = *in.Name
-    }
-    if in.Email != nil {
-        updates["email"] = *in.Email
-    }
-    if in.Age != nil {
-        updates["age"] = *in.Age
-    }
-
-    if len(updates) > 0 {
-        if err := repo.UpdateById(int(in.UserID), updates, gormx.UseDB(db)); err != nil {
-            return nil, err
-        }
-    }
-
-    user, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
-    if err != nil {
-        return nil, err
-    }
-    out := toUserOut(user)
-    return &out, nil
-}
-```
-
-### Delete
-
-```go
-func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
-    db := userDB(ctx)
-    repo := NewUserRepo()
-
-    if _, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db)); err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ninja.NotFoundError()
-        }
-        return err
-    }
-
-    return repo.DeleteById(int(in.UserID), gormx.UseDB(db))
 }
 ```
 
@@ -481,8 +362,7 @@ func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
 gin-ninja-cli generate crud \
   -model User \
   -model-file ./app/models.go \
-  -output ./app/user_crud_gen.go \
-  -with-gormx
+  -output ./app/user_crud_gen.go
 ```
 
 生成器会创建：
@@ -490,7 +370,6 @@ gin-ninja-cli generate crud \
 - `UserOut`、`ListUsersInput`、`CreateUserInput`、`UpdateUserInput`、`DeleteUserInput`
 - `ListUsers`、`GetUser`、`CreateUser`、`UpdateUser`、`DeleteUser`
 - `RegisterUserCRUDRoutes(router)`
-- 可选的 gormx repository 起步代码
 
 生成代码是“可运行骨架”，不是最终业务代码。正式项目里通常还需要补唯一性错误转换、权限判断、审计日志、事件发布、复杂关系同步等业务逻辑。
 
@@ -499,9 +378,9 @@ gin-ninja-cli generate crud \
 | 场景 | 推荐 |
 | --- | --- |
 | 小型示例、快速验证 | 原生 GORM |
-| CRUD 模块很多 | gormx repository |
+| CRUD 模块很多 | 原生 GORM repository/service |
 | 需要显式控制每条 SQL | 原生 GORM |
-| 希望统一分页、过滤、排序与仓储风格 | gormx repository |
+| 希望统一分页、过滤、排序与仓储风格 | 原生 GORM repository/service |
 | 新建模块起步 | `gin-ninja-cli generate crud` |
 
 上一篇：[响应、错误与 Schema](./data-and-responses.md) | 下一篇：[ModelSchema 高级用法](./model-schema.md)

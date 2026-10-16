@@ -13,7 +13,6 @@ import (
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/gin-ninja/settings"
 	ninjatest "github.com/shijl0925/gin-ninja/testing"
-	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -241,7 +240,7 @@ func TestUserCRUDFunctions(t *testing.T) {
 		t.Fatalf("CreateUser second: %v", err)
 	}
 	repo := NewUserRepo()
-	if err := repo.UpdateById(int(second.ID), map[string]interface{}{"is_admin": true}, gormx.UseDB(userDB(ctx))); err != nil {
+	if err := repo.UpdateByID(second.ID, map[string]interface{}{"is_admin": true}, userDB(ctx)); err != nil {
 		t.Fatalf("set second user admin: %v", err)
 	}
 
