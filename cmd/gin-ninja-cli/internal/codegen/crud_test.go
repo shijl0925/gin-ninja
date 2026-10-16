@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-func boolPtr(v bool) *bool {
-	return &v
-}
-
 func TestGenerateCRUD(t *testing.T) {
 	t.Parallel()
 
