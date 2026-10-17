@@ -3,7 +3,8 @@ package order
 import (
 	"testing"
 
-	"github.com/shijl0925/go-toolkits/gormx"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestSortSchemaAndResolveEdges(t *testing.T) {
@@ -56,15 +57,19 @@ func TestResolveOrderAdditionalErrors(t *testing.T) {
 	})
 }
 
-func TestApplySortAndApplyOrderExecuteBranches(t *testing.T) {
+func TestApplySortDBAndApplyDBExecuteBranches(t *testing.T) {
 	t.Parallel()
 
-	query, _ := gormx.NewQuery[struct{}]()
-	if err := ApplySort(query, "name,-created_at", NewSortSchema("name", "created_at")); err != nil {
-		t.Fatalf("ApplySort: %v", err)
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := ApplyOrder(query, &taggedSortInput{Sort: "name,-created"}); err != nil {
-		t.Fatalf("ApplyOrder: %v", err)
+	query, err := ApplySortDB(db.Model(&struct{}{}), "name,-created_at", NewSortSchema("name", "created_at"))
+	if err != nil {
+		t.Fatalf("ApplySortDB: %v", err)
+	}
+	if _, err := ApplyDB(query, &taggedSortInput{Sort: "name,-created"}); err != nil {
+		t.Fatalf("ApplyDB: %v", err)
 	}
 
 	var input *taggedSortInput

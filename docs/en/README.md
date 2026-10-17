@@ -31,7 +31,7 @@ api.Run(":8080")
 4. [Request Body and Form Data](./request-body-and-forms.md) — learn JSON bodies, URL encoded forms, and multipart forms.
 5. [Query Schemas: Pagination, Filtering, and Ordering](./query-schemas.md) — learn list endpoint pagination, filtering, search, and ordering.
 6. [Responses, Errors, and Schemas](./data-and-responses.md) — learn DTOs, paginated responses, error responses, and response schemas.
-7. [CRUD Tutorial: Users](./crud-tutorial.md) — build complete users CRUD with native GORM and gormx repositories.
+7. [CRUD Tutorial: Users](./crud-tutorial.md) — build complete users CRUD with native GORM.
 8. [ModelSchema Advanced Usage](./model-schema.md) — optional advanced model-derived schemas, field pruning, input binding, and preloads.
 9. [Routers and Operations](./routers-and-operations.md) — look up router configuration, operation registration helpers, and options.
 10. [Project and CRUD Scaffolding](./scaffolding.md) — create projects, apps, migrations, and CRUD starter code.

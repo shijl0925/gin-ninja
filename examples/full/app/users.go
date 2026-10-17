@@ -11,7 +11,6 @@ import (
 	"github.com/shijl0925/gin-ninja/orm"
 	"github.com/shijl0925/gin-ninja/pagination"
 	"github.com/shijl0925/gin-ninja/settings"
-	"github.com/shijl0925/go-toolkits/gormx"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -38,9 +37,7 @@ func login(ctx *ninja.Context, in *LoginInput, cfg settings.JWTConfig) (*LoginOu
 	db := userDB(ctx)
 	repo := NewUserRepo()
 
-	query, u := gormx.NewQuery[User]()
-	query.Eq(&u.Email, in.Email)
-	user, err := repo.SelectOneByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, query.ToOptions()...)...)
+	user, err := repo.SelectOneByEmail(in.Email, db)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NewError(401, "invalid email or password")
@@ -113,9 +110,7 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
 
-	query, u := gormx.NewQuery[User]()
-	query.Eq(&u.Email, in.Email)
-	_, err := repo.SelectOneByOpts(append([]gormx.DBOption{gormx.UseDB(db)}, query.ToOptions()...)...)
+	_, err := repo.SelectOneByEmail(in.Email, db)
 	switch {
 	case err == nil:
 		return nil, ninja.NewError(409, "email already registered")
@@ -139,18 +134,18 @@ func Register(ctx *ninja.Context, in *RegisterInput) (*UserOut, error) {
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
-	query, _ := gormx.NewQuery[User]()
+	query := db.Model(&User{})
 
-	filterOpts, err := filter.BuildOptions(in)
+	query, err := filter.ApplyDB(query, in)
 	if err != nil {
 		return nil, ninja.NewError(400, err.Error())
 	}
-	if err := order.ApplyOrder(query, in); err != nil {
+	query, err = order.ApplyDB(query, in)
+	if err != nil {
 		return nil, ninja.NewError(400, err.Error())
 	}
 
-	opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)
-	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
+	items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), query)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +157,7 @@ func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
-	u, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
+	u, err := repo.SelectOneByID(in.UserID, db)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -189,7 +184,7 @@ func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
 func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 	db := userDB(ctx)
 	repo := NewUserRepo()
-	_, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
+	_, err := repo.SelectOneByID(in.UserID, db)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -208,12 +203,12 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 		updates["age"] = in.Age
 	}
 	if len(updates) > 0 {
-		if err := repo.UpdateById(int(in.UserID), updates, gormx.UseDB(db)); err != nil {
+		if err := repo.UpdateByID(in.UserID, updates, db); err != nil {
 			return nil, err
 		}
 	}
 
-	u, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
+	u, err := repo.SelectOneByID(in.UserID, db)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ninja.NotFoundError()
@@ -228,7 +223,7 @@ func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
 func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
 	db := userDB(ctx)
 	repo := NewUserRepo()
-	if err := repo.DeleteById(int(in.UserID), gormx.UseDB(db)); err != nil {
+	if err := repo.DeleteByID(in.UserID, db); err != nil {
 		return err
 	}
 	return nil
@@ -261,7 +256,7 @@ func createUser(repo IUserRepo, db *gorm.DB, name, email, password string, age i
 		Password: hashPassword(password),
 		Age:      age,
 	}
-	if err := repo.Insert(u, gormx.UseDB(db)); err != nil {
+	if err := repo.Insert(u, db); err != nil {
 		return nil, err
 	}
 	return u, nil

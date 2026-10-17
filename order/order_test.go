@@ -188,15 +188,15 @@ func TestResolveOrderInputValidation(t *testing.T) {
 	}
 }
 
-func TestApplySortAndApplyOrderNilQuery(t *testing.T) {
+func TestApplyDBNilQuery(t *testing.T) {
 	t.Parallel()
 
 	schema := NewSortSchema("name")
-	if err := ApplySort[struct{}](nil, "name", schema); err != nil {
-		t.Fatalf("ApplySort(nil) error = %v", err)
+	if db, err := ApplySortDB(nil, "name", schema); err != nil || db != nil {
+		t.Fatalf("ApplySortDB(nil) = (%v, %v)", db, err)
 	}
-	if err := ApplyOrder[struct{}](nil, &taggedSortInput{Sort: "name"}); err != nil {
-		t.Fatalf("ApplyOrder(nil) error = %v", err)
+	if db, err := ApplyDB(nil, &taggedSortInput{Sort: "name"}); err != nil || db != nil {
+		t.Fatalf("ApplyDB(nil) = (%v, %v)", db, err)
 	}
 }
 
@@ -210,6 +210,22 @@ func TestApplyDB(t *testing.T) {
 	query, err := ApplyDB(db.Model(&struct{}{}), &taggedSortInput{Sort: "name,-created"})
 	if err != nil {
 		t.Fatalf("ApplyDB: %v", err)
+	}
+	if query == nil {
+		t.Fatal("expected query to be returned")
+	}
+}
+
+func TestApplySortDB(t *testing.T) {
+	t.Parallel()
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	query, err := ApplySortDB(db.Model(&struct{}{}), "name,-created_at", NewSortSchema("name", "created_at"))
+	if err != nil {
+		t.Fatalf("ApplySortDB: %v", err)
 	}
 	if query == nil {
 		t.Fatal("expected query to be returned")

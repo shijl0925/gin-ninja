@@ -94,7 +94,6 @@ Common flags:
 | `-with-tests` | generate tests |
 | `-with-auth` | generate auth starter code |
 | `-with-admin` | generate admin files |
-| `-with-gormx` | use gormx-style repo/service code |
 | `-app-dir <path>` | choose app directory for `startproject` |
 | `-force` | allow a non-empty output directory |
 
@@ -185,7 +184,6 @@ app_dir: internal/app
 database: postgres
 template: standard
 with_tests: true
-with_gormx: false
 ```
 
 Run:

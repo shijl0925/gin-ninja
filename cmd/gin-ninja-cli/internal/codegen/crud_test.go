@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-func boolPtr(v bool) *bool {
-	return &v
-}
-
 func TestGenerateCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -54,8 +50,6 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		"Created    time.Time `json:\"created\"`",
 		"func toUserOut(item User) UserOut",
 		"func toUserOuts(items []User) []UserOut",
-		"type IUserRepo interface",
-		"func NewUserRepo() IUserRepo",
 		"type CreateUserInput struct",
 		"Name string `json:\"name\" binding:\"required\" description:\"Full name\"`",
 		"PasswordHash string `json:\"password_hash\" binding:\"required,min=8\"`",
@@ -73,16 +67,15 @@ Roles           []string  `+"`gorm:\"-\" json:\"roles\"`"+`
 		`ninja.Post(router, "/", CreateUser, ninja.Summary("Create user"), ninja.WithTransaction())`,
 		`ninja.Patch(router, "/:id", UpdateUser, ninja.Summary("Patch user"), ninja.WithTransaction())`,
 		`ninja.Delete(router, "/:id", DeleteUser, ninja.Summary("Delete user"), ninja.WithTransaction())`,
-		"items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)",
 		"return pagination.NewPage(toUserOuts(items), total, in.PageInput), nil",
 		"item := &User{",
 		"Name:         in.Name,",
 		"item.Name = *in.Name",
-		"if err := repo.Insert(item, gormx.UseDB(db)); err != nil {",
+		"if err := db.Create(item).Error; err != nil {",
 		"func loadUserByID(db *gorm.DB, id uint) (User, error)",
 		"if err := db.Model(&User{}).Where(\"id = ?\", in.ID).Select(updateColumns).Updates(item).Error; err != nil {",
-		"if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
-		"return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID))",
+		"if _, err := loadUserByID(db, in.ID); err != nil {",
+		"return db.Model(&User{}).Where(\"id = ?\", in.ID).Delete(&User{}).Error",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -174,7 +167,7 @@ type User struct {
 		t.Fatalf("write model file: %v", err)
 	}
 
-	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User"})
 	if err != nil {
 		t.Fatalf("GenerateCRUD: %v", err)
 	}
@@ -197,7 +190,6 @@ type User struct {
 	}
 
 	for _, unexpected := range []string{
-		`gormx.`,
 		`type IUserRepo interface`,
 		`func NewUserRepo()`,
 		`func applyUserFilters(`,
@@ -225,7 +217,7 @@ type Widget struct {
 		t.Fatalf("write model file: %v", err)
 	}
 
-	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Widget", WithGormX: boolPtr(false)})
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "Widget"})
 	if err != nil {
 		t.Fatalf("GenerateCRUD: %v", err)
 	}
@@ -314,14 +306,14 @@ type User struct {
 		t.Fatalf("write model file: %v", err)
 	}
 
-	crudContent, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	crudContent, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User"})
 	if err != nil {
 		t.Fatalf("GenerateCRUD: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "user_crud_gen.go"), crudContent, 0o644); err != nil {
 		t.Fatalf("write generated file: %v", err)
 	}
-	testContent, err := GenerateCRUDTest(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	testContent, err := GenerateCRUDTest(CRUDConfig{ModelFile: modelFile, Model: "User"})
 	if err != nil {
 		t.Fatalf("GenerateCRUDTest: %v", err)
 	}
@@ -358,8 +350,8 @@ type Session struct {
 		"func loadSessionByID(db *gorm.DB, id string) (Session, error)",
 		"Token string `json:\"token\" binding:\"required\"`",
 		"if err := db.Model(&Session{}).Where(\"id = ?\", in.ID).Select(updateColumns).Updates(item).Error; err != nil {",
-		"if _, err := repo.SelectOneByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID)); err != nil {",
-		"return repo.DeleteByOpts(gormx.UseDB(db), gormx.Where(\"id = ?\", in.ID))",
+		"if _, err := loadSessionByID(db, in.ID); err != nil {",
+		"return db.Model(&Session{}).Where(\"id = ?\", in.ID).Delete(&Session{}).Error",
 	}
 	for _, check := range checks {
 		if !strings.Contains(generated, check) {
@@ -519,7 +511,7 @@ type User struct {
 		t.Fatalf("write model file: %v", err)
 	}
 
-	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User", WithGormX: boolPtr(false)})
+	content, err := GenerateCRUD(CRUDConfig{ModelFile: modelFile, Model: "User"})
 	if err != nil {
 		t.Fatalf("GenerateCRUD: %v", err)
 	}
@@ -706,8 +698,8 @@ type Project struct {
 		`db = db.Preload("Owner")`,
 		`db = db.Preload("Tasks")`,
 		`db = db.Preload("Tags")`,
-		`filterOpts, err := filter.BuildOptions(in)`,
-		`if err := order.ApplyOrder(query, in); err != nil {`,
+		`query, err = filter.ApplyDB(query, in)`,
+		`query, err = order.ApplyDB(query, in)`,
 		`return pagination.NewPage(toProjectOuts(items), total, in.PageInput), nil`,
 		`func syncProjectTagsRelations(db *gorm.DB, item *Project, ids []uint) error {`,
 		`func syncProjectTasksRelations(db *gorm.DB, item *Project, ids []uint) error {`,

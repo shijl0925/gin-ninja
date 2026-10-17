@@ -37,7 +37,6 @@ func TestRequestDatabaseNilAndWrongTypeBranches(t *testing.T) {
 	}
 
 	db := testDB(t)
-	Init(db)
 	Middleware(db)(c)
 	c.Request = nil
 	if got := WithContext(c); got != db {

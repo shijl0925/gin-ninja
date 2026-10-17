@@ -5,7 +5,7 @@
 
 [English](./README.md) | [中文](./README-zh.md)
 
-A **django-ninja** inspired web framework built on top of [Gin](https://github.com/gin-gonic/gin). It adds type-safe request/response handling, automatic OpenAPI 3.0 documentation, production-ready middleware, route caching, API versioning, and first-class [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) integration.
+A **django-ninja** inspired web framework built on top of [Gin](https://github.com/gin-gonic/gin). It adds type-safe request/response handling, automatic OpenAPI 3.0 documentation, production-ready middleware, route caching, API versioning, and native GORM integration.
 
 ## Highlights
 

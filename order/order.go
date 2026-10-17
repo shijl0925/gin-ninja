@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/shijl0925/gin-ninja/internal/sqlident"
-	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/gorm"
 )
 
@@ -142,23 +141,16 @@ func ResolveSort(raw string, schema *SortSchema) ([]SortField, error) {
 	return resolved, nil
 }
 
-// ApplySort validates and applies a raw sort string to a gormx query.
-func ApplySort[T any](query *gormx.Query[T], raw string, schema *SortSchema) error {
-	if query == nil {
-		return nil
+// ApplySortDB validates and applies a raw sort string to a native GORM query.
+func ApplySortDB(db *gorm.DB, raw string, schema *SortSchema) (*gorm.DB, error) {
+	if db == nil {
+		return nil, nil
 	}
 	fields, err := ResolveSort(raw, schema)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, field := range fields {
-		if field.Desc {
-			query.OrderDesc(field.Name)
-			continue
-		}
-		query.OrderAsc(field.Name)
-	}
-	return nil
+	return applyFieldsDB(db, fields), nil
 }
 
 // ResolveOrder resolves declarative sort clauses from `order:"..."` tags.
@@ -170,25 +162,6 @@ func ResolveOrder(input any) ([]SortField, error) {
 	return resolved, nil
 }
 
-// ApplyOrder validates and applies declarative sorting to a gormx query.
-func ApplyOrder[T any](query *gormx.Query[T], input any) error {
-	if query == nil {
-		return nil
-	}
-	fields, err := ResolveOrder(input)
-	if err != nil {
-		return err
-	}
-	for _, field := range fields {
-		if field.Desc {
-			query.OrderDesc(field.Name)
-			continue
-		}
-		query.OrderAsc(field.Name)
-	}
-	return nil
-}
-
 // ApplyDB validates and applies declarative sorting to a native GORM query.
 func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
 	if db == nil {
@@ -198,6 +171,10 @@ func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	return applyFieldsDB(db, fields), nil
+}
+
+func applyFieldsDB(db *gorm.DB, fields []SortField) *gorm.DB {
 	for _, field := range fields {
 		direction := " ASC"
 		if field.Desc {
@@ -205,7 +182,7 @@ func ApplyDB(db *gorm.DB, input any) (*gorm.DB, error) {
 		}
 		db = db.Order(field.Name + direction)
 	}
-	return db, nil
+	return db
 }
 
 func resolveOrderInto(value reflect.Value, resolved *[]SortField) error {

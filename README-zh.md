@@ -2,7 +2,7 @@
 
 [English](./README.md) | [中文](./README-zh.md)
 
-gin-ninja 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Web/API 框架，灵感来自 django-ninja。它在保留 Gin 路由能力和生态的同时，提供类型安全处理器、自动 OpenAPI 3.0 文档、生产可用中间件、路由级缓存、API 版本管理，以及与 [gormx](https://github.com/shijl0925/go-toolkits/tree/main/gormx) 的集成。
+gin-ninja 是一个基于 [Gin](https://github.com/gin-gonic/gin) 的 Web/API 框架，灵感来自 django-ninja。它在保留 Gin 路由能力和生态的同时，提供类型安全处理器、自动 OpenAPI 3.0 文档、生产可用中间件、路由级缓存、API 版本管理，以及原生 GORM 集成。
 
 ## 亮点
 

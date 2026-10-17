@@ -99,11 +99,11 @@ func TestScaffoldFallbackAndWriteCoverage(t *testing.T) {
 func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 	t.Parallel()
 
-	minimalOpts, err := resolveScaffoldOptions("minimal", false, false, false, boolPtr(false))
+	minimalOpts, err := resolveScaffoldOptions("minimal", false, false, false)
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(minimal): %v", err)
 	}
-	standardOpts, err := resolveScaffoldOptions("admin", true, false, false, boolPtr(true))
+	standardOpts, err := resolveScaffoldOptions("admin", true, false, false)
 	if err != nil {
 		t.Fatalf("resolveScaffoldOptions(admin): %v", err)
 	}
@@ -143,10 +143,10 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 			t.Fatalf("did not expect minimal app file %q", name)
 		}
 	}
-	if strings.Contains(string(minimalFiles["repos.go"]), "gormx") {
+	if !strings.Contains(string(minimalFiles["repos.go"]), "gorm.io/gorm") {
 		t.Fatalf("expected minimal native repos template, got:\n%s", minimalFiles["repos.go"])
 	}
-	if strings.Contains(string(minimalFiles["apis.go"]), "gormx") {
+	if !strings.Contains(string(minimalFiles["apis.go"]), "gorm.io/gorm") {
 		t.Fatalf("expected minimal native apis template, got:\n%s", minimalFiles["apis.go"])
 	}
 
@@ -159,8 +159,8 @@ func TestScaffoldTemplateSelectionCoverage(t *testing.T) {
 			t.Fatalf("expected standard app file %q", name)
 		}
 	}
-	if !strings.Contains(string(standardFiles["repos.go"]), "gormx") || !strings.Contains(string(standardFiles["services.go"]), "gormx") {
-		t.Fatalf("expected gormx-backed standard templates")
+	if !strings.Contains(string(standardFiles["repos.go"]), "gorm.io/gorm") || !strings.Contains(string(standardFiles["services.go"]), "gorm.io/gorm") {
+		t.Fatalf("expected native GORM standard templates")
 	}
 
 	minimalProjectFiles, err := projectFiles(projectTemplateData{
@@ -252,22 +252,17 @@ type User struct {
 			Model:       "User",
 			PackageName: "custompkg",
 			Tag:         "members",
-			WithGormX:   boolPtr(false),
 		})
 		if err != nil {
 			t.Fatalf("loadModelSpec: %v", err)
 		}
 
-		if spec.packageName != "custompkg" || spec.tag != "members" || spec.useGormX {
+		if spec.packageName != "custompkg" || spec.tag != "members" {
 			t.Fatalf("unexpected model spec overrides: %+v", spec)
 		}
 		if spec.idField != "ID" || spec.idTypeExpr != "uint" || spec.idColumn != "id" {
 			t.Fatalf("unexpected ID spec: field=%q type=%q column=%q", spec.idField, spec.idTypeExpr, spec.idColumn)
 		}
-		if spec.useByIDMethods {
-			t.Fatalf("expected uint IDs to avoid by-id helpers, got %+v", spec)
-		}
-
 		if len(spec.relations) != 1 {
 			t.Fatalf("expected one relation, got %+v", spec.relations)
 		}
@@ -296,9 +291,6 @@ type User struct {
 			t.Fatalf("unexpected search fields: %+v", spec.searchFields)
 		}
 
-		if containsImportPath(spec.imports, "github.com/shijl0925/go-toolkits/gormx") {
-			t.Fatalf("did not expect gormx import: %+v", spec.imports)
-		}
 		for _, path := range []string{
 			"github.com/shijl0925/gin-ninja/filter",
 			"github.com/shijl0925/gin-ninja/order",

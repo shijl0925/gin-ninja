@@ -11,7 +11,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jackc/pgx/v5 v5.9.0
 	github.com/jinzhu/inflection v1.0.0
-	github.com/shijl0925/go-toolkits v0.2.3
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.27.1
 	golang.org/x/crypto v0.57.0

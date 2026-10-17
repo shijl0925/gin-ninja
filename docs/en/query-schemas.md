@@ -27,7 +27,7 @@ In gin-ninja, a schema is not a separate DSL. It is a plain Go struct with tags.
 | --- | --- | --- |
 | Request binding | `query:"search"` | Binds `?search=alice` |
 | Validation | `binding:"omitempty,min=1"` | Uses validator rules |
-| Query declaration | `filter:"is_admin,eq"` / `order:"name|created_at"` | Builds safe GORM/gormx query clauses |
+| Query declaration | `filter:"is_admin,eq"` / `order:"name|created_at"` | Builds safe GORM query clauses |
 
 Prefer one input struct per list endpoint instead of a large reusable "universal query" struct. That keeps Swagger/OpenAPI, handler code, and database query capabilities aligned.
 
@@ -203,7 +203,7 @@ This generates a condition like `name LIKE ? OR email LIKE ?`.
 
 ## Custom Filter Expressions
 
-When a filter cannot be expressed with one tag, implement `FilterExpression()` on the input. `filter.ApplyDB` and `filter.BuildOptions` append that expression automatically:
+When a filter cannot be expressed with one tag, implement `FilterExpression()` on the input. `filter.ApplyDB` appends that expression automatically:
 
 ```go
 type ListUsersInput struct {
@@ -301,39 +301,6 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 ```
 
 In real projects, the repository/service often owns query assembly, while the handler only reads input, calls the service, and returns DTOs.
-
-## gormx Repository
-
-gormx repositories use `filter.BuildOptions` to create `gormx.DBOption` values and `order.ApplyOrder` to apply ordering to `gormx.Query`:
-
-```go
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    db := orm.WithContext(ctx.Context)
-    repo := NewUserRepo()
-
-    query, _ := gormx.NewQuery[User]()
-
-    filterOpts, err := filter.BuildOptions(in)
-    if err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    opts := append([]gormx.DBOption{gormx.UseDB(db)}, filterOpts...)
-    opts = append(opts, query.ToOptions()...)
-
-    users, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
-    if err != nil {
-        return nil, err
-    }
-
-    return pagination.NewPage(toUserOuts(users), total, in.PageInput), nil
-}
-```
-
-This style keeps filtering, ordering, and pagination near the repository layer and leaves handlers thin.
 
 ## Complete Users Example
 

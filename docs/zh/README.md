@@ -31,7 +31,7 @@ api.Run(":8080")
 4. [Request Body 与 Form Data](./request-body-and-forms.md)：学习 JSON body、URL encoded form 和 multipart form。
 5. [查询 Schema：分页、过滤与排序](./query-schemas.md)：集中学习列表接口的分页、过滤、搜索和排序。
 6. [响应、错误与 Schema](./data-and-responses.md)：学习 DTO、分页响应、错误响应和响应 schema。
-7. [CRUD 教程：Users 增删改查](./crud-tutorial.md)：用原生 GORM 和 gormx repository 写完整 users CRUD。
+7. [CRUD 教程：Users 增删改查](./crud-tutorial.md)：用原生 GORM 写完整 users CRUD。
 8. [ModelSchema 高级用法](./model-schema.md)：可选阅读，学习 model 派生 schema、字段裁剪、输入绑定和 preload。
 9. [Router 与 Operation](./routers-and-operations.md)：集中查阅 Router 配置、operation 注册函数和选项。
 10. [项目与 CRUD 脚手架](./scaffolding.md)：用 CLI 创建项目、app、迁移和 CRUD 起步代码。

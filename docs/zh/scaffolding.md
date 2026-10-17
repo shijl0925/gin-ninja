@@ -94,7 +94,6 @@ gin-ninja-cli startapp inventory -template standard -database mysql
 | `-with-tests` | 生成测试文件 |
 | `-with-auth` | 生成认证相关起步代码 |
 | `-with-admin` | 生成 admin 相关文件 |
-| `-with-gormx` | 使用 gormx 风格 repo/service |
 | `-app-dir <path>` | `startproject` 时指定 app 目录 |
 | `-force` | 允许覆盖非空输出目录 |
 
@@ -185,7 +184,6 @@ app_dir: internal/app
 database: postgres
 template: standard
 with_tests: true
-with_gormx: false
 ```
 
 执行：

@@ -1,5 +1,5 @@
-// Package orm provides a thin integration layer between gin-ninja and the
-// go-toolkits/gormx ORM library (https://github.com/shijl0925/go-toolkits).
+// Package orm provides a thin integration layer between gin-ninja and native
+// GORM database handles.
 //
 // Quick start:
 //
@@ -20,23 +20,11 @@ package orm
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/gorm"
 )
 
 const dbContextKey = "gin_ninja_db"
 const txContextKey = "gin_ninja_db_tx"
-
-// Init initialises the process-wide gormx database instance.
-//
-// Deprecated: prefer Middleware, GetDB, WithContext, and TransactionHandlers
-// so each NinjaAPI instance and request carries its own explicit database.
-// Process-wide database state is hard to reason about in parallel tests,
-// multiple API instances, and multi-tenant applications. Call gormx.Init
-// directly only when integrating legacy code that requires gormx's global DB.
-func Init(db *gorm.DB) {
-	gormx.Init(db)
-}
 
 // Middleware returns a gin middleware that stores the given *gorm.DB in the
 // request context under a known key.  Use GetDB to retrieve it in handlers.
@@ -49,8 +37,7 @@ func Middleware(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// RequestBaseDB retrieves the non-transactional request database without
-// falling back to the global gormx instance.
+// RequestBaseDB retrieves the non-transactional request database.
 func RequestBaseDB(c *gin.Context) (*gorm.DB, bool) {
 	if c == nil {
 		return nil, false
@@ -63,8 +50,7 @@ func RequestBaseDB(c *gin.Context) (*gorm.DB, bool) {
 	return nil, false
 }
 
-// RequestDB retrieves the request transaction or request database without
-// falling back to the global gormx instance.
+// RequestDB retrieves the request transaction or request database.
 func RequestDB(c *gin.Context) (*gorm.DB, bool) {
 	if c == nil {
 		return nil, false
@@ -108,7 +94,7 @@ func WithContext(c *gin.Context) *gorm.DB {
 }
 
 // RequestWithContext returns the request-scoped database with the request
-// context attached, without falling back to the global gormx instance.
+// context attached.
 func RequestWithContext(c *gin.Context) (*gorm.DB, bool) {
 	db, ok := RequestDB(c)
 	if !ok {

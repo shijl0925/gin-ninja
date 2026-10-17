@@ -27,7 +27,7 @@ type ListUsersInput struct {
 | --- | --- | --- |
 | 请求绑定 | `query:"search"` | 从 `?search=alice` 绑定字段 |
 | 参数校验 | `binding:"omitempty,min=1"` | 使用 validator 校验 |
-| 查询声明 | `filter:"is_admin,eq"` / `order:"name|created_at"` | 生成安全的 GORM/gormx 查询条件 |
+| 查询声明 | `filter:"is_admin,eq"` / `order:"name|created_at"` | 生成安全的 GORM 查询条件 |
 
 建议每个列表接口单独定义 input struct，不要复用过大的“万能查询结构体”。这样 Swagger/OpenAPI、handler 代码和数据库查询能力会保持一致。
 
@@ -203,7 +203,7 @@ type ListUsersInput struct {
 
 ## 自定义过滤表达式
 
-当过滤逻辑无法用一个 tag 表达时，让 input 实现 `FilterExpression()`。`filter.ApplyDB` 和 `filter.BuildOptions` 会自动追加这个表达式：
+当过滤逻辑无法用一个 tag 表达时，让 input 实现 `FilterExpression()`。`filter.ApplyDB` 会自动追加这个表达式：
 
 ```go
 type ListUsersInput struct {
@@ -301,39 +301,6 @@ func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut
 ```
 
 实际项目里通常会把查询组装放进 repository/service，handler 只负责读取 input、调用 service、返回 DTO。
-
-## gormx Repository 用法
-
-gormx repository 使用 `filter.BuildOptions` 生成 `gormx.DBOption`，使用 `order.ApplyOrder` 把排序写入 `gormx.Query`：
-
-```go
-func listUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    db := orm.WithContext(ctx.Context)
-    repo := NewUserRepo()
-
-    query, _ := gormx.NewQuery[User]()
-
-    filterOpts, err := filter.BuildOptions(in)
-    if err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    opts := append([]gormx.DBOption{gormx.UseDB(db)}, filterOpts...)
-    opts = append(opts, query.ToOptions()...)
-
-    users, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
-    if err != nil {
-        return nil, err
-    }
-
-    return pagination.NewPage(toUserOuts(users), total, in.PageInput), nil
-}
-```
-
-这种写法适合把过滤、排序、分页都收敛到 repository 层，handler 保持薄一些。
 
 ## 完整 users 示例
 

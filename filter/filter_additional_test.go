@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -45,14 +44,10 @@ func TestParseSkipsUnexportedTaggedFields(t *testing.T) {
 func TestApplyAndBuildOptionEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	query, _ := gormx.NewQuery[userRecord]()
-	if err := applySingleClause(query, Clause{}); err == nil || !strings.Contains(err.Error(), "missing fields") {
+	if _, err := applyDBClause(nil, Clause{}); err == nil || !strings.Contains(err.Error(), "missing fields") {
 		t.Fatalf("expected missing field error, got %v", err)
 	}
-	if _, err := buildOption(Clause{}); err == nil || !strings.Contains(err.Error(), "missing fields") {
-		t.Fatalf("expected missing field error, got %v", err)
-	}
-	if err := applySingleClause(query, Clause{Field: "id", Op: Operator("bad"), Value: 1}); err == nil || !strings.Contains(err.Error(), "unsupported filter operator") {
+	if _, err := applyDBClause(nil, Clause{Field: "id", Op: Operator("bad"), Value: 1}); err == nil || !strings.Contains(err.Error(), "unsupported filter operator") {
 		t.Fatalf("expected unsupported operator error, got %v", err)
 	}
 	if _, err := buildExpression("id", OpIn, []int{1, 2}); err != nil {
@@ -112,27 +107,23 @@ func TestFilterHelperSuccessBranches(t *testing.T) {
 		t.Fatalf("expected 3 clauses, got %+v", clauses)
 	}
 
-	opts, err := BuildOptions(input{Search: "ali", IDs: []int{1, 2}})
-	if err != nil {
-		t.Fatalf("BuildOptions: %v", err)
-	}
-	if len(opts) != 3 {
-		t.Fatalf("expected 3 built options, got %d", len(opts))
-	}
-
-	query, _ := gormx.NewQuery[userRecord]()
-	if err := Apply(query, input{Active: false}); err != nil {
-		t.Fatalf("Apply: %v", err)
-	}
-	if err := Apply[userRecord](nil, input{Active: true}); err != nil {
-		t.Fatalf("Apply nil query: %v", err)
-	}
-
 	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	filtered, err := ApplyDB(db.Model(&userRecord{}), input{Search: "ali"})
+	filtered, err := ApplyDB(db.Model(&userRecord{}), input{Search: "ali", IDs: []int{1, 2}})
+	if err != nil {
+		t.Fatalf("ApplyDB: %v", err)
+	}
+	if filtered == nil {
+		t.Fatal("expected filtered db")
+	}
+
+	db, err = gorm.Open(sqlite.Open("file:"+t.Name()+"-second?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	filtered, err = ApplyDB(db.Model(&userRecord{}), input{Search: "ali"})
 	if err != nil {
 		t.Fatalf("ApplyDB: %v", err)
 	}
@@ -147,7 +138,6 @@ func TestFilterHelperSuccessBranches(t *testing.T) {
 func TestFilterSwitchCoverage(t *testing.T) {
 	t.Parallel()
 
-	query, _ := gormx.NewQuery[userRecord]()
 	for _, op := range []Operator{OpEq, OpNe, OpGt, OpGe, OpLt, OpLe, OpLike, OpIn} {
 		value := any(1)
 		if op == OpLike {
@@ -156,11 +146,8 @@ func TestFilterSwitchCoverage(t *testing.T) {
 		if op == OpIn {
 			value = []int{1, 2}
 		}
-		if err := applySingleClause(query, Clause{Field: "id", Op: op, Value: value}); err != nil {
-			t.Fatalf("applySingleClause(%s): %v", op, err)
-		}
-		if _, err := buildOption(Clause{Field: "id", Op: op, Value: value}); err != nil {
-			t.Fatalf("buildOption(%s): %v", op, err)
+		if _, err := buildExpression("id", op, value); err != nil {
+			t.Fatalf("buildExpression(%s): %v", op, err)
 		}
 	}
 

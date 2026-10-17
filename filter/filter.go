@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/shijl0925/gin-ninja/internal/sqlident"
-	"github.com/shijl0925/go-toolkits/gormx"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -56,46 +55,6 @@ func Parse(input any) (Set, error) {
 		return nil, err
 	}
 	return clauses, nil
-}
-
-// Apply resolves the tagged filter clauses and applies them to a gormx query.
-// Multi-field clauses and custom FilterExpression clauses must be applied
-// through BuildOptions and passed to the repo.
-func Apply[T any](query *gormx.Query[T], input any) error {
-	if query == nil {
-		return nil
-	}
-	clauses, err := Parse(input)
-	if err != nil {
-		return err
-	}
-	for _, clause := range clauses {
-		if err := applySingleClause(query, clause); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// BuildOptions resolves tagged filter clauses into stable gormx DB options.
-func BuildOptions(input any) ([]gormx.DBOption, error) {
-	clauses, err := Parse(input)
-	if err != nil {
-		return nil, err
-	}
-
-	opts := make([]gormx.DBOption, 0, len(clauses)+1)
-	for _, clause := range clauses {
-		opt, err := buildOption(clause)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, opt)
-	}
-	if expr := filterExpression(input); expr != nil {
-		opts = append(opts, gormx.Where(expr))
-	}
-	return opts, nil
 }
 
 // ApplyDB resolves tagged filter clauses and applies them to a native GORM query.
@@ -200,73 +159,6 @@ func parseInto(value reflect.Value, clauses *Set) error {
 		})
 	}
 	return nil
-}
-
-func applySingleClause[T any](query *gormx.Query[T], filterClause Clause) error {
-	fields := filterClause.Fields
-	if len(fields) == 0 && filterClause.Field != "" {
-		fields = []string{filterClause.Field}
-	}
-	if len(fields) == 0 {
-		return fmt.Errorf("filter clause is missing fields")
-	}
-	if len(fields) > 1 {
-		return fmt.Errorf("multi-field filters require BuildOptions")
-	}
-
-	switch filterClause.Op {
-	case OpEq:
-		query.Eq(fields[0], filterClause.Value)
-	case OpNe:
-		query.Ne(fields[0], filterClause.Value)
-	case OpGt:
-		query.Gt(fields[0], filterClause.Value)
-	case OpGe:
-		query.Ge(fields[0], filterClause.Value)
-	case OpLt:
-		query.Lt(fields[0], filterClause.Value)
-	case OpLe:
-		query.Le(fields[0], filterClause.Value)
-	case OpLike:
-		query.Like(fields[0], filterClause.Value)
-	case OpIn:
-		query.In(fields[0], filterClause.Value)
-	default:
-		return fmt.Errorf("unsupported filter operator %q", filterClause.Op)
-	}
-	return nil
-}
-
-func buildOption(filterClause Clause) (gormx.DBOption, error) {
-	fields := filterClause.Fields
-	if len(fields) == 0 && filterClause.Field != "" {
-		fields = []string{filterClause.Field}
-	}
-	if len(fields) == 0 {
-		return nil, fmt.Errorf("filter clause is missing fields")
-	}
-
-	if len(fields) == 1 {
-		expr, err := buildExpression(fields[0], filterClause.Op, filterClause.Value)
-		if err != nil {
-			return nil, err
-		}
-		return gormx.Where(expr), nil
-	}
-
-	if filterClause.Combiner != CombinerOr {
-		return nil, fmt.Errorf("unsupported filter combiner %q", filterClause.Combiner)
-	}
-
-	exprs := make([]clause.Expression, 0, len(fields))
-	for _, field := range fields {
-		expr, err := buildExpression(field, filterClause.Op, filterClause.Value)
-		if err != nil {
-			return nil, err
-		}
-		exprs = append(exprs, expr)
-	}
-	return gormx.Where(clause.Or(exprs...)), nil
 }
 
 func applyDBClause(db *gorm.DB, filterClause Clause) (*gorm.DB, error) {

@@ -2,7 +2,7 @@
 
 [Docs Home](../README.md) | [English Index](./README.md) | [中文](../zh/crud-tutorial.md)
 
-This page connects the earlier guides by building a complete CRUD API for a `User` resource. It starts with native GORM handlers, then shows the same endpoints with a gormx repository.
+This page connects the earlier guides by building a complete CRUD API for a `User` resource with native GORM.
 
 For response behavior only, read [Responses, Errors, and Schemas](./data-and-responses.md). For pagination, filtering, and ordering tags only, read [Query Schemas: Pagination, Filtering, and Ordering](./query-schemas.md).
 
@@ -317,159 +317,40 @@ func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
 }
 ```
 
-## gormx Repository Version
+## Repository Style With Native GORM
 
-As CRUD modules grow, moving data access into repositories keeps handlers smaller and more consistent. The users module in `examples/full/app` uses this style.
-
-Define the repository first:
+As CRUD modules grow, moving data access into repositories keeps handlers smaller and more consistent. The users module in `examples/full/app` uses this style without adding another ORM layer.
 
 ```go
-import "github.com/shijl0925/go-toolkits/gormx"
-
 type IUserRepo interface {
-    gormx.IBaseRepo[User]
-}
-
-type userRepo struct {
-    gormx.BaseRepo[User]
-}
-
-func NewUserRepo() IUserRepo {
-    return &userRepo{}
+    SelectPage(page, size int, db *gorm.DB) ([]User, int64, error)
+    SelectOneByID(id uint, db *gorm.DB) (User, error)
+    Insert(item *User, db *gorm.DB) error
+    UpdateByID(id uint, updates map[string]interface{}, db *gorm.DB) error
+    DeleteByID(id uint, db *gorm.DB) error
 }
 ```
 
-### List
-
-In the gormx version:
-
-- `filter.BuildOptions(in)` converts `filter` tags and `FilterExpression()` into `gormx.DBOption` values.
-- `order.ApplyOrder(query, in)` writes the `sort` parameter into the gormx query.
-- `repo.SelectPage(page, size, opts...)` returns both items and total count.
+Handlers can still assemble safe filters and ordering with `filter.ApplyDB` and `order.ApplyDB`, then pass the resulting `*gorm.DB` to the repository:
 
 ```go
 func ListUsers(ctx *ninja.Context, in *ListUsersInput) (*pagination.Page[UserOut], error) {
-    db := userDB(ctx)
-    repo := NewUserRepo()
+    query := userDB(ctx).Model(&User{})
 
-    query, _ := gormx.NewQuery[User]()
-
-    filterOpts, err := filter.BuildOptions(in)
+    query, err := filter.ApplyDB(query, in)
+    if err != nil {
+        return nil, ninja.NewError(400, err.Error())
+    }
+    query, err = order.ApplyDB(query, in)
     if err != nil {
         return nil, ninja.NewError(400, err.Error())
     }
 
-    if err := order.ApplyOrder(query, in); err != nil {
-        return nil, ninja.NewError(400, err.Error())
-    }
-
-    opts := append([]gormx.DBOption{gormx.UseDB(db)}, append(filterOpts, query.ToOptions()...)...)
-    items, total, err := repo.SelectPage(in.GetPage(), in.GetSize(), opts...)
+    items, total, err := NewUserRepo().SelectPage(in.GetPage(), in.GetSize(), query)
     if err != nil {
         return nil, err
     }
-
     return pagination.NewPage(toUserOuts(items), total, in.PageInput), nil
-}
-```
-
-### Get
-
-```go
-func GetUser(ctx *ninja.Context, in *GetUserInput) (*UserOut, error) {
-    repo := NewUserRepo()
-
-    user, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(userDB(ctx)))
-    if err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return nil, ninja.NotFoundError()
-        }
-        return nil, err
-    }
-
-    out := toUserOut(user)
-    return &out, nil
-}
-```
-
-If your primary key is not convenient to cast to `int`, use `SelectOneByOpts(gormx.Where("id = ?", in.UserID))`.
-
-### Create
-
-```go
-func CreateUser(ctx *ninja.Context, in *CreateUserInput) (*UserOut, error) {
-    db := userDB(ctx)
-    repo := NewUserRepo()
-
-    user := &User{
-        Name:  in.Name,
-        Email: in.Email,
-        Age:   in.Age,
-    }
-    if err := repo.Insert(user, gormx.UseDB(db)); err != nil {
-        return nil, err
-    }
-
-    out := toUserOut(*user)
-    return &out, nil
-}
-```
-
-### Update
-
-```go
-func UpdateUser(ctx *ninja.Context, in *UpdateUserInput) (*UserOut, error) {
-    db := userDB(ctx)
-    repo := NewUserRepo()
-
-    if _, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db)); err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return nil, ninja.NotFoundError()
-        }
-        return nil, err
-    }
-
-    updates := map[string]interface{}{}
-    if in.Name != nil {
-        updates["name"] = *in.Name
-    }
-    if in.Email != nil {
-        updates["email"] = *in.Email
-    }
-    if in.Age != nil {
-        updates["age"] = *in.Age
-    }
-
-    if len(updates) > 0 {
-        if err := repo.UpdateById(int(in.UserID), updates, gormx.UseDB(db)); err != nil {
-            return nil, err
-        }
-    }
-
-    user, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db))
-    if err != nil {
-        return nil, err
-    }
-    out := toUserOut(user)
-    return &out, nil
-}
-```
-
-### Delete
-
-```go
-func DeleteUser(ctx *ninja.Context, in *DeleteUserInput) error {
-    db := userDB(ctx)
-    repo := NewUserRepo()
-
-    if _, err := repo.SelectOneById(int(in.UserID), gormx.UseDB(db)); err != nil {
-        if errors.Is(err, gorm.ErrRecordNotFound) {
-            return ninja.NotFoundError()
-        }
-        return err
-    }
-
-    return repo.DeleteById(int(in.UserID), gormx.UseDB(db))
 }
 ```
 
@@ -481,8 +362,7 @@ If the model already exists, let the CLI generate starter CRUD code:
 gin-ninja-cli generate crud \
   -model User \
   -model-file ./app/models.go \
-  -output ./app/user_crud_gen.go \
-  -with-gormx
+  -output ./app/user_crud_gen.go
 ```
 
 The generator creates:
@@ -490,7 +370,6 @@ The generator creates:
 - `UserOut`, `ListUsersInput`, `CreateUserInput`, `UpdateUserInput`, and `DeleteUserInput`
 - `ListUsers`, `GetUser`, `CreateUser`, `UpdateUser`, and `DeleteUser`
 - `RegisterUserCRUDRoutes(router)`
-- optional gormx repository starter code
 
 Generated code is a runnable skeleton, not final business logic. Real projects usually add unique-error conversion, permissions, audit logs, events, relation synchronization, and domain-specific validation.
 
@@ -499,9 +378,9 @@ Generated code is a runnable skeleton, not final business logic. Real projects u
 | Case | Recommendation |
 | --- | --- |
 | Small example or quick validation | Native GORM |
-| Many CRUD modules | gormx repository |
+| Many CRUD modules | Native GORM repository/service |
 | Need direct control over every query | Native GORM |
-| Want consistent pagination, filtering, ordering, and repository style | gormx repository |
+| Want consistent pagination, filtering, ordering, and repository style | Native GORM repository/service |
 | Starting a new module | `gin-ninja-cli generate crud` |
 
 Previous: [Responses, Errors, and Schemas](./data-and-responses.md) | Next: [ModelSchema Advanced Usage](./model-schema.md)
