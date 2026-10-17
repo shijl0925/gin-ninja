@@ -141,6 +141,13 @@ type bindEdgeQueryInput struct {
 	Tags   []string `query:"tag"`
 }
 
+type bindEmptyQueryInput struct {
+	ID   int       `query:"id"`
+	Flag bool      `query:"flag"`
+	When time.Time `query:"when"`
+	IDs  []int     `query:"ids"`
+}
+
 type testContextKey string
 
 type bindOverrideInput struct {
@@ -587,6 +594,53 @@ func TestBindInput_QueryBoundaryValues(t *testing.T) {
 	}
 	if len(in.Tags) != 2 || in.Tags[0] != "first" || in.Tags[1] != "second" {
 		t.Fatalf("expected repeated query values, got %+v", in.Tags)
+	}
+}
+
+func TestBindInput_EmptyQueryValues(t *testing.T) {
+	c, _ := newTestContext(http.MethodGet, "/search?id=&flag=&when=&ids=", "")
+
+	var in bindEmptyQueryInput
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if in.ID != 0 || in.Flag || !in.When.IsZero() || len(in.IDs) != 0 {
+		t.Fatalf("expected empty query values to leave fields at zero values, got %+v", in)
+	}
+}
+
+func TestBindInput_EmptyRepeatedQueryValues(t *testing.T) {
+	c, _ := newTestContext(http.MethodGet, "/search?ids=&ids=2", "")
+
+	var in bindEmptyQueryInput
+	if err := bindInput(c, http.MethodGet, &in); err != nil {
+		t.Fatalf("bindInput: %v", err)
+	}
+	if !reflect.DeepEqual(in.IDs, []int{2}) {
+		t.Fatalf("expected empty repeated values to be ignored, got %+v", in.IDs)
+	}
+}
+
+func TestBindInput_InvalidQueryValues(t *testing.T) {
+	for _, target := range []string{
+		"/search?id=q",
+		"/search?flag=invalid",
+		"/search?when=invalid",
+		"/search?ids=1&ids=invalid",
+	} {
+		t.Run(target, func(t *testing.T) {
+			c, _ := newTestContext(http.MethodGet, target, "")
+			var in bindEmptyQueryInput
+
+			err := bindInput(c, http.MethodGet, &in)
+			var apiErr *Error
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("expected *Error, got %T", err)
+			}
+			if apiErr.Code != http.StatusBadRequest || !strings.Contains(apiErr.Message, "query field") {
+				t.Fatalf("unexpected query error: %+v", apiErr)
+			}
+		})
 	}
 }
 

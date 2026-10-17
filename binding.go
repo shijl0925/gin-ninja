@@ -310,7 +310,7 @@ func bindRequestFields(
 		}
 
 		if field.queryTag != "" && field.queryTag != "-" {
-			if raw := queryValues[field.queryTag]; len(raw) > 0 {
+			if raw := nonEmptyValues(queryValues[field.queryTag]); len(raw) > 0 {
 				if err := setFieldFromStrings(fv, raw); err != nil {
 					return nil, &Error{
 						Code:    http.StatusBadRequest,
@@ -599,7 +599,7 @@ func isFormURLEncodedRequest(c *gin.Context) bool {
 }
 
 func hasQueryValue(c *gin.Context, name string) bool {
-	return c.Request.URL.Query().Has(name)
+	return len(nonEmptyValues(c.Request.URL.Query()[name])) > 0
 }
 
 func hasFormBodyValue(c *gin.Context, name string) bool {
@@ -607,6 +607,21 @@ func hasFormBodyValue(c *gin.Context, name string) bool {
 		return true
 	}
 	return false
+}
+
+func nonEmptyValues(values []string) []string {
+	for _, value := range values {
+		if value == "" {
+			filtered := make([]string, 0, len(values)-1)
+			for _, value := range values {
+				if value != "" {
+					filtered = append(filtered, value)
+				}
+			}
+			return filtered
+		}
+	}
+	return values
 }
 
 type fieldValueSnapshot struct {
