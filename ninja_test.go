@@ -948,6 +948,82 @@ func TestOpenAPISpec_ContainsPaths(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpec_GeneratesSlugOperationIDs(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *listInput) (*listOutput, error) {
+		return nil, nil
+	}, ninja.Summary("List users"))
+	ninja.Get(r, "/active", func(ctx *ninja.Context, in *listInput) (*listOutput, error) {
+		return nil, nil
+	}, ninja.Summary("List users"))
+	ninja.Get(r, "/fallback", func(ctx *ninja.Context, in *listInput) (*listOutput, error) {
+		return nil, nil
+	}, ninja.Description("Return all active users."))
+
+	api.AddRouter(r)
+
+	w := doRequest(api, http.MethodGet, "/openapi.json", nil)
+	var spec map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("parse openapi JSON: %v", err)
+	}
+
+	paths := spec["paths"].(map[string]interface{})
+	first := paths["/users/"].(map[string]interface{})["get"].(map[string]interface{})
+	second := paths["/users/active"].(map[string]interface{})["get"].(map[string]interface{})
+	fallback := paths["/users/fallback"].(map[string]interface{})["get"].(map[string]interface{})
+
+	if first["operationId"] != "list_users" {
+		t.Fatalf("expected summary slug operationId, got %v", first["operationId"])
+	}
+	if second["operationId"] != "list_users_2" {
+		t.Fatalf("expected duplicate summary slug to be made unique, got %v", second["operationId"])
+	}
+	if fallback["operationId"] != "return_all_active_users" {
+		t.Fatalf("expected description slug operationId, got %v", fallback["operationId"])
+	}
+}
+
+func TestDocsRoute_EnablesSwaggerDeepLinking(t *testing.T) {
+	api := newTestAPI()
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *listInput) (*listOutput, error) {
+		return nil, nil
+	}, ninja.Summary("List users"))
+	api.AddRouter(r)
+
+	docs := doRequest(api, http.MethodGet, "/docs", nil)
+	if docs.Code != http.StatusOK {
+		t.Fatalf("expected docs route 200, got %d: %s", docs.Code, docs.Body.String())
+	}
+	body := docs.Body.String()
+	if !strings.Contains(body, "SwaggerUIBundle") || !strings.Contains(body, `deepLinking: true`) || !strings.Contains(body, "/openapi.json") {
+		t.Fatalf("expected Swagger UI body with deep linking enabled, got %q", body)
+	}
+}
+
+func TestDocsRoute_DoesNotServePathStyleOperationSlug(t *testing.T) {
+	api := ninja.New(ninja.Config{
+		Title:   "Custom Docs",
+		Version: "0.0.1",
+		DocsURL: "/swagger/index.html",
+	})
+	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
+
+	ninja.Get(r, "/", func(ctx *ninja.Context, in *listInput) (*listOutput, error) {
+		return nil, nil
+	}, ninja.Summary("Get all users"))
+	api.AddRouter(r)
+
+	docs := doRequest(api, http.MethodGet, "/swagger/index.html/get_all_users", nil)
+	if docs.Code != http.StatusNotFound {
+		t.Fatalf("expected path-style operation slug route to remain unsupported, got %d", docs.Code)
+	}
+}
+
 func TestOpenAPISpec_PrefixAppliedOnce(t *testing.T) {
 	api := ninja.New(ninja.Config{Prefix: "/api/v1"})
 	r := ninja.NewRouter("/users", ninja.WithTags("Users"))
@@ -1913,13 +1989,13 @@ func TestVersionedRoutersAndDocs(t *testing.T) {
 	v1 := ninja.NewRouter("/users", ninja.WithVersion("v1"))
 	ninja.Get(v1, "/", func(ctx *ninja.Context, _ *struct{}) (*versionOutput, error) {
 		return &versionOutput{Version: "v1"}, nil
-	})
+	}, ninja.Summary("List users"))
 	api.AddRouter(v1)
 
 	v2 := ninja.NewRouter("/users", ninja.WithVersion("v2"))
 	ninja.Get(v2, "/", func(ctx *ninja.Context, _ *struct{}) (*versionOutput, error) {
 		return &versionOutput{Version: "v2"}, nil
-	})
+	}, ninja.Summary("List users"))
 	api.AddRouter(v2)
 
 	v1Resp := doRequest(api, http.MethodGet, "/api/v1/users/", nil)
