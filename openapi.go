@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,7 @@ type openAPISpec struct {
 	config          Config
 	registry        *schemaRegistry
 	tagDescriptions map[string]string
+	operationIDs    map[string]int
 }
 
 type openAPIInfo struct {
@@ -123,6 +125,7 @@ func newOpenAPISpec(cfg Config) *openAPISpec {
 		config:          cfg,
 		registry:        newSchemaRegistry(),
 		tagDescriptions: map[string]string{},
+		operationIDs:    map[string]int{},
 	}
 }
 
@@ -225,7 +228,7 @@ func (s *openAPISpec) addOperation(op *operation) {
 // buildOperationSpec converts an operation into an operationSpec.
 func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	spec := &operationSpec{
-		OperationID: op.spec.operationID,
+		OperationID: s.operationIDFor(op),
 		Summary:     op.spec.summary,
 		Description: op.spec.description,
 		Tags:        op.spec.tags,
@@ -323,6 +326,68 @@ func (s *openAPISpec) buildOperationSpec(op *operation) *operationSpec {
 	}
 
 	return spec
+}
+
+func (s *openAPISpec) operationIDFor(op *operation) string {
+	if op == nil {
+		return s.uniqueOperationID("operation")
+	}
+	if id := strings.TrimSpace(op.spec.operationID); id != "" {
+		return s.uniqueOperationID(id)
+	}
+	for _, candidate := range []string{
+		op.spec.summary,
+		op.spec.description,
+		op.route.method + " " + ginPathToOpenAPI(op.route.path),
+	} {
+		if id := slugifyOperationID(candidate); id != "" {
+			return s.uniqueOperationID(id)
+		}
+	}
+	return s.uniqueOperationID("operation")
+}
+
+func (s *openAPISpec) uniqueOperationID(base string) string {
+	base = strings.TrimSpace(base)
+	if base == "" {
+		base = "operation"
+	}
+	if s.operationIDs == nil {
+		s.operationIDs = map[string]int{}
+	}
+	if _, exists := s.operationIDs[base]; !exists {
+		s.operationIDs[base] = 1
+		return base
+	}
+	for i := s.operationIDs[base] + 1; ; i++ {
+		id := fmt.Sprintf("%s_%d", base, i)
+		if _, exists := s.operationIDs[id]; !exists {
+			s.operationIDs[base] = i
+			s.operationIDs[id] = 1
+			return id
+		}
+	}
+}
+
+func slugifyOperationID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	var b strings.Builder
+	lastUnderscore := false
+	for _, r := range value {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(unicode.ToLower(r))
+			lastUnderscore = false
+			continue
+		}
+		if b.Len() > 0 && !lastUnderscore {
+			b.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+	return strings.Trim(b.String(), "_")
 }
 
 func (s *openAPISpec) responseHeadersForOperation(op *operation) map[string]headerSpec {
@@ -595,6 +660,7 @@ window.onload = function() {
   const ui = SwaggerUIBundle({
     url: "%s",
     dom_id: '#swagger-ui',
+    deepLinking: true,
     presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
     layout: "StandaloneLayout"
   })
