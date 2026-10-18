@@ -70,10 +70,9 @@ func main() {
 - [数据、绑定与响应](./docs/zh/data-and-responses.md)
 - [配置、Bootstrap 与生命周期](./docs/zh/configuration.md)
 - [中间件与安全](./docs/zh/middleware-security.md)
-- [文件传输与 OpenAPI 控制](./docs/zh/files-and-openapi.md)
+- [文件传输：上传与下载](./docs/zh/file-transfer.md)
 - [高级功能](./docs/zh/advanced-features.md)
 - [使用 TestClient 测试 API](./docs/zh/testing.md)
-- [性能与稳定性报告](./docs/zh/performance.md)
 - [可选 Admin 与完整示例](./docs/zh/admin-and-examples.md)
 
 英文文档从 [README.md](./README.md) 或 [English documentation index](./docs/en/README.md) 开始。
