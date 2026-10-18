@@ -73,10 +73,9 @@ Detailed documentation has been split by feature area. Start with the [English d
 - [Configuration, Bootstrap, and Lifecycle](./docs/en/configuration.md)
 - [Middleware and Security](./docs/en/middleware-security.md)
 - [Data, Binding, and Responses](./docs/en/data-and-responses.md)
-- [File Transfer and OpenAPI Controls](./docs/en/files-and-openapi.md)
+- [File Transfer: Uploads and Downloads](./docs/en/file-transfer.md)
 - [Advanced Features](./docs/en/advanced-features.md)
 - [Testing APIs with TestClient](./docs/en/testing.md)
-- [Performance and Stability Report](./docs/en/performance.md)
 - [Optional Admin and Full Example](./docs/en/admin-and-examples.md)
 
 Chinese documentation starts at [README-zh.md](./README-zh.md) or the [中文文档索引](./docs/zh/README.md).
