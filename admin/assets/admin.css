@@ -4191,7 +4191,7 @@ body.standalone-admin-page #dashboardShell > .section-card-header {
 
 body.standalone-admin-page .dashboard-tiles {
   width:100%;
-  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns:repeat(3, minmax(0, 1fr));
 }
 
 body.standalone-admin-page .dashboard-tile,
@@ -4208,6 +4208,18 @@ body.standalone-admin-page .dashboard-tile-footer {
 body.standalone-admin-page .dashboard-tile-label,
 body.standalone-admin-page .dashboard-tile-description {
   overflow-wrap:anywhere;
+}
+
+@media (max-width:1180px) {
+  body.standalone-admin-page .dashboard-tiles {
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width:760px) {
+  body.standalone-admin-page .dashboard-tiles {
+    grid-template-columns:1fr;
+  }
 }
 
 body.standalone-admin-page .table-shell {
