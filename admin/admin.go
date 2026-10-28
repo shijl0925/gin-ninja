@@ -1065,7 +1065,7 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			currentID := r.primaryKeyValue(reflect.ValueOf(model).Elem())
 			saveErr := orm.WithContext(ctx.Context).
 				Model(model).
-				Where(queryColumn(r.primaryKey)+" IN (?)", r.scopedPrimaryKeySubquery(scopedDB, currentID)).
+				Where(queryColumn(r.primaryKey)+" IN (?)", r.scopedPrimaryKeyDerivedSubquery(scopedDB, currentID)).
 				Select(columns).
 				Updates(model).Error
 			if saveErr != nil {
@@ -1102,7 +1102,7 @@ func (r *Resource) deleteModelWithHooks(ctx *ninja.Context, scopedDB *gorm.DB, m
 		return false, err
 	}
 	result := orm.WithContext(ctx.Context).
-		Where(queryColumn(r.primaryKey)+" IN (?)", r.scopedPrimaryKeySubquery(scopedDB, currentID)).
+		Where(queryColumn(r.primaryKey)+" IN (?)", r.scopedPrimaryKeyDerivedSubquery(scopedDB, currentID)).
 		Delete(model)
 	if result.Error != nil {
 		return false, result.Error
@@ -1151,6 +1151,14 @@ func (r *Resource) scopedPrimaryKeySubquery(scopedDB *gorm.DB, currentID any) *g
 		Model(r.newModel()).
 		Select(queryColumn(r.primaryKey)).
 		Where(clause.Eq{Column: clause.Column{Name: queryColumn(r.primaryKey)}, Value: currentID})
+}
+
+func (r *Resource) scopedPrimaryKeyDerivedSubquery(scopedDB *gorm.DB, currentID any) *gorm.DB {
+	inner := r.scopedPrimaryKeySubquery(scopedDB, currentID)
+	pk := queryColumn(r.primaryKey)
+	return scopedDB.Session(&gorm.Session{NewDB: true}).
+		Table("(?) AS scoped_admin_ids", inner).
+		Select(pk)
 }
 
 func (r *Resource) handleDelete(site *Site) func(*ninja.Context, *pathIDInput) error {
