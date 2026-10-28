@@ -442,7 +442,7 @@ func addVersionedRoutes(api *ninja.NinjaAPI) {
 }
 
 func addAdminPages(api *ninja.NinjaAPI) {
-	admin.MountUI(api.Engine(), admin.DefaultUIConfig())
+	admin.MountUI(api.Engine(), app.AdminUIConfig())
 }
 
 func addHealthRoute(api *ninja.NinjaAPI) {

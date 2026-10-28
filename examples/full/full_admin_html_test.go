@@ -22,6 +22,15 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 	if !strings.Contains(loginHTML, `id="loginForm"`) {
 		t.Fatalf("expected login form in /admin/login html")
 	}
+	for _, marker := range []string{
+		`Gin Ninja Studio`,
+		`Full example admin`,
+		`<img class="brand-logo-image" src="data:image/svg+xml,`,
+	} {
+		if !strings.Contains(loginHTML, marker) {
+			t.Fatalf("/admin/login: expected custom brand marker %q in html", marker)
+		}
+	}
 
 	for _, path := range []string{"/admin", "/admin/users"} {
 		html := fetchHTML(path)
@@ -34,6 +43,9 @@ func TestFullExampleAdminPrototypeAndProjectSelectors(t *testing.T) {
 			`id="openCreateModal"`,
 			`id="createModal"`,
 			`id="toastContainer"`,
+			`Gin Ninja Studio`,
+			`Full example admin`,
+			`<img class="brand-logo-image" src="data:image/svg+xml,`,
 		} {
 			if !strings.Contains(html, marker) {
 				t.Fatalf("%s: expected marker %q in html", path, marker)

@@ -841,8 +841,8 @@ func TestAdminBranchCoverageForRuntimeHelpersAndRelationOptions(t *testing.T) {
 }
 
 func TestAdminBranchCoverageForUIHelpers(t *testing.T) {
-	cfg := normalizeUIConfig(UIConfig{Title: " T ", BrandName: " B ", LogoText: " XY ", Locale: " zh ", DefaultTheme: "dark", TokenStorage: "session", APIBasePath: "/api", AuthLoginPath: "/login", AuthMePath: "/me", AdminPath: "/admin", LoginPath: "/admin/login", TokenExtractExpr: " token ", UserNameExtractExpr: " name ", UserIDExtractExpr: " id "})
-	if cfg.DefaultTheme != "dark" || cfg.TokenStorage != "session" || cfg.Title != " T " {
+	cfg := normalizeUIConfig(UIConfig{Title: " T ", BrandName: " B ", BrandSubtitle: " S ", LogoText: " XY ", LogoURL: "/logo.svg", Locale: " zh ", DefaultTheme: "dark", TokenStorage: "session", APIBasePath: "/api", AuthLoginPath: "/login", AuthMePath: "/me", AdminPath: "/admin", LoginPath: "/admin/login", TokenExtractExpr: " token ", UserNameExtractExpr: " name ", UserIDExtractExpr: " id "})
+	if cfg.DefaultTheme != "dark" || cfg.TokenStorage != "session" || cfg.Title != " T " || cfg.BrandSubtitle != " S " || cfg.LogoURL != "/logo.svg" {
 		t.Fatalf("unexpected normalized explicit UI config: %+v", cfg)
 	}
 	defaultedPaths := normalizeUIConfig(UIConfig{Title: "x", BrandName: "x", LogoText: "x", Locale: "x", DefaultTheme: "dark", TokenStorage: "session"})
@@ -857,6 +857,12 @@ func TestAdminBranchCoverageForUIHelpers(t *testing.T) {
 	}
 	if got := shortLogoText("Go"); got != "Go" {
 		t.Fatalf("shortLogoText short = %q", got)
+	}
+	if got := renderLogoMark(UIConfig{BrandName: "Acme", LogoURL: "/logo.svg"}); !strings.Contains(got, `src="/logo.svg"`) || !strings.Contains(got, `alt="Acme logo"`) {
+		t.Fatalf("renderLogoMark image = %q", got)
+	}
+	if got := renderLogoMark(UIConfig{LogoText: "ABCD"}); got != "ABC" {
+		t.Fatalf("renderLogoMark text = %q", got)
 	}
 	func() {
 		defer func() {
