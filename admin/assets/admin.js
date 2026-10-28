@@ -9,13 +9,24 @@ const tokenStorageKey = 'gin-ninja-admin-token';
 const authIdentityStorageKey = 'gin-ninja-admin-auth-identity';
 const flashStorageKey = 'gin-ninja-admin-flash';
 const themeStorageKey = 'gin-ninja-admin-theme';
-const tableDensityStorageKey = 'gin-ninja-admin-table-density';
-const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';
+const adminThemeStorageKey = 'gin-ninja-admin-color-theme';
 const columnVisibilityStoragePrefix = 'gin-ninja-admin-columns:';
 const listStateStoragePrefix = 'gin-ninja-admin-list-state:';
-const savedViewsStoragePrefix = 'gin-ninja-admin-saved-views:';
 const toastDefaultDurationMs = 4000;
 const globalSearchDebounceMs = 350;
+const adminThemes = [
+  { value: 'claude', label: 'Claude' },
+  { value: 'discord', label: 'Discord' },
+  { value: 'supabase', label: 'Supabase' },
+  { value: 'vercel', label: 'Vercel' },
+  { value: 'mono', label: 'Mono' },
+  { value: 'notebook', label: 'Notebook' },
+  { value: 'light-green', label: 'Light Green' },
+  { value: 'zen', label: 'Zen' },
+  { value: 'astro-vista', label: 'Astro Vista' },
+  { value: 'whatsapp', label: 'WhatsApp' }
+];
+const defaultAdminTheme = 'claude';
 const stringLikeComponents = new Set(['text', 'textarea', 'email']);
 const formControlTagNames = new Set(['INPUT', 'SELECT', 'TEXTAREA']);
 const adminPagePath = __GIN_NINJA_ADMIN_PAGE_PATH__;
@@ -64,10 +75,8 @@ const state = {
   resourceSearch: '',
   records: [],
   selected: null,
+  errorPage: null,
   bulkSelected: {},
-  savedViews: [],
-  tableDensity: 'comfortable',
-  filtersCollapsed: false,
   visibleColumns: {},
   relationSearch: {},
   relationTimers: {},
@@ -94,6 +103,8 @@ const state = {
   pageTitle: document.getElementById('pageTitle'),
   pageIntro: document.getElementById('pageIntro'),
   shellEyebrow: document.getElementById('shellEyebrow'),
+  topbarBreadcrumbRoot: document.getElementById('topbarBreadcrumbRoot'),
+  topbarBreadcrumbCurrent: document.getElementById('topbarBreadcrumbCurrent'),
   adminShell: document.getElementById('adminShell'),
   sidebarDashboardLink: document.getElementById('sidebarDashboardLink'),
   resourceTreeviewBadge: document.getElementById('resourceTreeviewBadge'),
@@ -107,6 +118,12 @@ const state = {
   selectedCountBadge: document.getElementById('selectedCountBadge'),
   copySelectedIDs: document.getElementById('copySelectedIDs'),
   clearSelection: document.getElementById('clearSelection'),
+  bulkActionBar: document.getElementById('bulkActionBar'),
+  bulkActionCount: document.getElementById('bulkActionCount'),
+  bulkActionLabel: document.getElementById('bulkActionLabel'),
+  bulkActionClear: document.getElementById('bulkActionClear'),
+  bulkActionExport: document.getElementById('bulkActionExport'),
+  bulkActionDelete: document.getElementById('bulkActionDelete'),
   detailTitle: document.getElementById('detailTitle'),
   detailObjectBadge: document.getElementById('detailObjectBadge'),
   detailFields: document.getElementById('detailFields'),
@@ -125,30 +142,29 @@ const state = {
   filtersForm: document.getElementById('filtersForm'),
   sort: document.getElementById('sort'),
   pageSize: document.getElementById('pageSize'),
-  tableDensity: document.getElementById('tableDensity'),
   columnToggle: document.getElementById('columnToggle'),
   columnMenu: document.getElementById('columnMenu'),
   paginationInfo: document.getElementById('paginationInfo'),
+  firstPage: document.getElementById('firstPage'),
   prevPage: document.getElementById('prevPage'),
   nextPage: document.getElementById('nextPage'),
+  lastPage: document.getElementById('lastPage'),
+  paginationPages: document.getElementById('paginationPages'),
   list: document.getElementById('list'),
   detail: document.getElementById('detail'),
-  reloadList: document.getElementById('reloadList'),
-  clearFilters: document.getElementById('clearFilters'),
-  toggleFilters: document.getElementById('toggleFilters'),
-  copyViewLink: document.getElementById('copyViewLink'),
-  exportList: document.getElementById('exportList'),
-  savedViewSelect: document.getElementById('savedViewSelect'),
-  saveView: document.getElementById('saveView'),
-  deleteView: document.getElementById('deleteView'),
-  activeListState: document.getElementById('activeListState'),
-  bulkDelete: document.getElementById('bulkDelete'),
   search: document.getElementById('search'),
   listLoading: document.getElementById('listLoading'),
   workspaceHeader: document.getElementById('workspaceHeader'),
   recordsShell: document.getElementById('recordsShell'),
   dashboardShell: document.getElementById('dashboardShell'),
   dashboardTiles: document.getElementById('dashboardTiles'),
+  errorShell: document.getElementById('errorShell'),
+  errorCode: document.getElementById('errorCode'),
+  errorTitle: document.getElementById('errorTitle'),
+  errorCopy: document.getElementById('errorCopy'),
+  errorActions: document.getElementById('errorActions'),
+  errorGoBack: document.getElementById('errorGoBack'),
+  errorHome: document.getElementById('errorHome'),
   confirmModal: document.getElementById('confirmModal'),
   closeConfirmModal: document.getElementById('closeConfirmModal'),
   confirmModalCancel: document.getElementById('confirmModalCancel'),
@@ -158,12 +174,13 @@ const state = {
   darkModeToggle: document.getElementById('darkModeToggle'),
   darkModeIconMoon: document.getElementById('darkModeIconMoon'),
   darkModeIconSun: document.getElementById('darkModeIconSun'),
+  adminThemeToggle: document.getElementById('adminThemeToggle'),
+  adminThemeLabel: document.getElementById('adminThemeLabel'),
+  adminThemeMenu: document.getElementById('adminThemeMenu'),
   topbarSearchInput: document.getElementById('topbarSearchInput'),
   topbarSearchResults: document.getElementById('topbarSearchResults'),
   topbarProfileName: document.getElementById('topbarProfileName'),
   topbarProfileMeta: document.getElementById('topbarProfileMeta'),
-  topbarProfileExpiry: document.getElementById('topbarProfileExpiry'),
-  topbarPermissionChips: document.getElementById('topbarPermissionChips'),
   sidebarAuthStatus: document.getElementById('sidebarAuthStatus'),
   sidebarAuthMeta: document.getElementById('sidebarAuthMeta')
 };
@@ -203,6 +220,13 @@ function extractErrorMessage(value) {
     if (value.error) return extractErrorMessage(value.error);
   }
   return String(value);
+}
+
+function createHTTPError(status, message) {
+  const error = new Error(message || ('Request failed with status ' + status + '.'));
+  error.status = Number(status || 0);
+  error.isHTTPError = true;
+  return error;
 }
 
 function setLoginFeedback(message) {
@@ -245,6 +269,36 @@ function currentPagePath() {
   return window.location.pathname || '';
 }
 
+function normalizedPath(path) {
+  let value = String(path || '/').trim();
+  if (!value.startsWith('/')) value = '/' + value;
+  value = value.replace(/\/+$/, '');
+  return value || '/';
+}
+
+function adminRootPath() {
+  return normalizedPath(adminPagePath);
+}
+
+function pathWithinAdmin(path) {
+  const root = adminRootPath();
+  const current = normalizedPath(path);
+  return current === root || current.startsWith(root + '/');
+}
+
+function resourceNameFromAdminPath(path) {
+  const root = adminRootPath();
+  const current = normalizedPath(path);
+  if (current === root || !current.startsWith(root + '/')) return '';
+  const segment = current.slice(root.length + 1).split('/')[0] || '';
+  if (!segment) return '';
+  try {
+    return decodeURIComponent(segment);
+  } catch (_) {
+    return segment;
+  }
+}
+
 function buildNavigationState(view, resourceName) {
   return {
     pagePath: currentPagePath(),
@@ -254,29 +308,33 @@ function buildNavigationState(view, resourceName) {
 }
 
 function navigationStateFromURL() {
-  const params = new URLSearchParams(window.location.search || '');
-  const resourceName = params.get('resource') || '';
+  if (isStandaloneLoginPage()) return null;
+  const resourceName = resourceNameFromAdminPath(currentPagePath());
   if (resourceName) {
     return buildNavigationState('resource', resourceName);
   }
-  if (params.get('view') === 'dashboard') {
+  if (pathWithinAdmin(currentPagePath())) {
     return buildNavigationState('dashboard');
   }
   return null;
 }
 
+function requestedResourceNameFromURL() {
+  const navState = navigationStateFromURL();
+  return navState?.view === 'resource' ? navState.resourceName : '';
+}
+
 function buildNavigationURL(view, resourceName, includeListState) {
   const params = new URLSearchParams();
+  let path = adminRootPath();
   if (view === 'resource' && resourceName) {
-    params.set('resource', resourceName);
+    path += '/' + encodeURIComponent(resourceName);
     if (includeListState) {
       appendListQueryParams(params);
     }
-  } else if (view === 'dashboard') {
-    params.set('view', 'dashboard');
   }
   const query = params.toString();
-  return currentPagePath() + (query ? '?' + query : '');
+  return path + (query ? '?' + query : '');
 }
 
 function sameNavigationState(a, b) {
@@ -304,7 +362,13 @@ function updateNavigationState(mode, view, resourceName, options) {
 
 async function restoreNavigationState(navState) {
   navState = navigationStateFromURL() || navState;
-  if (!state.resources.length) return false;
+  if (!state.resources.length) {
+    if (navState?.view === 'resource') {
+      showNotFound({ history: 'none' });
+      return true;
+    }
+    return false;
+  }
   try {
     if (navState?.view === 'dashboard') {
       showDashboard({ history: 'none' });
@@ -312,7 +376,10 @@ async function restoreNavigationState(navState) {
     }
     if (!navState?.resourceName) return false;
     const resource = state.resources.find((item) => item.name === navState.resourceName);
-    if (!resource) return false;
+    if (!resource) {
+      showNotFound({ history: 'none' });
+      return true;
+    }
     await selectResource(resource, { history: 'none', restoreQuery: true });
     return true;
   } catch (error) {
@@ -328,17 +395,18 @@ function applyTheme(dark) {
     document.documentElement.removeAttribute('data-theme');
   }
   document.body.classList.toggle('dark-mode', dark);
-  if (els.darkModeIconMoon) els.darkModeIconMoon.hidden = dark;
-  if (els.darkModeIconSun) els.darkModeIconSun.hidden = !dark;
-  if (els.darkModeToggle) els.darkModeToggle.setAttribute('aria-pressed', String(dark));
+  if (els.darkModeIconMoon) els.darkModeIconMoon.removeAttribute('hidden');
+  if (els.darkModeIconSun) els.darkModeIconSun.removeAttribute('hidden');
+  if (els.darkModeToggle) {
+    els.darkModeToggle.classList.toggle('is-dark', dark);
+    els.darkModeToggle.setAttribute('aria-pressed', String(dark));
+    els.darkModeToggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
 }
 
-function toggleDarkMode() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const next = !isDark;
-  applyTheme(next);
+function persistThemePreference(dark) {
   try {
-    if (next) {
+    if (dark) {
       localStorage.setItem(themeStorageKey, 'dark');
     } else {
       localStorage.removeItem(themeStorageKey);
@@ -348,52 +416,122 @@ function toggleDarkMode() {
   }
 }
 
-function applyTableDensity(value) {
-  const next = value === 'compact' ? 'compact' : 'comfortable';
-  state.tableDensity = next;
-  document.body.classList.toggle('table-density-compact', next === 'compact');
-  if (els.tableDensity) els.tableDensity.value = next;
+function animateThemeChangeFromControl(control, update) {
+  const root = document.documentElement;
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!document.startViewTransition || reducedMotion || !control) {
+    update();
+    return;
+  }
+  const rect = control.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const endRadius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y)
+  );
+  root.style.setProperty('--admin-theme-transition-x', x + 'px');
+  root.style.setProperty('--admin-theme-transition-y', y + 'px');
+  root.style.setProperty('--admin-theme-transition-radius', endRadius + 'px');
+  root.classList.add('theme-view-transition');
+  const transition = document.startViewTransition(update);
+  transition.finished.finally(() => {
+    root.classList.remove('theme-view-transition');
+    root.style.removeProperty('--admin-theme-transition-x');
+    root.style.removeProperty('--admin-theme-transition-y');
+    root.style.removeProperty('--admin-theme-transition-radius');
+  });
 }
 
-function restoreTableDensity() {
+function toggleDarkMode(event) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = !isDark;
+  animateThemeChangeFromControl(event?.currentTarget || els.darkModeToggle, () => {
+    applyTheme(next);
+    persistThemePreference(next);
+  });
+}
+
+function themeByValue(value) {
+  return adminThemes.find((theme) => theme.value === value) || adminThemes.find((theme) => theme.value === defaultAdminTheme) || adminThemes[0];
+}
+
+function applyAdminTheme(value) {
+  const theme = themeByValue(value);
+  if (!theme) return;
+  document.documentElement.setAttribute('data-admin-theme', theme.value);
+  if (els.adminThemeLabel) els.adminThemeLabel.textContent = theme.label;
+  if (els.adminThemeToggle) {
+    els.adminThemeToggle.setAttribute('aria-label', 'Select theme. Current theme: ' + theme.label);
+  }
+  if (els.adminThemeMenu) {
+    Array.from(els.adminThemeMenu.querySelectorAll('[data-admin-theme-option]')).forEach((button) => {
+      const selected = button.dataset.adminThemeOption === theme.value;
+      button.classList.toggle('active', selected);
+      button.setAttribute('aria-checked', String(selected));
+    });
+  }
+}
+
+function persistAdminTheme(value) {
   try {
-    applyTableDensity(localStorage.getItem(tableDensityStorageKey) || 'comfortable');
+    localStorage.setItem(adminThemeStorageKey, value);
   } catch (_) {
-    applyTableDensity('comfortable');
+    // localStorage may be unavailable in some contexts
   }
 }
 
-function applyFiltersCollapsed(collapsed) {
-  state.filtersCollapsed = Boolean(collapsed);
-  if (els.filtersForm) els.filtersForm.hidden = state.filtersCollapsed;
-  updateFilterToggleLabel();
-}
-
-function activeFilterCount() {
-  if (!state.current) return 0;
-  return (state.meta?.filter_fields || []).reduce((count, name) => {
-    const input = fieldValue(name);
-    if (!input) return count;
-    return String(input.value || '').trim() ? count + 1 : count;
-  }, 0);
-}
-
-function updateFilterToggleLabel() {
-  if (els.toggleFilters) {
-    const count = activeFilterCount();
-    const suffix = count ? ' (' + count + ')' : '';
-    els.toggleFilters.textContent = (state.filtersCollapsed ? 'Show filters' : 'Hide filters') + suffix;
-    els.toggleFilters.setAttribute('aria-label', (state.filtersCollapsed ? 'Show filters' : 'Hide filters') + (count ? '. ' + count + ' active filter(s).' : '.'));
-    els.toggleFilters.setAttribute('aria-expanded', String(!state.filtersCollapsed));
-  }
-}
-
-function restoreFiltersCollapsed() {
+function restoreAdminTheme() {
+  let saved = '';
   try {
-    applyFiltersCollapsed(localStorage.getItem(filtersCollapsedStorageKey) === 'true');
+    saved = localStorage.getItem(adminThemeStorageKey) || '';
   } catch (_) {
-    applyFiltersCollapsed(false);
+    // ignore
   }
+  applyAdminTheme(saved || defaultAdminTheme);
+}
+
+function closeAdminThemeMenu() {
+  if (!els.adminThemeMenu || !els.adminThemeToggle) return;
+  els.adminThemeMenu.hidden = true;
+  els.adminThemeToggle.setAttribute('aria-expanded', 'false');
+}
+
+function renderAdminThemeMenu() {
+  if (!els.adminThemeMenu) return;
+  els.adminThemeMenu.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'admin-theme-menu-title';
+  title.textContent = 'Themes';
+  els.adminThemeMenu.appendChild(title);
+  adminThemes.forEach((theme) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'admin-theme-option';
+    button.dataset.adminThemeOption = theme.value;
+    button.setAttribute('role', 'menuitemradio');
+    button.setAttribute('aria-checked', 'false');
+    const swatch = document.createElement('span');
+    swatch.className = 'admin-theme-swatch';
+    swatch.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span');
+    label.className = 'admin-theme-option-label';
+    label.textContent = theme.label;
+    const check = document.createElement('span');
+    check.className = 'admin-theme-option-check';
+    check.setAttribute('aria-hidden', 'true');
+    check.innerHTML = '<svg viewBox="0 0 16 16" focusable="false"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>';
+    button.appendChild(swatch);
+    button.appendChild(label);
+    button.appendChild(check);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      applyAdminTheme(theme.value);
+      persistAdminTheme(theme.value);
+      closeAdminThemeMenu();
+    });
+    els.adminThemeMenu.appendChild(button);
+  });
 }
 
 function restoreTheme() {
@@ -421,6 +559,9 @@ function restoreTheme() {
 
 let globalSearchTimer = null;
 let globalSearchActiveIndex = -1;
+const globalSearchDialog = document.getElementById('topbarSearchExpand');
+const globalSearchDialogMount = globalSearchDialog ? globalSearchDialog.parentNode : null;
+const globalSearchDialogNextSibling = globalSearchDialog ? globalSearchDialog.nextSibling : null;
 
 function closeGlobalSearch() {
   globalSearchActiveIndex = -1;
@@ -430,6 +571,38 @@ function closeGlobalSearch() {
     els.topbarSearchResults.classList.remove('has-results');
     els.topbarSearchResults.innerHTML = '';
     els.topbarSearchResults.removeAttribute('aria-activedescendant');
+  }
+}
+
+function openGlobalSearchDialog() {
+  const expandEl = globalSearchDialog || document.getElementById('topbarSearchExpand');
+  if (!expandEl) return;
+  if (expandEl.parentNode !== document.body) {
+    document.body.appendChild(expandEl);
+  }
+  expandEl.classList.add('open');
+  expandEl.setAttribute('aria-modal', 'true');
+  document.body.classList.add('search-dialog-open');
+  window.requestAnimationFrame(() => {
+    if (els.topbarSearchInput) els.topbarSearchInput.focus();
+  });
+}
+
+function closeGlobalSearchDialog(options = {}) {
+  clearTimeout(globalSearchTimer);
+  globalSearchTimer = null;
+  const expandEl = globalSearchDialog || document.getElementById('topbarSearchExpand');
+  if (options.clearInput && els.topbarSearchInput) {
+    els.topbarSearchInput.value = '';
+  }
+  if (expandEl) {
+    expandEl.classList.remove('open');
+    expandEl.setAttribute('aria-modal', 'false');
+  }
+  document.body.classList.remove('search-dialog-open');
+  closeGlobalSearch();
+  if (expandEl && globalSearchDialogMount && expandEl.parentNode !== globalSearchDialogMount) {
+    globalSearchDialogMount.insertBefore(expandEl, globalSearchDialogNextSibling);
   }
 }
 
@@ -506,6 +679,63 @@ async function globalSearchFallback(q) {
   );
 }
 
+function normalizeGlobalSearchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[_/.-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compactGlobalSearchText(value) {
+  return normalizeGlobalSearchText(value).replace(/\s+/g, '');
+}
+
+function globalSearchNeedles(q) {
+  const normalized = normalizeGlobalSearchText(q);
+  const compact = compactGlobalSearchText(q);
+  const needles = [normalized, compact].filter(Boolean);
+  if (compact.endsWith('s') && compact.length > 3) {
+    needles.push(compact.slice(0, -1));
+  }
+  if (compact.endsWith('ies') && compact.length > 4) {
+    needles.push(compact.slice(0, -3) + 'y');
+  }
+  return Array.from(new Set(needles));
+}
+
+function scoreGlobalSearchField(value, needles, weight) {
+  const normalized = normalizeGlobalSearchText(value);
+  const compact = compactGlobalSearchText(value);
+  if (!normalized && !compact) return 0;
+  return needles.reduce((best, needle) => {
+    if (normalized === needle || compact === needle) return Math.max(best, weight + 30);
+    if (normalized.startsWith(needle) || compact.startsWith(needle)) return Math.max(best, weight + 18);
+    if (normalized.includes(needle) || compact.includes(needle)) return Math.max(best, weight);
+    return best;
+  }, 0);
+}
+
+function globalResourceSearchScore(resource, needles) {
+  return Math.max(
+    scoreGlobalSearchField(resource?.label, needles, 90),
+    scoreGlobalSearchField(resource?.name, needles, 85),
+    scoreGlobalSearchField(resource?.path, needles, 72),
+    scoreGlobalSearchField(resource?.group, needles, 42),
+    scoreGlobalSearchField(resource?.description, needles, 16)
+  );
+}
+
+function globalResourceSearch(q) {
+  const needles = globalSearchNeedles(q);
+  if (!needles.length) return [];
+  return state.resources
+    .map((resource, index) => ({ resource, index, score: globalResourceSearchScore(resource, needles) }))
+    .filter((match) => match.score > 0)
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map((match) => match.resource);
+}
+
 async function fetchGlobalSearchResults(q) {
   try {
     const payload = await request(apiBase + '/search?q=' + encodeURIComponent(q) + '&size=5');
@@ -519,6 +749,51 @@ async function fetchGlobalSearchResults(q) {
   }
 }
 
+function renderGlobalResourceResults(resources, q) {
+  if (!resources.length || !els.topbarSearchResults) return;
+  const group = document.createElement('div');
+  group.className = 'search-results-group';
+  const label = document.createElement('div');
+  label.className = 'search-results-group-label';
+  label.textContent = 'Resources';
+  group.appendChild(label);
+
+  resources.forEach((resource) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'search-result-item search-result-resource';
+    btn.setAttribute('role', 'option');
+    btn.setAttribute('aria-selected', 'false');
+
+    const icon = document.createElement('span');
+    icon.className = 'search-result-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.innerHTML = resourceIcon(resource);
+
+    const main = document.createElement('span');
+    main.className = 'search-result-main';
+    const summary = document.createElement('span');
+    summary.className = 'search-result-summary';
+    summary.innerHTML = highlightMatch(resource.label || resource.name, q);
+    const meta = document.createElement('span');
+    meta.className = 'search-result-resource-meta';
+    const metaParts = [resource.group, resource.name || resource.path].filter(Boolean);
+    meta.textContent = metaParts.join(' / ');
+
+    main.appendChild(summary);
+    if (meta.textContent) main.appendChild(meta);
+    btn.appendChild(icon);
+    btn.appendChild(main);
+    btn.addEventListener('click', async () => {
+      closeGlobalSearchDialog({ clearInput: true });
+      await selectResource(resource, { restoreQuery: false });
+    });
+    group.appendChild(btn);
+  });
+
+  els.topbarSearchResults.appendChild(group);
+}
+
 async function globalSearch(query) {
   closeGlobalSearch();
   if (!els.topbarSearchResults) return;
@@ -526,9 +801,11 @@ async function globalSearch(query) {
   if (!q || q.length < 2) return;
   if (!state.resources.length) return;
 
+  const resourceMatches = globalResourceSearch(q);
   const results = await fetchGlobalSearchResults(q);
+  if (els.topbarSearchInput && els.topbarSearchInput.value.trim() !== q) return;
 
-  const noResults = results.every((r) => r.items.length === 0);
+  const noResults = resourceMatches.length === 0 && results.every((r) => r.items.length === 0);
   if (noResults) {
     els.topbarSearchResults.innerHTML = '<div class="search-results-empty">No results for &ldquo;' + escapeHTML(q) + '&rdquo;</div>';
     els.topbarSearchResults.classList.add('has-results');
@@ -537,13 +814,15 @@ async function globalSearch(query) {
     return;
   }
 
+  renderGlobalResourceResults(resourceMatches, q);
+
   results.forEach(({ resource, items }) => {
     if (!items.length) return;
     const group = document.createElement('div');
     group.className = 'search-results-group';
     const label = document.createElement('div');
     label.className = 'search-results-group-label';
-    label.textContent = resource.label || resource.name;
+    label.textContent = 'Records / ' + (resource.label || resource.name);
     group.appendChild(label);
 
     items.forEach((result) => {
@@ -564,10 +843,7 @@ async function globalSearch(query) {
       btn.appendChild(summary);
       if (displayLabel) btn.appendChild(idSpan);
       btn.addEventListener('click', async () => {
-        if (els.topbarSearchInput) els.topbarSearchInput.value = '';
-        const expandEl = document.getElementById('topbarSearchExpand');
-        if (expandEl) expandEl.classList.remove('open');
-        closeGlobalSearch();
+        closeGlobalSearchDialog({ clearInput: true });
         await selectResource(resource, { restoreQuery: false });
         if (pk != null && pk !== '') {
           state.selected = await request(currentBasePath() + '/' + encodeURIComponent(String(pk)));
@@ -594,7 +870,7 @@ function isStandaloneLoginPage() {
 }
 
 function isStandaloneAdminPage() {
-  return currentPagePath() === adminPagePath;
+  return !isStandaloneLoginPage() && pathWithinAdmin(currentPagePath());
 }
 
 function rememberFlashMessage(value) {
@@ -625,6 +901,11 @@ function updatePageChrome() {
   els.shellEyebrow.textContent = 'Admin Console';
   els.pageTitle.textContent = adminTitle;
   els.pageIntro.textContent = 'An operations workspace for ' + adminBrandName + '.';
+}
+
+function setTopbarBreadcrumb(root, current) {
+  if (els.topbarBreadcrumbRoot) els.topbarBreadcrumbRoot.textContent = root || 'Dashboard';
+  if (els.topbarBreadcrumbCurrent) els.topbarBreadcrumbCurrent.textContent = current || 'Overview';
 }
 
 function redirectToLogin(message) {
@@ -747,11 +1028,6 @@ function tokenExpirySummary(value) {
   return 'Token expires ' + formatDateTime(value);
 }
 
-function roleLabel(role) {
-  if (!role) return '';
-  return String(role.name || role.code || '').trim();
-}
-
  function renderSignedOutState() {
    closeAllModals();
    setLoginFeedback('');
@@ -778,12 +1054,18 @@ function renderSignedInState() {
   const initials = name.split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
   const sidebarAvatar = document.querySelector('.sidebar-user-avatar');
   const sidebarName = document.querySelector('.sidebar-user-copy strong');
+  const sidebarMenuAvatar = document.getElementById('sidebarMenuAvatar');
+  const sidebarMenuName = document.getElementById('sidebarMenuName');
+  const sidebarMenuMeta = document.getElementById('sidebarMenuMeta');
   if (sidebarAvatar) sidebarAvatar.textContent = initials;
   if (sidebarName) sidebarName.textContent = name;
+  if (sidebarMenuAvatar) sidebarMenuAvatar.textContent = initials;
+  if (sidebarMenuName) sidebarMenuName.textContent = name;
   if (els.sidebarAuthStatus) els.sidebarAuthStatus.textContent = state.auth.isAdmin ? 'Admin session' : 'Authenticated';
   if (els.sidebarAuthMeta) {
     const meta = state.auth.email || (state.auth.userID != null ? ('User #' + state.auth.userID) : tokenExpirySummary(state.auth.expiresAt));
     els.sidebarAuthMeta.textContent = meta;
+    if (sidebarMenuMeta) sidebarMenuMeta.textContent = meta;
   }
   const topbarAvatar = document.getElementById('topbarUserAvatar');
   const topbarName = document.getElementById('topbarUserName');
@@ -791,28 +1073,7 @@ function renderSignedInState() {
   if (topbarName) topbarName.textContent = name;
   if (els.topbarProfileName) els.topbarProfileName.textContent = name;
   if (els.topbarProfileMeta) {
-    const pieces = [];
-    if (state.auth.email) pieces.push(state.auth.email);
-    if (state.auth.userID != null) pieces.push('ID ' + state.auth.userID);
-    if (state.auth.issuer) pieces.push(state.auth.issuer);
-    els.topbarProfileMeta.textContent = pieces.join(' · ') || 'Profile loaded from token';
-  }
-  if (els.topbarProfileExpiry) els.topbarProfileExpiry.textContent = tokenExpirySummary(state.auth.expiresAt);
-  if (els.topbarPermissionChips) {
-    els.topbarPermissionChips.innerHTML = '';
-    const chips = [];
-    chips.push({ label: state.auth.isAdmin ? 'Admin' : 'User', strong: state.auth.isAdmin });
-    for (const role of state.auth.roles || []) {
-      const label = roleLabel(role);
-      if (label) chips.push({ label, strong: false });
-    }
-    if (state.auth.expiresAt) chips.push({ label: tokenExpirySummary(state.auth.expiresAt), strong: false });
-    chips.slice(0, 4).forEach((chip) => {
-      const el = document.createElement('span');
-      el.className = 'auth-chip' + (chip.strong ? ' strong' : '');
-      el.textContent = chip.label;
-      els.topbarPermissionChips.appendChild(el);
-    });
+    els.topbarProfileMeta.textContent = state.auth.email || 'No email available';
   }
   const topbarUserDropdown = document.getElementById('topbarUserDropdown');
   if (topbarUserDropdown) topbarUserDropdown.hidden = standaloneLoginPage;
@@ -858,14 +1119,20 @@ async function refreshAuthProfile(options = {}) {
   }
   if (response.status === 403) {
     const message = extractErrorMessage(payload) || 'Your account is authenticated but does not have permission to open this admin area.';
-    showToast(message, 'danger');
+    if (!isStandaloneLoginPage()) {
+      showErrorPage({ status: 403 });
+    }
     setStatus(message, 'danger');
     return false;
   }
   if (!response.ok) {
-    if (options.required) {
-      throw new Error(extractErrorMessage(payload) || 'Unable to load the current user profile.');
+    if (!isStandaloneLoginPage()) {
+      showErrorPage({ status: response.status || 500 });
     }
+    if (options.required) {
+      throw createHTTPError(response.status || 500, extractErrorMessage(payload) || 'Unable to load the current user profile.');
+    }
+    setStatus(extractErrorMessage(payload) || response.statusText || 'Unable to load the current user profile.', 'danger');
     return false;
   }
   applyAuthProfile(payload);
@@ -876,12 +1143,13 @@ function resetAdminState() {
   state.auth = emptyAuthIdentity();
   state.current = null;
   state.meta = null;
+  state.errorPage = null;
+  setTopbarBreadcrumb('Dashboard', 'Overview');
   state.resources = [];
   state.resourceSearch = '';
   state.records = [];
   state.selected = null;
   state.bulkSelected = {};
-  state.savedViews = [];
   state.visibleColumns = {};
   state.listUpdatedAt = null;
   updateColumnToggleLabel();
@@ -898,6 +1166,7 @@ function resetAdminState() {
     renderResources();
    els.resourceTitle.textContent = 'Select a resource';
    els.resourcePath.textContent = 'Sign in to open a resource workspace.';
+   els.resourcePath.hidden = false;
    els.detailTitle.textContent = 'No record selected';
    els.detailObjectBadge.textContent = 'Draft view';
    els.detailFields.innerHTML = '<p class="muted">No record selected.</p>';
@@ -908,12 +1177,11 @@ function resetAdminState() {
   els.sort.innerHTML = '';
   els.search.placeholder = 'Search current resource';
   els.list.innerHTML = '<div class="empty-state">Sign in to browse records in the admin workspace.</div>';
-  if (els.activeListState) {
-    els.activeListState.innerHTML = '';
-    els.activeListState.hidden = true;
-  }
+  if (els.workspaceHeader) els.workspaceHeader.hidden = false;
+  if (els.recordsShell) els.recordsShell.hidden = false;
+  if (els.dashboardShell) els.dashboardShell.hidden = true;
+  if (els.errorShell) els.errorShell.hidden = true;
   renderResourceActionSummary();
-  renderSavedViews();
    els.editHint.textContent = 'Sign in to open the change form.';
    renderPagination();
    syncBulkActionState();
@@ -956,12 +1224,12 @@ async function request(path, options = {}) {
     if (response.status === 401 && !skipAuthRedirect) {
       const message = 'Your session has expired or the token is invalid. Please sign in again.';
       logout(message);
-      throw new Error(message);
+      throw createHTTPError(response.status, message);
     }
     if (response.status === 403) {
-      throw new Error(extractErrorMessage(data) || 'You are signed in, but your account does not have permission for this action.');
+      throw createHTTPError(response.status, extractErrorMessage(data) || 'You are signed in, but your account does not have permission for this action.');
     }
-    throw new Error(extractErrorMessage(data) || response.statusText || ('Request failed with status ' + response.status + '.'));
+    throw createHTTPError(response.status, extractErrorMessage(data) || response.statusText || ('Request failed with status ' + response.status + '.'));
   }
   return data;
 }
@@ -1030,6 +1298,111 @@ function fieldLabel(name) {
 
 function fieldValue(name) {
   return els.filtersForm.elements.namedItem(name);
+}
+
+function isDateTimeField(field) {
+  if (!field) return false;
+  const component = String(field.component || '').toLowerCase();
+  const type = String(field.type || '').toLowerCase();
+  const name = String(field.name || '').toLowerCase();
+  return component === 'datetime' ||
+    component === 'date' ||
+    type === 'time' ||
+    type === 'datetime' ||
+    type === 'date' ||
+    name === 'createdat' ||
+    name === 'updatedat' ||
+    name === 'created_at' ||
+    name === 'updated_at';
+}
+
+function filterFieldInputs(name) {
+  const field = fieldMeta(name);
+  if (isDateTimeField(field)) {
+    return {
+      field,
+      from: fieldValue(name + '__from'),
+      to: fieldValue(name + '__to')
+    };
+  }
+  return {
+    field,
+    value: fieldValue(name)
+  };
+}
+
+function dateFilterBoundaryValue(value, edge) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw + (edge === 'to' ? ' 23:59:59' : ' 00:00:00');
+  }
+  return raw;
+}
+
+function setDateInputValue(input, value) {
+  if (!input) return;
+  const raw = String(value || '').trim();
+  input.value = raw.match(/^\d{4}-\d{2}-\d{2}/)?.[0] || '';
+}
+
+function getFilterStateValue(name) {
+  const inputs = filterFieldInputs(name);
+  if (isDateTimeField(inputs.field)) {
+    const from = String(inputs.from?.value || '').trim();
+    const to = String(inputs.to?.value || '').trim();
+    if (!from && !to) return null;
+    return { from, to };
+  }
+  const value = String(inputs.value?.value || '').trim();
+  return value === '' ? null : value;
+}
+
+function setFilterStateValue(name, value) {
+  const inputs = filterFieldInputs(name);
+  if (isDateTimeField(inputs.field)) {
+    if (value && typeof value === 'object') {
+      setDateInputValue(inputs.from, value.from);
+      setDateInputValue(inputs.to, value.to);
+    } else {
+      setDateInputValue(inputs.from, '');
+      setDateInputValue(inputs.to, '');
+    }
+    syncFilterFacetState(inputs.from || inputs.to);
+    return;
+  }
+  if (inputs.value) inputs.value.value = value == null ? '' : String(value);
+  syncFilterFacetState(inputs.value);
+}
+
+function clearListFilters(options = {}) {
+  if (options.includeSearch !== false) {
+    els.search.value = '';
+  }
+  if (options.includeSort !== false) {
+    els.sort.value = '';
+  }
+  (state.meta?.filter_fields || []).forEach((name) => {
+    setFilterStateValue(name, '');
+  });
+}
+
+function appendFilterParams(params, options = {}) {
+  const prefix = options.prefix || '';
+  const boundary = options.boundary || false;
+  (state.meta?.filter_fields || []).forEach((name) => {
+    const value = getFilterStateValue(name);
+    if (value == null) return;
+    const field = fieldMeta(name);
+    if (isDateTimeField(field) && typeof value === 'object') {
+      const from = dateFilterBoundaryValue(value.from, 'from');
+      const to = dateFilterBoundaryValue(value.to, 'to');
+      if (from) params.set(prefix + name + '__from', boundary ? from : value.from);
+      if (to) params.set(prefix + name + '__to', boundary ? to : value.to);
+      return;
+    }
+    params.set(prefix + name, value);
+  });
 }
 
 function selectionKey(id) {
@@ -1417,7 +1790,7 @@ function buildTableCellContent(fieldName, value) {
   }
   if (typeof value === 'boolean') {
     const badge = document.createElement('span');
-    badge.className = 'table-badge ' + (value ? 'success' : 'danger');
+    badge.className = 'table-badge boolean ' + (value ? 'boolean-true' : 'boolean-false');
     const dot = document.createElement('span');
     dot.className = 'table-dot';
     badge.appendChild(dot);
@@ -1491,12 +1864,25 @@ function buildDetailValueContent(fieldName, value) {
   }
   if (typeof value === 'boolean') {
     const badge = document.createElement('span');
-    badge.className = 'table-badge ' + (value ? 'success' : 'danger');
+    badge.className = 'table-badge boolean ' + (value ? 'boolean-true' : 'boolean-false');
     const dot = document.createElement('span');
     dot.className = 'table-dot';
     badge.appendChild(dot);
     badge.appendChild(document.createTextNode(value ? 'Yes' : 'No'));
     fragment.appendChild(badge);
+    return fragment;
+  }
+  if (Array.isArray(value)) {
+    const badge = document.createElement('span');
+    badge.className = 'table-badge info';
+    badge.textContent = value.length + ' item' + (value.length === 1 ? '' : 's');
+    fragment.appendChild(badge);
+    if (value.length) {
+      const hint = document.createElement('span');
+      hint.className = 'table-cell-hint';
+      hint.textContent = value.map((item) => formatValue(item)).join(', ');
+      fragment.appendChild(hint);
+    }
     return fragment;
   }
   const primary = document.createElement('span');
@@ -1632,6 +2018,7 @@ function syncRelationDropdown(field, select, summary, optionsContainer, items, d
 }
 
 function resetQueryState() {
+  cancelScheduledSearchReload();
   state.bulkSelected = {};
   state.relationSearch = {};
   state.resourceSearch = '';
@@ -1662,8 +2049,7 @@ function scheduleSearchReload() {
   state.searchTimer = setTimeout(() => {
     state.searchTimer = null;
     if (!state.current) return;
-    resetToFirstPage();
-    els.reloadList.click();
+    reloadListWithStatus('Updated search.', true).catch((error) => setStatus(String(error.message || error)));
   }, 300);
 }
 
@@ -1705,8 +2091,9 @@ function renderResources() {
   if (resourceTreeview) resourceTreeview.classList.add('open');
   if (els.resourceTreeviewBadge) els.resourceTreeviewBadge.textContent = String(state.resources.length);
   if (els.sidebarDashboardLink) {
-    els.sidebarDashboardLink.classList.toggle('active', !state.current);
-    els.sidebarDashboardLink.setAttribute('aria-current', !state.current ? 'page' : 'false');
+    const dashboardActive = !state.current && !state.errorPage;
+    els.sidebarDashboardLink.classList.toggle('active', dashboardActive);
+    els.sidebarDashboardLink.setAttribute('aria-current', dashboardActive ? 'page' : 'false');
   }
   const matches = filteredResources();
   if (!matches.length) {
@@ -1832,8 +2219,25 @@ function setSidebarSearchButtonContent(activeClear) {
    }
  }
 
+ function clearSelectedRecord() {
+   if (!state.selected) {
+     highlightSelectedRow();
+     syncWorkspaceActionState();
+     return;
+   }
+   state.selected = null;
+   renderSelectedRecord();
+   renderUpdateForm().catch((error) => setStatus(String(error.message || error)));
+ }
+
+ function closeRecordModalAndClearSelection() {
+   closeModal(els.recordModal);
+   clearSelectedRecord();
+ }
+
  function closeAllModals() {
    [els.createModal, els.recordModal, els.editModal, els.confirmModal].forEach((modal) => closeModal(modal));
+   clearSelectedRecord();
  }
 
  function formForModal(modal) {
@@ -1842,10 +2246,11 @@ function setSidebarSearchButtonContent(activeClear) {
    return null;
  }
 
- function requestCloseModal(modal) {
+ function requestCloseModal(modal, options) {
    const modalForm = formForModal(modal);
    if (!modalForm || !formState(modalForm.scopeKey).dirty) {
      closeModal(modal);
+     if (options?.afterClose) options.afterClose();
      return;
    }
    openConfirmDialog(
@@ -1857,6 +2262,7 @@ function setSidebarSearchButtonContent(activeClear) {
        closeModal(modal);
        const resetForm = modalForm.scopeKey === 'create' ? renderCreateForm : renderUpdateForm;
        resetForm().catch((error) => setStatus(String(error.message || error)));
+       if (options?.afterClose) options.afterClose();
      },
      'Discard'
    );
@@ -1869,7 +2275,7 @@ function setSidebarSearchButtonContent(activeClear) {
      return;
    }
    if (els.editModal && !els.editModal.hidden) {
-     requestCloseModal(els.editModal);
+     requestCloseModal(els.editModal, { afterClose: clearSelectedRecord });
      return;
    }
    if (els.createModal && !els.createModal.hidden) {
@@ -1877,11 +2283,13 @@ function setSidebarSearchButtonContent(activeClear) {
      return;
    }
    if (els.recordModal && !els.recordModal.hidden) {
-     closeModal(els.recordModal);
+     closeRecordModalAndClearSelection();
    }
  }
 
 let _actionMenuPortal = null;
+let _actionMenuTrigger = null;
+let _actionMenuFrame = 0;
 function getActionMenuPortal() {
   if (!_actionMenuPortal) {
     _actionMenuPortal = document.createElement('div');
@@ -1890,8 +2298,38 @@ function getActionMenuPortal() {
   }
   return _actionMenuPortal;
 }
+function positionActionMenuPortal() {
+  const portal = getActionMenuPortal();
+  const menu = portal.firstElementChild;
+  if (!menu || !_actionMenuTrigger || !_actionMenuTrigger.isConnected) {
+    closeActionMenuPortal();
+    return;
+  }
+  const rect = _actionMenuTrigger.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.zIndex = '1500';
+  menu.style.top = (rect.bottom + 4) + 'px';
+  menu.style.right = (window.innerWidth - rect.right) + 'px';
+  menu.style.left = 'auto';
+}
+function scheduleActionMenuPositionUpdate() {
+  if (!_actionMenuPortal || !_actionMenuPortal.firstElementChild || !_actionMenuTrigger) return;
+  if (_actionMenuFrame) return;
+  _actionMenuFrame = window.requestAnimationFrame(() => {
+    _actionMenuFrame = 0;
+    positionActionMenuPortal();
+  });
+}
 function closeActionMenuPortal() {
   const portal = getActionMenuPortal();
+  if (_actionMenuFrame) {
+    window.cancelAnimationFrame(_actionMenuFrame);
+    _actionMenuFrame = 0;
+  }
+  if (_actionMenuTrigger) {
+    _actionMenuTrigger.setAttribute('aria-expanded', 'false');
+  }
+  _actionMenuTrigger = null;
   portal.innerHTML = '';
   delete portal.dataset.forRow;
 }
@@ -1900,10 +2338,10 @@ function openActionMenuAt(triggerEl, rowId, items) {
   const isOpen = portal.dataset.forRow === String(rowId) && portal.firstChild;
   closeActionMenuPortal();
   if (isOpen) return;
-  const rect = triggerEl.getBoundingClientRect();
+  _actionMenuTrigger = triggerEl;
+  _actionMenuTrigger.setAttribute('aria-expanded', 'true');
   const menu = document.createElement('div');
   menu.className = 'action-menu-list open';
-  menu.style.cssText = 'position:fixed;z-index:1500;top:' + (rect.bottom + 4) + 'px;right:' + (window.innerWidth - rect.right) + 'px;left:auto;';
   items.forEach((item) => {
     if (item.divider) {
       const hr = document.createElement('hr');
@@ -1913,7 +2351,17 @@ function openActionMenuAt(triggerEl, rowId, items) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'action-menu-item' + (item.className ? ' ' + item.className : '');
-      btn.textContent = item.label;
+      const label = document.createElement('span');
+      label.className = 'action-menu-item-label';
+      label.textContent = item.label;
+      btn.appendChild(label);
+      if (item.icon === 'trash') {
+        const icon = document.createElement('span');
+        icon.className = 'action-menu-item-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" focusable="false"><path d="M3 6h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 6V4c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M19 6l-1 14c-.08 1.1-.98 2-2.08 2H8.08C6.98 22 6.08 21.1 6 20L5 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
+        btn.appendChild(icon);
+      }
       btn.disabled = !!item.disabled;
       btn.onclick = (e) => { e.stopPropagation(); closeActionMenuPortal(); item.onClick(); };
       menu.appendChild(btn);
@@ -1921,6 +2369,7 @@ function openActionMenuAt(triggerEl, rowId, items) {
   });
   portal.dataset.forRow = String(rowId);
   portal.appendChild(menu);
+  positionActionMenuPortal();
 }
 
 function openConfirmDialog(title, message, onConfirm, confirmLabel) {
@@ -1934,21 +2383,12 @@ function openConfirmDialog(title, message, onConfirm, confirmLabel) {
  function syncWorkspaceActionState() {
    const createEnabled = Boolean(state.current && hasAction('create'));
    els.openCreateModal.disabled = !createEnabled;
-   if (els.exportList) {
-     els.exportList.disabled = !state.current || !hasAction('list');
+   if (els.bulkActionExport) {
+     els.bulkActionExport.disabled = !selectedIDs().length || !state.current || !hasAction('list');
    }
-  if (els.copyViewLink) {
-    els.copyViewLink.disabled = !state.current;
-  }
-  if (els.savedViewSelect) {
-    els.savedViewSelect.disabled = !state.current || !state.savedViews.length;
-  }
-  if (els.saveView) {
-    els.saveView.disabled = !state.current;
-  }
-  if (els.deleteView) {
-    els.deleteView.disabled = !state.current || !els.savedViewSelect || !els.savedViewSelect.value;
-  }
+   if (els.bulkActionDelete) {
+     els.bulkActionDelete.disabled = !selectedIDs().length || !state.current || !hasAction('bulk_delete');
+   }
   if (els.openSelectedEdit) {
     els.openSelectedEdit.disabled = !state.selected || !hasAction('update');
   }
@@ -1981,26 +2421,17 @@ function saveColumnVisibility() {
   }
 }
 
-function clearSavedColumnVisibility() {
-  const key = columnVisibilityKey();
-  if (!key) return;
-  try {
-    localStorage.removeItem(key);
-  } catch (_) {
-    // ignore storage failures
-  }
-}
-
 function updateColumnToggleLabel() {
   if (!els.columnToggle) return;
   const fields = state.meta?.list_fields || [];
+  if (!els.columnToggle.querySelector('span')) {
+    els.columnToggle.textContent = 'View';
+  }
   if (!state.current || !fields.length) {
-    els.columnToggle.textContent = 'Columns';
     els.columnToggle.setAttribute('aria-label', 'Choose visible columns');
     return;
   }
   const visible = visibleListFields().length;
-  els.columnToggle.textContent = 'Columns ' + visible + '/' + fields.length;
   els.columnToggle.setAttribute('aria-label', 'Choose visible columns. ' + visible + ' of ' + fields.length + ' columns visible.');
 }
 
@@ -2034,7 +2465,7 @@ function renderColumnMenu() {
   updateColumnToggleLabel();
   const title = document.createElement('p');
   title.className = 'column-menu-title';
-  title.textContent = 'Visible columns';
+  title.textContent = 'Toggle columns';
   els.columnMenu.appendChild(title);
   if (!fields.length) {
     const empty = document.createElement('div');
@@ -2044,64 +2475,48 @@ function renderColumnMenu() {
     return;
   }
   fields.forEach((name) => {
-    const label = document.createElement('label');
-    label.className = 'column-option';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = state.visibleColumns[name] !== false;
-    checkbox.addEventListener('change', () => {
-      if (!checkbox.checked && visibleListFields().length <= 1) {
-        checkbox.checked = true;
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'column-option';
+    option.setAttribute('role', 'menuitemcheckbox');
+    option.setAttribute('aria-checked', String(state.visibleColumns[name] !== false));
+
+    const check = document.createElement('span');
+    check.className = 'column-option-check';
+    check.setAttribute('aria-hidden', 'true');
+    check.textContent = state.visibleColumns[name] !== false ? '\u2713' : '';
+
+    const text = document.createElement('span');
+    text.className = 'column-option-label';
+    text.textContent = fieldLabel(name);
+
+    option.addEventListener('click', () => {
+      const nextVisible = state.visibleColumns[name] === false;
+      if (!nextVisible && visibleListFields().length <= 1) {
         showToast('Keep at least one table column visible.', 'info');
         return;
       }
-      state.visibleColumns[name] = checkbox.checked;
+      state.visibleColumns[name] = nextVisible;
       saveColumnVisibility();
       updateColumnToggleLabel();
+      renderColumnMenu();
       renderList().catch((error) => setStatus(String(error.message || error)));
     });
-    const text = document.createElement('span');
-    text.textContent = fieldLabel(name);
-    label.appendChild(checkbox);
-    label.appendChild(text);
-    els.columnMenu.appendChild(label);
+    option.appendChild(check);
+    option.appendChild(text);
+    els.columnMenu.appendChild(option);
   });
-  const actions = document.createElement('div');
-  actions.className = 'column-menu-actions';
-  const showAll = document.createElement('button');
-  showAll.type = 'button';
-  showAll.className = 'secondary btn btn-default btn-sm';
-  showAll.textContent = 'Show all';
-  showAll.onclick = () => {
-    fields.forEach((name) => {
-      state.visibleColumns[name] = true;
-    });
-    saveColumnVisibility();
-    renderColumnMenu();
-    renderList().catch((error) => setStatus(String(error.message || error)));
-    showToast('Showing all table columns.', 'success');
-  };
-  const reset = document.createElement('button');
-  reset.type = 'button';
-  reset.className = 'secondary btn btn-default btn-sm';
-  reset.textContent = 'Reset';
-  reset.onclick = () => {
-    clearSavedColumnVisibility();
-    initializeColumnVisibility();
-    renderList().catch((error) => setStatus(String(error.message || error)));
-    showToast('Reset visible columns.', 'success');
-  };
-  actions.appendChild(showAll);
-  actions.appendChild(reset);
-  els.columnMenu.appendChild(actions);
 }
 
 function renderResourceSummary() {
   if (!state.current || !state.meta) {
     els.resourcePath.textContent = 'Sign in to open a resource workspace.';
+    els.resourcePath.hidden = false;
     return;
   }
-  els.resourcePath.textContent = state.meta.description || ('Browse, inspect, and edit ' + state.meta.label + '.');
+  const description = String(state.meta.description || '').trim();
+  els.resourcePath.textContent = description;
+  els.resourcePath.hidden = !description;
 }
 
 function renderSortOptions() {
@@ -2198,34 +2613,30 @@ function dashboardTileMeta(resource, index) {
   const palette = ['#007bff', '#17a2b8', '#6f42c1', '#fd7e14', '#20c997', '#e83e8c'];
   const byName = {
     users: {
-      badge: 'Core access',
-      description: 'Open the user workspace to review profiles, roles, and sign-in ready records.'
+      badge: 'Core access'
     },
     roles: {
-      badge: 'Permissions',
-      description: 'Inspect role definitions, capability groupings, and policy-oriented admin access.'
+      badge: 'Permissions'
     },
     projects: {
-      badge: 'Delivery',
-      description: 'Jump into project workspaces with ownership context, progress tracking, and team-ready records.'
+      badge: 'Delivery'
     }
   };
   const normalizedName = String(resource?.name || '').toLowerCase();
   const meta = byName[normalizedName] || {
-    badge: 'Workspace',
-    description: 'Open this admin resource to review records, filters, and available actions.'
+    badge: 'Workspace'
   };
   return {
     accent: palette[index % palette.length],
     badge: resource?.group || meta.badge,
-    description: resource?.description || meta.description,
+    description: String(resource?.description || '').trim(),
     icon: resourceIcon(resource)
   };
 }
 
 function renderDashboard() {
   if (!els.dashboardShell || !els.dashboardTiles) return;
-  if (state.current || !state.resources.length) {
+  if (state.errorPage || state.current || !state.resources.length) {
     els.dashboardShell.hidden = true;
     return;
   }
@@ -2239,6 +2650,9 @@ function renderDashboard() {
     tile.className = 'dashboard-tile small-box bg-info';
     tile.style.setProperty('--dashboard-tile-accent', meta.accent);
     tile.setAttribute('aria-label', 'Open ' + resource.label + ' workspace');
+    const descriptionHTML = meta.description
+      ? '<p class="dashboard-tile-description">' + escapeHTML(meta.description) + '</p>'
+      : '';
     tile.innerHTML =
       '<div class="dashboard-tile-header">' +
         '<span class="dashboard-tile-badge">' + escapeHTML(meta.badge) + '</span>' +
@@ -2250,9 +2664,7 @@ function renderDashboard() {
           '<span class="dashboard-tile-count-label">records</span>' +
         '</div>' +
         '<span class="dashboard-tile-label">' + escapeHTML(resource.label) + '</span>' +
-        '<span class="dashboard-tile-hint">' + escapeHTML(resource.name) + '</span>' +
-        '<p class="dashboard-tile-description">' + escapeHTML(meta.description) + '</p>' +
-        '<div class="dashboard-tile-meta"><span class="dashboard-tile-meta-dot" aria-hidden="true"></span><span>Connected admin workspace</span></div>' +
+        descriptionHTML +
       '</div>' +
       '<div class="dashboard-tile-footer">' +
         '<span class="dashboard-tile-action">Open workspace</span>' +
@@ -2296,17 +2708,78 @@ async function loadDashboardCounts(tileRefs) {
   }
 }
 
+function normalizedFilterPlaceholder(field, fallback) {
+  const label = String(field?.label || field?.name || '').trim();
+  const placeholder = String(field?.placeholder || '').trim();
+  if (placeholder && placeholder.toLowerCase() !== label.toLowerCase()) {
+    return placeholder;
+  }
+  return fallback;
+}
+
+function lowerFirst(value) {
+  return String(value || '').replace(/^./, (char) => char.toLowerCase());
+}
+
+function filterControlLabel(field) {
+  const label = String(field?.label || field?.name || 'Value').trim();
+  if (isDateTimeField(field)) return label + ' between';
+  if (field?.component === 'checkbox') return label;
+  return label + ' is';
+}
+
+function emptyFilterPlaceholder(field) {
+  const label = lowerFirst(field?.label || field?.name || 'value');
+  if (isDateTimeField(field)) return 'Select date';
+  if (field?.component === 'checkbox') return 'All';
+  return 'Any ' + label;
+}
+
 function buildFilterControl(field) {
   const wrapper = document.createElement('div');
-  wrapper.className = 'inline-field form-group filter-field-card';
+  const componentClass = String(field.component || 'text').replace(/[^a-z0-9_-]/gi, '-').toLowerCase();
+  wrapper.className = 'inline-field form-group filter-control filter-control-' + componentClass;
   const label = document.createElement('label');
-  label.className = 'filter-field-label';
-  label.textContent = field.label;
+  label.className = 'filter-control-label';
+  label.textContent = filterControlLabel(field);
+  if (isDateTimeField(field)) {
+    const range = document.createElement('div');
+    range.className = 'filter-date-range';
+    const from = document.createElement('input');
+    from.type = 'date';
+    from.className = 'form-control filter-date-input';
+    from.name = field.name + '__from';
+    from.id = 'filter-' + field.name + '-from';
+    from.setAttribute('aria-label', field.label + ' start date');
+    from.setAttribute('title', field.label + ' start date');
+    const separator = document.createElement('span');
+    separator.className = 'filter-date-separator';
+    separator.textContent = 'to';
+    const to = document.createElement('input');
+    to.type = 'date';
+    to.className = 'form-control filter-date-input';
+    to.name = field.name + '__to';
+    to.id = 'filter-' + field.name + '-to';
+    to.setAttribute('aria-label', field.label + ' end date');
+    to.setAttribute('title', field.label + ' end date');
+    [from, to].forEach((input) => {
+      input.addEventListener('input', () => syncFilterFacetState(input));
+      input.addEventListener('change', () => syncFilterFacetState(input));
+    });
+    range.appendChild(from);
+    range.appendChild(separator);
+    range.appendChild(to);
+    wrapper.appendChild(label);
+    wrapper.appendChild(range);
+    els.filtersForm.appendChild(wrapper);
+    syncFilterFacetState(from);
+    return;
+  }
   let input;
   if (field.component === 'checkbox') {
     input = document.createElement('select');
     input.className = 'custom-select';
-    [['', 'Any'], ['true', 'True'], ['false', 'False']].forEach((pair) => {
+    [['', normalizedFilterPlaceholder(field, emptyFilterPlaceholder(field))], ['true', 'Yes'], ['false', 'No']].forEach((pair) => {
       const option = document.createElement('option');
       option.value = pair[0];
       option.textContent = pair[1];
@@ -2316,60 +2789,73 @@ function buildFilterControl(field) {
     input = document.createElement('input');
     input.type = 'number';
     input.className = 'form-control';
+    input.placeholder = normalizedFilterPlaceholder(field, emptyFilterPlaceholder(field));
   } else if (field.component === 'datetime') {
     input = document.createElement('input');
     input.type = 'datetime-local';
     input.className = 'form-control';
+    input.placeholder = normalizedFilterPlaceholder(field, emptyFilterPlaceholder(field));
   } else {
     input = document.createElement('input');
     input.type = 'text';
     input.className = 'form-control';
+    input.placeholder = normalizedFilterPlaceholder(field, emptyFilterPlaceholder(field));
   }
   input.name = field.name;
-  input.placeholder = field.placeholder || ('Filter by ' + field.label);
   input.id = 'filter-' + field.name;
+  input.setAttribute('aria-label', 'Filter ' + field.label);
+  input.setAttribute('title', 'Filter ' + field.label);
   label.setAttribute('for', input.id);
+  input.addEventListener('input', () => syncFilterFacetState(input));
+  input.addEventListener('change', () => syncFilterFacetState(input));
   wrapper.appendChild(label);
   wrapper.appendChild(input);
   els.filtersForm.appendChild(wrapper);
+  syncFilterFacetState(input);
+}
+
+function syncFilterFacetState(input) {
+  const wrapper = input?.closest?.('.filter-control');
+  if (!wrapper) return;
+  const active = Array.from(wrapper.querySelectorAll('input, select, textarea'))
+    .some((control) => String(control.value || '').trim() !== '');
+  wrapper.classList.toggle('is-active', active);
+}
+
+function syncFilterFacetStates() {
+  if (!els.filtersForm) return;
+  Array.from(els.filtersForm.elements).forEach((element) => {
+    if ('value' in element) syncFilterFacetState(element);
+  });
 }
 
 function renderFilterControls() {
   els.filtersForm.innerHTML = '';
   const filterFields = state.meta?.filter_fields || [];
-  if (els.toggleFilters) {
-    els.toggleFilters.disabled = !filterFields.length;
-    els.toggleFilters.hidden = !filterFields.length;
-  }
   if (!filterFields.length) {
-    els.filtersForm.innerHTML = '<p class="muted">No filters available for this resource.</p>';
-    updateFilterToggleLabel();
+    els.filtersForm.hidden = true;
     return;
   }
+  els.filtersForm.hidden = false;
   filterFields.forEach((name) => {
     const field = fieldMeta(name);
     if (field) buildFilterControl(field);
   });
-  applyFiltersCollapsed(state.filtersCollapsed);
-  updateFilterToggleLabel();
-}
-
-function updateRelationPreview(preview, items, term) {
-  if (!preview) {
-    return;
-  }
-  const normalizedTerm = term.trim();
-  if (!normalizedTerm) {
-    preview.hidden = true;
-    preview.innerHTML = '';
-    return;
-  }
-  preview.hidden = false;
-  if (!items.length) {
-    preview.innerHTML = '<li>No matching options.</li>';
-    return;
-  }
-  preview.innerHTML = items.slice(0, 5).map((item) => '<li>' + highlightMatch(item.label, normalizedTerm) + '</li>').join('');
+  const reset = document.createElement('button');
+  reset.id = 'resetFilters';
+  reset.className = 'filter-reset-btn btn btn-default';
+  reset.type = 'button';
+  reset.innerHTML = '<span>Reset</span><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7"/><path d="m11.5 4.5-7 7"/></svg>';
+  reset.onclick = () => {
+    if (!state.current) return;
+    cancelScheduledSearchReload();
+    clearListFilters();
+    syncResetFiltersButton();
+    reloadListWithStatus('Cleared list filters.', true).catch((error) => setStatus(String(error.message || error)));
+  };
+  reset.hidden = true;
+  els.filtersForm.appendChild(reset);
+  syncResetFiltersButton();
 }
 
 async function loadRelationOptions(field, search, page, size) {
@@ -2446,15 +2932,6 @@ function populateRelationSelect(field, select, items, selectedValue, placeholder
     option.selected = true;
     select.appendChild(option);
   }
-}
-
-function setControlDisabled(control, disabled) {
-  if ('disabled' in control) {
-    control.disabled = disabled;
-  }
-  control.querySelectorAll('input, select, textarea, button').forEach((element) => {
-    element.disabled = disabled;
-  });
 }
 
 function scheduleRelationSearch(field, scopeKey, searchInput, select, summary, optionsContainer, dropdown, itemsRef) {
@@ -2734,20 +3211,7 @@ function renderSelectedRecord() {
     label.className = 'detail-label';
     label.textContent = labelText;
     const value = document.createElement('div');
-    value.className = 'detail-value copyable';
-    value.tabIndex = 0;
-    value.setAttribute('role', 'button');
-    value.setAttribute('aria-label', 'Copy ' + labelText);
-    value.title = 'Copy value';
-    value.onclick = () => copyDetailFieldValue(name, record[name]).catch((error) => {
-      showToast(String(error.message || error), 'danger');
-      setStatus(String(error.message || error));
-    });
-    value.onkeydown = (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      event.preventDefault();
-      value.click();
-    };
+    value.className = 'detail-value';
     value.appendChild(buildDetailValueContent(name, record[name]));
     row.appendChild(label);
     row.appendChild(value);
@@ -2780,24 +3244,6 @@ async function copySelectedRecordJSON() {
   setStatus('Copied record JSON.');
 }
 
-async function copyDetailFieldValue(name, value) {
-  const text = value == null
-    ? ''
-    : (typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value));
-  await copyTextToClipboard(text);
-  showToast('Copied ' + fieldLabel(name) + '.', 'success');
-  setStatus('Copied ' + fieldLabel(name) + '.');
-}
-
-async function copyCurrentViewLink() {
-  if (!state.current) return;
-  syncListURLState();
-  const url = window.location.href;
-  await copyTextToClipboard(url);
-  showToast('Copied current admin view link.', 'success');
-  setStatus('Copied current admin view link.');
-}
-
 async function openSelectedRecordEdit() {
   if (!state.selected || !hasAction('update')) return;
   await renderUpdateForm();
@@ -2808,6 +3254,15 @@ async function openSelectedRecordEdit() {
 function syncBulkActionState() {
   const count = selectedIDs().length;
   els.selectedCountBadge.textContent = count + ' selected';
+  if (els.bulkActionBar) {
+    els.bulkActionBar.hidden = count === 0;
+  }
+  if (els.bulkActionCount) {
+    els.bulkActionCount.textContent = String(count);
+  }
+  if (els.bulkActionLabel) {
+    els.bulkActionLabel.textContent = (count === 1 ? 'record selected' : 'records selected');
+  }
   if (els.copySelectedIDs) {
     els.copySelectedIDs.disabled = count === 0;
     els.copySelectedIDs.hidden = count === 0;
@@ -2816,14 +3271,19 @@ function syncBulkActionState() {
     els.clearSelection.disabled = count === 0;
     els.clearSelection.hidden = count === 0;
   }
-  els.bulkDelete.disabled = count === 0 || !hasAction('bulk_delete');
+  if (els.bulkActionDelete) {
+    els.bulkActionDelete.disabled = count === 0 || !hasAction('bulk_delete');
+  }
+  if (els.bulkActionExport) {
+    els.bulkActionExport.disabled = count === 0 || !state.current || !hasAction('list');
+  }
   syncWorkspaceActionState();
 }
 
 function clearBulkSelection() {
   state.bulkSelected = {};
   syncBulkActionState();
-  renderList().catch((error) => setStatus(String(error.message || error)));
+  syncBulkRowSelection();
   setStatus('Cleared selected records.');
 }
 
@@ -2833,6 +3293,41 @@ async function copyBulkSelectedIDs() {
   await copyTextToClipboard(ids.map((id) => String(id)).join('\n'));
   showToast('Copied ' + ids.length + ' selected ID(s).', 'success');
   setStatus('Copied ' + ids.length + ' selected ID(s).');
+}
+
+function bulkDeleteSelectedRecords() {
+  if (!state.current || !selectedIDs().length) return;
+  const count = selectedIDs().length;
+  openConfirmDialog(
+    'Bulk delete',
+    'Are you sure you want to permanently delete ' + count + ' selected record(s)? This action cannot be undone.',
+    async () => {
+      closeModal(els.confirmModal);
+      try {
+        const ids = selectedIDs();
+        const result = await request(currentBasePath() + '/bulk-delete', {
+          method: 'POST',
+          body: JSON.stringify({ ids: ids })
+        });
+        if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
+          state.selected = null;
+          renderSelectedRecord();
+          await renderUpdateForm();
+        }
+        state.bulkSelected = {};
+        syncBulkActionState();
+        syncBulkRowSelection();
+        const deleted = String(result.deleted || 0);
+        rewindPageIfCurrentPageEmptied(ids);
+        showToast('Bulk deleted ' + deleted + ' record(s).', 'success');
+        await reloadListWithStatus('Bulk deleted ' + deleted + ' record(s).', false);
+      } catch (error) {
+        showToast(String(error.message || error), 'danger');
+        setStatus(String(error.message || error));
+      }
+    },
+    'Delete ' + count
+  );
 }
 
 function buildValidatedFormPayload(form, scopeKey) {
@@ -2921,14 +3416,7 @@ function appendListQueryParams(params) {
   }
   params.set('page', String(state.pagination.page));
   params.set('size', String(state.pagination.size));
-  (state.meta?.filter_fields || []).forEach((name) => {
-    const field = fieldValue(name);
-    if (!field) return;
-    const value = String(field.value || '').trim();
-    if (value !== '') {
-      params.set('f.' + name, value);
-    }
-  });
+  appendFilterParams(params, { prefix: 'f.' });
 }
 
 function syncListURLState() {
@@ -2944,7 +3432,7 @@ function hasListStateParams(params) {
 
 function applyListStateFromURL(resourceName) {
   const params = new URLSearchParams(window.location.search || '');
-  if ((params.get('resource') || '') !== resourceName || !hasListStateParams(params)) return false;
+  if (resourceNameFromAdminPath(currentPagePath()) !== resourceName || !hasListStateParams(params)) return false;
   els.search.value = params.get('search') || '';
   const sortValue = params.get('sort') || '';
   if (sortValue && Array.from(els.sort.options).some((option) => option.value === sortValue)) {
@@ -2958,10 +3446,17 @@ function applyListStateFromURL(resourceName) {
   const pageValue = Number(params.get('page') || '1');
   state.pagination.page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
   (state.meta?.filter_fields || []).forEach((name) => {
-    const input = fieldValue(name);
-    if (!input) return;
-    input.value = params.get('f.' + name) || '';
+    const field = fieldMeta(name);
+    if (isDateTimeField(field)) {
+      setFilterStateValue(name, {
+        from: params.get('f.' + name + '__from') || '',
+        to: params.get('f.' + name + '__to') || ''
+      });
+      return;
+    }
+    setFilterStateValue(name, params.get('f.' + name) || '');
   });
+  syncResetFiltersButton();
   return true;
 }
 
@@ -2972,12 +3467,8 @@ function listStateStorageKey(resourceName) {
 function collectCurrentListState() {
   const filters = {};
   (state.meta?.filter_fields || []).forEach((name) => {
-    const input = fieldValue(name);
-    if (!input) return;
-    const value = String(input.value || '').trim();
-    if (value !== '') {
-      filters[name] = value;
-    }
+    const value = getFilterStateValue(name);
+    if (value != null) filters[name] = value;
   });
   return {
     search: els.search.value.trim(),
@@ -3023,146 +3514,14 @@ function applyListStateSnapshot(saved) {
   state.pagination.page = Number.isFinite(pageValue) && pageValue > 0 ? pageValue : 1;
   const filters = saved.filters && typeof saved.filters === 'object' ? saved.filters : {};
   (state.meta?.filter_fields || []).forEach((name) => {
-    const input = fieldValue(name);
-    if (!input) return;
-    input.value = filters[name] == null ? '' : String(filters[name]);
+    setFilterStateValue(name, filters[name] == null ? '' : filters[name]);
   });
+  syncResetFiltersButton();
   return true;
 }
 
 function applySavedListState(resourceName) {
   return applyListStateSnapshot(readSavedListState(resourceName));
-}
-
-function savedViewsStorageKey(resourceName) {
-  return savedViewsStoragePrefix + resourceName;
-}
-
-function normalizeSavedViews(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((view) => view && typeof view === 'object' && view.id && view.name && view.state)
-    .map((view) => ({
-      id: String(view.id),
-      name: String(view.name),
-      state: view.state,
-      createdAt: view.createdAt || '',
-      updatedAt: view.updatedAt || ''
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function readSavedViews(resourceName) {
-  try {
-    return normalizeSavedViews(JSON.parse(localStorage.getItem(savedViewsStorageKey(resourceName)) || '[]'));
-  } catch (_) {
-    return [];
-  }
-}
-
-function persistSavedViews() {
-  if (!state.current) return;
-  try {
-    localStorage.setItem(savedViewsStorageKey(state.current.name), JSON.stringify(state.savedViews));
-  } catch (_) {
-    // ignore storage failures
-  }
-}
-
-function makeSavedViewID(name) {
-  const base = String(name || 'view').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'view';
-  return base + '-' + Date.now().toString(36);
-}
-
-function defaultSavedViewName() {
-  const now = new Date();
-  const date = now.toLocaleDateString(adminLocale || undefined, { month: 'short', day: 'numeric' });
-  const time = now.toLocaleTimeString(adminLocale || undefined, { hour: '2-digit', minute: '2-digit' });
-  return 'View ' + date + ' ' + time;
-}
-
-function renderSavedViews(selectedID) {
-  if (!els.savedViewSelect) return;
-  const selected = selectedID || els.savedViewSelect.value;
-  els.savedViewSelect.innerHTML = '';
-  const empty = document.createElement('option');
-  empty.value = '';
-  empty.textContent = state.savedViews.length ? 'Saved views' : 'No saved views';
-  els.savedViewSelect.appendChild(empty);
-  state.savedViews.forEach((view) => {
-    const option = document.createElement('option');
-    option.value = view.id;
-    option.textContent = view.name;
-    els.savedViewSelect.appendChild(option);
-  });
-  if (selected && state.savedViews.some((view) => view.id === selected)) {
-    els.savedViewSelect.value = selected;
-  } else {
-    els.savedViewSelect.value = '';
-  }
-  syncWorkspaceActionState();
-}
-
-function loadSavedViews(resourceName) {
-  state.savedViews = readSavedViews(resourceName);
-  renderSavedViews();
-}
-
-function saveCurrentViewPreset() {
-  if (!state.current) return;
-  const input = window.prompt('Name this saved view', defaultSavedViewName());
-  if (input == null) return;
-  const name = input.trim();
-  if (!name) {
-    showToast('Saved view needs a name.', 'info');
-    return;
-  }
-  const existing = state.savedViews.find((view) => view.name.toLowerCase() === name.toLowerCase());
-  if (existing && !window.confirm('Replace the saved view "' + existing.name + '"?')) {
-    return;
-  }
-  const now = new Date().toISOString();
-  const snapshot = collectCurrentListState();
-  const view = existing || { id: makeSavedViewID(name), createdAt: now };
-  view.name = name;
-  view.state = snapshot;
-  view.updatedAt = now;
-  if (!existing) state.savedViews.push(view);
-  state.savedViews = normalizeSavedViews(state.savedViews);
-  persistSavedViews();
-  renderSavedViews(view.id);
-  showToast('Saved view "' + name + '".', 'success');
-  setStatus('Saved view "' + name + '".');
-}
-
-function applySavedViewByID(id) {
-  if (!state.current || !id) {
-    syncWorkspaceActionState();
-    return;
-  }
-  const view = state.savedViews.find((item) => item.id === id);
-  if (!view) {
-    renderSavedViews();
-    return;
-  }
-  cancelScheduledSearchReload();
-  if (!applyListStateSnapshot(view.state)) {
-    showToast('Saved view could not be applied.', 'danger');
-    return;
-  }
-  reloadListWithStatus('Applied saved view "' + view.name + '".', false).catch((error) => setStatus(String(error.message || error)));
-}
-
-function deleteSelectedSavedView() {
-  if (!state.current || !els.savedViewSelect || !els.savedViewSelect.value) return;
-  const view = state.savedViews.find((item) => item.id === els.savedViewSelect.value);
-  if (!view) return;
-  if (!window.confirm('Delete the saved view "' + view.name + '"?')) return;
-  state.savedViews = state.savedViews.filter((item) => item.id !== view.id);
-  persistSavedViews();
-  renderSavedViews();
-  showToast('Deleted saved view "' + view.name + '".', 'success');
-  setStatus('Deleted saved view "' + view.name + '".');
 }
 
 function buildListQuery() {
@@ -3175,35 +3534,8 @@ function buildListQuery() {
   }
   params.set('page', String(state.pagination.page));
   params.set('size', String(state.pagination.size));
-  (state.meta?.filter_fields || []).forEach((name) => {
-    const field = fieldValue(name);
-    if (!field) return;
-    const value = String(field.value || '').trim();
-    if (value !== '') {
-      params.set(name, value);
-    }
-  });
+  appendFilterParams(params, { boundary: true });
   return '?' + params.toString();
-}
-
-function buildExportQuery() {
-  const params = new URLSearchParams(buildListQuery().slice(1));
-  const fields = visibleListFields();
-  if (fields.length) {
-    params.set('fields', fields.join(','));
-  }
-  return '?' + params.toString();
-}
-
-function reloadListFromStateChip(message) {
-  cancelScheduledSearchReload();
-  resetToFirstPage();
-  reloadListWithStatus(message, false).catch((error) => setStatus(String(error.message || error)));
-}
-
-function currentSortLabel() {
-  const option = els.sort ? els.sort.selectedOptions[0] : null;
-  return option ? option.textContent : els.sort.value;
 }
 
 function activeListEntries() {
@@ -3211,101 +3543,27 @@ function activeListEntries() {
   const entries = [];
   const searchValue = els.search.value.trim();
   if (searchValue) {
-    entries.push({
-      label: 'Search',
-      value: searchValue,
-      clearable: true,
-      clear: () => {
-        els.search.value = '';
-        reloadListFromStateChip('Cleared search.');
-      }
-    });
+    entries.push({ label: 'Search', clearable: true });
   }
   if (els.sort.value) {
-    entries.push({
-      label: 'Sort',
-      value: currentSortLabel(),
-      clearable: true,
-      clear: () => {
-        els.sort.value = '';
-        reloadListFromStateChip('Cleared sort.');
-      }
-    });
+    entries.push({ label: 'Sort', clearable: true });
   }
   (state.meta?.filter_fields || []).forEach((name) => {
-    const input = fieldValue(name);
-    if (!input) return;
-    const value = String(input.value || '').trim();
-    if (!value) return;
-    entries.push({
-      label: fieldLabel(name),
-      value,
-      clearable: true,
-      clear: () => {
-        input.value = '';
-        reloadListFromStateChip('Cleared filter ' + fieldLabel(name) + '.');
-      }
-    });
-  });
-  const sizeOption = els.pageSize ? els.pageSize.selectedOptions[0] : null;
-  entries.push({
-    label: 'Page size',
-    value: sizeOption ? sizeOption.textContent : String(state.pagination.size),
-    clearable: false
+    const value = getFilterStateValue(name);
+    if (value == null) return;
+    entries.push({ label: fieldLabel(name), clearable: true });
   });
   return entries;
 }
 
-function createStateChip(entry) {
-  const chip = document.createElement(entry.clearable ? 'button' : 'span');
-  chip.className = 'state-chip';
-  if (entry.clearable) {
-    chip.type = 'button';
-    chip.setAttribute('aria-label', 'Clear ' + entry.label);
-    chip.onclick = entry.clear;
-  }
-  const text = document.createElement('span');
-  text.textContent = entry.label + ': ' + entry.value;
-  chip.appendChild(text);
-  if (entry.clearable) {
-    const clear = document.createElement('span');
-    clear.className = 'state-chip-clear';
-    clear.setAttribute('aria-hidden', 'true');
-    clear.textContent = '×';
-    chip.appendChild(clear);
-  }
-  return chip;
-}
-
-function renderActiveListState() {
-  if (!els.activeListState) return;
-  updateFilterToggleLabel();
-  const entries = activeListEntries();
-  els.activeListState.innerHTML = '';
-  els.activeListState.hidden = !state.current || entries.length === 0;
-  if (els.activeListState.hidden) return;
-  const clearableEntries = entries.filter((entry) => entry.clearable);
-  entries.forEach((entry) => els.activeListState.appendChild(createStateChip(entry)));
-  if (clearableEntries.length > 1) {
-    const clearAll = document.createElement('button');
-    clearAll.type = 'button';
-    clearAll.className = 'state-chip';
-    clearAll.textContent = 'Clear all';
-    clearAll.onclick = () => {
-      els.search.value = '';
-      els.sort.value = '';
-      (state.meta?.filter_fields || []).forEach((name) => {
-        const input = fieldValue(name);
-        if (input) input.value = '';
-      });
-      reloadListFromStateChip('Cleared list state.');
-    };
-    els.activeListState.appendChild(clearAll);
-  }
-}
-
 function hasClearableListState() {
   return activeListEntries().some((entry) => entry.clearable);
+}
+
+function syncResetFiltersButton() {
+  const reset = document.getElementById('resetFilters');
+  if (!reset) return;
+  reset.hidden = !hasClearableListState();
 }
 
 function renderListEmptyState(title, message, actions) {
@@ -3337,79 +3595,145 @@ function renderListEmptyState(title, message, actions) {
   els.list.appendChild(empty);
 }
 
-function downloadFilenameFromResponse(response, fallback) {
-  const disposition = response.headers.get('Content-Disposition') || '';
-  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-  if (encoded) {
-    try {
-      return decodeURIComponent(encoded[1].replace(/"/g, ''));
-    } catch (_) {
-      return fallback;
-    }
+function csvCell(value) {
+  let text;
+  if (value == null) {
+    text = '';
+  } else if (Array.isArray(value) || typeof value === 'object') {
+    text = JSON.stringify(value);
+  } else {
+    text = String(value);
   }
-  const plain = disposition.match(/filename="?([^";]+)"?/i);
-  return plain ? plain[1] : fallback;
+  if (/[",\r\n]/.test(text)) {
+    return '"' + text.replaceAll('"', '""') + '"';
+  }
+  return text;
 }
 
-async function exportCurrentList() {
-  if (!state.current || !hasAction('list') || !els.exportList) return;
-  const originalText = els.exportList.textContent;
-  els.exportList.disabled = true;
-  els.exportList.textContent = 'Exporting...';
+function downloadCSV(filename, rows) {
+  const content = '\ufeff' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function selectedRowsForExport(ids) {
+  const currentRows = new Map(state.records.map((row) => [selectionKey(recordPrimaryKey(row)), row]));
+  return Promise.all(ids.map(async (id) => {
+    const currentRow = currentRows.get(selectionKey(id));
+    if (currentRow) return currentRow;
+    const payload = await request(currentBasePath() + '/' + encodeURIComponent(String(id)));
+    return payload.item || payload;
+  }));
+}
+
+async function exportSelectedRecordsCSV() {
+  const ids = selectedIDs();
+  if (!state.current || !ids.length || !els.bulkActionExport) return;
+  const label = els.bulkActionExport.querySelector('span');
+  const originalText = label ? label.textContent : els.bulkActionExport.textContent;
+  const originalTooltip = els.bulkActionExport.dataset.tooltip || 'Export CSV';
+  els.bulkActionExport.disabled = true;
+  els.bulkActionExport.dataset.pending = 'true';
+  els.bulkActionExport.dataset.tooltip = 'Exporting...';
+  if (label) {
+    label.textContent = 'Exporting...';
+  } else {
+    els.bulkActionExport.textContent = 'Exporting...';
+  }
   try {
-    persistToken();
-    const response = await fetch(currentBasePath() + '/export' + buildExportQuery(), { headers: requestHeaders() });
-    if (!response.ok) {
-      const text = await response.text();
-      let data = text;
-      try { data = text ? JSON.parse(text) : text; } catch (_) { data = text; }
-      throw new Error(extractErrorMessage(data) || response.statusText || ('Export failed with status ' + response.status + '.'));
-    }
-    const blob = await response.blob();
-    const filename = downloadFilenameFromResponse(response, (state.current.name || 'resource') + '.csv');
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-    showToast('Exported ' + (state.current.label || state.current.name) + ' CSV.', 'success');
-    setStatus('Exported ' + (state.current.label || state.current.name) + ' CSV.');
+    const fields = visibleListFields();
+    const rows = await selectedRowsForExport(ids);
+    const csvRows = [
+      fields.map((field) => fieldLabel(field)),
+      ...rows.map((row) => fields.map((field) => row[field]))
+    ];
+    downloadCSV((state.current.name || 'resource') + '-selected.csv', csvRows);
+    showToast('Exported ' + ids.length + ' selected record(s).', 'success');
+    setStatus('Exported ' + ids.length + ' selected record(s).');
   } catch (error) {
     const message = String(error.message || error);
     showToast(message, 'danger');
     setStatus(message);
   } finally {
-    els.exportList.textContent = originalText;
+    if (label) {
+      label.textContent = originalText;
+    } else {
+      els.bulkActionExport.textContent = originalText;
+    }
+    delete els.bulkActionExport.dataset.pending;
+    els.bulkActionExport.dataset.tooltip = originalTooltip;
     syncWorkspaceActionState();
   }
 }
 
 function paginationSummaryText() {
-  const total = Number(state.pagination.total || 0);
   const page = Math.max(1, Number(state.pagination.page || 1));
-  const size = Math.max(1, Number(state.pagination.size || 1));
   const pages = Math.max(1, Number(state.pagination.pages || 1));
-  let text = 'Page ' + page + ' of ' + pages + ' · ';
-  if (!total) {
-    text += '0 records';
-  } else {
-    const start = ((page - 1) * size) + 1;
-    const end = Math.min(total, start + Math.max(0, state.records.length || size) - 1);
-    text += 'Showing ' + start + '-' + end + ' of ' + total;
+  return 'Page ' + page + ' of ' + pages;
+}
+
+function paginationItems(page, pages) {
+  const totalPages = Math.max(1, Number(pages || 1));
+  const current = Math.min(Math.max(1, Number(page || 1)), totalPages);
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
-  if (state.listUpdatedAt) {
-    text += ' · Updated ' + formatRelativeTime(state.listUpdatedAt);
+  let start = Math.max(2, current - 1);
+  let end = Math.min(totalPages - 1, current + 2);
+  if (current <= 3) {
+    start = 2;
+    end = 4;
+  } else if (current >= totalPages - 2) {
+    start = totalPages - 3;
+    end = totalPages - 1;
   }
-  return text;
+  const items = [1];
+  if (start > 2) items.push('ellipsis-start');
+  for (let pageNumber = start; pageNumber <= end; pageNumber += 1) {
+    items.push(pageNumber);
+  }
+  if (end < totalPages - 1) items.push('ellipsis-end');
+  items.push(totalPages);
+  return items;
 }
 
 function renderPagination() {
-  els.paginationInfo.textContent = paginationSummaryText();
-  els.prevPage.disabled = state.pagination.page <= 1;
-  els.nextPage.disabled = state.pagination.page >= state.pagination.pages;
+  const page = Math.max(1, Number(state.pagination.page || 1));
+  const pages = Math.max(1, Number(state.pagination.pages || 1));
+  if (els.paginationInfo) els.paginationInfo.textContent = paginationSummaryText();
+  if (els.firstPage) els.firstPage.disabled = page <= 1;
+  if (els.prevPage) els.prevPage.disabled = page <= 1;
+  if (els.nextPage) els.nextPage.disabled = page >= pages;
+  if (els.lastPage) els.lastPage.disabled = page >= pages;
+  if (!els.paginationPages) return;
+  els.paginationPages.innerHTML = '';
+  paginationItems(page, pages).forEach((item) => {
+    if (typeof item !== 'number') {
+      const ellipsis = document.createElement('span');
+      ellipsis.className = 'pagination-ellipsis';
+      ellipsis.textContent = '...';
+      els.paginationPages.appendChild(ellipsis);
+      return;
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'pagination-btn pagination-page-btn';
+    button.textContent = String(item);
+    button.dataset.page = String(item);
+    button.setAttribute('aria-label', 'Page ' + item);
+    if (item === page) {
+      button.classList.add('active');
+      button.setAttribute('aria-current', 'page');
+    }
+    els.paginationPages.appendChild(button);
+  });
 }
 
 function highlightSelectedRow() {
@@ -3419,8 +3743,25 @@ function highlightSelectedRow() {
   });
 }
 
-function isInteractiveTableTarget(target) {
-  return !!(target && target.closest('button, input, select, textarea, a, label, summary'));
+function syncBulkRowSelection() {
+  const rows = Array.from(els.list.querySelectorAll('tbody tr[data-record-id]'));
+  rows.forEach((row) => {
+    const checked = Object.prototype.hasOwnProperty.call(state.bulkSelected, row.dataset.selectionKey);
+    row.classList.toggle('row-bulk-selected', checked);
+    if (checked) {
+      row.dataset.state = 'selected';
+    } else {
+      delete row.dataset.state;
+    }
+    const checkbox = row.querySelector('.bulk-row-checkbox');
+    if (checkbox) checkbox.checked = checked;
+  });
+  const selectAll = els.list.querySelector('.bulk-select-all-checkbox');
+  if (selectAll) {
+    const selectedCount = rows.filter((row) => Object.prototype.hasOwnProperty.call(state.bulkSelected, row.dataset.selectionKey)).length;
+    selectAll.checked = rows.length > 0 && selectedCount === rows.length;
+    selectAll.indeterminate = selectedCount > 0 && selectedCount < rows.length;
+  }
 }
 
 async function renderList() {
@@ -3446,28 +3787,26 @@ async function renderList() {
   syncListURLState();
   saveCurrentListState();
   renderPagination();
-  renderActiveListState();
+  syncFilterFacetStates();
+  syncResetFiltersButton();
   if (!fields.length) {
     renderListEmptyState('No list fields', 'This resource does not expose any list fields for the current user.');
     return;
   }
   if (!rows.length) {
+    const hasActiveListState = hasClearableListState();
     const actions = [];
-    if (hasClearableListState()) {
+    if (hasActiveListState) {
       actions.push({
-        label: 'Clear list state',
+        label: 'Clear search and filters',
         onClick: () => {
-          els.search.value = '';
-          els.sort.value = '';
-          (state.meta?.filter_fields || []).forEach((name) => {
-            const input = fieldValue(name);
-            if (input) input.value = '';
-          });
+          clearListFilters();
+          syncResetFiltersButton();
           reloadListWithStatus('Cleared list state.', true).catch((error) => setStatus(String(error.message || error)));
         }
       });
     }
-    if (hasAction('create')) {
+    if (!hasActiveListState && hasAction('create')) {
       actions.push({
         label: 'Create record',
         primary: true,
@@ -3475,9 +3814,9 @@ async function renderList() {
       });
     }
     renderListEmptyState(
-      hasClearableListState() ? 'No matching records' : 'No records yet',
-      hasClearableListState()
-        ? 'No records matched the active search, sort, or filter state.'
+      hasActiveListState ? 'No results found' : 'No records yet',
+      hasActiveListState
+        ? 'Try adjusting the search text or clearing the active filters.'
         : 'Create the first record for this resource when you are ready.',
       actions
     );
@@ -3495,12 +3834,14 @@ async function renderList() {
   bulkCell.className = 'table-select-cell';
   const selectAll = document.createElement('input');
   selectAll.type = 'checkbox';
-  selectAll.className = 'form-check-input position-static';
-  selectAll.checked = rows.length > 0 && rows.every((row) => isSelectedForBulk(recordPrimaryKey(row)));
+  selectAll.className = 'form-check-input position-static bulk-select-all-checkbox';
+  const selectedOnPage = rows.filter((row) => isSelectedForBulk(recordPrimaryKey(row))).length;
+  selectAll.checked = rows.length > 0 && selectedOnPage === rows.length;
+  selectAll.indeterminate = selectedOnPage > 0 && selectedOnPage < rows.length;
   selectAll.onchange = () => {
     rows.forEach((row) => setSelectedForBulk(recordPrimaryKey(row), selectAll.checked));
     syncBulkActionState();
-    renderList().catch((error) => setStatus(String(error.message || error)));
+    syncBulkRowSelection();
   };
   bulkCell.appendChild(selectAll);
   headRow.appendChild(bulkCell);
@@ -3545,27 +3886,19 @@ async function renderList() {
     const tr = document.createElement('tr');
     const id = recordPrimaryKey(row);
     tr.dataset.recordId = String(id);
-    tr.tabIndex = 0;
-    tr.setAttribute('role', 'button');
-    tr.setAttribute('aria-label', 'Open record #' + String(id));
-    tr.onclick = (event) => {
-      if (isInteractiveTableTarget(event.target)) return;
-      selectRecord(row, { openModal: 'record' });
-    };
-    tr.onkeydown = (event) => {
-      if (event.key !== 'Enter' || isInteractiveTableTarget(event.target)) return;
-      event.preventDefault();
-      selectRecord(row, { openModal: 'record' });
-    };
+    tr.dataset.selectionKey = selectionKey(id);
+    tr.classList.toggle('row-bulk-selected', isSelectedForBulk(id));
+    if (isSelectedForBulk(id)) tr.dataset.state = 'selected';
     const checkCell = document.createElement('td');
     checkCell.className = 'table-select-cell';
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.className = 'form-check-input position-static';
+    checkbox.className = 'form-check-input position-static bulk-row-checkbox';
     checkbox.checked = isSelectedForBulk(id);
     checkbox.onchange = () => {
       setSelectedForBulk(id, checkbox.checked);
       syncBulkActionState();
+      syncBulkRowSelection();
     };
     checkCell.appendChild(checkbox);
     tr.appendChild(checkCell);
@@ -3590,13 +3923,14 @@ async function renderList() {
     trigger.type = 'button';
     trigger.className = 'action-menu-trigger btn btn-default btn-sm dropdown-toggle';
     trigger.setAttribute('aria-label', 'More actions');
+    trigger.setAttribute('aria-expanded', 'false');
     trigger.textContent = '···';
     trigger.onclick = (e) => {
       e.stopPropagation();
       openActionMenuAt(trigger, id, [
         { label: 'Edit', disabled: !hasAction('update'), onClick: () => selectRecord(row, { openModal: 'edit' }) },
         { divider: true },
-        { label: 'Delete', className: 'danger', disabled: !hasAction('delete'), onClick: () => deleteRecordByID(id) },
+        { label: 'Delete', className: 'danger', icon: 'trash', disabled: !hasAction('delete'), onClick: () => deleteRecordByID(id) },
       ]);
     };
     actionWrap.appendChild(trigger);
@@ -3610,6 +3944,7 @@ async function renderList() {
   listFragment.appendChild(tableShell);
   els.list.appendChild(listFragment);
   highlightSelectedRow();
+  syncBulkRowSelection();
 }
 
  async function selectRecord(row, options = {}) {
@@ -3697,13 +4032,18 @@ async function loadResources() {
     if (await restoreNavigationState(window.history.state)) {
       return;
     }
+    if (requestedResourceNameFromURL()) {
+      showNotFound({ history: 'none' });
+      return;
+    }
     if (state.resources.length) {
       await selectResource(state.resources[0], { history: 'replace' });
       return;
     }
     updateNavigationState('replace', 'dashboard');
   } catch (error) {
-    setStatus(String(error.message || error));
+    showErrorPage(error?.status ? error : { status: 500 });
+    setStatus(String(error.message || error), 'danger');
   }
 }
 
@@ -3711,8 +4051,11 @@ async function selectResource(resource, options) {
   const navigationMode = options?.history || 'push';
   state.current = resource;
   state.selected = null;
+  state.errorPage = null;
+  setTopbarBreadcrumb('Dashboard', resource.label || resource.name || 'Resource');
   resetQueryState();
   renderDashboard();
+  if (els.errorShell) els.errorShell.hidden = true;
   if (els.workspaceHeader) els.workspaceHeader.hidden = false;
   if (els.recordsShell) els.recordsShell.hidden = false;
   if (navigationMode !== 'none') {
@@ -3722,13 +4065,13 @@ async function selectResource(resource, options) {
     state.meta = await request(currentBasePath() + '/meta');
     renderResources();
     els.resourceTitle.textContent = state.meta.label;
+    setTopbarBreadcrumb('Dashboard', state.meta.label || resource.label || resource.name || 'Resource');
     renderResourceSummary();
     renderResourceActionSummary();
     renderSearchPlaceholder();
     renderSortOptions();
     renderFilterControls();
     initializeColumnVisibility();
-    loadSavedViews(resource.name);
     if (options?.restoreQuery !== false) {
       const restoredFromURL = applyListStateFromURL(resource.name);
       if (!restoredFromURL) {
@@ -3741,7 +4084,12 @@ async function selectResource(resource, options) {
     syncWorkspaceActionState();
     setStatus('Loaded resource ' + resource.name + '.');
   } catch (error) {
-    setStatus(String(error.message || error));
+    const message = String(error.message || error);
+    if (error?.status) {
+      showErrorPage(error);
+    }
+    showToast(message, 'danger');
+    setStatus(message);
   }
 }
 
@@ -3780,7 +4128,8 @@ els.loginForm.onsubmit = async (event) => {
     persistAuthIdentity();
     els.loginPassword.value = '';
     renderAuthState();
-    await refreshAuthProfile();
+    const profileLoaded = await refreshAuthProfile();
+    if (profileLoaded === false) return;
     const successMessage = state.auth.name ? ('Signed in as ' + state.auth.name + '.') : 'Signed in successfully.';
     if (isStandaloneLoginPage()) {
       redirectToAdmin(successMessage);
@@ -3794,6 +4143,15 @@ els.loginForm.onsubmit = async (event) => {
     setStatus(message, 'danger');
   }
 };
+const toggleLoginPassword = document.getElementById('toggleLoginPassword');
+if (toggleLoginPassword && els.loginPassword) {
+  toggleLoginPassword.addEventListener('click', () => {
+    const visible = els.loginPassword.type === 'text';
+    els.loginPassword.type = visible ? 'password' : 'text';
+    toggleLoginPassword.setAttribute('aria-pressed', String(!visible));
+    toggleLoginPassword.setAttribute('aria-label', visible ? 'Show password' : 'Hide password');
+  });
+}
 els.clearToken.onclick = () => {
   logout('Signed out of the admin console.');
 };
@@ -3814,25 +4172,145 @@ if (topbarUserBtn && topbarUserMenu) {
   });
 }
 
+const sidebarUserMenuBtn = document.getElementById('sidebarUserMenuBtn');
+const sidebarUserMenu = document.getElementById('sidebarUserMenu');
+if (sidebarUserMenuBtn && sidebarUserMenu) {
+  const closeSidebarUserMenu = () => {
+    sidebarUserMenu.hidden = true;
+    sidebarUserMenuBtn.setAttribute('aria-expanded', 'false');
+  };
+  sidebarUserMenuBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const open = sidebarUserMenu.hidden === false;
+    sidebarUserMenu.hidden = open;
+    sidebarUserMenuBtn.setAttribute('aria-expanded', String(!open));
+  });
+  sidebarUserMenu.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+  document.addEventListener('click', closeSidebarUserMenu);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeSidebarUserMenu();
+  });
+}
+
 // Topbar search toggle
 const topbarSearchToggle = document.getElementById('topbarSearchToggle');
 const topbarSearchExpand = document.getElementById('topbarSearchExpand');
+const topbarSearchClose = document.getElementById('topbarSearchClose');
 if (topbarSearchToggle && topbarSearchExpand) {
   topbarSearchToggle.addEventListener('click', (event) => {
     event.stopPropagation();
-    topbarSearchExpand.classList.toggle('open');
-    if (!topbarSearchExpand.classList.contains('open')) {
-      closeGlobalSearch();
-      return;
-    }
-    if (els.topbarSearchInput) els.topbarSearchInput.focus();
-  });
-  document.addEventListener('click', (event) => {
-    if (topbarSearchExpand && !topbarSearchExpand.contains(event.target) && event.target !== topbarSearchToggle) {
-      topbarSearchExpand.classList.remove('open');
-      closeGlobalSearch();
+    if (topbarSearchExpand.classList.contains('open')) {
+      closeGlobalSearchDialog({ clearInput: true });
+    } else {
+      openGlobalSearchDialog();
     }
   });
+  topbarSearchExpand.addEventListener('click', (event) => {
+    if (event.target === topbarSearchExpand) {
+      closeGlobalSearchDialog({ clearInput: true });
+    }
+  });
+}
+if (topbarSearchClose) {
+  topbarSearchClose.addEventListener('click', (event) => {
+    event.stopPropagation();
+    closeGlobalSearchDialog({ clearInput: true });
+    if (topbarSearchToggle && !topbarSearchToggle.matches('[hidden]')) topbarSearchToggle.focus();
+  });
+}
+document.addEventListener('click', (event) => {
+  if (
+    topbarSearchExpand &&
+    topbarSearchExpand.classList.contains('open') &&
+    !topbarSearchExpand.contains(event.target) &&
+    event.target !== topbarSearchToggle
+  ) {
+    closeGlobalSearchDialog({ clearInput: true });
+  }
+});
+document.addEventListener('keydown', (event) => {
+  const isSearchShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+  if (!isSearchShortcut) return;
+  event.preventDefault();
+  openGlobalSearchDialog();
+});
+
+function errorPageConfig(status, message) {
+  const code = Number(status || 500);
+  const configs = {
+    401: {
+      title: 'Unauthorized Access',
+      copy: 'Please log in with the appropriate credentials to access this resource.'
+    },
+    403: {
+      title: 'Access Forbidden',
+      copy: "You don't have necessary permission to view this resource."
+    },
+    404: {
+      title: 'Oops! Page Not Found!',
+      copy: "It seems like the page you're looking for does not exist or might have been removed."
+    },
+    500: {
+      title: "Oops! Something went wrong :')",
+      copy: 'We apologize for the inconvenience. Please try again later.'
+    },
+    503: {
+      title: 'Website is under maintenance!',
+      copy: "The site is not available at the moment. We'll be back online shortly."
+    }
+  };
+  const known = configs[code];
+  const fallback = known || configs[500];
+  return {
+    code: String(code || 500),
+    title: fallback.title,
+    copy: known ? fallback.copy : (String(message || '').trim() || fallback.copy)
+  };
+}
+
+function showErrorPage(error, options) {
+  const navigationMode = options?.history || 'none';
+  const details = errorPageConfig(error?.status || error?.code || error || 500, options?.copy);
+  state.current = null;
+  state.meta = null;
+  state.selected = null;
+  state.errorPage = details;
+  setTopbarBreadcrumb('Dashboard', details.code);
+  resetQueryState();
+  renderResources();
+  renderDashboard();
+  if (els.workspaceHeader) els.workspaceHeader.hidden = true;
+  if (els.recordsShell) els.recordsShell.hidden = true;
+  if (els.dashboardShell) els.dashboardShell.hidden = true;
+  if (els.errorShell) els.errorShell.hidden = false;
+  if (els.errorCode) els.errorCode.textContent = details.code;
+  if (els.errorTitle) els.errorTitle.textContent = details.title;
+  if (els.errorCopy) els.errorCopy.textContent = details.copy;
+  els.resourceTitle.textContent = details.title;
+  els.resourcePath.textContent = details.copy;
+  els.resourcePath.hidden = false;
+  els.detailTitle.textContent = 'No record selected';
+  els.detailObjectBadge.textContent = details.code;
+  els.detail.textContent = details.copy;
+  els.detailFields.innerHTML = '<p class="muted">Use the sidebar or return home to continue.</p>';
+  els.createForm.innerHTML = '<p class="muted">No resource is selected.</p>';
+  els.updateForm.innerHTML = '<p class="muted">No resource is selected.</p>';
+  els.list.innerHTML = '<div class="empty-state">' + escapeHTML(details.copy) + '</div>';
+  renderResourceActionSummary();
+  updateColumnToggleLabel();
+  renderPagination();
+  syncBulkActionState();
+  syncWorkspaceActionState();
+  if (navigationMode !== 'none') {
+    updateNavigationState(navigationMode, 'dashboard');
+  }
+  setStatus(details.code + ' ' + details.title + '.', Number(details.code) >= 500 ? 'danger' : 'warning');
+}
+
+function showNotFound(options) {
+  showErrorPage({ status: 404 }, options);
 }
 
 function showDashboard(options) {
@@ -3840,13 +4318,17 @@ function showDashboard(options) {
   state.current = null;
   state.meta = null;
   state.selected = null;
+  state.errorPage = null;
+  setTopbarBreadcrumb('Dashboard', 'Overview');
   resetQueryState();
   renderResources();
   renderDashboard();
   if (els.workspaceHeader) els.workspaceHeader.hidden = true;
   if (els.recordsShell) els.recordsShell.hidden = true;
+  if (els.errorShell) els.errorShell.hidden = true;
   els.resourceTitle.textContent = 'Admin dashboard';
   els.resourcePath.textContent = 'Choose a resource from the sidebar to load its workspace.';
+  els.resourcePath.hidden = false;
   els.detailTitle.textContent = 'No record selected';
   els.detailObjectBadge.textContent = 'Dashboard';
   els.detail.textContent = 'Choose a resource from the sidebar.';
@@ -3855,13 +4337,7 @@ function showDashboard(options) {
   els.updateForm.innerHTML = '<p class="muted">Select a resource to edit records.</p>';
   els.editHint.textContent = 'Select a resource to open the change form.';
   els.list.innerHTML = '<div class="empty-state">Select a resource from the sidebar to load records.</div>';
-  if (els.activeListState) {
-    els.activeListState.innerHTML = '';
-    els.activeListState.hidden = true;
-  }
-  state.savedViews = [];
   renderResourceActionSummary();
-  renderSavedViews();
   updateColumnToggleLabel();
   renderPagination();
   syncBulkActionState();
@@ -3878,7 +4354,14 @@ window.addEventListener('popstate', (event) => {
   });
 });
 if (els.topbarSearchInput) {
+  els.topbarSearchInput.addEventListener('focus', () => {
+    openGlobalSearchDialog();
+  });
+  els.topbarSearchInput.addEventListener('click', () => {
+    openGlobalSearchDialog();
+  });
   els.topbarSearchInput.addEventListener('input', (event) => {
+    openGlobalSearchDialog();
     clearTimeout(globalSearchTimer);
     const q = event.target.value;
     if (!q.trim() || q.trim().length < 2) {
@@ -3904,9 +4387,7 @@ if (els.topbarSearchInput) {
     }
     if (event.key === 'Escape') {
       event.stopPropagation();
-      els.topbarSearchInput.value = '';
-      closeGlobalSearch();
-      if (topbarSearchExpand) topbarSearchExpand.classList.remove('open');
+      closeGlobalSearchDialog({ clearInput: true });
     }
   });
 }
@@ -3921,6 +4402,8 @@ if (topbarToggle) {
 const sidebarSignOut = document.getElementById('sidebarSignOut');
 if (sidebarSignOut) {
   sidebarSignOut.addEventListener('click', () => {
+    if (sidebarUserMenu) sidebarUserMenu.hidden = true;
+    if (sidebarUserMenuBtn) sidebarUserMenuBtn.setAttribute('aria-expanded', 'false');
     els.clearToken.click();
   });
 }
@@ -3964,13 +4447,33 @@ if (els.sidebarDashboardLink) {
     showDashboard();
   });
 }
+if (els.topbarBreadcrumbRoot) {
+  els.topbarBreadcrumbRoot.addEventListener('click', (event) => {
+    event.preventDefault();
+    showDashboard({ history: state.current ? 'push' : 'replace' });
+  });
+}
+if (els.errorGoBack) {
+  els.errorGoBack.addEventListener('click', () => {
+    if (window.history && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    showDashboard({ history: 'replace' });
+  });
+}
+if (els.errorHome) {
+  els.errorHome.addEventListener('click', () => {
+    showDashboard({ history: 'push' });
+  });
+}
  els.openCreateModal.onclick = () => {
    if (els.openCreateModal.disabled) return;
    openModalAndFocus(els.createModal, 'input:not([disabled]), select:not([disabled]), textarea:not([disabled])');
  };
  els.closeCreateModal.onclick = () => requestCloseModal(els.createModal);
- els.closeRecordModal.onclick = () => closeModal(els.recordModal);
- els.closeEditModal.onclick = () => requestCloseModal(els.editModal);
+ els.closeRecordModal.onclick = () => closeRecordModalAndClearSelection();
+ els.closeEditModal.onclick = () => requestCloseModal(els.editModal, { afterClose: clearSelectedRecord });
  if (els.openSelectedEdit) {
    els.openSelectedEdit.onclick = () => openSelectedRecordEdit().catch((error) => setStatus(String(error.message || error)));
  }
@@ -3983,7 +4486,13 @@ if (els.sidebarDashboardLink) {
  [els.createModal, els.recordModal, els.editModal].forEach((modal) => {
    modal.addEventListener('click', (event) => {
      if (event.target === modal) {
-       requestCloseModal(modal);
+       if (modal === els.recordModal) {
+         closeRecordModalAndClearSelection();
+       } else if (modal === els.editModal) {
+         requestCloseModal(modal, { afterClose: clearSelectedRecord });
+       } else {
+         requestCloseModal(modal);
+       }
     }
   });
  });
@@ -4011,30 +4520,16 @@ document.addEventListener('click', () => {
    closeActionMenuPortal();
    closeColumnMenu();
  });
-els.reloadList.onclick = () => state.current && reloadListWithStatus('Reloaded list.', false).catch((error) => setStatus(String(error.message || error)));
-if (els.copyViewLink) {
-  els.copyViewLink.onclick = () => copyCurrentViewLink().catch((error) => {
-    showToast(String(error.message || error), 'danger');
-    setStatus(String(error.message || error));
-  });
-}
-if (els.exportList) {
-  els.exportList.onclick = () => exportCurrentList();
-}
-if (els.savedViewSelect) {
-  els.savedViewSelect.onchange = () => {
-    syncWorkspaceActionState();
-    applySavedViewByID(els.savedViewSelect.value);
-  };
-}
-if (els.saveView) {
-  els.saveView.onclick = () => saveCurrentViewPreset();
-}
-if (els.deleteView) {
-  els.deleteView.onclick = () => deleteSelectedSavedView();
+window.addEventListener('scroll', scheduleActionMenuPositionUpdate, true);
+window.addEventListener('resize', scheduleActionMenuPositionUpdate);
+if (els.bulkActionExport) {
+  els.bulkActionExport.onclick = () => exportSelectedRecordsCSV();
 }
 if (els.clearSelection) {
   els.clearSelection.onclick = () => clearBulkSelection();
+}
+if (els.bulkActionClear) {
+  els.bulkActionClear.onclick = () => clearBulkSelection();
 }
 if (els.copySelectedIDs) {
   els.copySelectedIDs.onclick = () => copyBulkSelectedIDs().catch((error) => {
@@ -4042,63 +4537,39 @@ if (els.copySelectedIDs) {
     setStatus(String(error.message || error));
   });
 }
- els.clearFilters.onclick = () => {
-   if (!state.current) return;
-   cancelScheduledSearchReload();
-   els.search.value = '';
-   els.sort.value = '';
-   Array.from(els.filtersForm.elements).forEach((element) => {
-     if ('value' in element) element.value = '';
-  });
-  reloadListWithStatus('Cleared filters.', true).catch((error) => setStatus(String(error.message || error)));
-};
  els.filtersForm.onsubmit = (event) => {
    event.preventDefault();
    cancelScheduledSearchReload();
-   els.reloadList.click();
+   syncResetFiltersButton();
+   reloadListWithStatus('Applied filters.', true).catch((error) => setStatus(String(error.message || error)));
  };
+ els.filtersForm.addEventListener('input', () => {
+   if (!state.current) return;
+   syncResetFiltersButton();
+ });
  els.search.addEventListener('input', () => {
    if (!state.current) return;
+   syncResetFiltersButton();
    scheduleSearchReload();
  });
  els.search.onkeydown = (event) => {
    if (event.key === 'Enter') {
      event.preventDefault();
      cancelScheduledSearchReload();
-     resetToFirstPage();
-     els.reloadList.click();
+     syncResetFiltersButton();
+     reloadListWithStatus('Updated search.', true).catch((error) => setStatus(String(error.message || error)));
    }
  };
  els.sort.onchange = () => {
    if (!state.current) return;
    cancelScheduledSearchReload();
-   resetToFirstPage();
-   els.reloadList.click();
+   syncResetFiltersButton();
+   reloadListWithStatus('Updated sort.', true).catch((error) => setStatus(String(error.message || error)));
  };
 els.pageSize.onchange = () => {
   state.pagination.size = Number(els.pageSize.value || 10);
   reloadListWithStatus('Updated page size.', true).catch((error) => setStatus(String(error.message || error)));
 };
-if (els.toggleFilters) {
-  els.toggleFilters.onclick = () => {
-    applyFiltersCollapsed(!state.filtersCollapsed);
-    try {
-      localStorage.setItem(filtersCollapsedStorageKey, String(state.filtersCollapsed));
-    } catch (_) {
-      // ignore storage failures
-    }
-  };
-}
-if (els.tableDensity) {
-  els.tableDensity.onchange = () => {
-    applyTableDensity(els.tableDensity.value);
-    try {
-      localStorage.setItem(tableDensityStorageKey, state.tableDensity);
-    } catch (_) {
-      // ignore storage failures
-    }
-  };
-}
 if (els.columnToggle && els.columnMenu) {
   els.columnToggle.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -4113,19 +4584,35 @@ if (els.columnToggle && els.columnMenu) {
  els.filtersForm.onchange = () => {
    if (!state.current) return;
    cancelScheduledSearchReload();
-   resetToFirstPage();
-   els.reloadList.click();
+   syncResetFiltersButton();
+   reloadListWithStatus('Updated filters.', true).catch((error) => setStatus(String(error.message || error)));
  };
-els.prevPage.onclick = () => {
-  if (state.pagination.page <= 1) return;
-  state.pagination.page -= 1;
-  reloadListWithStatus('Loaded previous page.', false).catch((error) => setStatus(String(error.message || error)));
-};
-els.nextPage.onclick = () => {
-  if (state.pagination.page >= state.pagination.pages) return;
-  state.pagination.page += 1;
-  reloadListWithStatus('Loaded next page.', false).catch((error) => setStatus(String(error.message || error)));
-};
+function goToPaginationPage(page, statusMessage) {
+  const pages = Math.max(1, Number(state.pagination.pages || 1));
+  const nextPage = Math.min(Math.max(1, Number(page || 1)), pages);
+  if (nextPage === state.pagination.page) return;
+  state.pagination.page = nextPage;
+  reloadListWithStatus(statusMessage || ('Loaded page ' + nextPage + '.'), false).catch((error) => setStatus(String(error.message || error)));
+}
+if (els.firstPage) {
+  els.firstPage.onclick = () => goToPaginationPage(1, 'Loaded first page.');
+}
+if (els.prevPage) {
+  els.prevPage.onclick = () => goToPaginationPage(state.pagination.page - 1, 'Loaded previous page.');
+}
+if (els.paginationPages) {
+  els.paginationPages.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-page]');
+    if (!button) return;
+    goToPaginationPage(Number(button.dataset.page || 1), 'Loaded page ' + button.dataset.page + '.');
+  });
+}
+if (els.nextPage) {
+  els.nextPage.onclick = () => goToPaginationPage(state.pagination.page + 1, 'Loaded next page.');
+}
+if (els.lastPage) {
+  els.lastPage.onclick = () => goToPaginationPage(state.pagination.pages, 'Loaded last page.');
+}
 els.createForm.onsubmit = async (event) => {
   event.preventDefault();
   if (!state.current) return;
@@ -4175,7 +4662,7 @@ els.updateForm.onsubmit = async (event) => {
     markFormClean(els.updateForm, 'update');
     closeModal(els.editModal);
     await renderList();
-    await selectRecord({ id: id });
+    clearSelectedRecord();
     showToast('Updated record #' + id + '.', 'success');
     setStatus('Updated record #' + id + '.');
   } catch (error) {
@@ -4196,38 +4683,9 @@ window.addEventListener('beforeunload', (event) => {
   event.preventDefault();
   event.returnValue = '';
 });
-els.bulkDelete.onclick = () => {
-  if (!state.current || !selectedIDs().length) return;
-  const count = selectedIDs().length;
-  openConfirmDialog(
-    'Bulk delete',
-    'Are you sure you want to permanently delete ' + count + ' selected record(s)? This action cannot be undone.',
-    async () => {
-      closeModal(els.confirmModal);
-      try {
-        const ids = selectedIDs();
-        const result = await request(currentBasePath() + '/bulk-delete', {
-          method: 'POST',
-          body: JSON.stringify({ ids: ids })
-        });
-        if (state.selected && isSelectedForBulk(recordPrimaryKey(state.selected.item))) {
-          state.selected = null;
-          renderSelectedRecord();
-          await renderUpdateForm();
-        }
-        state.bulkSelected = {};
-        const deleted = String(result.deleted || 0);
-        rewindPageIfCurrentPageEmptied(ids);
-        showToast('Bulk deleted ' + deleted + ' record(s).', 'success');
-        await reloadListWithStatus('Bulk deleted ' + deleted + ' record(s).', false);
-      } catch (error) {
-        showToast(String(error.message || error), 'danger');
-        setStatus(String(error.message || error));
-      }
-    },
-    'Delete ' + count
-  );
-};
+if (els.bulkActionDelete) {
+  els.bulkActionDelete.onclick = bulkDeleteSelectedRecords;
+}
 els.closeConfirmModal.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
 els.confirmModalCancel.onclick = () => { pendingConfirmCallback = null; closeModal(els.confirmModal); };
 els.confirmModalConfirm.onclick = () => { const cb = pendingConfirmCallback; pendingConfirmCallback = null; if (cb) cb(); };
@@ -4240,12 +4698,27 @@ els.confirmModal.addEventListener('click', (event) => {
 if (els.darkModeToggle) {
   els.darkModeToggle.addEventListener('click', toggleDarkMode);
 }
+if (els.adminThemeToggle && els.adminThemeMenu) {
+  els.adminThemeToggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const open = els.adminThemeMenu.hidden;
+    els.adminThemeMenu.hidden = !open;
+    els.adminThemeToggle.setAttribute('aria-expanded', String(open));
+  });
+  els.adminThemeMenu.addEventListener('click', (event) => {
+    event.stopPropagation();
+  });
+}
+document.addEventListener('click', closeAdminThemeMenu);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeAdminThemeMenu();
+});
 
 resetAdminState();
 updatePageChrome();
+renderAdminThemeMenu();
+restoreAdminTheme();
 restoreTheme();
-restoreTableDensity();
-restoreFiltersCollapsed();
 const restoredToken = restoreToken();
 const flashMessage = consumeFlashMessage();
 renderAuthState();
@@ -4257,11 +4730,13 @@ if (restoredToken) {
     if (!flashMessage) {
       setStatus('Restored saved token.');
     }
-    refreshAuthProfile().catch((error) => setStatus(String(error.message || error), 'danger')).finally(() => {
-      if (hasToken()) {
-        loadResources().catch((error) => setStatus(String(error.message || error), 'danger'));
-      }
-    });
+    refreshAuthProfile()
+      .then((profileLoaded) => {
+        if (profileLoaded !== false && hasToken()) {
+          loadResources().catch((error) => setStatus(String(error.message || error), 'danger'));
+        }
+      })
+      .catch((error) => setStatus(String(error.message || error), 'danger'));
   }
 } else {
   if (!flashMessage) {

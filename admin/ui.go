@@ -145,10 +145,7 @@ func renderUIHTML(cfg UIConfig) string {
 }
 
 func adminDashboardPath(adminPath string) string {
-	if strings.Contains(adminPath, "?") {
-		return adminPath + "&view=dashboard"
-	}
-	return adminPath + "?view=dashboard"
+	return adminPath
 }
 
 func shortLogoText(value string) string {
@@ -195,6 +192,27 @@ func MountUI(routes gin.IRoutes, cfg UIConfig) {
 		routes.GET(path, handler)
 		registered[path] = struct{}{}
 	}
+	if noRouter, ok := routes.(interface{ NoRoute(...gin.HandlerFunc) }); ok {
+		noRouter.NoRoute(func(c *gin.Context) {
+			if c.Request.Method == http.MethodGet && adminUIPathMatches(c.Request.URL.Path, cfg.AdminPath) {
+				handler(c)
+				return
+			}
+			c.Status(http.StatusNotFound)
+		})
+	}
+}
+
+func adminUIPathMatches(path, adminPath string) bool {
+	root := strings.TrimRight(strings.TrimSpace(adminPath), "/")
+	if root == "" {
+		root = "/"
+	}
+	current := strings.TrimRight(strings.TrimSpace(path), "/")
+	if current == "" {
+		current = "/"
+	}
+	return current == root || root == "/" || strings.HasPrefix(current, root+"/")
 }
 
 //go:embed assets/admin.html assets/admin.css assets/admin.js

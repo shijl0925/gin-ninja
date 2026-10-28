@@ -1396,10 +1396,12 @@ func applyBoolOverride(target *bool, override *bool) {
 }
 
 func cloneSlice[T any](in []T) []T {
-	if len(in) == 0 {
+	if in == nil {
 		return nil
 	}
-	return append([]T(nil), in...)
+	out := make([]T, len(in))
+	copy(out, in)
+	return out
 }
 
 func containsName(set []string, name string) bool {
@@ -1412,7 +1414,7 @@ func containsName(set []string, name string) bool {
 }
 
 func applyFieldSet(fields []*fieldMeta, names []string, mode fieldMode) error {
-	if len(names) == 0 {
+	if names == nil {
 		return nil
 	}
 	seen := map[string]bool{}

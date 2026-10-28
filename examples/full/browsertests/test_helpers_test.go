@@ -82,6 +82,9 @@ func chromiumExecPath(t *testing.T) string {
 		"/usr/bin/chromium",
 		"/usr/bin/google-chrome",
 		"/usr/bin/google-chrome-stable",
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+		"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 	} {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
@@ -162,15 +165,42 @@ func waitForBrowserCondition(t *testing.T, ctx context.Context, description, exp
 
 func waitForBrowserText(t *testing.T, ctx context.Context, selector, want string) {
 	t.Helper()
-	waitForBrowserCondition(t, ctx, fmt.Sprintf("%s to contain %q", selector, want), fmt.Sprintf(`(() => {
+	expression := fmt.Sprintf(`(() => {
 		const el = document.querySelector(%q);
 		return !!el && String(el.textContent || "").includes(%q);
-	})()`, selector, want))
+	})()`, selector, want)
+	deadline := time.Now().Add(15 * time.Second)
+	var matched bool
+	for time.Now().Before(deadline) {
+		if err := chromedp.Run(ctx, chromedp.Evaluate(expression, &matched)); err == nil && matched {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	var actual string
+	_ = chromedp.Run(ctx, chromedp.Evaluate(fmt.Sprintf(`(() => {
+		const el = document.querySelector(%q);
+		return el ? String(el.textContent || "") : "<missing>";
+	})()`, selector), &actual))
+	t.Fatalf("timed out waiting for %s to contain %q; actual text: %q", selector, want, actual)
 }
 
 func waitForBrowserPath(t *testing.T, ctx context.Context, want string) {
 	t.Helper()
 	waitForBrowserCondition(t, ctx, "browser path "+want, fmt.Sprintf(`window.location.pathname === %q`, want))
+}
+
+func waitForAdminDashboard(t *testing.T, ctx context.Context) {
+	t.Helper()
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
+}
+
+func openAdminResourcePath(t *testing.T, ctx context.Context, serverURL, resourceName, title string) {
+	t.Helper()
+	runBrowser(t, ctx, chromedp.Navigate(serverURL+"/admin/"+resourceName))
+	waitForBrowserPath(t, ctx, "/admin/"+resourceName)
+	waitForBrowserText(t, ctx, "#resourceTitle", title)
 }
 
 func waitForBrowserEnabled(t *testing.T, ctx context.Context, selector string) {

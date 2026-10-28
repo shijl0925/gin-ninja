@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/chromedp/cdproto/css"
+	"github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/chromedp"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
@@ -31,11 +36,12 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
 
+	openAdminResourcePath(t, ctx, server.URL, "users", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Roles")
 	waitForBrowserText(t, ctx, "#resources", "Projects")
-	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 
 	setBrowserValue(t, ctx, "#sidebarResourceSearch", "proj")
 	waitForBrowserCondition(t, ctx, "sidebar resource search filters navigation", `(() => {
@@ -101,6 +107,15 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	waitForBrowserVisible(t, ctx, "#recordModal")
 	waitForBrowserText(t, ctx, "#detailTitle", "Projects #1")
 	waitForBrowserText(t, ctx, "#detailFields", "created via browser integration")
+	waitForBrowserCondition(t, ctx, "record payload is separated from header", `(() => {
+		const pre = document.querySelector('#recordModal pre#detail');
+		const card = pre && pre.closest('.detail-card');
+		const header = card && card.querySelector('.detail-card-header');
+		if (!pre || !header) return false;
+		const preRect = pre.getBoundingClientRect();
+		const headerRect = header.getBoundingClientRect();
+		return preRect.top - headerRect.bottom >= 10;
+	})()`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
 	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
@@ -113,6 +128,7 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Updated record #1.")
 	waitForBrowserText(t, ctx, "#list", "Black Box Project")
+	waitForBrowserCondition(t, ctx, "row highlight released after edit submit", `document.querySelectorAll("#list tbody tr.row-selected").length === 0`)
 	// Toast should appear for successful update
 	waitForBrowserCondition(t, ctx, "update toast appears", `(() => {
 		const container = document.querySelector("#toastContainer");
@@ -121,15 +137,26 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-btn-view")
 	waitForBrowserText(t, ctx, "#detailFields", "updated through browser flow")
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		document.getElementById('toastContainer').innerHTML = '';
+		document.getElementById('status').textContent = '';
+	})()`, nil))
+	clickBrowser(t, ctx, "#detailFields .detail-value")
+	waitForBrowserCondition(t, ctx, "detail fields do not copy values when clicked", `(() => {
+		const toastText = document.getElementById('toastContainer').textContent || '';
+		const statusText = document.getElementById('status').textContent || '';
+		return !toastText.includes('Copied') && !statusText.includes('Copied');
+	})()`)
 	clickBrowser(t, ctx, "#closeRecordModal")
+	waitForBrowserCondition(t, ctx, "row highlight released after closing detail", `document.querySelectorAll("#list tbody tr.row-selected").length === 0`)
 
 	// Verify '/' keyboard shortcut focuses the search input
 	waitForBrowserCondition(t, ctx, "search input exists before shortcut", `document.getElementById('search') !== null`)
 
 	clickBrowser(t, ctx, "#list tbody tr:first-child td:first-child input[type='checkbox']")
 	waitForBrowserText(t, ctx, "#selectedCountBadge", "1 selected")
-	waitForBrowserEnabled(t, ctx, "#bulkDelete")
-	clickBrowser(t, ctx, "#bulkDelete")
+	waitForBrowserEnabled(t, ctx, "#bulkActionDelete")
+	clickBrowser(t, ctx, "#bulkActionDelete")
 
 	// Confirm the bulk delete in the confirm dialog
 	waitForBrowserVisible(t, ctx, "#confirmModal")
@@ -162,17 +189,19 @@ func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
 	clickBrowser(t, ctx, "#darkModeToggle")
 	waitForBrowserCondition(t, ctx, "dark mode activated after toggle", `document.documentElement.getAttribute('data-theme') === 'dark'`)
 
-	// Sun icon should be visible, moon icon should be hidden
-	waitForBrowserCondition(t, ctx, "sun icon visible in dark mode", `!document.getElementById('darkModeIconSun').hidden`)
-	waitForBrowserCondition(t, ctx, "moon icon hidden in dark mode", `document.getElementById('darkModeIconMoon').hidden`)
+	// Moon icon should animate into view in dark mode
+	waitForBrowserCondition(t, ctx, "dark mode toggle pressed", `document.getElementById('darkModeToggle').getAttribute('aria-pressed') === 'true'`)
+	waitForBrowserCondition(t, ctx, "moon icon visible in dark mode", `parseFloat(getComputedStyle(document.getElementById('darkModeIconMoon')).opacity) > 0.95`)
+	waitForBrowserCondition(t, ctx, "sun icon hidden in dark mode", `parseFloat(getComputedStyle(document.getElementById('darkModeIconSun')).opacity) < 0.05`)
 
 	// Click again — should return to light mode
 	clickBrowser(t, ctx, "#darkModeToggle")
 	waitForBrowserCondition(t, ctx, "light mode restored after second toggle", `document.documentElement.getAttribute('data-theme') !== 'dark'`)
 
-	// Moon icon should be visible, sun icon hidden
-	waitForBrowserCondition(t, ctx, "moon icon visible in light mode", `!document.getElementById('darkModeIconMoon').hidden`)
-	waitForBrowserCondition(t, ctx, "sun icon hidden in light mode", `document.getElementById('darkModeIconSun').hidden`)
+	// Sun icon should animate back into view in light mode
+	waitForBrowserCondition(t, ctx, "dark mode toggle not pressed", `document.getElementById('darkModeToggle').getAttribute('aria-pressed') === 'false'`)
+	waitForBrowserCondition(t, ctx, "sun icon visible in light mode", `parseFloat(getComputedStyle(document.getElementById('darkModeIconSun')).opacity) > 0.95`)
+	waitForBrowserCondition(t, ctx, "moon icon hidden in light mode", `parseFloat(getComputedStyle(document.getElementById('darkModeIconMoon')).opacity) < 0.05`)
 }
 
 func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
@@ -224,10 +253,11 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
 
+	openAdminResourcePath(t, ctx, server.URL, "users", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Roles")
-	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 	waitForBrowserEnabled(t, ctx, "#openCreateModal")
 
 	clickBrowser(t, ctx, "#openCreateModal")
@@ -267,7 +297,9 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 
 	clickBrowser(t, ctx, "#list tbody tr:last-child .action-btn-view")
 	waitForBrowserVisible(t, ctx, "#recordModal")
-	waitForBrowserText(t, ctx, "#detailFields", "[1,2]")
+	waitForBrowserText(t, ctx, "#detailFields", "Roles")
+	waitForBrowserText(t, ctx, "#detailFields", "2 items")
+	waitForBrowserText(t, ctx, "#detailFields", "1, 2")
 	clickBrowser(t, ctx, "#closeRecordModal")
 
 	clickBrowser(t, ctx, "#list tbody tr:last-child .action-menu-trigger")
@@ -305,7 +337,9 @@ func TestFullExampleAdminPrototypeUserRoleMultiSelect(t *testing.T) {
 
 	waitForBrowserText(t, ctx, "#status", "Updated record #2.")
 	clickBrowser(t, ctx, "#list tbody tr:last-child .action-btn-view")
-	waitForBrowserText(t, ctx, "#detailFields", "[2]")
+	waitForBrowserText(t, ctx, "#detailFields", "Roles")
+	waitForBrowserText(t, ctx, "#detailFields", "1 item")
+	waitForBrowserText(t, ctx, "#detailFields", "2")
 }
 
 func TestFullExampleAdminPrototypeTextareaResizeDirection(t *testing.T) {
@@ -328,8 +362,9 @@ func TestFullExampleAdminPrototypeTextareaResizeDirection(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
 
-	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	openAdminResourcePath(t, ctx, server.URL, "users", "Users")
 	waitForBrowserEnabled(t, ctx, "#openCreateModal")
 	clickBrowser(t, ctx, "#openCreateModal")
 	waitForBrowserVisible(t, ctx, "#createModal")
@@ -360,14 +395,75 @@ func TestFullExampleAdminPrototypeActionMenuPortal(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
 
+	openAdminResourcePath(t, ctx, server.URL, "users", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Users")
-	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 	waitForBrowserCondition(t, ctx, "list table loaded", `document.querySelector('#list table') !== null`)
 
 	// Clicking the ··· trigger should open the portal menu (not inside the table)
 	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
 	waitForBrowserCondition(t, ctx, "action menu portal opened", `document.querySelector('#action-menu-portal .action-menu-list.open') !== null`)
+	waitForBrowserCondition(t, ctx, "action menu uses shadcn row action styling", `(() => {
+		const menu = document.querySelector('#action-menu-portal .action-menu-list.open');
+		if (!menu) return false;
+		const edit = menu.querySelector('.action-menu-item:not(.danger) .action-menu-item-label');
+		const divider = menu.querySelector('.action-menu-divider');
+		const del = menu.querySelector('.action-menu-item.danger');
+		const icon = del && del.querySelector('.action-menu-item-icon svg');
+		const menuStyle = getComputedStyle(menu);
+		const delStyle = del ? getComputedStyle(del) : null;
+		const rect = menu.getBoundingClientRect();
+		const delRect = del ? del.getBoundingClientRect() : null;
+		return rect.width >= 150 &&
+			rect.width <= 180 &&
+			menuStyle.borderRadius === '8px' &&
+			edit && edit.textContent.trim() === 'Edit' &&
+			divider &&
+			del && del.textContent.includes('Delete') &&
+			icon &&
+			delRect.height <= 34 &&
+			delStyle.borderRadius === '6px';
+	})()`)
+	runBrowser(t, ctx, chromedp.ActionFunc(func(ctx context.Context) error {
+		if err := css.Enable().Do(ctx); err != nil {
+			return err
+		}
+		root, err := dom.GetDocument().Do(ctx)
+		if err != nil {
+			return err
+		}
+		nodeID, err := dom.QuerySelector(root.NodeID, "#action-menu-portal .action-menu-item.danger").Do(ctx)
+		if err != nil {
+			return err
+		}
+		return css.ForcePseudoState(nodeID, []string{"hover"}).Do(ctx)
+	}))
+	waitForBrowserCondition(t, ctx, "delete action hover keeps destructive text readable", `(() => {
+		const del = document.querySelector('#action-menu-portal .action-menu-item.danger');
+		if (!del) return false;
+		const style = getComputedStyle(del);
+		const parts = style.color.match(/[\d.]+/g);
+		if (!parts || parts.length < 3) return false;
+		const channels = parts.slice(0, 3).map((part) => {
+			const value = Number(part);
+			return value <= 1 ? Math.round(value * 255) : value;
+		});
+		const red = channels[0];
+		const green = channels[1];
+		const blue = channels[2];
+		const isWhite = red > 245 && green > 245 && blue > 245;
+		const noBorder = style.borderTopWidth === '0px' &&
+			style.borderRightWidth === '0px' &&
+			style.borderBottomWidth === '0px' &&
+			style.borderLeftWidth === '0px';
+		return !isWhite &&
+			red > green &&
+			red > blue &&
+			noBorder &&
+			style.boxShadow === 'none' &&
+			style.outlineStyle === 'none';
+	})()`)
 
 	// The portal menu must be a direct child of body (not inside table-shell)
 	waitForBrowserCondition(t, ctx, "action menu portal is direct child of body", `
@@ -408,6 +504,7 @@ func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
 
 	// Wait for resources to load
 	waitForBrowserText(t, ctx, "#resources", "Users")
@@ -417,15 +514,19 @@ func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
 	// The results panel should start hidden (no has-results class)
 	waitForBrowserCondition(t, ctx, "search results panel initially hidden", `!document.getElementById('topbarSearchResults').classList.contains('has-results')`)
 
-	// Open the search expand by clicking the search toggle
-	clickBrowser(t, ctx, "#topbarSearchToggle")
-	waitForBrowserCondition(t, ctx, "search expand opens", `document.getElementById('topbarSearchExpand').classList.contains('open')`)
+	// Open the command-style search dialog by clicking the search input
+	clickBrowser(t, ctx, "#topbarSearchInput")
+	waitForBrowserCondition(t, ctx, "search dialog opens", `document.getElementById('topbarSearchExpand').classList.contains('open')`)
 	waitForBrowserVisible(t, ctx, "#topbarSearchInput")
+	waitForBrowserCondition(t, ctx, "search dialog overlay covers viewport", `(() => {
+		const rect = document.getElementById('topbarSearchExpand').getBoundingClientRect();
+		return rect.left <= 1 && rect.top <= 1 && rect.right >= window.innerWidth - 1 && rect.bottom >= window.innerHeight - 1;
+	})()`)
 
-	// Pressing Escape should close the search expand
+	// Pressing Escape should close the search dialog
 	runBrowser(t, ctx, chromedp.Focus("#topbarSearchInput"))
 	runBrowser(t, ctx, chromedp.KeyEvent("\x1b"))
-	waitForBrowserCondition(t, ctx, "search expand closes on Escape", `!document.getElementById('topbarSearchExpand').classList.contains('open')`)
+	waitForBrowserCondition(t, ctx, "search dialog closes on Escape", `!document.getElementById('topbarSearchExpand').classList.contains('open')`)
 }
 
 func TestFullExampleAdminPrototypeSortableColumns(t *testing.T) {
@@ -449,10 +550,11 @@ func TestFullExampleAdminPrototypeSortableColumns(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
 
 	// Wait for resources and list to load
+	openAdminResourcePath(t, ctx, server.URL, "users", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Users")
-	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 	waitForBrowserCondition(t, ctx, "list has at least one row", `document.querySelector('#list table') !== null`)
 
 	// There should be sortable column headers in the Users table
@@ -489,6 +591,207 @@ func TestFullExampleAdminPrototypeSortableColumns(t *testing.T) {
 	waitForBrowserCondition(t, ctx, "sort select cleared after third click", `document.getElementById('sort').value === ''`)
 }
 
+func TestFullExampleAdminQACriticalInteractions(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	login := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/login", map[string]any{
+		"email":    "alice@example.com",
+		"password": "password123",
+	}, "")
+	if login.StatusCode != http.StatusCreated {
+		t.Fatalf("expected login 201, got %d body=%s", login.StatusCode, readBody(t, login.Body))
+	}
+	var auth struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(login.Body).Decode(&auth); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	login.Body.Close()
+
+	for i := 0; i < 8; i++ {
+		resp := doFullJSON(t, server, http.MethodPost, "/api/v1/admin/resources/users", map[string]any{
+			"name":     fmt.Sprintf("QA User %02d With A Long Display Name", i+1),
+			"email":    fmt.Sprintf("qa-user-%02d@example.com", i+1),
+			"password": "password123",
+			"age":      24 + i,
+			"is_admin": i%2 == 0,
+		}, auth.Token)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("expected user create 201, got %d body=%s", resp.StatusCode, readBody(t, resp.Body))
+		}
+		resp.Body.Close()
+	}
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
+	clickBrowser(t, ctx, "#darkModeToggle")
+	waitForBrowserCondition(t, ctx, "dark topbar has no extra search separator", `(() => {
+		if (document.documentElement.getAttribute('data-theme') !== 'dark') return false;
+		const actions = document.querySelector('.topbar-actions');
+		const search = document.querySelector('.topbar-search-field');
+		if (!actions || !search) return false;
+		const before = getComputedStyle(actions, '::before');
+		const actionsStyle = getComputedStyle(actions);
+		const searchStyle = getComputedStyle(search);
+		const noActionsBorder = actionsStyle.borderLeftWidth === '0px' ||
+			actionsStyle.borderLeftStyle === 'none' ||
+			actionsStyle.borderLeftColor === 'rgba(0, 0, 0, 0)';
+		return (before.content === 'none' || before.display === 'none' || before.width === '0px') &&
+			noActionsBorder &&
+			searchStyle.borderLeftColor === 'rgba(0, 0, 0, 0)';
+	})()`)
+	clickBrowser(t, ctx, "#darkModeToggle")
+	waitForBrowserCondition(t, ctx, "light mode restored after topbar separator check", `document.documentElement.getAttribute('data-theme') !== 'dark'`)
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/users?search=QA&page=1&size=5"))
+	waitForBrowserPath(t, ctx, "/admin/users")
+	waitForBrowserCondition(t, ctx, "query state restored into controls", `(() => {
+		return document.getElementById('search').value === 'QA' &&
+			document.getElementById('pageSize').value === '5' &&
+			document.getElementById('paginationInfo').textContent.includes('Page 1 of');
+	})()`)
+	waitForBrowserText(t, ctx, "#list", "QA User 01")
+	waitForBrowserCondition(t, ctx, "boolean table badges use compact shadcn style", `(() => {
+		const badges = Array.from(document.querySelectorAll('#list .table-badge.boolean'));
+		const trueBadge = document.querySelector('#list .table-badge.boolean-true');
+		const falseBadge = document.querySelector('#list .table-badge.boolean-false');
+		if (!badges.length || !trueBadge || !falseBadge) return false;
+		const legacyTone = badges.some((badge) => badge.classList.contains('success') || badge.classList.contains('danger'));
+		const compact = badges.every((badge) => badge.getBoundingClientRect().height <= 24);
+		const sampleStyle = getComputedStyle(trueBadge);
+		return !legacyTone && compact && sampleStyle.borderRadius === '6px';
+	})()`)
+	waitForBrowserCondition(t, ctx, "filter controls available", `(() => {
+		return !!document.getElementById('filter-is_admin') &&
+			!!document.getElementById('filter-age') &&
+			!!document.getElementById('filter-createdAt-from') &&
+			!!document.getElementById('filter-createdAt-to');
+	})()`)
+	waitForBrowserCondition(t, ctx, "reset button visible when search query is active", `document.getElementById('resetFilters').hidden === false`)
+
+	clickBrowser(t, ctx, "#nextPage")
+	waitForBrowserCondition(t, ctx, "pagination moves to page two", `(() => {
+		return document.getElementById('paginationInfo').textContent.includes('Page 2 of') &&
+			new URLSearchParams(window.location.search).get('page') === '2';
+	})()`)
+	clickBrowser(t, ctx, "#firstPage")
+	waitForBrowserCondition(t, ctx, "pagination returns to first page", `(() => {
+		return document.getElementById('paginationInfo').textContent.includes('Page 1 of') &&
+			new URLSearchParams(window.location.search).get('page') === '1';
+	})()`)
+
+	today := time.Now().Format("2006-01-02")
+	setBrowserValue(t, ctx, "#filter-createdAt-from", today)
+	waitForBrowserCondition(t, ctx, "date range filter is mirrored to URL", fmt.Sprintf(`new URLSearchParams(window.location.search).get('f.createdAt__from') === %q`, today))
+	waitForBrowserCondition(t, ctx, "date range filter keeps reset visible", `document.getElementById('resetFilters').hidden === false`)
+
+	setBrowserValue(t, ctx, "#search", "no-match-admin-qa")
+	waitForBrowserText(t, ctx, "#list", "No results found")
+	waitForBrowserText(t, ctx, "#list", "Clear search and filters")
+	waitForBrowserCondition(t, ctx, "filtered empty state does not offer create record", `!Array.from(document.querySelectorAll('#list .empty-state button')).some((button) => button.textContent.includes('Create record'))`)
+
+	clickBrowser(t, ctx, "#resetFilters")
+	waitForBrowserCondition(t, ctx, "reset clears search filters and hides itself", `(() => {
+		const params = new URLSearchParams(window.location.search);
+		return document.getElementById('search').value === '' &&
+			document.getElementById('filter-createdAt-from').value === '' &&
+			document.getElementById('resetFilters').hidden === true &&
+			!params.has('search') &&
+			!params.has('f.createdAt__from') &&
+			document.querySelector('#list table') !== null;
+	})()`)
+
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const originalFetch = window.fetch.bind(window);
+		window.__adminFetchCalls = [];
+		window.fetch = (...args) => {
+			const input = args[0];
+			window.__adminFetchCalls.push(typeof input === 'string' ? input : String(input && input.url || input));
+			return originalFetch(...args);
+		};
+	})()`, nil))
+	runBrowser(t, ctx, chromedp.Evaluate(`window.__adminFetchCalls = []`, nil))
+	clickBrowser(t, ctx, "#list .bulk-select-all-checkbox")
+	waitForBrowserText(t, ctx, "#bulkActionCount", "5")
+	waitForBrowserCondition(t, ctx, "selected rows use selected styling", `document.querySelectorAll('#list tbody tr.row-bulk-selected').length === 5`)
+	runBrowser(t, ctx, chromedp.Sleep(300*time.Millisecond))
+	waitForBrowserCondition(t, ctx, "select all does not request users list", `!window.__adminFetchCalls.some((url) => String(url).includes('/api/v1/admin/resources/users?'))`)
+
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const button = Array.from(document.querySelectorAll('#resources .nav-link'))
+			.find((node) => node.textContent && node.textContent.includes('Roles'));
+		if (button) button.click();
+		return !!button;
+	})()`, nil))
+	waitForBrowserPath(t, ctx, "/admin/roles")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Roles")
+	waitForBrowserCondition(t, ctx, "bulk selection clears when switching resource", `document.getElementById('bulkActionBar').hidden === true`)
+
+	clickBrowser(t, ctx, "#columnToggle")
+	waitForBrowserCondition(t, ctx, "column menu opens inside viewport", `(() => {
+		const menu = document.getElementById('columnMenu');
+		const rect = menu.getBoundingClientRect();
+		return !menu.hidden && rect.width > 0 && rect.right <= window.innerWidth + 1 && rect.left >= -1;
+	})()`)
+	runBrowser(t, ctx, chromedp.Evaluate(`document.body.click()`, nil))
+	waitForBrowserCondition(t, ctx, "column menu closes on outside click", `document.getElementById('columnMenu').hidden === true`)
+
+	clickBrowser(t, ctx, "#adminThemeToggle")
+	waitForBrowserCondition(t, ctx, "theme menu opens", `document.getElementById('adminThemeMenu').hidden === false`)
+	runBrowser(t, ctx, chromedp.Evaluate(`document.querySelector('[data-admin-theme-option="whatsapp"]').click()`, nil))
+	waitForBrowserCondition(t, ctx, "theme option applies and closes menu", `document.documentElement.getAttribute('data-admin-theme') === 'whatsapp' && document.getElementById('adminThemeMenu').hidden === true`)
+
+	clickBrowser(t, ctx, "#topbarUserBtn")
+	waitForBrowserCondition(t, ctx, "user menu contains only profile and sign out essentials", `(() => {
+		const menu = document.getElementById('topbarUserMenu');
+		const rect = menu.getBoundingClientRect();
+		const name = document.getElementById('topbarProfileName');
+		const signOut = document.getElementById('clearToken');
+		const nameStyle = name ? getComputedStyle(name) : null;
+		const signOutRect = signOut ? signOut.getBoundingClientRect() : null;
+		return menu.hidden === false &&
+			rect.width <= 220 &&
+			nameStyle && nameStyle.fontSize === '13px' &&
+			signOutRect && signOutRect.height <= 34 &&
+			menu.textContent.includes('Alice') &&
+			menu.textContent.includes('alice@example.com') &&
+			menu.textContent.includes('Sign out') &&
+			!menu.textContent.includes('Permissions') &&
+			!menu.textContent.includes('Token expires');
+	})()`)
+	runBrowser(t, ctx, chromedp.Evaluate(`document.body.click()`, nil))
+	waitForBrowserCondition(t, ctx, "user menu closes on outside click", `document.getElementById('topbarUserMenu').hidden === true`)
+
+	runBrowser(t, ctx, chromedp.EmulateViewport(390, 900))
+	waitForBrowserCondition(t, ctx, "toolbar controls stay inside viewport on narrow width", `(() => {
+		const controls = Array.from(document.querySelectorAll('#recordsShell .table-toolbar, #recordsShell .filters, #tableViewTools'));
+		return controls.every((el) => {
+			const rect = el.getBoundingClientRect();
+			return rect.left >= -1 && rect.right <= window.innerWidth + 1;
+		});
+	})()`)
+}
+
 func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	server := newFullTestServer(t)
 	defer server.Close()
@@ -515,8 +818,7 @@ func TestFullExampleStandaloneAdminBrowserRedirectFlow(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
 
-	waitForBrowserPath(t, ctx, "/admin")
-	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
+	waitForAdminDashboard(t, ctx)
 	waitForBrowserText(t, ctx, "#resources", "Projects")
 	waitForBrowserCondition(t, ctx, "#adminShell visible", `(() => {
 		const el = document.querySelector("#adminShell");
@@ -590,7 +892,16 @@ func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 	setBrowserValue(t, ctx, "#loginPassword", "password123")
 	clickBrowser(t, ctx, "#loginButton")
 
-	waitForBrowserPath(t, ctx, "/admin")
+	waitForAdminDashboard(t, ctx)
+	waitForBrowserCondition(t, ctx, "breadcrumb root is dashboard link", `document.getElementById('topbarBreadcrumbRoot').getAttribute('href') === '/admin'`)
+
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const tiles = Array.from(document.querySelectorAll('#dashboardTiles .dashboard-tile'));
+		const tile = tiles.find((item) => String(item.textContent || '').includes('Users'));
+		if (tile) tile.click();
+		return !!tile;
+	})()`, nil))
+	waitForBrowserPath(t, ctx, "/admin/users")
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
 
 	clickBrowser(t, ctx, "#sidebarDashboardLink")
@@ -607,7 +918,7 @@ func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 		return !!tile;
 	})()`, nil))
 	waitForBrowserText(t, ctx, "#resourceTitle", "Users")
-	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserPath(t, ctx, "/admin/users")
 	waitForBrowserCondition(t, ctx, "workspace header visible for resource", `document.getElementById('workspaceHeader').hidden === false`)
 	waitForBrowserCondition(t, ctx, "records shell visible for resource", `document.getElementById('recordsShell').hidden === false`)
 
@@ -617,4 +928,49 @@ func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 	waitForBrowserText(t, ctx, "#dashboardTiles", "Users")
 	waitForBrowserCondition(t, ctx, "workspace header hidden again on dashboard", `document.getElementById('workspaceHeader').hidden === true`)
 	waitForBrowserCondition(t, ctx, "records shell hidden again on dashboard", `document.getElementById('recordsShell').hidden === true`)
+}
+
+func TestFullExampleStandaloneAdminUnknownResourceShowsNotFound(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/login"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+
+	waitForAdminDashboard(t, ctx)
+
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin/1111?page=1&size=50"))
+	waitForBrowserPath(t, ctx, "/admin/1111")
+	waitForBrowserCondition(t, ctx, "unknown admin resource preserves query", `window.location.search === '?page=1&size=50'`)
+	waitForBrowserText(t, ctx, "#errorShell", "404")
+	waitForBrowserText(t, ctx, "#errorShell", "Oops! Page Not Found!")
+	waitForBrowserCondition(t, ctx, "unknown admin resource shows not found shell only", `(() => {
+		return document.getElementById('errorShell').hidden === false &&
+			document.getElementById('workspaceHeader').hidden === true &&
+			document.getElementById('recordsShell').hidden === true &&
+			document.getElementById('dashboardShell').hidden === true;
+	})()`)
+	waitForBrowserCondition(t, ctx, "unknown admin resource does not redirect to users", `window.location.pathname !== '/admin/users'`)
+
+	clickBrowser(t, ctx, "#errorHome")
+	waitForBrowserPath(t, ctx, "/admin")
+	waitForBrowserText(t, ctx, "#resourceTitle", "Admin dashboard")
+	waitForBrowserCondition(t, ctx, "dashboard visible after returning home", `document.getElementById('dashboardShell').hidden === false`)
 }
