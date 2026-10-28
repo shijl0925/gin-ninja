@@ -36,7 +36,8 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 			`const authMePath = "/custom/api/auth/me";`,
 			`const adminPagePath = "/console";`,
 			`const adminLoginPath = "/console/login";`,
-			`<a class="topbar-link nav-link" href="/console?view=dashboard"><span>Home</span></a>`,
+			`<a class="topbar-link nav-link" href="/console"><span>Home</span></a>`,
+			`<a id="topbarBreadcrumbRoot" class="topbar-breadcrumb-root" href="/console">Dashboard</a>`,
 			`await request("/custom/api/auth/login", {`,
 			`Paste a token from /custom/api/auth/login`,
 			// default extract expressions
@@ -48,6 +49,23 @@ func TestMountUIUsesConfiguredPaths(t *testing.T) {
 				t.Fatalf("GET %s missing %q", path, snippet)
 			}
 		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/console/users?search=t&page=1&size=5", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /console/users status = %d, body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `const adminPagePath = "/console";`) {
+		t.Fatal("resource route did not render admin UI shell")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/missing", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("GET /missing status = %d, want 404", w.Code)
 	}
 }
 
@@ -202,50 +220,50 @@ func TestServeDefaultUI(t *testing.T) {
 	for _, snippet := range []string{
 		"Gin Ninja Admin",
 		`const apiBase = "/api/v1/admin";`,
-		`id="tableDensity"`,
 		`id="columnToggle"`,
 		`id="columnMenu"`,
 		`function updateColumnToggleLabel`,
-		`function clearSavedColumnVisibility`,
-		`column-menu-actions`,
+		`function saveColumnVisibility`,
+		`Toggle columns`,
+		`column-option-check`,
 		`const authIdentityStorageKey = 'gin-ninja-admin-auth-identity';`,
 		`function persistAuthIdentity`,
 		`function restoreAuthIdentity`,
-		`id="toggleFilters"`,
-		`const filtersCollapsedStorageKey = 'gin-ninja-admin-filters-collapsed';`,
-		`function activeFilterCount`,
-		`function updateFilterToggleLabel`,
 		`/resources/stats`,
 		`/search?q=`,
+		`placeholder="Search"`,
+		`function globalResourceSearch`,
+		`Records / `,
 		`function moveGlobalSearchSelection`,
 		`function openActiveGlobalSearchResult`,
-		`id="exportList"`,
-		`/export`,
-		`function buildExportQuery`,
 		`id="copyRecordJSON"`,
 		`function copySelectedRecordJSON`,
-		`detail-value copyable`,
-		`function copyDetailFieldValue`,
-		`id="activeListState"`,
-		`function renderActiveListState`,
+		`detail-value`,
 		`const listStateStoragePrefix`,
 		`function applySavedListState`,
-		`id="savedViewSelect"`,
-		`const savedViewsStoragePrefix`,
-		`function saveCurrentViewPreset`,
-		`function applySavedViewByID`,
 		`id="clearSelection"`,
 		`id="copySelectedIDs"`,
+		`id="bulkActionBar"`,
+		`id="bulkActionLabel"`,
+		`id="bulkActionExport"`,
+		`id="bulkActionDelete"`,
+		`id="errorShell"`,
+		`Unauthorized Access`,
+		`Access Forbidden`,
+		`Oops! Page Not Found!`,
+		`Oops! Something went wrong :')`,
+		`Website is under maintenance!`,
 		`function copyBulkSelectedIDs`,
+		`function exportSelectedRecordsCSV`,
+		`function bulkDeleteSelectedRecords`,
 		`function clearBulkSelection`,
+		`function syncBulkRowSelection`,
+		`bulk-action-bar`,
+		`row-bulk-selected`,
 		`function renderListEmptyState`,
 		`empty-state-actions`,
 		`function openModalAndFocus`,
 		`function focusFirstFormError`,
-		`function isInteractiveTableTarget`,
-		`role', 'button'`,
-		`id="copyViewLink"`,
-		`function copyCurrentViewLink`,
 		`id="resourceActionSummary"`,
 		`function renderResourceActionSummary`,
 		`function formatFieldDisplay`,
@@ -259,6 +277,22 @@ func TestServeDefaultUI(t *testing.T) {
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("default UI body missing %q: %s", snippet, body)
+		}
+	}
+	for _, snippet := range []string{
+		`Open the user workspace to review profiles, roles, and sign-in ready records.`,
+		`Open this admin resource to review records, filters, and available actions.`,
+		`Browse, inspect, and edit `,
+		`Dashboard cards`,
+		`Connected admin workspace`,
+		`dashboard-tile-hint`,
+		`dashboard-tile-meta`,
+		`detail-value copyable`,
+		`function copyDetailFieldValue`,
+		`Copy value`,
+	} {
+		if strings.Contains(body, snippet) {
+			t.Fatalf("default UI should not contain framework-authored resource description %q", snippet)
 		}
 	}
 }

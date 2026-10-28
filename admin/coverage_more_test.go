@@ -105,6 +105,10 @@ func TestAdminBranchCoverageForRegistrationAndRelations(t *testing.T) {
 	if resource.ListFields[0] != "id" || resource.FieldOptions["title"].Enum[0] != "a" || resource.FieldOptions["title"].Relation.SearchFields[0] != "name" {
 		t.Fatalf("expected ModelResource.Resource to deep clone mutable fields: %+v", resource)
 	}
+	emptyModelResource := (&ModelResource{Model: autoResourceUser{}, FilterFields: []string{}}).Resource()
+	if emptyModelResource.FilterFields == nil || len(emptyModelResource.FilterFields) != 0 {
+		t.Fatalf("expected ModelResource.Resource to preserve explicit empty FilterFields, got %#v", emptyModelResource.FilterFields)
+	}
 
 	site := NewSite()
 	first := &Resource{Name: "users", Model: autoResourceUser{}}
@@ -237,6 +241,61 @@ func TestAdminBranchCoverageForMetadataHelpers(t *testing.T) {
 	}
 	if tagged.Meta.ReadOnly || tagged.Meta.List || !tagged.Meta.Sortable {
 		t.Fatalf("unexpected bool tag metadata: %+v", tagged.Meta)
+	}
+}
+
+func TestAdminExplicitEmptyFieldSetsDisableModes(t *testing.T) {
+	resource := &Resource{
+		Name:         "users",
+		Model:        autoResourceUser{},
+		ListFields:   []string{},
+		DetailFields: []string{},
+		CreateFields: []string{},
+		UpdateFields: []string{},
+		FilterFields: []string{},
+		SortFields:   []string{},
+		SearchFields: []string{},
+	}
+	if err := resource.prepare(); err != nil {
+		t.Fatalf("prepare with explicit empty field sets: %v", err)
+	}
+	if len(resource.metadata.ListFields) != 0 ||
+		len(resource.metadata.DetailFields) != 0 ||
+		len(resource.metadata.CreateFields) != 0 ||
+		len(resource.metadata.UpdateFields) != 0 ||
+		len(resource.metadata.FilterFields) != 0 ||
+		len(resource.metadata.SortFields) != 0 ||
+		len(resource.metadata.SearchFields) != 0 {
+		t.Fatalf("expected explicit empty field sets to disable all modes, got list=%v detail=%v create=%v update=%v filter=%v sort=%v search=%v",
+			resource.metadata.ListFields,
+			resource.metadata.DetailFields,
+			resource.metadata.CreateFields,
+			resource.metadata.UpdateFields,
+			resource.metadata.FilterFields,
+			resource.metadata.SortFields,
+			resource.metadata.SearchFields)
+	}
+	for _, action := range resource.metadata.Actions {
+		if action == ActionCreate || action == ActionUpdate {
+			t.Fatalf("expected create/update actions to be disabled when write fields are empty, got %+v", resource.metadata.Actions)
+		}
+	}
+
+	defaults := &Resource{Name: "default-users", Model: autoResourceUser{}}
+	if err := defaults.prepare(); err != nil {
+		t.Fatalf("prepare defaults: %v", err)
+	}
+	if len(defaults.metadata.ListFields) == 0 ||
+		len(defaults.metadata.DetailFields) == 0 ||
+		len(defaults.metadata.FilterFields) == 0 ||
+		len(defaults.metadata.SortFields) == 0 ||
+		len(defaults.metadata.SearchFields) == 0 {
+		t.Fatalf("expected nil field sets to keep inferred defaults, got list=%v detail=%v filter=%v sort=%v search=%v",
+			defaults.metadata.ListFields,
+			defaults.metadata.DetailFields,
+			defaults.metadata.FilterFields,
+			defaults.metadata.SortFields,
+			defaults.metadata.SearchFields)
 	}
 }
 
@@ -790,7 +849,7 @@ func TestAdminBranchCoverageForUIHelpers(t *testing.T) {
 	if defaultedPaths.AdminPath != "/admin" || defaultedPaths.LoginPath != "/admin/login" {
 		t.Fatalf("expected UI paths to default, got %+v", defaultedPaths)
 	}
-	if got := adminDashboardPath("/admin?x=1"); got != "/admin?x=1&view=dashboard" {
+	if got := adminDashboardPath("/admin"); got != "/admin" {
 		t.Fatalf("adminDashboardPath query = %q", got)
 	}
 	if got := shortLogoText(""); got != "G" {
