@@ -138,6 +138,7 @@ admin.MountUI(api.Engine(), admin.UIConfig{
     TokenStorage:  "session",
     APIBasePath:   "/api/v1/admin",
     AuthLoginPath: "/api/v1/auth/login",
+    AuthMePath:    "/api/v1/auth/me",
     AdminPath:     "/admin",
     LoginPath:     "/admin/login",
 })
@@ -155,6 +156,38 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 ```
 
 这些表达式只支持受限的 `payload.foo.bar` 路径和 `&&` / `||` 组合，不会作为任意 JavaScript 执行。配置仍应只来自可信开发者。
+
+### 当前用户接口（`AuthMePath`）
+
+`AuthMePath` 配置用于校验已保存 token 并读取当前登录用户资料的接口，默认值为 `/api/v1/auth/me`。内置 UI 在恢复 token 或用户登录后，会向该路径发送带有 `Authorization: Bearer <token>` 的 `GET` 请求。
+
+接口成功时应返回 JSON（`2xx`），资料可以直接放在响应根对象，也可以嵌套在 `user` 对象中。所有资料字段都可选，但建议至少返回 `name`、`user_id` 或 `email` 中的一个，以便 UI 持久化并展示当前身份：
+
+```json
+{
+  "user_id": 42,
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "is_admin": true,
+  "roles": [
+    { "id": 1, "name": "Administrator", "code": "admin", "status": "active" }
+  ],
+  "expires_at": "2026-12-31T23:59:59Z",
+  "issued_at": "2026-01-01T00:00:00Z",
+  "issuer": "gin-ninja"
+}
+```
+
+| UI 信息 | 可接受的响应字段 |
+| --- | --- |
+| 展示名称 | `name`、`username` 或 `user_name` |
+| 用户 ID | `user_id`、`userID` 或 `id` |
+| 邮箱 | `email` |
+| 管理员标识 | `is_admin`、`isAdmin` 或 `admin` |
+| 角色 | `roles` 或 `permissions`；每一项可以是字符串，或包含 `id`/`ID`、`name`/`Name`、`code`/`Code`、`status`/`Status` 的对象 |
+| Token 元信息 | `expires_at`/`expiresAt`、`issued_at`/`issuedAt` 和 `issuer` |
+
+例如，`{ "user": { "id": 42, "username": "Ada" } }` 也是合法响应。接口返回 `401` 时，UI 会清除会话并跳转到登录页；返回 `403` 时，UI 会显示无访问权限页面。Admin API 仍必须在服务端执行授权校验，`is_admin` 和 `roles` 仅用于 UI 的资料展示。
 
 ## 可运行示例
 
