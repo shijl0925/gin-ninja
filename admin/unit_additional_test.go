@@ -751,6 +751,37 @@ func TestAdminMetadataEdgeHelpers(t *testing.T) {
 			t.Fatal("expected non-duplicate error to be ignored")
 		}
 	})
+
+	t.Run("scoped write subquery uses derived table", func(t *testing.T) {
+		db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+		if err != nil {
+			t.Fatalf("gorm.Open: %v", err)
+		}
+		resource := &Resource{Name: "users", Model: adminUser{}}
+		if err := resource.prepare(); err != nil {
+			t.Fatalf("prepare(): %v", err)
+		}
+		pk := queryColumn(resource.primaryKey)
+		scopedDB := db.Session(&gorm.Session{DryRun: true})
+
+		update := db.Session(&gorm.Session{DryRun: true}).
+			Model(&adminUser{}).
+			Where(pk+" IN (?)", resource.scopedPrimaryKeyDerivedSubquery(scopedDB, uint(13))).
+			Select("name").
+			Updates(&adminUser{Name: "Alice"}).
+			Statement.SQL.String()
+		deleteSQL := db.Session(&gorm.Session{DryRun: true}).
+			Where(pk+" IN (?)", resource.scopedPrimaryKeyDerivedSubquery(scopedDB, uint(13))).
+			Delete(&adminUser{ID: 13}).
+			Statement.SQL.String()
+
+		for name, sql := range map[string]string{"update": update, "delete": deleteSQL} {
+			normalized := strings.ReplaceAll(sql, "`", "")
+			if !strings.Contains(normalized, "IN (SELECT id FROM (SELECT id FROM admin_users") {
+				t.Fatalf("%s SQL did not use a derived scoped subquery:\n%s", name, sql)
+			}
+		}
+	})
 }
 
 func TestAdminApplyFilterCoverage(t *testing.T) {
