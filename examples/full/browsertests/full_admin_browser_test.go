@@ -893,7 +893,27 @@ func TestFullExampleStandaloneAdminDashboardBackNavigation(t *testing.T) {
 	clickBrowser(t, ctx, "#loginButton")
 
 	waitForAdminDashboard(t, ctx)
+	runBrowser(t, ctx, chromedp.EmulateViewport(1440, 900))
 	waitForBrowserCondition(t, ctx, "breadcrumb root is dashboard link", `document.getElementById('topbarBreadcrumbRoot').getAttribute('href') === '/admin'`)
+	waitForBrowserCondition(t, ctx, "dashboard resource cards wrap after three columns", `(() => {
+		const grid = document.getElementById('dashboardTiles');
+		const first = grid && grid.querySelector('.dashboard-tile');
+		if (!grid || !first) return false;
+		while (grid.children.length < 5) {
+			const clone = first.cloneNode(true);
+			clone.removeAttribute('aria-label');
+			grid.appendChild(clone);
+		}
+		const columns = getComputedStyle(grid).gridTemplateColumns
+			.split(' ')
+			.filter(Boolean).length;
+		const tiles = Array.from(grid.querySelectorAll('.dashboard-tile')).slice(0, 5);
+		const tops = tiles.map((tile) => Math.round(tile.getBoundingClientRect().top));
+		const firstTop = tops[0];
+		const firstRowCount = tops.filter((top) => Math.abs(top - firstTop) <= 2).length;
+		const rowCount = new Set(tops).size;
+		return columns === 3 && firstRowCount === 3 && rowCount >= 2;
+	})()`)
 
 	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
 		const tiles = Array.from(document.querySelectorAll('#dashboardTiles .dashboard-tile'));
