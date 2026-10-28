@@ -138,6 +138,7 @@ admin.MountUI(api.Engine(), admin.UIConfig{
     TokenStorage:  "session",
     APIBasePath:   "/api/v1/admin",
     AuthLoginPath: "/api/v1/auth/login",
+    AuthMePath:    "/api/v1/auth/me",
     AdminPath:     "/admin",
     LoginPath:     "/admin/login",
 })
@@ -155,6 +156,38 @@ admin.MountUI(api.Engine(), admin.UIConfig{
 ```
 
 These expressions support restricted `payload.foo.bar` paths and `&&` / `||` fallback combinations. They are not executed as arbitrary JavaScript. Configuration should still only come from trusted developers.
+
+### Current User Endpoint (`AuthMePath`)
+
+`AuthMePath` configures the endpoint that verifies the saved token and loads the signed-in user's profile. It defaults to `/api/v1/auth/me`. The built-in UI sends `GET` requests to this path with `Authorization: Bearer <token>` after a token is restored or a user signs in.
+
+Return a successful JSON response (`2xx`) containing the profile directly, or nest it in a `user` object. All profile fields are optional, but return at least one of `name`, `user_id`, or `email` so the UI can persist and display the identity:
+
+```json
+{
+  "user_id": 42,
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "is_admin": true,
+  "roles": [
+    { "id": 1, "name": "Administrator", "code": "admin", "status": "active" }
+  ],
+  "expires_at": "2026-12-31T23:59:59Z",
+  "issued_at": "2026-01-01T00:00:00Z",
+  "issuer": "gin-ninja"
+}
+```
+
+| UI value | Accepted response fields |
+| --- | --- |
+| Display name | `name`, `username`, or `user_name` |
+| User ID | `user_id`, `userID`, or `id` |
+| Email | `email` |
+| Admin indicator | `is_admin`, `isAdmin`, or `admin` |
+| Roles | `roles` or `permissions`; each item may be a string or an object with `id`/`ID`, `name`/`Name`, `code`/`Code`, and `status`/`Status` |
+| Token metadata | `expires_at`/`expiresAt`, `issued_at`/`issuedAt`, and `issuer` |
+
+For example, `{ "user": { "id": 42, "username": "Ada" } }` is also valid. A `401` response clears the session and redirects to login; a `403` response shows an access-denied page. The Admin API must still enforce authorization server-side—`is_admin` and `roles` are only UI profile data.
 
 ## Runnable Examples
 
