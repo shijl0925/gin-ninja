@@ -125,8 +125,10 @@ func TestExampleAdminPrototypeAndModelHooks(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", recorder.Code)
 	}
-	if !strings.Contains(recorder.Body.String(), "Gin Ninja Admin") {
-		t.Fatalf("expected admin console HTML, got %q", recorder.Body.String())
+	for _, marker := range []string{"Gin Ninja Studio", "Full example admin", `class="brand-logo-image"`} {
+		if !strings.Contains(recorder.Body.String(), marker) {
+			t.Fatalf("expected custom admin brand marker %q, got %q", marker, recorder.Body.String())
+		}
 	}
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)

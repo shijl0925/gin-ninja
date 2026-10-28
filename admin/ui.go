@@ -12,9 +12,14 @@ import (
 
 // UIConfig configures the default admin UI shell routes and API endpoint paths.
 type UIConfig struct {
-	Title         string
-	BrandName     string
-	LogoText      string
+	Title     string
+	BrandName string
+	// BrandSubtitle is shown below the brand name in the admin sidebar and login branding.
+	BrandSubtitle string
+	// LogoText is rendered inside the default square logo mark when LogoURL is empty.
+	LogoText string
+	// LogoURL renders an image inside the square logo mark and takes precedence over LogoText.
+	LogoURL       string
 	Locale        string
 	DefaultTheme  string
 	TokenStorage  string
@@ -47,6 +52,7 @@ func DefaultUIConfig() UIConfig {
 	return UIConfig{
 		Title:         "Gin Ninja Admin",
 		BrandName:     "Gin Ninja",
+		BrandSubtitle: "Admin console",
 		LogoText:      "G",
 		Locale:        "en",
 		DefaultTheme:  "light",
@@ -66,6 +72,9 @@ func normalizeUIConfig(cfg UIConfig) UIConfig {
 	}
 	if strings.TrimSpace(cfg.BrandName) == "" {
 		cfg.BrandName = defaults.BrandName
+	}
+	if strings.TrimSpace(cfg.BrandSubtitle) == "" {
+		cfg.BrandSubtitle = defaults.BrandSubtitle
 	}
 	if strings.TrimSpace(cfg.LogoText) == "" {
 		cfg.LogoText = defaults.LogoText
@@ -121,9 +130,12 @@ func renderUIHTML(cfg UIConfig) string {
 	replacer := strings.NewReplacer(
 		"__GIN_NINJA_ADMIN_TITLE__", html.EscapeString(cfg.Title),
 		"__GIN_NINJA_ADMIN_BRAND_NAME__", html.EscapeString(cfg.BrandName),
+		"__GIN_NINJA_ADMIN_BRAND_SUBTITLE__", html.EscapeString(cfg.BrandSubtitle),
+		"__GIN_NINJA_ADMIN_LOGO_MARK__", renderLogoMark(cfg),
 		"__GIN_NINJA_ADMIN_LOGO_TEXT__", html.EscapeString(shortLogoText(cfg.LogoText)),
 		"__GIN_NINJA_ADMIN_TITLE_JS__", jsonString(cfg.Title),
 		"__GIN_NINJA_ADMIN_BRAND_NAME_JS__", jsonString(cfg.BrandName),
+		"__GIN_NINJA_ADMIN_BRAND_SUBTITLE_JS__", jsonString(cfg.BrandSubtitle),
 		"__GIN_NINJA_ADMIN_LOGO_TEXT_JS__", jsonString(shortLogoText(cfg.LogoText)),
 		"__GIN_NINJA_ADMIN_LOCALE_ATTR__", html.EscapeString(cfg.Locale),
 		"__GIN_NINJA_ADMIN_LOCALE__", jsonString(cfg.Locale),
@@ -157,6 +169,17 @@ func shortLogoText(value string) string {
 		return string([]rune(value)[:3])
 	}
 	return value
+}
+
+func renderLogoMark(cfg UIConfig) string {
+	if logoURL := strings.TrimSpace(cfg.LogoURL); logoURL != "" {
+		alt := strings.TrimSpace(cfg.BrandName)
+		if alt == "" {
+			alt = DefaultUIConfig().BrandName
+		}
+		return `<img class="brand-logo-image" src="` + html.EscapeString(logoURL) + `" alt="` + html.EscapeString(alt+" logo") + `">`
+	}
+	return html.EscapeString(shortLogoText(cfg.LogoText))
 }
 
 func jsonString(value string) string {

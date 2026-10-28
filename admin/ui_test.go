@@ -126,14 +126,16 @@ func TestMountUIUsesBrandThemeAndStorageOptions(t *testing.T) {
 
 	router := gin.New()
 	MountUI(router, UIConfig{
-		Title:        "Ops Desk",
-		BrandName:    "Acme Ops",
-		LogoText:     "ACME",
-		Locale:       "zh-CN",
-		DefaultTheme: "system",
-		TokenStorage: "session",
-		AdminPath:    "/admin",
-		LoginPath:    "/admin/login",
+		Title:         "Ops Desk",
+		BrandName:     "Acme Ops",
+		BrandSubtitle: "Operations Center",
+		LogoText:      "ACME",
+		LogoURL:       "/assets/acme-logo.svg",
+		Locale:        "zh-CN",
+		DefaultTheme:  "system",
+		TokenStorage:  "session",
+		AdminPath:     "/admin",
+		LoginPath:     "/admin/login",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
@@ -152,6 +154,8 @@ func TestMountUIUsesBrandThemeAndStorageOptions(t *testing.T) {
 		`const adminDefaultTheme = "system";`,
 		`const tokenStorageDriver = "session";`,
 		`<strong>Acme Ops</strong>`,
+		`<span>Operations Center</span>`,
+		`<img class="brand-logo-image" src="/assets/acme-logo.svg" alt="Acme Ops logo">`,
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("GET /admin missing %q", snippet)
