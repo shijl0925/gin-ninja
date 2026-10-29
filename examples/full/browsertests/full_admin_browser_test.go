@@ -635,7 +635,11 @@ func TestFullExampleAdminPrototypeGlobalSearch(t *testing.T) {
 	waitForBrowserVisible(t, ctx, "#topbarSearchInput")
 	waitForBrowserCondition(t, ctx, "search dialog overlay covers viewport", `(() => {
 		const rect = document.getElementById('topbarSearchExpand').getBoundingClientRect();
-		return rect.left <= 1 && rect.top <= 1 && rect.right >= window.innerWidth - 1 && rect.bottom >= window.innerHeight - 1;
+		const page = document.body.getBoundingClientRect();
+		return rect.left <= page.left + 1 &&
+			rect.top <= 1 &&
+			rect.right >= page.right - 1 &&
+			rect.bottom >= window.innerHeight - 1;
 	})()`)
 
 	// Pressing Escape should close the search dialog
