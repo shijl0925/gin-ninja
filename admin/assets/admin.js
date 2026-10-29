@@ -109,7 +109,6 @@ const state = {
   topbarBreadcrumbCurrent: document.getElementById('topbarBreadcrumbCurrent'),
   adminShell: document.getElementById('adminShell'),
   sidebarDashboardLink: document.getElementById('sidebarDashboardLink'),
-  resourceTreeviewBadge: document.getElementById('resourceTreeviewBadge'),
   resources: document.getElementById('resources'),
   sidebarResourceSearch: document.getElementById('sidebarResourceSearch'),
   sidebarResourceSearchButton: document.getElementById('sidebarResourceSearchButton'),
@@ -2143,9 +2142,6 @@ function groupedResources(resources) {
 
 function renderResources() {
   els.resources.innerHTML = '';
-  const resourceTreeview = document.getElementById('resourceTreeview');
-  if (resourceTreeview) resourceTreeview.classList.add('open');
-  if (els.resourceTreeviewBadge) els.resourceTreeviewBadge.textContent = String(state.resources.length);
   if (els.sidebarDashboardLink) {
     const dashboardActive = !state.current && !state.errorPage;
     els.sidebarDashboardLink.classList.toggle('active', dashboardActive);
@@ -4467,14 +4463,6 @@ if (sidebarSignOut) {
     if (sidebarUserMenu) sidebarUserMenu.hidden = true;
     if (sidebarUserMenuBtn) sidebarUserMenuBtn.setAttribute('aria-expanded', 'false');
     els.clearToken.click();
-  });
-}
-const resourceTreeview = document.getElementById('resourceTreeview');
-const resourceTreeviewToggle = document.getElementById('resourceTreeviewToggle');
-if (resourceTreeview && resourceTreeviewToggle) {
-  resourceTreeviewToggle.addEventListener('click', () => {
-    const open = resourceTreeview.classList.toggle('open');
-    resourceTreeviewToggle.setAttribute('aria-expanded', String(open));
   });
 }
 if (els.sidebarResourceSearch) {
