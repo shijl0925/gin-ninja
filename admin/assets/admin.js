@@ -67,6 +67,8 @@ function extractLoginUserID(payload) { return evaluatePayloadExtractExpr(payload
 const numericFieldPattern = /^-?\d+(?:\.\d+)?$/;
 const dashboardCountPlaceholder = '—';
 let pendingConfirmCallback = null;
+let modalScrollListenersActive = false;
+let modalTouchStartY = 0;
 const state = {
   auth: { name: '', userID: null, email: '', isAdmin: false, roles: [], expiresAt: '', issuedAt: '', issuer: '' },
   current: null,
@@ -239,6 +241,60 @@ function setLoginFeedback(message) {
   }
   els.loginFeedback.textContent = value;
   els.loginFeedback.hidden = false;
+}
+
+function updateModalLayoutMetrics() {
+  const workspaceRect = document.querySelector('.app-main')?.getBoundingClientRect();
+  const leftOffset = Math.max(0, Math.round(workspaceRect?.left || 0));
+  document.documentElement.style.setProperty('--admin-modal-workspace-left', leftOffset + 'px');
+}
+
+function scrollableModalBodyFromEvent(event) {
+  const target = event?.target;
+  if (!target || typeof target.closest !== 'function') return null;
+  return target.closest('.modal-overlay:not([hidden]) .modal-body');
+}
+
+function canScrollModalBody(element, deltaY) {
+  if (!element) return false;
+  if (deltaY < 0) return element.scrollTop > 0;
+  if (deltaY > 0) return element.scrollTop + element.clientHeight < element.scrollHeight;
+  return true;
+}
+
+function preventBackgroundWheel(event) {
+  if (!document.body.classList.contains('modal-open')) return;
+  if (canScrollModalBody(scrollableModalBodyFromEvent(event), event.deltaY)) return;
+  event.preventDefault();
+}
+
+function preventBackgroundTouchStart(event) {
+  if (!document.body.classList.contains('modal-open') || !event.touches?.length) return;
+  modalTouchStartY = event.touches[0].clientY;
+}
+
+function preventBackgroundTouchMove(event) {
+  if (!document.body.classList.contains('modal-open') || !event.touches?.length) return;
+  const deltaY = modalTouchStartY - event.touches[0].clientY;
+  modalTouchStartY = event.touches[0].clientY;
+  if (canScrollModalBody(scrollableModalBodyFromEvent(event), deltaY)) return;
+  event.preventDefault();
+}
+
+function enableModalScrollGuard() {
+  if (modalScrollListenersActive) return;
+  modalScrollListenersActive = true;
+  document.addEventListener('wheel', preventBackgroundWheel, { passive: false });
+  document.addEventListener('touchstart', preventBackgroundTouchStart, { passive: true });
+  document.addEventListener('touchmove', preventBackgroundTouchMove, { passive: false });
+}
+
+function disableModalScrollGuard() {
+  if (!modalScrollListenersActive) return;
+  modalScrollListenersActive = false;
+  document.removeEventListener('wheel', preventBackgroundWheel, { passive: false });
+  document.removeEventListener('touchstart', preventBackgroundTouchStart, { passive: true });
+  document.removeEventListener('touchmove', preventBackgroundTouchMove, { passive: false });
 }
 
 function showToast(message, tone, durationMs) {
@@ -2176,11 +2232,13 @@ function setSidebarSearchButtonContent(activeClear) {
  function openModal(modal) {
     if (!modal || modal.hidden) {
       if (modal) {
+        updateModalLayoutMetrics();
         modal.hidden = false;
         modal.classList.add('show');
      }
    }
     document.body.classList.add('modal-open');
+    enableModalScrollGuard();
   }
 
  function focusFirstModalControl(modal) {
@@ -2216,6 +2274,7 @@ function setSidebarSearchButtonContent(activeClear) {
     }
    if (!anyModalOpen()) {
      document.body.classList.remove('modal-open');
+     disableModalScrollGuard();
    }
  }
 
@@ -4397,6 +4456,9 @@ if (topbarToggle) {
   topbarToggle.addEventListener('click', (event) => {
     event.stopPropagation();
     document.body.classList.toggle('sidebar-collapsed');
+    if (document.body.classList.contains('modal-open')) {
+      window.requestAnimationFrame(updateModalLayoutMetrics);
+    }
   });
 }
 const sidebarSignOut = document.getElementById('sidebarSignOut');
@@ -4521,7 +4583,12 @@ document.addEventListener('click', () => {
    closeColumnMenu();
  });
 window.addEventListener('scroll', scheduleActionMenuPositionUpdate, true);
-window.addEventListener('resize', scheduleActionMenuPositionUpdate);
+window.addEventListener('resize', () => {
+  scheduleActionMenuPositionUpdate();
+  if (document.body.classList.contains('modal-open')) {
+    updateModalLayoutMetrics();
+  }
+});
 if (els.bulkActionExport) {
   els.bulkActionExport.onclick = () => exportSelectedRecordsCSV();
 }
