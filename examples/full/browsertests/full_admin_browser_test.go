@@ -42,6 +42,11 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 	waitForBrowserText(t, ctx, "#resources", "Users")
 	waitForBrowserText(t, ctx, "#resources", "Roles")
 	waitForBrowserText(t, ctx, "#resources", "Projects")
+	waitForBrowserCondition(t, ctx, "resources render flat in sidebar", `(() => {
+		return !document.querySelector("#resourceTreeview") &&
+			!document.querySelector("#resourceTreeviewToggle") &&
+			Array.from(document.querySelectorAll("#resources .nav-link")).some((button) => button.textContent.includes("Users"));
+	})()`)
 
 	setBrowserValue(t, ctx, "#sidebarResourceSearch", "proj")
 	waitForBrowserCondition(t, ctx, "sidebar resource search filters navigation", `(() => {
@@ -170,6 +175,116 @@ func TestFullExampleAdminPrototypeBrowserCRUDFlow(t *testing.T) {
 		const container = document.querySelector("#toastContainer");
 		return !!container && container.textContent.includes("Bulk deleted 1 record(s).");
 	})()`)
+}
+
+func TestFullExampleAdminModalTracksWorkspaceCenter(t *testing.T) {
+	server := newFullTestServer(t)
+	defer server.Close()
+
+	register := doFullJSON(t, server, http.MethodPost, "/api/v1/auth/register", map[string]any{
+		"name":     "Alice",
+		"email":    "alice@example.com",
+		"password": "password123",
+		"age":      18,
+	}, "")
+	if register.StatusCode != http.StatusCreated {
+		t.Fatalf("expected register 201, got %d body=%s", register.StatusCode, readBody(t, register.Body))
+	}
+	register.Body.Close()
+
+	ctx, cancel := newFullBrowserContext(t)
+	defer cancel()
+
+	runBrowser(t, ctx, chromedp.EmulateViewport(1680, 780))
+	runBrowser(t, ctx, chromedp.Navigate(server.URL+"/admin"))
+	waitForBrowserVisible(t, ctx, "#loginEmail")
+	setBrowserValue(t, ctx, "#loginEmail", "alice@example.com")
+	setBrowserValue(t, ctx, "#loginPassword", "password123")
+	clickBrowser(t, ctx, "#loginButton")
+	waitForAdminDashboard(t, ctx)
+	openAdminResourcePath(t, ctx, server.URL, "users", "Users")
+	waitForBrowserEnabled(t, ctx, "#openCreateModal")
+
+	centered := func(modal string) string {
+		return `(() => {
+			const main = document.querySelector('.app-main');
+			const dialog = document.querySelector('` + modal + ` .modal-dialog');
+			if (!main || !dialog) return false;
+			const mainRect = main.getBoundingClientRect();
+			const dialogRect = dialog.getBoundingClientRect();
+			const mainCenter = mainRect.left + mainRect.width / 2;
+			const dialogCenter = dialogRect.left + dialogRect.width / 2;
+			return Math.abs(mainCenter - dialogCenter) <= 0.5;
+		})()`
+	}
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		document.body.style.minHeight = '1400px';
+		window.scrollTo(0, 0);
+		const rect = (selector) => {
+			const box = document.querySelector(selector).getBoundingClientRect();
+			return { left: box.left, right: box.right, width: box.width };
+		};
+		window.__modalLayoutBefore = {
+			viewport: window.innerWidth,
+			client: document.documentElement.clientWidth,
+			topbar: rect('.topbar'),
+			main: rect('.app-main'),
+			create: rect('#openCreateModal')
+		};
+	})()`, nil))
+	layoutStable := `(() => {
+		const before = window.__modalLayoutBefore;
+		if (!before) return false;
+		const rect = (selector) => {
+			const box = document.querySelector(selector).getBoundingClientRect();
+			return { left: box.left, right: box.right, width: box.width };
+		};
+		const after = {
+			viewport: window.innerWidth,
+			client: document.documentElement.clientWidth,
+			topbar: rect('.topbar'),
+			main: rect('.app-main'),
+			create: rect('#openCreateModal')
+		};
+		const close = (a, b) => Math.abs(a - b) <= 0.5;
+		return close(before.viewport, after.viewport) &&
+			close(before.client, after.client) &&
+			close(before.topbar.left, after.topbar.left) &&
+			close(before.topbar.right, after.topbar.right) &&
+			close(before.main.left, after.main.left) &&
+			close(before.main.right, after.main.right) &&
+			close(before.create.left, after.create.left) &&
+			close(before.create.right, after.create.right);
+	})()`
+
+	clickBrowser(t, ctx, "#openCreateModal")
+	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserCondition(t, ctx, "modal keeps page layout stable with scrollbar", layoutStable)
+	waitForBrowserCondition(t, ctx, "create modal centered in expanded workspace", centered("#createModal"))
+	clickBrowser(t, ctx, "#closeCreateModal")
+	waitForBrowserCondition(t, ctx, "create modal closed", `document.querySelector('#createModal').hidden === true`)
+
+	clickBrowser(t, ctx, ".topbar-toggle")
+	waitForBrowserCondition(t, ctx, "sidebar collapsed", `document.body.classList.contains('sidebar-collapsed')`)
+	clickBrowser(t, ctx, "#openCreateModal")
+	waitForBrowserVisible(t, ctx, "#createModal")
+	waitForBrowserCondition(t, ctx, "create modal centered after sidebar collapse", centered("#createModal"))
+
+	runBrowser(t, ctx, chromedp.EmulateViewport(1440, 780))
+	waitForBrowserCondition(t, ctx, "create modal centered after resize", centered("#createModal"))
+	clickBrowser(t, ctx, "#closeCreateModal")
+	waitForBrowserCondition(t, ctx, "create modal closed after resize", `document.querySelector('#createModal').hidden === true`)
+
+	clickBrowser(t, ctx, "#list tbody tr:first-child .action-menu-trigger")
+	waitForBrowserVisible(t, ctx, ".action-menu-list.open")
+	runBrowser(t, ctx, chromedp.Evaluate(`(() => {
+		const item = Array.from(document.querySelectorAll('.action-menu-list.open .action-menu-item'))
+			.find((button) => button.textContent && button.textContent.includes('Edit'));
+		if (item) item.click();
+		return !!item;
+	})()`, nil))
+	waitForBrowserVisible(t, ctx, "#editModal")
+	waitForBrowserCondition(t, ctx, "edit modal centered after sidebar collapse and resize", centered("#editModal"))
 }
 
 func TestFullExampleAdminPrototypeDarkModeToggle(t *testing.T) {
