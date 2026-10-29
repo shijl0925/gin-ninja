@@ -200,6 +200,10 @@ body.search-dialog-open { overflow:hidden; }
 [data-theme="dark"] .toast[data-tone="info"]::before { box-shadow:0 0 0 4px rgba(102, 176, 255, 0.14); }
 [hidden] { display:none !important; }
 * { box-sizing: border-box; }
+html {
+  overflow-y:scroll;
+  scrollbar-gutter:stable;
+}
 body {
   font-family: Inter, system-ui, "Segoe UI", sans-serif;
   margin: 0;
@@ -1755,7 +1759,7 @@ html.theme-view-transition::view-transition-new(root) {
 .modal-form-heading { gap:2px; }
 .modal-form-heading .eyebrow { display:none; }
 .modal-form-heading .section-copy { max-width:34rem; }
-body.modal-open { overflow:hidden; }
+body.modal-open { overflow:visible; }
 label { display:grid; gap:8px; font-size:14px; font-weight:600; color:#495057; }
 input, select, textarea, button {
   font: inherit;
@@ -6373,6 +6377,20 @@ body.standalone-admin-page #editModal.modal-overlay {
   padding:24px;
   background:hsl(var(--sh-background) / 0.78);
   backdrop-filter:blur(4px);
+}
+
+@media (min-width:1121px) {
+  body.standalone-admin-page #createModal.modal-overlay,
+  body.standalone-admin-page #editModal.modal-overlay {
+    left:var(--admin-modal-workspace-left, var(--admin-sidebar-width));
+    right:0;
+    width:auto;
+  }
+
+  body.standalone-admin-page.sidebar-collapsed #createModal.modal-overlay,
+  body.standalone-admin-page.sidebar-collapsed #editModal.modal-overlay {
+    left:var(--admin-modal-workspace-left, 0px);
+  }
 }
 
 body.standalone-admin-page #createModal .modal-dialog,
