@@ -252,6 +252,48 @@ func (r *Resource) applyValuesFor(view *resolvedResource, target reflect.Value, 
 	return nil
 }
 
+func (r *Resource) applyRelationVirtualValuesFor(site *Site, view *resolvedResource, ctx *ninja.Context, db *gorm.DB, model any, values map[string]any) error {
+	if site == nil || view == nil || db == nil || model == nil {
+		return ninja.InternalError()
+	}
+	modelValue := reflect.ValueOf(model)
+	if modelValue.Kind() != reflect.Ptr || modelValue.IsNil() {
+		return ninja.InternalError()
+	}
+	for name, value := range values {
+		field := view.fieldByName[name]
+		if field == nil || field.relationVirtual == nil {
+			continue
+		}
+		meta := view.meta(field)
+		if meta.Relation == nil {
+			continue
+		}
+		target := site.byName[meta.Relation.Resource]
+		if target == nil {
+			return ninja.NewError(http.StatusBadRequest, fmt.Sprintf("relation resource %q is not registered", meta.Relation.Resource))
+		}
+		targetView := target.resolved(ctx)
+		valueField := targetView.fieldByName[meta.Relation.ValueField]
+		if valueField == nil {
+			return ninja.NewError(http.StatusBadRequest, fmt.Sprintf("relation value field %q is not available", meta.Relation.ValueField))
+		}
+		ids, err := normalizeRelationVirtualIDs(field, valueField, value)
+		if err != nil {
+			return ninja.NewError(http.StatusBadRequest, fmt.Sprintf("field %q: %s", meta.Name, err.Error()))
+		}
+		related, err := loadRelationVirtualRecords(ctx, target, targetView, valueField, ids)
+		if err != nil {
+			return err
+		}
+		if err := db.Model(model).Association(field.relationVirtual.fieldName).Replace(related.Interface()); err != nil {
+			return err
+		}
+		setRelationVirtualModelValues(modelValue.Elem(), field, related, ids)
+	}
+	return nil
+}
+
 func (r *Resource) updateColumnsFor(view *resolvedResource, before, after reflect.Value) ([]string, error) {
 	columns := make([]string, 0, len(view.fields))
 	seen := make(map[string]struct{}, len(view.fields))
@@ -377,9 +419,344 @@ func (r *Resource) serializeFor(view *resolvedResource, v reflect.Value, mode fi
 		if !view.allowed(field, mode) {
 			continue
 		}
-		out[view.meta(field).Name] = field.value(v)
+		out[view.meta(field).Name] = r.serializeFieldValueFor(view, field, v)
 	}
 	return out
+}
+
+func (r *Resource) serializeFieldValueFor(view *resolvedResource, field *fieldMeta, v reflect.Value) any {
+	value := field.value(v)
+	if field == nil || field.relationVirtual == nil {
+		return value
+	}
+	if !isEmptySliceValue(value) {
+		return value
+	}
+	projected, ok := projectRelationVirtualIDs(view, field, v)
+	if ok {
+		return projected
+	}
+	return emptySliceForField(field)
+}
+
+func isEmptySliceValue(value any) bool {
+	if value == nil {
+		return true
+	}
+	current := reflect.ValueOf(value)
+	if current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return true
+		}
+		current = current.Elem()
+	}
+	return current.Kind() == reflect.Slice && current.Len() == 0
+}
+
+func emptySliceForField(field *fieldMeta) any {
+	if field == nil || field.fieldType.Kind() != reflect.Slice {
+		return []any{}
+	}
+	return reflect.MakeSlice(field.fieldType, 0, 0).Interface()
+}
+
+func projectRelationVirtualIDs(view *resolvedResource, field *fieldMeta, v reflect.Value) (any, bool) {
+	if field == nil || field.relationVirtual == nil || view == nil {
+		return nil, false
+	}
+	relation := view.meta(field).Relation
+	if relation == nil {
+		return nil, false
+	}
+	association := relationVirtualAssociationValue(v, field.relationVirtual.index)
+	if !association.IsValid() || association.Kind() != reflect.Slice {
+		return nil, false
+	}
+	out := reflect.MakeSlice(field.fieldType, 0, association.Len())
+	anyOut := make([]any, 0, association.Len())
+	useAny := field.fieldType.Elem().Kind() == reflect.Interface
+	for i := 0; i < association.Len(); i++ {
+		item := association.Index(i)
+		value, ok := relationValueByAdminName(item, relation.ValueField)
+		if !ok {
+			continue
+		}
+		converted, ok := convertReflectValue(value, field.fieldType.Elem())
+		if ok && !useAny {
+			out = reflect.Append(out, converted)
+			continue
+		}
+		if value.Kind() == reflect.Ptr && value.IsNil() {
+			anyOut = append(anyOut, nil)
+		} else {
+			anyOut = append(anyOut, indirectValue(value).Interface())
+		}
+		useAny = true
+	}
+	if useAny {
+		return anyOut, true
+	}
+	return out.Interface(), true
+}
+
+func relationVirtualAssociationValue(v reflect.Value, index []int) reflect.Value {
+	current := v
+	for current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return reflect.Value{}
+		}
+		current = current.Elem()
+	}
+	for _, idx := range index {
+		if current.Kind() != reflect.Struct || idx < 0 || idx >= current.NumField() {
+			return reflect.Value{}
+		}
+		current = current.Field(idx)
+		for current.Kind() == reflect.Ptr {
+			if current.IsNil() {
+				return reflect.Value{}
+			}
+			current = current.Elem()
+		}
+	}
+	return current
+}
+
+func relationValueByAdminName(item reflect.Value, name string) (reflect.Value, bool) {
+	item = indirectValue(item)
+	if !item.IsValid() || item.Kind() != reflect.Struct {
+		return reflect.Value{}, false
+	}
+	index, ok := structFieldIndexByAdminName(item.Type(), name)
+	if !ok {
+		return reflect.Value{}, false
+	}
+	current := item
+	for _, idx := range index {
+		current = indirectValue(current)
+		if !current.IsValid() || current.Kind() != reflect.Struct || idx < 0 || idx >= current.NumField() {
+			return reflect.Value{}, false
+		}
+		current = current.Field(idx)
+	}
+	return current, true
+}
+
+func structFieldIndexByAdminName(t reflect.Type, name string) ([]int, bool) {
+	if t == nil {
+		return nil, false
+	}
+	t = indirectType(t)
+	if t.Kind() != reflect.Struct {
+		return nil, false
+	}
+	if field, ok := t.FieldByName(name); ok {
+		return field.Index, true
+	}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() && !field.Anonymous {
+			continue
+		}
+		fieldName, _ := adminFieldName(field)
+		if fieldName == name || strings.EqualFold(field.Name, name) {
+			return field.Index, true
+		}
+		derefType := indirectType(field.Type)
+		if field.Anonymous && derefType.Kind() == reflect.Struct && derefType != reflect.TypeOf(gorm.DeletedAt{}) {
+			nested, ok := structFieldIndexByAdminName(derefType, name)
+			if ok {
+				return append(append([]int(nil), field.Index...), nested...), true
+			}
+		}
+	}
+	return nil, false
+}
+
+func normalizeRelationVirtualIDs(field, targetValueField *fieldMeta, value any) ([]any, error) {
+	if targetValueField == nil {
+		return nil, fmt.Errorf("relation value field is not available")
+	}
+	if value == nil {
+		return []any{}, nil
+	}
+	current := reflect.ValueOf(value)
+	if current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return []any{}, nil
+		}
+		current = current.Elem()
+	}
+	if current.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("must be an array")
+	}
+	out := make([]any, 0, current.Len())
+	seen := map[string]struct{}{}
+	for i := 0; i < current.Len(); i++ {
+		item := current.Index(i)
+		converted, ok := convertReflectValue(item, targetValueField.fieldType)
+		if !ok {
+			return nil, fmt.Errorf("value %v cannot be converted to %s", item.Interface(), targetValueField.fieldType)
+		}
+		id := converted.Interface()
+		key := relationIDKey(id)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+func loadRelationVirtualRecords(ctx *ninja.Context, target *Resource, targetView *resolvedResource, valueField *fieldMeta, ids []any) (reflect.Value, error) {
+	records := reflect.New(reflect.SliceOf(target.modelType)).Elem()
+	if len(ids) == 0 {
+		return records, nil
+	}
+	if ctx == nil || ctx.Context == nil {
+		return reflect.Value{}, ninja.InternalError()
+	}
+	db := target.scopedDB(ctx, ActionList, orm.WithContext(ctx.Context)).Model(target.newModel())
+	column, err := safeQueryColumnFor(valueField, targetView.meta(valueField))
+	if err != nil {
+		return reflect.Value{}, err
+	}
+	if err := db.Where(column+" IN ?", ids).Find(records.Addr().Interface()).Error; err != nil {
+		return reflect.Value{}, err
+	}
+	found := make(map[string]struct{}, records.Len())
+	for i := 0; i < records.Len(); i++ {
+		id := valueField.value(records.Index(i))
+		found[relationIDKey(id)] = struct{}{}
+	}
+	for _, id := range ids {
+		if _, ok := found[relationIDKey(id)]; !ok {
+			return reflect.Value{}, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("relation %q record %v not found", target.metadata.Name, id))
+		}
+	}
+	return records, nil
+}
+
+func setRelationVirtualModelValues(modelValue reflect.Value, field *fieldMeta, related reflect.Value, ids []any) {
+	if field == nil || field.relationVirtual == nil {
+		return
+	}
+	virtual := fieldValueByIndex(modelValue, field.index)
+	if virtual.IsValid() && virtual.CanSet() && virtual.Kind() == reflect.Slice {
+		slice := reflect.MakeSlice(virtual.Type(), 0, len(ids))
+		for _, id := range ids {
+			converted, ok := convertReflectValue(reflect.ValueOf(id), virtual.Type().Elem())
+			if !ok {
+				continue
+			}
+			slice = reflect.Append(slice, converted)
+		}
+		virtual.Set(slice)
+	}
+	association := fieldValueByIndex(modelValue, field.relationVirtual.index)
+	if association.IsValid() && association.CanSet() && related.IsValid() && related.Type().AssignableTo(association.Type()) {
+		association.Set(related)
+	}
+}
+
+func fieldValueByIndex(v reflect.Value, index []int) reflect.Value {
+	current := v
+	for current.Kind() == reflect.Ptr {
+		if current.IsNil() {
+			return reflect.Value{}
+		}
+		current = current.Elem()
+	}
+	for _, idx := range index {
+		if current.Kind() != reflect.Struct || idx < 0 || idx >= current.NumField() {
+			return reflect.Value{}
+		}
+		current = current.Field(idx)
+		for current.Kind() == reflect.Ptr {
+			if current.IsNil() {
+				if !current.CanSet() {
+					return reflect.Value{}
+				}
+				current.Set(reflect.New(current.Type().Elem()))
+			}
+			current = current.Elem()
+		}
+	}
+	return current
+}
+
+func convertReflectValue(value reflect.Value, target reflect.Type) (reflect.Value, bool) {
+	if !value.IsValid() {
+		return reflect.Zero(target), true
+	}
+	value = indirectValue(value)
+	if !value.IsValid() {
+		return reflect.Zero(target), true
+	}
+	if value.Type().AssignableTo(target) {
+		return value, true
+	}
+	if target.Kind() == reflect.Interface && value.Type().Implements(target) {
+		return value, true
+	}
+	if numericConversionWouldOverflow(value, target) {
+		return reflect.Value{}, false
+	}
+	if value.Type().ConvertibleTo(target) {
+		return value.Convert(target), true
+	}
+	return reflect.Value{}, false
+}
+
+func numericConversionWouldOverflow(value reflect.Value, target reflect.Type) bool {
+	sourceKind := value.Kind()
+	targetKind := target.Kind()
+	switch {
+	case isSignedIntKind(sourceKind) && isUnsignedIntKind(targetKind):
+		return value.Int() < 0 || reflect.New(target).Elem().OverflowUint(uint64(value.Int()))
+	case isSignedIntKind(sourceKind) && isSignedIntKind(targetKind):
+		return reflect.New(target).Elem().OverflowInt(value.Int())
+	case isUnsignedIntKind(sourceKind) && isUnsignedIntKind(targetKind):
+		return reflect.New(target).Elem().OverflowUint(value.Uint())
+	case isUnsignedIntKind(sourceKind) && isSignedIntKind(targetKind):
+		bits := target.Bits()
+		max := uint64(^uint64(0) >> 1)
+		if bits < 64 {
+			max = (uint64(1) << (bits - 1)) - 1
+		}
+		return value.Uint() > max
+	case isFloatKind(sourceKind) && isFloatKind(targetKind):
+		return reflect.New(target).Elem().OverflowFloat(value.Float())
+	default:
+		return false
+	}
+}
+
+func isSignedIntKind(kind reflect.Kind) bool {
+	return kind == reflect.Int || kind == reflect.Int8 || kind == reflect.Int16 || kind == reflect.Int32 || kind == reflect.Int64
+}
+
+func isUnsignedIntKind(kind reflect.Kind) bool {
+	return kind == reflect.Uint || kind == reflect.Uint8 || kind == reflect.Uint16 || kind == reflect.Uint32 || kind == reflect.Uint64 || kind == reflect.Uintptr
+}
+
+func isFloatKind(kind reflect.Kind) bool {
+	return kind == reflect.Float32 || kind == reflect.Float64
+}
+
+func indirectValue(value reflect.Value) reflect.Value {
+	for value.IsValid() && value.Kind() == reflect.Ptr {
+		if value.IsNil() {
+			return reflect.Value{}
+		}
+		value = value.Elem()
+	}
+	return value
+}
+
+func relationIDKey(value any) string {
+	return fmt.Sprintf("%T:%v", value, value)
 }
 
 func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relationOptionsInput) (*RelationOptionsOutput, error) {

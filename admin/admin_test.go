@@ -95,6 +95,25 @@ type adminTaggedUser struct {
 	RoleIDs  []uint `gorm:"-" json:"role_ids" admin:"label:Roles;relation:roles"`
 }
 
+type adminRelationUser struct {
+	ID      uint                `gorm:"primaryKey"`
+	Name    string              `json:"name"`
+	Roles   []adminRelationRole `gorm:"many2many:admin_test_user_roles;joinForeignKey:UserID;joinReferences:RoleID;" json:"-"`
+	RoleIDs []uint              `gorm:"-" json:"role_ids" admin:"label:Roles;relation:roles"`
+}
+
+type adminRelationRole struct {
+	ID      uint                `gorm:"primaryKey"`
+	Name    string              `json:"name"`
+	Menus   []adminRelationMenu `gorm:"many2many:admin_test_role_menus;joinForeignKey:RoleID;joinReferences:MenuID;" json:"-"`
+	MenuIDs []uint              `gorm:"-" json:"menu_ids" admin:"label:Menus;relation:menus"`
+}
+
+type adminRelationMenu struct {
+	ID   uint   `gorm:"primaryKey"`
+	Name string `json:"name"`
+}
+
 type adminExplicitAccessUser struct {
 	ID         uint   `gorm:"primaryKey"`
 	Name       string `json:"name"`
@@ -133,6 +152,25 @@ func newAdminAPIWithDB(t *testing.T, site *Site, seed ...adminUser) (*ninja.Ninj
 		}
 		c.Next()
 	})
+	site.Mount(router)
+	api.AddRouter(router)
+	return api, db
+}
+
+func newAdminRelationAPIWithDB(t *testing.T, site *Site) (*ninja.NinjaAPI, *gorm.DB) {
+	t.Helper()
+
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&adminRelationUser{}, &adminRelationRole{}, &adminRelationMenu{}); err != nil {
+		t.Fatalf("migrate relation models: %v", err)
+	}
+
+	api := ninja.New(ninja.Config{Title: "admin relation test", DisableGinDefault: true, TransactionHandlers: orm.TransactionHandlers()})
+	api.UseGin(orm.Middleware(db))
+	router := ninja.NewRouter("/admin", ninja.WithTags("Admin"))
 	site.Mount(router)
 	api.AddRouter(router)
 	return api, db
@@ -1213,6 +1251,231 @@ func TestAdminTagRelationAndPasswordInference(t *testing.T) {
 	}
 	if !containsName(roleField.Meta.Relation.SearchFields, "code") {
 		t.Fatalf("expected inferred relation search fields, got %+v", roleField.Meta.Relation.SearchFields)
+	}
+}
+
+func TestAdminRelationVirtualIDsSerializeFromPreloadedAssociations(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "roles",
+		Model:        adminRelationRole{},
+		Preloads:     []string{"Menus"},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name", "menu_ids"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "menus",
+		Model:        adminRelationMenu{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminRelationUser{},
+		Preloads:     []string{"Roles"},
+		ListFields:   []string{"id", "name", "role_ids"},
+		DetailFields: []string{"id", "name", "role_ids"},
+	})
+	api, db := newAdminRelationAPIWithDB(t, site)
+
+	role := adminRelationRole{Name: "Admin"}
+	menuOne := adminRelationMenu{Name: "Dashboard"}
+	menuTwo := adminRelationMenu{Name: "Settings"}
+	user := adminRelationUser{Name: "Alice"}
+	if err := db.Create(&role).Error; err != nil {
+		t.Fatalf("create role: %v", err)
+	}
+	if err := db.Create(&[]adminRelationMenu{menuOne, menuTwo}).Error; err != nil {
+		t.Fatalf("create menus: %v", err)
+	}
+	if err := db.First(&menuOne, "name = ?", "Dashboard").Error; err != nil {
+		t.Fatalf("load first menu: %v", err)
+	}
+	if err := db.First(&menuTwo, "name = ?", "Settings").Error; err != nil {
+		t.Fatalf("load second menu: %v", err)
+	}
+	if err := db.Model(&role).Association("Menus").Replace([]adminRelationMenu{menuOne, menuTwo}); err != nil {
+		t.Fatalf("replace role menus: %v", err)
+	}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := db.Model(&user).Association("Roles").Replace([]adminRelationRole{role}); err != nil {
+		t.Fatalf("replace user roles: %v", err)
+	}
+
+	userResp := performJSON(t, api, http.MethodGet, fmt.Sprintf("/admin/resources/users/%d", user.ID), nil, nil)
+	if userResp.Code != http.StatusOK {
+		t.Fatalf("detail user status = %d body=%s", userResp.Code, userResp.Body.String())
+	}
+	var userOut ResourceRecordOutput
+	if err := json.NewDecoder(userResp.Body).Decode(&userOut); err != nil {
+		t.Fatalf("decode user detail: %v", err)
+	}
+	roleIDs := numericSliceFromAny(userOut.Item["role_ids"])
+	if !reflect.DeepEqual(roleIDs, []uint{role.ID}) {
+		t.Fatalf("expected role_ids [%d], got %+v from %+v", role.ID, roleIDs, userOut.Item["role_ids"])
+	}
+
+	listResp := performJSON(t, api, http.MethodGet, "/admin/resources/users", nil, nil)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list user status = %d body=%s", listResp.Code, listResp.Body.String())
+	}
+	var listOut ResourceListOutput
+	if err := json.NewDecoder(listResp.Body).Decode(&listOut); err != nil {
+		t.Fatalf("decode user list: %v", err)
+	}
+	if len(listOut.Items) != 1 {
+		t.Fatalf("expected one listed user, got %+v", listOut.Items)
+	}
+	listRoleIDs := numericSliceFromAny(listOut.Items[0]["role_ids"])
+	if !reflect.DeepEqual(listRoleIDs, []uint{role.ID}) {
+		t.Fatalf("expected listed role_ids [%d], got %+v from %+v", role.ID, listRoleIDs, listOut.Items[0]["role_ids"])
+	}
+
+	roleResp := performJSON(t, api, http.MethodGet, fmt.Sprintf("/admin/resources/roles/%d", role.ID), nil, nil)
+	if roleResp.Code != http.StatusOK {
+		t.Fatalf("detail role status = %d body=%s", roleResp.Code, roleResp.Body.String())
+	}
+	var roleOut ResourceRecordOutput
+	if err := json.NewDecoder(roleResp.Body).Decode(&roleOut); err != nil {
+		t.Fatalf("decode role detail: %v", err)
+	}
+	menuIDs := numericSliceFromAny(roleOut.Item["menu_ids"])
+	if !reflect.DeepEqual(menuIDs, []uint{menuOne.ID, menuTwo.ID}) {
+		t.Fatalf("expected menu_ids [%d %d], got %+v from %+v", menuOne.ID, menuTwo.ID, menuIDs, roleOut.Item["menu_ids"])
+	}
+}
+
+func TestAdminRelationVirtualIDsCreateUpdateClearAndOmit(t *testing.T) {
+	site := NewSite()
+	site.MustRegisterModel(&ModelResource{
+		Name:         "roles",
+		Model:        adminRelationRole{},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name"},
+	})
+	site.MustRegisterModel(&ModelResource{
+		Name:         "users",
+		Model:        adminRelationUser{},
+		Preloads:     []string{"Roles"},
+		ListFields:   []string{"id", "name"},
+		DetailFields: []string{"id", "name", "role_ids"},
+		CreateFields: []string{"name", "role_ids"},
+		UpdateFields: []string{"name", "role_ids"},
+	})
+	api, db := newAdminRelationAPIWithDB(t, site)
+
+	roleOne := adminRelationRole{Name: "Admin"}
+	roleTwo := adminRelationRole{Name: "Editor"}
+	roleThree := adminRelationRole{Name: "Viewer"}
+	if err := db.Create(&[]adminRelationRole{roleOne, roleTwo, roleThree}).Error; err != nil {
+		t.Fatalf("create roles: %v", err)
+	}
+	var roles []adminRelationRole
+	if err := db.Order("id").Find(&roles).Error; err != nil {
+		t.Fatalf("load roles: %v", err)
+	}
+	roleOne, roleTwo, roleThree = roles[0], roles[1], roles[2]
+
+	createResp := performJSON(t, api, http.MethodPost, "/admin/resources/users", map[string]any{
+		"name":     "Created",
+		"role_ids": []uint{roleOne.ID, roleOne.ID, roleTwo.ID},
+	}, nil)
+	if createResp.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body=%s", createResp.Code, createResp.Body.String())
+	}
+	var created ResourceRecordOutput
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create relation user: %v", err)
+	}
+	createdIDs := numericSliceFromAny(created.Item["role_ids"])
+	if !reflect.DeepEqual(createdIDs, []uint{roleOne.ID, roleTwo.ID}) {
+		t.Fatalf("expected created role_ids [%d %d], got %+v", roleOne.ID, roleTwo.ID, created.Item["role_ids"])
+	}
+	userID := uint(created.Item["id"].(float64))
+	assertUserRoleJoinRows(t, db, userID, []uint{roleOne.ID, roleTwo.ID})
+
+	updatePayload := map[string]any{
+		"role_ids": []uint{roleTwo.ID, roleTwo.ID, roleThree.ID},
+	}
+	updateResp := performJSON(t, api, http.MethodPut, fmt.Sprintf("/admin/resources/users/%d", userID), updatePayload, nil)
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("update status = %d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+	var updated ResourceRecordOutput
+	if err := json.NewDecoder(updateResp.Body).Decode(&updated); err != nil {
+		t.Fatalf("decode update relation user: %v", err)
+	}
+	updatedIDs := numericSliceFromAny(updated.Item["role_ids"])
+	if !reflect.DeepEqual(updatedIDs, []uint{roleTwo.ID, roleThree.ID}) {
+		t.Fatalf("expected updated role_ids [%d %d], got %+v", roleTwo.ID, roleThree.ID, updated.Item["role_ids"])
+	}
+	assertUserRoleJoinRows(t, db, userID, []uint{roleTwo.ID, roleThree.ID})
+
+	repeatResp := performJSON(t, api, http.MethodPut, fmt.Sprintf("/admin/resources/users/%d", userID), updatePayload, nil)
+	if repeatResp.Code != http.StatusOK {
+		t.Fatalf("repeat update status = %d body=%s", repeatResp.Code, repeatResp.Body.String())
+	}
+	assertUserRoleJoinRows(t, db, userID, []uint{roleTwo.ID, roleThree.ID})
+
+	clearResp := performJSON(t, api, http.MethodPut, fmt.Sprintf("/admin/resources/users/%d", userID), map[string]any{
+		"role_ids": []uint{},
+	}, nil)
+	if clearResp.Code != http.StatusOK {
+		t.Fatalf("clear status = %d body=%s", clearResp.Code, clearResp.Body.String())
+	}
+	assertUserRoleJoinRows(t, db, userID, nil)
+
+	if err := db.Model(&adminRelationUser{ID: userID}).Association("Roles").Replace([]adminRelationRole{roleOne}); err != nil {
+		t.Fatalf("seed role before omit update: %v", err)
+	}
+	omitResp := performJSON(t, api, http.MethodPut, fmt.Sprintf("/admin/resources/users/%d", userID), map[string]any{
+		"name": "Renamed",
+	}, nil)
+	if omitResp.Code != http.StatusOK {
+		t.Fatalf("omit update status = %d body=%s", omitResp.Code, omitResp.Body.String())
+	}
+	assertUserRoleJoinRows(t, db, userID, []uint{roleOne.ID})
+}
+
+func numericSliceFromAny(value any) []uint {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]uint, 0, len(items))
+	for _, item := range items {
+		switch typed := item.(type) {
+		case float64:
+			out = append(out, uint(typed))
+		case uint:
+			out = append(out, typed)
+		case int:
+			out = append(out, uint(typed))
+		}
+	}
+	return out
+}
+
+func assertUserRoleJoinRows(t *testing.T, db *gorm.DB, userID uint, want []uint) {
+	t.Helper()
+
+	var rows []struct {
+		RoleID uint
+	}
+	if err := db.Table("admin_test_user_roles").Select("role_id").Where("user_id = ?", userID).Order("role_id").Scan(&rows).Error; err != nil {
+		t.Fatalf("load join rows: %v", err)
+	}
+	got := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.RoleID)
+	}
+	if want == nil {
+		want = []uint{}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("join rows for user %d = %v, want %v", userID, got, want)
 	}
 }
 
