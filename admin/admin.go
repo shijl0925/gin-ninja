@@ -55,10 +55,11 @@ func (f RowPermissionFunc) Scope(ctx *ninja.Context, action Action, resource *Re
 }
 
 type RelationOptions struct {
-	Resource     string
-	ValueField   string
-	LabelField   string
-	SearchFields []string
+	Resource      string
+	ValueField    string
+	LabelField    string
+	SearchFields  []string
+	RelationField string
 }
 
 type RelationMeta struct {
@@ -1004,6 +1005,9 @@ func (r *Resource) handleCreate(site *Site) func(*ninja.Context, *struct{}) (*Re
 		if err := scopedDB.Create(model).Error; err != nil {
 			return nil, r.normalizeWriteError(ctx, ActionCreate, reflect.ValueOf(model).Elem(), nil, err)
 		}
+		if err := r.applyRelationVirtualValuesFor(site, view, ctx, orm.WithContext(ctx.Context), model, values); err != nil {
+			return nil, err
+		}
 		if err := r.ensureScopedWriteVisible(scopedDB, model); err != nil {
 			return nil, err
 		}
@@ -1074,6 +1078,9 @@ func (r *Resource) handleUpdate(site *Site) func(*ninja.Context, *pathIDInput) (
 			if err := r.ensureScopedWriteVisible(scopedDB, model); err != nil {
 				return nil, err
 			}
+		}
+		if err := r.applyRelationVirtualValuesFor(site, view, ctx, orm.WithContext(ctx.Context), model, values); err != nil {
+			return nil, err
 		}
 		if r.AfterUpdate != nil {
 			if err := r.AfterUpdate(ctx, model); err != nil {

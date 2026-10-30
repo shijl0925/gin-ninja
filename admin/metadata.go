@@ -35,10 +35,17 @@ type fieldMeta struct {
 	primaryKey        bool
 	componentExplicit bool
 	autoRelation      *autoRelationMeta
+	relationVirtual   *relationVirtualMeta
+	relationFieldName string
 }
 
 type autoRelationMeta struct {
 	targetType reflect.Type
+}
+
+type relationVirtualMeta struct {
+	fieldName string
+	index     []int
 }
 
 type fieldAccess struct {
@@ -188,6 +195,7 @@ func collectFields(t reflect.Type, prefix []int, overrides map[string]FieldOptio
 		if meta.Meta.Relation == nil {
 			inferAutoRelation(meta, field, t)
 		}
+		inferRelationVirtual(meta, field, t)
 		out = append(out, meta)
 	}
 	return out
@@ -236,6 +244,7 @@ func buildFieldMeta(field reflect.StructField, index []int) *fieldMeta {
 		persisted:         !hasTagFlag(gormTag, "-"),
 		primaryKey:        hasTagFlag(gormTag, "primarykey") || field.Name == "ID",
 		componentExplicit: strings.TrimSpace(adminTag["component"]) != "",
+		relationFieldName: strings.TrimSpace(firstNonEmpty(adminTag["relation_field"], adminTag["relation_association"], adminTag["association_field"])),
 	}
 
 	if meta.Meta.Name == "deletedAt" {
@@ -337,6 +346,9 @@ func applyFieldOptions(meta *fieldMeta, opts FieldOptions) {
 			LabelField:   strings.TrimSpace(firstNonEmpty(opts.Relation.LabelField, valueField)),
 			SearchFields: cloneSlice(opts.Relation.SearchFields),
 		}
+		if relationField := strings.TrimSpace(opts.Relation.RelationField); relationField != "" {
+			meta.relationFieldName = relationField
+		}
 		if opts.Component == "" {
 			meta.Meta.Component = "select"
 		}
@@ -385,6 +397,76 @@ func inferAutoRelation(meta *fieldMeta, field reflect.StructField, owner reflect
 
 func isRelationEligibleType(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && t != reflect.TypeOf(time.Time{}) && t != reflect.TypeOf(gorm.DeletedAt{})
+}
+
+func inferRelationVirtual(meta *fieldMeta, field reflect.StructField, owner reflect.Type) {
+	if meta == nil || meta.Meta.Relation == nil || meta.persisted || meta.fieldType.Kind() != reflect.Slice {
+		return
+	}
+	relationFieldName := strings.TrimSpace(meta.relationFieldName)
+	if relationFieldName != "" {
+		if relationField, ok := findOwnerRelationField(owner, relationFieldName); ok && isRelationVirtualFieldType(relationField.Type) {
+			meta.relationVirtual = &relationVirtualMeta{fieldName: relationField.Name, index: relationField.Index}
+		}
+		return
+	}
+	for _, candidate := range relationVirtualFieldCandidates(field.Name) {
+		if relationField, ok := owner.FieldByName(candidate); ok && !relationField.Anonymous && isRelationVirtualFieldType(relationField.Type) {
+			meta.relationVirtual = &relationVirtualMeta{fieldName: relationField.Name, index: relationField.Index}
+			return
+		}
+	}
+}
+
+func findOwnerRelationField(owner reflect.Type, name string) (reflect.StructField, bool) {
+	if field, ok := owner.FieldByName(name); ok && !field.Anonymous {
+		return field, true
+	}
+	for i := 0; i < owner.NumField(); i++ {
+		field := owner.Field(i)
+		if field.Anonymous {
+			continue
+		}
+		jsonName, hidden := adminFieldName(field)
+		if !hidden && jsonName == name {
+			return field, true
+		}
+	}
+	return reflect.StructField{}, false
+}
+
+func relationVirtualFieldCandidates(name string) []string {
+	var base string
+	for _, suffix := range []string{"IDs", "Ids"} {
+		if candidate, ok := strings.CutSuffix(name, suffix); ok && strings.TrimSpace(candidate) != "" {
+			base = candidate
+			break
+		}
+	}
+	if base == "" {
+		return nil
+	}
+	candidates := []string{inflection.Plural(base), base + "s", base}
+	out := make([]string, 0, len(candidates))
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) == "" {
+			continue
+		}
+		if _, exists := seen[candidate]; exists {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		out = append(out, candidate)
+	}
+	return out
+}
+
+func isRelationVirtualFieldType(t reflect.Type) bool {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t.Kind() == reflect.Slice
 }
 
 func relationFieldBaseName(name string) (string, bool) {
