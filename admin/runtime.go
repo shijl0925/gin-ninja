@@ -759,6 +759,29 @@ func relationIDKey(value any) string {
 	return fmt.Sprintf("%T:%v", value, value)
 }
 
+func parseRelationOptionValues(raw string, valueField *fieldMeta) ([]any, error) {
+	parts := strings.Split(raw, ",")
+	values := make([]any, 0, len(parts))
+	seen := map[string]struct{}{}
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		value, err := valueField.parseString(part)
+		if err != nil {
+			return nil, err
+		}
+		key := relationIDKey(value)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		values = append(values, value)
+	}
+	return values, nil
+}
+
 func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relationOptionsInput) (*RelationOptionsOutput, error) {
 	return func(ctx *ninja.Context, in *relationOptionsInput) (*RelationOptionsOutput, error) {
 		if err := site.authorize(ctx, ActionDetail, r); err != nil {
@@ -795,6 +818,39 @@ func (r *Resource) handleRelationOptions(site *Site) func(*ninja.Context, *relat
 			return nil, ninja.InternalError()
 		}
 		db := target.scopedDB(ctx, ActionList, baseDB).Model(target.newModel())
+		if rawValues := strings.TrimSpace(in.Values); rawValues != "" {
+			values, err := parseRelationOptionValues(rawValues, valueField)
+			if err != nil {
+				return nil, ninja.NewError(http.StatusBadRequest, fmt.Sprintf("invalid relation values %q", in.Values))
+			}
+			if len(values) == 0 {
+				return &RelationOptionsOutput{Items: []RelationOption{}, Total: 0, Page: 1, Size: 0, Pages: 1}, nil
+			}
+			column, err := safeQueryColumnFor(valueField, targetView.meta(valueField))
+			if err != nil {
+				return nil, err
+			}
+			itemsPtr := reflect.New(reflect.SliceOf(target.modelType))
+			if err := db.Where(column+" IN ?", values).Find(itemsPtr.Interface()).Error; err != nil {
+				return nil, err
+			}
+			items := make([]RelationOption, 0, itemsPtr.Elem().Len())
+			for i := 0; i < itemsPtr.Elem().Len(); i++ {
+				itemValue := itemsPtr.Elem().Index(i)
+				items = append(items, RelationOption{
+					Value: valueField.value(itemValue),
+					Label: fmt.Sprint(labelField.value(itemValue)),
+					Item:  target.serializeFor(targetView, itemValue, fieldModeList),
+				})
+			}
+			return &RelationOptionsOutput{
+				Items: items,
+				Total: int64(len(items)),
+				Page:  1,
+				Size:  len(items),
+				Pages: 1,
+			}, nil
+		}
 		if term := strings.TrimSpace(in.Search); term != "" {
 			names := cloneSlice(fieldMeta.Relation.SearchFields)
 			if len(names) == 0 {
