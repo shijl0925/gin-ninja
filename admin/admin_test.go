@@ -197,6 +197,37 @@ func performJSON(t *testing.T, api *ninja.NinjaAPI, method, path string, body an
 	return w
 }
 
+func TestAdminSiteWithExcludeFromDocsHidesOpenAPIRoutes(t *testing.T) {
+	site := NewSite(WithExcludeFromDocs())
+	site.MustRegister(&Resource{
+		Name:  "users",
+		Model: adminUser{},
+	})
+
+	api := newAdminAPI(t, site)
+	openAPIResp := performJSON(t, api, http.MethodGet, "/openapi.json", nil, nil)
+	if openAPIResp.Code != http.StatusOK {
+		t.Fatalf("openapi status = %d body=%s", openAPIResp.Code, openAPIResp.Body.String())
+	}
+
+	var spec struct {
+		Paths map[string]any `json:"paths"`
+	}
+	if err := json.Unmarshal(openAPIResp.Body.Bytes(), &spec); err != nil {
+		t.Fatalf("decode openapi: %v", err)
+	}
+	for path := range spec.Paths {
+		if strings.HasPrefix(path, "/admin/resources") {
+			t.Fatalf("expected admin resource path to be excluded from docs, got %q", path)
+		}
+	}
+
+	resourcesResp := performJSON(t, api, http.MethodGet, "/admin/resources", nil, nil)
+	if resourcesResp.Code != http.StatusOK {
+		t.Fatalf("hidden docs option should not disable route, got %d body=%s", resourcesResp.Code, resourcesResp.Body.String())
+	}
+}
+
 func TestAdminSiteMetadataAndCRUD(t *testing.T) {
 	site := NewSite(WithPermissionChecker(func(ctx *ninja.Context, action Action, resource *Resource) error {
 		if ctx.GetUserID() == 0 {

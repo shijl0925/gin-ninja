@@ -32,6 +32,8 @@ site := admin.NewSite(
 
 `WithPermissionChecker` runs before list, detail, create, update, delete, bulk delete, and other actions. If you do not need a global permission check, use `admin.NewSite()`.
 
+Use `admin.WithExcludeFromDocs()` when the admin resource API is only used by the built-in UI and should not appear in generated OpenAPI/Swagger docs. This hides the docs entries only; the mounted routes continue to work.
+
 ## Register Resources
 
 Each GORM model maps to one resource:

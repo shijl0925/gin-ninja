@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -29,13 +30,16 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/auth/login",
 		"/api/v1/users/",
-		"/api/v1/admin/resources",
-		"/api/v1/admin/resources/users",
 		"/api/v1/examples/request-meta",
 		"/api/v0/examples/versioned/info",
 	} {
 		if _, ok := paths[path]; !ok {
 			t.Fatalf("expected path %s in root spec, got keys=%v", path, paths)
+		}
+	}
+	for path := range paths {
+		if strings.HasPrefix(path, "/api/v1/admin/resources") {
+			t.Fatalf("expected admin resource paths to be hidden from root spec, got %s", path)
 		}
 	}
 
@@ -71,6 +75,13 @@ func TestFullExampleOpenAPIContracts(t *testing.T) {
 		}
 		if _, ok := versionedPaths[tc.missingPath]; ok {
 			t.Fatalf("%s: did not expect path %s, got %v", tc.path, tc.missingPath, versionedPaths)
+		}
+		if tc.path == "/openapi/v1.json" {
+			for path := range versionedPaths {
+				if strings.HasPrefix(path, "/api/v1/admin/resources") {
+					t.Fatalf("%s: expected admin resource paths to be hidden, got %s", tc.path, path)
+				}
+			}
 		}
 		if tc.path == "/openapi/v0.json" {
 			responses := versionedPaths["/api/v0/examples/versioned/info"].(map[string]any)["get"].(map[string]any)["responses"].(map[string]any)

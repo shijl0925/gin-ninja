@@ -8,7 +8,10 @@ import (
 
 // NewAdminSite returns the example admin site mounted by the full demo app.
 func NewAdminSite() *admin.Site {
-	site := admin.NewSite(admin.WithPermissionChecker(requireAuthenticatedAdmin))
+	site := admin.NewSite(
+		admin.WithPermissionChecker(requireAuthenticatedAdmin),
+		admin.WithExcludeFromDocs(),
+	)
 	site.MustRegisterModel(&admin.ModelResource{
 		Icon:         "users",
 		Group:        "Identity",
