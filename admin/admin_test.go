@@ -1092,6 +1092,18 @@ func TestAdminSiteRowPermissionsAndRelationSelectors(t *testing.T) {
 		t.Fatalf("unexpected id relation options payload: %+v", idOptions)
 	}
 
+	valueOptionsResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/fields/owner_id/options?values=2,999&page=1&size=1", nil, headers)
+	if valueOptionsResp.Code != http.StatusOK {
+		t.Fatalf("value options status = %d body=%s", valueOptionsResp.Code, valueOptionsResp.Body.String())
+	}
+	var valueOptions RelationOptionsOutput
+	if err := json.NewDecoder(valueOptionsResp.Body).Decode(&valueOptions); err != nil {
+		t.Fatalf("decode value relation options: %v", err)
+	}
+	if valueOptions.Total != 1 || len(valueOptions.Items) != 1 || valueOptions.Items[0].Label != "Bob" || fmt.Sprint(valueOptions.Items[0].Value) != "2" || valueOptions.Pages != 1 {
+		t.Fatalf("unexpected value relation options payload: %+v", valueOptions)
+	}
+
 	missingIDOptionsResp := performJSON(t, api, http.MethodGet, "/admin/resources/projects/fields/owner_id/options?search=999", nil, headers)
 	if missingIDOptionsResp.Code != http.StatusOK {
 		t.Fatalf("missing id options status = %d body=%s", missingIDOptionsResp.Code, missingIDOptionsResp.Body.String())

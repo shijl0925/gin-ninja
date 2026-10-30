@@ -275,6 +275,7 @@ type searchInput struct {
 type relationOptionsInput struct {
 	pagination.PageInput
 	Search string `query:"search"`
+	Values string `query:"values"`
 	Field  string `path:"field" binding:"required"`
 }
 
