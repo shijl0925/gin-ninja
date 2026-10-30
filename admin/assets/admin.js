@@ -1899,12 +1899,6 @@ function buildTableCellContent(fieldName, value) {
   if (formatted.numeric) {
     primary.classList.add('numeric');
   }
-  if (field?.unique) {
-    const badge = document.createElement('span');
-    badge.className = 'table-badge neutral';
-    badge.textContent = 'Unique';
-    wrap.appendChild(badge);
-  }
   return wrap;
 }
 
