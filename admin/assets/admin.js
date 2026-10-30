@@ -2149,7 +2149,7 @@ function syncRelationDropdown(field, select, summary, optionsContainer, itemsRef
         }
         mergeRelationOptionCache(itemsRef, [item]);
         syncRelationHiddenSelect(field, select, itemsRef, field.label);
-        select.dispatchEvent(new Event('change', { bubbles: true }));
+        summary.textContent = relationSummaryText(field, select);
       });
       optionElement.appendChild(checkbox);
     } else {
