@@ -32,6 +32,8 @@ site := admin.NewSite(
 
 `WithPermissionChecker` 会在 list、detail、create、update、delete、bulk delete 等操作前运行。没有统一权限需求时，可以直接 `admin.NewSite()`。
 
+如果 Admin resource API 只服务内置 UI，不希望出现在 OpenAPI/Swagger 文档里，可以使用 `admin.WithExcludeFromDocs()`。这个选项只隐藏文档条目，不会关闭已挂载的接口。
+
 ## 注册资源
 
 每个 GORM model 对应一个资源：

@@ -127,6 +127,7 @@ type Resource struct {
 
 type Site struct {
 	checker         PermissionChecker
+	excludeFromDocs bool
 	resources       []*Resource
 	byName          map[string]*Resource
 	byModel         map[reflect.Type]*Resource
@@ -138,6 +139,13 @@ type Option func(*Site)
 func WithPermissionChecker(checker PermissionChecker) Option {
 	return func(site *Site) {
 		site.checker = checker
+	}
+}
+
+// WithExcludeFromDocs hides all admin resource API routes from generated OpenAPI docs.
+func WithExcludeFromDocs() Option {
+	return func(site *Site) {
+		site.excludeFromDocs = true
 	}
 }
 
@@ -513,49 +521,68 @@ func (s *Site) Mount(router *ninja.Router) {
 	}
 
 	ninja.Get(router, "/resources", s.listResources,
-		ninja.Summary("List admin resources"),
-		ninja.Description("Returns the registered admin resources used to build navigation menus."))
+		s.operationOptions(
+			ninja.Summary("List admin resources"),
+			ninja.Description("Returns the registered admin resources used to build navigation menus."))...)
 	ninja.Get(router, "/resources/stats", s.resourceStats,
-		ninja.Summary("Get admin resource stats"),
-		ninja.Description("Returns count summaries for visible admin resources."))
+		s.operationOptions(
+			ninja.Summary("Get admin resource stats"),
+			ninja.Description("Returns count summaries for visible admin resources."))...)
 	ninja.Get(router, "/search", s.searchResources,
-		ninja.Summary("Search admin resources"),
-		ninja.Description("Searches across visible searchable resources and returns grouped results."))
+		s.operationOptions(
+			ninja.Summary("Search admin resources"),
+			ninja.Description("Searches across visible searchable resources and returns grouped results."))...)
 
 	for _, resource := range s.resources {
 		base := "/resources" + resource.Path
 		ninja.Get(router, base+"/meta", resource.handleMetadata(s),
-			ninja.Summary("Get admin resource metadata"),
-			ninja.Description("Returns resource field metadata, form hints, list fields, and supported actions."))
+			s.operationOptions(
+				ninja.Summary("Get admin resource metadata"),
+				ninja.Description("Returns resource field metadata, form hints, list fields, and supported actions."))...)
 		ninja.Get(router, base, resource.handleList(s),
-			ninja.Summary("List admin resource records"),
-			ninja.Description("Returns paginated admin records with safe search, filter, and sort support."))
+			s.operationOptions(
+				ninja.Summary("List admin resource records"),
+				ninja.Description("Returns paginated admin records with safe search, filter, and sort support."))...)
 		ninja.Get(router, base+"/fields/:field/options", resource.handleRelationOptions(s),
-			ninja.Summary("List admin relation selector options"),
-			ninja.Description("Returns paginated selector options for relation-backed admin fields."))
+			s.operationOptions(
+				ninja.Summary("List admin relation selector options"),
+				ninja.Description("Returns paginated selector options for relation-backed admin fields."))...)
 		ninja.Get(router, base+"/export", resource.handleExport(s),
-			ninja.Summary("Export admin resource records"),
-			ninja.Description("Exports filtered admin records as CSV using visible list fields."))
+			s.operationOptions(
+				ninja.Summary("Export admin resource records"),
+				ninja.Description("Exports filtered admin records as CSV using visible list fields."))...)
 		ninja.Get(router, base+"/:id", resource.handleDetail(s),
-			ninja.Summary("Get admin resource record"),
-			ninja.Description("Returns one admin record by primary key."))
+			s.operationOptions(
+				ninja.Summary("Get admin resource record"),
+				ninja.Description("Returns one admin record by primary key."))...)
 		ninja.Post(router, base, resource.handleCreate(s),
-			ninja.Summary("Create admin resource record"),
-			ninja.Description("Creates one admin record from a JSON payload."),
-			ninja.WithTransaction())
+			s.operationOptions(
+				ninja.Summary("Create admin resource record"),
+				ninja.Description("Creates one admin record from a JSON payload."),
+				ninja.WithTransaction())...)
 		ninja.Put(router, base+"/:id", resource.handleUpdate(s),
-			ninja.Summary("Update admin resource record"),
-			ninja.Description("Updates one admin record from a partial JSON payload."),
-			ninja.WithTransaction())
+			s.operationOptions(
+				ninja.Summary("Update admin resource record"),
+				ninja.Description("Updates one admin record from a partial JSON payload."),
+				ninja.WithTransaction())...)
 		ninja.Delete(router, base+"/:id", resource.handleDelete(s),
-			ninja.Summary("Delete admin resource record"),
-			ninja.Description("Deletes one admin record by primary key."),
-			ninja.WithTransaction())
+			s.operationOptions(
+				ninja.Summary("Delete admin resource record"),
+				ninja.Description("Deletes one admin record by primary key."),
+				ninja.WithTransaction())...)
 		ninja.Post(router, base+"/bulk-delete", resource.handleBulkDelete(s),
-			ninja.Summary("Bulk delete admin resource records"),
-			ninja.Description("Deletes multiple admin records by primary key."),
-			ninja.WithTransaction())
+			s.operationOptions(
+				ninja.Summary("Bulk delete admin resource records"),
+				ninja.Description("Deletes multiple admin records by primary key."),
+				ninja.WithTransaction())...)
 	}
+}
+
+func (s *Site) operationOptions(opts ...ninja.OperationOption) []ninja.OperationOption {
+	if s != nil && s.excludeFromDocs {
+		opts = append(opts, ninja.ExcludeFromDocs())
+	}
+	return opts
 }
 
 func (s *Site) listResources(ctx *ninja.Context, _ *struct{}) (*ResourceIndex, error) {
