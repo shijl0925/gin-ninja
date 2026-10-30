@@ -640,7 +640,7 @@ function openGlobalSearchDialog() {
   expandEl.setAttribute('aria-modal', 'true');
   document.body.classList.add('search-dialog-open');
   window.requestAnimationFrame(() => {
-    if (els.topbarSearchInput) els.topbarSearchInput.focus();
+    if (els.topbarSearchInput && expandEl.classList.contains('open')) els.topbarSearchInput.focus();
   });
 }
 
