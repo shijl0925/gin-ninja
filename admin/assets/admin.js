@@ -3842,7 +3842,8 @@ async function exportSelectedRecordsCSV() {
 function paginationSummaryText() {
   const page = Math.max(1, Number(state.pagination.page || 1));
   const pages = Math.max(1, Number(state.pagination.pages || 1));
-  return 'Page ' + page + ' of ' + pages;
+  const total = Math.max(0, Number(state.pagination.total || 0));
+  return 'Page ' + page + ' of ' + pages + ' · ' + total + ' record' + (total === 1 ? '' : 's');
 }
 
 function paginationItems(page, pages) {
