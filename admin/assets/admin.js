@@ -133,6 +133,8 @@ const state = {
   copyRecordJSON: document.getElementById('copyRecordJSON'),
   createForm: document.getElementById('createForm'),
   createModal: document.getElementById('createModal'),
+  createHint: document.getElementById('createHint'),
+  createModalMeta: document.getElementById('createModalMeta'),
   openCreateModal: document.getElementById('openCreateModal'),
   closeCreateModal: document.getElementById('closeCreateModal'),
   recordModal: document.getElementById('recordModal'),
@@ -141,6 +143,7 @@ const state = {
   closeEditModal: document.getElementById('closeEditModal'),
   updateForm: document.getElementById('updateForm'),
   editHint: document.getElementById('editHint'),
+  editModalMeta: document.getElementById('editModalMeta'),
   filtersForm: document.getElementById('filtersForm'),
   sort: document.getElementById('sort'),
   pageSize: document.getElementById('pageSize'),
@@ -1229,6 +1232,9 @@ function resetAdminState() {
   els.detail.textContent = 'No record selected.';
   els.createForm.innerHTML = '<p class="muted">Sign in to create records.</p>';
   els.updateForm.innerHTML = '<p class="muted">Sign in to edit records.</p>';
+  if (els.createHint) els.createHint.textContent = 'Sign in to create records.';
+  setFormModalMeta('create', 0);
+  setFormModalMeta('update', 0);
   els.filtersForm.innerHTML = '';
   els.sort.innerHTML = '';
   els.search.placeholder = 'Search current resource';
@@ -1831,6 +1837,15 @@ function createFieldTag(text, tone) {
   badge.className = 'field-tag' + (tone ? ' ' + tone : '');
   badge.textContent = text;
   return badge;
+}
+
+function fieldCountLabel(count) {
+  return count + ' field' + (count === 1 ? '' : 's');
+}
+
+function setFormModalMeta(mode, fieldCount) {
+  const target = mode === 'update' ? els.editModalMeta : els.createModalMeta;
+  if (target) target.textContent = fieldCountLabel(fieldCount);
 }
 
 function buildTableCellContent(fieldName, value) {
@@ -3197,31 +3212,12 @@ async function renderForm(target, fieldNames, mode, values, scopeKey) {
   target.innerHTML = '';
   target.className = 'stack resource-form';
   target.noValidate = true;
+  setFormModalMeta(mode, fieldNames.length);
   if (!state.meta || !fieldNames.length) {
     target.innerHTML = '<p class="muted">' + mode + ' is not available for this resource.</p>';
     markFormClean(target, scopeKey);
     return;
   }
-  const intro = document.createElement('div');
-  intro.className = 'form-section-intro';
-  const introCopyWrap = document.createElement('div');
-  introCopyWrap.className = 'form-section-copy-wrap';
-  const introTitle = document.createElement('h4');
-  introTitle.className = 'form-section-title';
-  introTitle.textContent = mode === 'update' ? 'Edit form' : 'Create form';
-  const introCopy = document.createElement('p');
-  introCopy.className = 'form-section-copy';
-  introCopy.textContent = mode === 'update'
-    ? 'Review the fields below and save the changes when ready.'
-    : 'Fill in the fields below and submit to create the record.';
-  const introMeta = document.createElement('span');
-  introMeta.className = 'form-section-meta';
-  introMeta.textContent = fieldNames.length + ' field' + (fieldNames.length === 1 ? '' : 's');
-  introCopyWrap.appendChild(introTitle);
-  introCopyWrap.appendChild(introCopy);
-  intro.appendChild(introCopyWrap);
-  intro.appendChild(introMeta);
-  target.appendChild(intro);
   const grid = document.createElement('div');
   grid.className = 'form-grid';
   for (const name of fieldNames) {
@@ -3332,6 +3328,7 @@ async function renderForm(target, fieldNames, mode, values, scopeKey) {
 }
 
 async function renderCreateForm() {
+  if (els.createHint) els.createHint.textContent = 'Add a new record to ' + (state.current?.label || 'the active resource') + '.';
   await renderForm(els.createForm, state.meta?.create_fields || [], 'create', {}, 'create');
 }
 
@@ -3339,6 +3336,7 @@ async function renderUpdateForm() {
   if (!state.selected) {
     els.updateForm.innerHTML = '<p class="muted">Select a row to edit it.</p>';
     els.editHint.textContent = 'Select a row to edit.';
+    setFormModalMeta('update', state.meta?.update_fields?.length || 0);
     markFormClean(els.updateForm, 'update');
     return;
   }
@@ -4496,7 +4494,10 @@ function showDashboard(options) {
   els.detailFields.innerHTML = '<p class="muted">Select a resource to inspect records, filters, and actions.</p>';
   els.createForm.innerHTML = '<p class="muted">Select a resource to create records.</p>';
   els.updateForm.innerHTML = '<p class="muted">Select a resource to edit records.</p>';
+  if (els.createHint) els.createHint.textContent = 'Select a resource before creating records.';
   els.editHint.textContent = 'Select a resource to open the change form.';
+  setFormModalMeta('create', 0);
+  setFormModalMeta('update', 0);
   els.list.innerHTML = '<div class="empty-state">Select a resource from the sidebar to load records.</div>';
   renderResourceActionSummary();
   updateColumnToggleLabel();
