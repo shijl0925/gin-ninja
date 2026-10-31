@@ -3358,7 +3358,7 @@ function renderSelectedRecord() {
   const record = state.selected.item || {};
   const recordID = recordPrimaryKey(record);
   els.detailTitle.textContent = state.meta.label + ' #' + recordID;
-  els.detailObjectBadge.textContent = 'Record overview';
+  els.detailObjectBadge.textContent = state.meta.label + ' #' + recordID;
   els.detail.textContent = JSON.stringify(record, null, 2);
   const detailFields = state.meta?.detail_fields || Object.keys(record);
   detailFields.forEach((name) => {
