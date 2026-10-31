@@ -390,22 +390,23 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           <div class="modal-dialog large" role="dialog" aria-modal="true" aria-labelledby="recordModalTitle">
             <div class="modal-header">
               <div class="section-heading modal-heading">
-                <div class="row-actions">
-                  <span class="eyebrow subtle">Details</span>
-                  <span id="detailObjectBadge" class="badge badge-muted">Draft view</span>
+                <div class="modal-title-row">
+                  <h3 id="recordModalTitle" class="section-title">Open record</h3>
+                  <span id="detailObjectBadge" class="modal-form-meta">Draft view</span>
                 </div>
-                <h3 id="recordModalTitle" class="section-title">Open record</h3>
                 <p class="section-copy muted">Inspect the selected record and its raw payload.</p>
               </div>
-              <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">Close</button>
+              <button id="closeRecordModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close record dialog">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7"/><path d="m11.5 4.5-7 7"/></svg>
+              </button>
             </div>
             <div class="modal-body">
               <div class="detail-layout">
                 <div class="detail-card stack card card-outline card-primary">
                   <div class="detail-card-header">
                     <div class="section-heading">
-                      <span class="eyebrow subtle">Overview</span>
-                      <strong id="detailTitle">No record selected</strong>
+                      <strong>Overview</strong>
+                      <p id="detailTitle" class="detail-card-subtitle">No record selected</p>
                     </div>
                     <div class="detail-card-actions">
                       <button id="openSelectedEdit" class="secondary btn btn-default btn-sm" type="button">Edit</button>
@@ -418,9 +419,8 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
                 <div class="detail-card stack card card-outline card-secondary">
                   <div class="detail-card-header">
                     <div class="section-heading">
-                      <span class="eyebrow subtle">Payload</span>
-                      <strong>Reference payload</strong>
-                      <p class="section-copy muted">Use the raw payload for quick inspection or copy/paste during debugging.</p>
+                      <strong>Payload</strong>
+                      <p class="section-copy muted">Raw record data for inspection and debugging.</p>
                     </div>
                     <div class="detail-card-actions">
                       <button id="copyRecordJSON" class="secondary btn btn-default btn-sm" type="button">Copy JSON</button>
