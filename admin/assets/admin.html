@@ -371,11 +371,15 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="createModalTitle">
             <div class="modal-header">
               <div class="section-heading modal-heading modal-form-heading">
-                <span class="eyebrow subtle">Create</span>
-                <h3 id="createModalTitle" class="section-title">Create record</h3>
-                <p class="section-copy muted">Create a record for the active resource.</p>
+                <div class="modal-title-row">
+                  <h3 id="createModalTitle" class="section-title">Create record</h3>
+                  <span id="createModalMeta" class="modal-form-meta">0 fields</span>
+                </div>
+                <p class="section-copy muted" id="createHint">Add a new record to the active resource.</p>
               </div>
-              <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">Close</button>
+              <button id="closeCreateModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close create record dialog">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7"/><path d="m11.5 4.5-7 7"/></svg>
+              </button>
             </div>
             <div class="modal-body">
               <form id="createForm" class="stack"></form>
@@ -432,11 +436,15 @@ __GIN_NINJA_ADMIN_INLINE_CSS__
           <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
             <div class="modal-header">
               <div class="section-heading modal-heading modal-form-heading">
-                <span class="eyebrow subtle">Edit</span>
-                <h3 id="editModalTitle" class="section-title">Edit record</h3>
+                <div class="modal-title-row">
+                  <h3 id="editModalTitle" class="section-title">Edit record</h3>
+                  <span id="editModalMeta" class="modal-form-meta">0 fields</span>
+                </div>
                 <p class="section-copy muted" id="editHint">Update the selected record.</p>
               </div>
-              <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">Close</button>
+              <button id="closeEditModal" type="button" class="secondary modal-close btn btn-default" aria-label="Close edit record dialog">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m4.5 4.5 7 7"/><path d="m11.5 4.5-7 7"/></svg>
+              </button>
             </div>
             <div class="modal-body">
               <form id="updateForm" class="stack"></form>
