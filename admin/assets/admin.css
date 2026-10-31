@@ -6499,8 +6499,10 @@ body.standalone-admin-page #editModal .section-title {
 
 body.standalone-admin-page #createModal .modal-form-meta,
 body.standalone-admin-page #editModal .modal-form-meta,
+body.standalone-admin-page #recordModal .modal-form-meta,
 [data-theme="dark"] body.standalone-admin-page #createModal .modal-form-meta,
-[data-theme="dark"] body.standalone-admin-page #editModal .modal-form-meta {
+[data-theme="dark"] body.standalone-admin-page #editModal .modal-form-meta,
+[data-theme="dark"] body.standalone-admin-page #recordModal .modal-form-meta {
   min-height:22px;
   padding:0 8px;
   color:hsl(var(--sh-muted-foreground));
@@ -7021,20 +7023,20 @@ body.standalone-admin-page #recordModal .modal-header,
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
-  gap:16px;
-  padding:18px 20px 14px;
+  gap:18px;
+  padding:22px 24px 18px;
   background:hsl(var(--sh-background));
   border-bottom:1px solid hsl(var(--sh-border));
 }
 
 body.standalone-admin-page #recordModal .modal-heading {
   display:grid;
-  gap:5px;
+  gap:7px;
   min-width:0;
 }
 
-body.standalone-admin-page #recordModal .modal-heading > .row-actions {
-  display:none;
+body.standalone-admin-page #recordModal .modal-title-row {
+  gap:10px;
 }
 
 body.standalone-admin-page #recordModal .section-title {
@@ -7042,7 +7044,7 @@ body.standalone-admin-page #recordModal .section-title {
   color:hsl(var(--sh-foreground));
   font-size:18px;
   line-height:1.25;
-  font-weight:650;
+  font-weight:600;
   letter-spacing:0;
 }
 
@@ -7056,25 +7058,31 @@ body.standalone-admin-page #recordModal .section-copy {
 
 body.standalone-admin-page #recordModal .modal-close,
 [data-theme="dark"] body.standalone-admin-page #recordModal .modal-close {
-  height:34px;
-  min-height:34px;
-  padding:0 12px;
-  color:hsl(var(--sh-foreground));
-  background:hsl(var(--sh-background));
-  border:1px solid hsl(var(--sh-border));
-  border-radius:8px;
+  width:32px;
+  height:32px;
+  min-width:32px;
+  min-height:32px;
+  padding:0;
+  color:hsl(var(--sh-muted-foreground));
+  background:transparent;
+  border:0;
+  border-radius:6px;
   box-shadow:none;
-  font-size:13px;
-  font-weight:500;
+}
+
+body.standalone-admin-page #recordModal .modal-close svg {
+  width:16px;
+  height:16px;
 }
 
 body.standalone-admin-page #recordModal .modal-close:hover {
   background:hsl(var(--sh-accent));
+  color:hsl(var(--sh-accent-foreground));
 }
 
 body.standalone-admin-page #recordModal .modal-body,
 [data-theme="dark"] body.standalone-admin-page #recordModal .modal-body {
-  padding:20px;
+  padding:18px;
   background:hsl(var(--sh-background));
 }
 
@@ -7094,7 +7102,7 @@ body.standalone-admin-page #recordModal .detail-card,
   background:hsl(var(--sh-card));
   color:hsl(var(--sh-card-foreground));
   border:1px solid hsl(var(--sh-border));
-  border-radius:10px;
+  border-radius:8px;
   box-shadow:none;
   overflow:hidden;
 }
@@ -7105,36 +7113,29 @@ body.standalone-admin-page #recordModal .detail-card-header,
   align-items:flex-start;
   justify-content:space-between;
   gap:12px;
-  padding:14px 16px;
+  padding:14px 16px 13px;
   border-bottom:1px solid hsl(var(--sh-border));
   background:hsl(var(--sh-card));
 }
 
 body.standalone-admin-page #recordModal .detail-card-header .section-heading {
   display:grid;
-  gap:5px;
+  gap:4px;
   min-width:0;
 }
 
-body.standalone-admin-page #recordModal .detail-card-header .eyebrow {
-  width:max-content;
-  min-height:auto;
-  padding:0;
+body.standalone-admin-page #recordModal .detail-card-subtitle {
+  margin:0;
   color:hsl(var(--sh-muted-foreground));
-  background:transparent;
-  border:0;
-  border-radius:0;
-  font-size:11px;
-  font-weight:650;
-  letter-spacing:.08em;
-  text-transform:uppercase;
+  font-size:13px;
+  line-height:1.45;
 }
 
 body.standalone-admin-page #recordModal .detail-card-header strong {
   color:hsl(var(--sh-foreground));
-  font-size:16px;
+  font-size:15px;
   line-height:1.25;
-  font-weight:650;
+  font-weight:600;
 }
 
 body.standalone-admin-page #recordModal .detail-card-actions {
@@ -7162,16 +7163,16 @@ body.standalone-admin-page #recordModal .detail-card-actions .btn:hover {
 body.standalone-admin-page #recordModal .detail-grid {
   display:grid;
   gap:0;
-  padding:0 18px 8px;
+  padding:2px 16px 8px;
 }
 
 body.standalone-admin-page #recordModal .detail-row,
 [data-theme="dark"] body.standalone-admin-page #recordModal .detail-row {
   display:grid;
-  grid-template-columns:minmax(100px, 144px) minmax(0, 1fr);
-  gap:18px;
+  grid-template-columns:minmax(96px, 136px) minmax(0, 1fr);
+  gap:16px;
   align-items:start;
-  padding:14px 0;
+  padding:12px 0;
   border-bottom:1px solid hsl(var(--sh-border));
 }
 
@@ -7182,11 +7183,11 @@ body.standalone-admin-page #recordModal .detail-row:last-child {
 body.standalone-admin-page #recordModal .detail-label {
   padding-top:2px;
   color:hsl(var(--sh-muted-foreground));
-  font-size:11px;
+  font-size:13px;
   line-height:1.35;
-  font-weight:650;
-  letter-spacing:.08em;
-  text-transform:uppercase;
+  font-weight:500;
+  letter-spacing:0;
+  text-transform:none;
 }
 
 body.standalone-admin-page #recordModal .detail-value {
@@ -7233,22 +7234,22 @@ body.standalone-admin-page #recordModal .table-badge.boolean,
 body.standalone-admin-page #recordModal pre#detail,
 [data-theme="dark"] body.standalone-admin-page #recordModal pre#detail {
   max-height:360px;
-  margin:12px 14px 14px;
-  padding:10px 12px;
+  margin:0 14px 14px;
+  padding:12px 14px;
   overflow:auto;
   color:hsl(var(--sh-foreground));
-  background:hsl(var(--sh-muted) / 0.55);
+  background:hsl(var(--sh-muted) / 0.32);
   border:1px solid hsl(var(--sh-border));
   border-radius:8px;
   box-shadow:none;
   font-size:12px;
-  line-height:1.48;
+  line-height:1.55;
   tab-size:2;
 }
 
 [data-theme="dark"] body.standalone-admin-page #recordModal pre#detail {
   color:hsl(var(--sh-foreground));
-  background:hsl(var(--sh-muted) / 0.48);
+  background:hsl(var(--sh-muted) / 0.3);
 }
 
 @media (max-width:980px) {
@@ -7445,8 +7446,7 @@ body.standalone-admin-page .field-help {
 
 body.standalone-admin-page .section-title,
 body.standalone-admin-page #createModal .section-title,
-body.standalone-admin-page #editModal .section-title,
-body.standalone-admin-page #recordModal .section-title {
+body.standalone-admin-page #editModal .section-title {
   font-size:var(--admin-font-xl);
   line-height:var(--admin-line-tight);
   font-weight:650;
@@ -7523,8 +7523,7 @@ body.standalone-admin-page .table-cell-value {
 }
 
 body.standalone-admin-page .empty-state-title,
-body.standalone-admin-page .form-section-title,
-body.standalone-admin-page #recordModal .detail-card-header strong {
+body.standalone-admin-page .form-section-title {
   font-size:var(--admin-font-lg);
   line-height:var(--admin-line-tight);
   font-weight:650;
@@ -7540,7 +7539,6 @@ body.standalone-admin-page #recordModal .detail-value-text {
 }
 
 body.standalone-admin-page .detail-label,
-body.standalone-admin-page #recordModal .detail-label,
 body.standalone-admin-page .eyebrow,
 body.standalone-admin-page .eyebrow.subtle {
   font-size:var(--admin-font-xs);
